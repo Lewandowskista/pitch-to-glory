@@ -1,19 +1,25 @@
-import type { FoundationState, WorldState, SlotId } from '../model/domain';
+import type { FoundationState, GalleryState, Settings, WorldState, SlotId } from '../model/domain';
 import { SaveError, type AppSave } from './schema';
 import { createChunkReceiver, sendChunked } from '../workers/transport';
 import type { MatchSession } from '../engine/match/types';
+import type { SaveWriteReceipt, SlotListing } from './localRepository';
+export type { SaveWriteReceipt } from './localRepository';
 
 export type PersistenceOperation =
   | { operation: 'read'; slot: SlotId }
   | { operation: 'list' }
   | { operation: 'write'; value: AppSave; expectedRevision: number | null }
   | {
-      operation: 'match-checkpoint';
-      slot: SlotId;
-      worldId: string;
-      matchSession: MatchSession | null;
+      operation: 'write-without-world';
+      value: {
+        slot: SlotId;
+        worldId: string;
+        updatedAt: string;
+        gallery: GalleryState;
+        settings: Settings;
+        matchSession: MatchSession | null;
+      };
       expectedRevision: number;
-      updatedAt: string;
     }
   | {
       operation: 'create';
@@ -25,7 +31,13 @@ export type PersistenceOperation =
   | { operation: 'import'; json: string; slot: SlotId; expectedRevision: number | null }
   | { operation: 'validate'; json: string }
   | { operation: 'export'; slot: SlotId }
-  | { operation: 'remove'; slot: SlotId; expectedRevision: number };
+  | {
+      operation: 'serialize';
+      slot: SlotId;
+      name: string;
+      payload: FoundationState | WorldState;
+    }
+  | { operation: 'remove'; slot: SlotId; expectedRevision: number | null };
 export type PersistenceRequest = PersistenceOperation & {
   requestId: string;
   database: string;
@@ -36,16 +48,9 @@ export type PersistenceResponse =
       requestId: string;
       ok: true;
       value:
-        | AppSave
-        | SaveWriteReceipt
-        | (AppSave | undefined)[]
-        | { name: string; json: string }
-        | undefined;
+        AppSave | SaveWriteReceipt | SlotListing[] | { name: string; json: string } | undefined;
     }
   | { requestId: string; ok: false; code: SaveError['code'] | 'storage' };
-export type SaveWriteReceipt = Omit<AppSave, 'payload'> & {
-  payload: FoundationState | Omit<WorldState, 'world'>;
-};
 
 let worker: Worker | null = null;
 let sequence = 0;
@@ -114,8 +119,4 @@ export function persistenceRequest<T>(
         }
       });
   });
-}
-
-export function validateJSON(json: string): Promise<void> {
-  return persistenceRequest('pitch-to-glory', undefined, { operation: 'validate', json });
 }

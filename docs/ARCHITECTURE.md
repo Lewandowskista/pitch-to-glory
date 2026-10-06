@@ -1,6 +1,6 @@
 ﻿# Pitch to Glory architecture
 
-Milestones 1–3, 6 October 2026. The root AGENTS.md is the product authority. Assets, saves, world simulation and interactive friendly matches are implemented; later career systems remain typed contracts.
+Milestones 1–3 plus the post-milestone-3 hardening pass, 6 October 2026. The root AGENTS.md is the product authority. Assets, saves, world simulation and interactive friendly matches are implemented; later career systems remain typed contracts.
 
 ## Boundaries and folders
 
@@ -8,7 +8,7 @@ Milestones 1–3, 6 October 2026. The root AGENTS.md is the product authority. A
 src/
   engine/             Pure TypeScript RNG, asset recipes and world simulation
     assets/           Crest, kit and avatar recipes and geometry
-    world/            Generation, schedules, background scores and season lifecycle
+    world/            Generation, schedules, background scores, squad lifecycle and seasons
     match/            Deterministic command engine, session types and replay validation
     config.ts         Tunable constants; no browser dependencies
   model/              Serializable domain contracts below
@@ -20,7 +20,7 @@ src/
   screens/            Lazy routes: menu, gallery, world, match, saves, settings
     world/            Competition views and club/squad inspector
     match/            Selection, preview, live controls, Pixi pitch and report maps
-  styles/             Design tokens, self-hosted fonts and Tailwind integration
+  styles/             Design tokens (Tailwind @theme), per-area component CSS partials, fonts
   i18n/               English strings and translation entry point
   assets/             Authored SVG brand and PWA icons
   workers/            Simulation and persistence workers, bounded message transport
@@ -378,6 +378,20 @@ export interface Player {
   injuryId: Id | null;
   retired: boolean;
   stats: PlayerStats;
+  releasedSeason?: number;
+}
+export interface ArchivedPlayer {
+  id: Id;
+  name: string;
+  birthSeason: number;
+  nationalityId: Id;
+  primaryPosition: Position;
+  avatar: Avatar;
+  retiredSeason: number;
+  stats: Omit<PlayerStats, 'trophies' | 'ratingTotal'>;
+}
+export interface WorldArchive {
+  players: Record<Id, ArchivedPlayer>;
 }
 export interface CareerPlayer extends Player {
   level: number;
@@ -788,7 +802,9 @@ export interface GameEvent {
     | 'rivalry'
     | 'retirement'
     | 'youth-intake'
-    | 'manager-change';
+    | 'manager-change'
+    | 'release'
+    | 'signing';
   entityIds: Id[];
   params: Record<string, string | number>;
 }
@@ -833,6 +849,7 @@ export interface World {
   phase: 'active' | 'complete';
   results: Record<Id, BackgroundResult>;
   history: SeasonSummary[];
+  archive?: WorldArchive;
 }
 export interface BackgroundResult {
   fixtureId: Id;
@@ -893,7 +910,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState | CareerState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 5;
+  schemaVersion: 6;
   engineVersion: string;
   slot: SlotId;
   name: string;
@@ -932,7 +949,9 @@ The engine receives explicit data and an explicit RNG. `mulberry32` hashes text 
 
 Zustand uses settings, gallery, world/job and session slices. Components select small slices. Ordinary edits debounce autosave; worker checkpoints flush it immediately. A world snapshot includes its current gallery/preferences; a foundation collection excludes world data. Writes are serialized and atomic. Failed writes remain dirty and surface recovery actions instead of reporting success.
 
-The module worker runs the same pure generation/simulation functions as Vitest. RNG state travels inside `World`. A season job posts each weekly checkpoint and waits for acknowledgement after the store commit and autosave finish. Save failure halts further simulation and retains the dirty checkpoint. Cancellation terminates the worker, waits for startup/checkpoint storage to settle and retains the last committed week. Generation replaces the in-memory world through a guarded handoff, detaching its previous slot without overwriting it. Busy jobs block save-slot mutation. UI animation timing never controls randomness. An unfinished friendly prevents advancing or replacing its source world.
+The module worker runs the same pure generation/simulation functions as Vitest. RNG state travels inside `World`. `simulateWeek` and `startNextSeason` return a copy by default; the worker passes `{ inPlace: true }` because it owns its world and each checkpoint is fully posted before the next week mutates it.
+
+The squad lifecycle (`engine/world/lifecycle.ts`) runs at the intake week and transfer windows for clubs in simulated leagues: age-curve retirement, contract renewal or release, academy intake, trimming, and free-agent signings with generated trialists as a last resort. Clubs below the simulated frontier are dormant and reused for later feeder admissions. At rollover, retired players move to `World.archive`, events older than the previous season are dropped and unemployed managers are removed, which keeps the world bounded (see BALANCING.md). A season job posts each weekly checkpoint and waits for acknowledgement after the store commit and autosave finish. Save failure halts further simulation and retains the dirty checkpoint. Cancellation terminates the worker, waits for startup/checkpoint storage to settle and retains the last committed week. Generation replaces the in-memory world through a guarded handoff, detaching its previous slot without overwriting it. Busy jobs block save-slot mutation. UI animation timing never controls randomness. An unfinished friendly prevents advancing or replacing its source world.
 
 Worker transport breaks large graphs into bounded entity batches and yields while sending. Receivers assemble an unpublished snapshot and expose it only after the end marker; cancellation cannot publish a partial world. Simulation completion sends a small phase notification after the final durable checkpoint rather than echoing the whole graph again.
 
@@ -955,7 +974,9 @@ type WorkerResponse =
 
 ## Persistence and tab ownership
 
-Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids. File v1 → v2 adds settings/gallery/engine version/revision; v2 → v3 preserves those values and adds the world payload capability; v3 → v4 preserves each existing world and its rules without regeneration. Import checks the 128 MiB limit, format/version/timestamps/slot/settings and every implemented world entity. World validation checks bounded values, rosters, foreign keys, fixture pair/calendar coverage, tables reconstructed from results, cup progression and archive structure before a transaction. Malformed/future files never replace valid saves. Web Locks are preferred; transactional heartbeat leases provide a fallback. Revision checks prevent stale writes even after ownership loss. Cancelled generation reacquires a retained session's slot after cleanup, or reports a lock/storage error. Switching slots and unload release ownership; crashed fallback leases expire.
+Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; earlier files migrate unchanged.
+
+Reads assemble and fully validate one slot. A world that fails validation rejects the save; an attached match session that is from another match-engine version, fails replay or no longer matches the world is discarded with a `match-discarded` recovery notice while the world is kept. Writes stay strict. National profiles are compared by rule fingerprint for their profile version, so corrected citations or descriptions never invalidate saves. The slot list reads metadata only and reports `ready`, `empty` or `error` per slot. Writes that leave the world graph unchanged (match checkpoints, preferences) update metadata and the session without transferring, validating or storing the world. Backups are compact JSON. File v1 → v2 adds settings/gallery/engine version/revision; v2 → v3 preserves those values and adds the world payload capability; v3 → v4 preserves each existing world and its rules without regeneration. Import checks the 128 MiB limit, format/version/timestamps/slot/settings and every implemented world entity. World validation checks bounded values, rosters, foreign keys, fixture pair/calendar coverage, tables reconstructed from results, cup progression and archive structure before a transaction. Malformed/future files never replace valid saves. Web Locks are preferred; transactional heartbeat leases provide a fallback. Revision checks prevent stale writes even after ownership loss. Cancelled generation reacquires a retained session's slot after cleanup, or reports a lock/storage error. Switching slots and unload release ownership; crashed fallback leases expire.
 
 Only three slot IDs are accepted at every repository boundary. Export uses JSON downloads. Import uses a labelled native file input. Delete and replacement use URL-backed confirmation dialogs so back/Esc cancels. Browser storage persistence is requested only from a user action explaining that it reduces eviction; export remains available because persistence is not a backup.
 
@@ -969,6 +990,7 @@ interface PlatformAdapter {
   shareFile(name: string, content: string, mime: string): Promise<void>;
   readFile(file: File): Promise<string>;
   requestPersistentStorage(): Promise<boolean>;
+  isStoragePersistent(): Promise<boolean>;
   haptic(kind: 'selection' | 'success'): Promise<void>;
   onBack(handler: () => void): () => void;
   wakeLock(): Promise<() => Promise<void>>;
@@ -982,7 +1004,7 @@ The web adapter owns download/share fallback, file size limits, storage persiste
 
 Real URLs: `/`, `/gallery`, `/world`, `/match`, `/saves`, `/settings`. World query parameters retain country, tier, club, player and competition view. A `save` parameter reacquires/restores a world slot and its optional match on refresh; unsaved worlds prompt before unload. Desktop uses a sidebar and side-by-side competition/club inspector or pitch/commentary/stats; narrow layouts retain all data with an optional horizontally scrolling full table. Controls have labels, visible focus, keyboard operation and 44px targets. Settings follow system theme/motion and support 85–130% scaling; loaded saves restore preferences.
 
-English UI strings live in `src/i18n/en.ts`, `match.ts` and `pitch.ts`; generated names and recipe identifiers are data. CSS tokens define theme colors, spacing, radii, fonts and shadows. Fonts are bundled locally from licensed font packages. Route and reward transitions honour reduced motion.
+English UI strings live in `src/i18n/en.ts`, `match.ts` and `pitch.ts`; generated names and recipe identifiers are data. CSS tokens define theme colors, spacing, radii, fonts and shadows, and are exposed to Tailwind utilities through `@theme inline`. New UI uses utilities; screens built before milestone 4 keep their component CSS partials until reworked. Fonts are bundled locally from licensed font packages. Route and reward transitions honour reduced motion.
 
 Vite PWA precaches route chunks, both workers, SVG icons and fonts after one connected visit. Updates flush autosave before activation. Netlify preserves deep-link refresh. CI runs types, lint, Vitest, build and Chromium/Firefox/WebKit tests; deployment requires configured secrets. Nothing has been deployed by these milestones.
 
@@ -1066,4 +1088,4 @@ The match slice stores an immutable session. Browser intervals dispatch compact 
 
 The lazy Pitch route imports PixiJS only when rendered. A ticker interpolates reusable player/ball vector objects towards engine frame coordinates. ResizeObserver adjusts canvas and stage scale; cleanup handles asynchronous initialization, unmount and context loss. SVG fallback uses the same kit selection and token conventions. Simulation-only presentation renders commentary and decisions without constructing the pitch. Reports use SVG to visualize actual recorded positions, passes and shots.
 
-File/database schema v5 adds optional WorldState.matchSession; v4→v5 preserves prior payloads. Match state is validated by finite bounded setup checks, legal commands and exact deterministic replay; its team/player snapshots must match the saved world. For minute checkpoints the browser sends only match data and expected revision. The persistent worker reads the retained world, validates and writes atomically under the same lease/revision rules, and returns a small receipt. World transfers still use bounded batches. Full-time explicitly flushes autosave before displaying the saved indicator.
+File schema v5 added optional WorldState.matchSession; v6 versions it by match engine. Match state is validated by finite bounded setup checks, legal commands and exact deterministic replay; its team/player snapshots must match the saved world. For minute checkpoints the browser sends the session, preferences, world id and expected revision. The persistence worker validates the session by replay, checks ownership, revision and world id against the slot metadata, and writes only the metadata and `matches` records atomically. The world graph is neither transferred nor rewritten. World transfers still use bounded batches. Full-time explicitly flushes autosave before displaying the saved indicator.

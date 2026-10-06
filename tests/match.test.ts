@@ -57,10 +57,18 @@ describe('deterministic personal match', () => {
   it('gives keepers defensive decisions and produces transparent outcomes', async () => {
     const { api, value } = await setup('GK');
     const final = finish(
-      api.createMatchSession(value, { role: 'sweeper', risk: 'balanced', mentality: 'balanced' }),
+      api.createMatchSession(value, {
+        role: 'sweeper-keeper',
+        risk: 'balanced',
+        mentality: 'balanced',
+      }),
       api,
     );
-    expect(final.state.match.keyMoments[0]!.choices[0]!.id).toBe('hold');
+    for (const moment of final.state.match.keyMoments)
+      expect(['shot-incoming', 'one-on-one', 'cross-ball', 'distribution']).toContain(
+        moment.situationId,
+      );
+    expect(final.state.match.events.some((e) => e.kind === 'save')).toBe(true);
     for (const event of final.state.match.events.filter((e) => e.outcome)) {
       expect(event.outcome!.factors.map((f) => f.source)).toEqual(
         expect.arrayContaining(['attribute', 'trait', 'defender', 'fatigue']),

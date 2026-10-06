@@ -6,7 +6,7 @@ All tuning constants live in `src/engine/config.ts`; visual catalogues live besi
 - Scoped streams: `seed + '::' + scope`, independently hashed. Asset streams do not consume simulation randomness.
 - Gallery: 15 clubs, eight players, visual ages 17/28/42. Every collection covers every crest silhouette and all eight home kit patterns. Symbol selection starts at a seeded offset within the 33-symbol catalogue.
 - Visual ageing factor: `clamp((age - 28) / 20, 0, 1)`. Hairline lifts by factor × 9 SVG units. Silver temple strokes fade in with the factor. Wrinkles begin at age 32; opacity factor × 0.45. Beard opacity is `clamp((age - 16) / 7, 0.12, 1)`; jaw shadow grows from 0.03 before age 20 to 0.08 in adulthood. This does not implement career attribute ageing.
-- Autosave debounce: 450 ms; explicit week/match methods flush immediately. Backup limit: 128 MiB (file schema v4). Three slots. Lease expiry: 30 seconds, heartbeat: 5 seconds. Revision increments once per committed save.
+- Autosave debounce: 450 ms; explicit week/match methods flush immediately. Backup limit: 128 MiB of compact JSON (file schema v6). Three slots. Lease expiry: 30 seconds, heartbeat: 5 seconds. Revision increments once per committed save.
 - Accessibility: font scale 0.85–1.30, UI steps of 0.05. User or system reduced motion suppresses movement.
 
 Background scores and AI development are described below. Interactive match distributions and career balancing belong to their designated milestones. The 10,000-match statistical test is required in Milestone 3.
@@ -53,15 +53,44 @@ For each active player's attribute below potential, weekly improvement probabili
 
 Weeks 8, 18 and 31 exchange one pair of players per country between distinct clubs, matching the same outfield primary position. This produces twelve transfer events per window, preserves roster size/position coverage, and keeps goalkeeper counts safe. The zero-fee exchanges are background AI transactions; multi-step offers, fees and user negotiation are milestone 5. Contracts move with their players and reset to two-year terms. Dressing-room leaders and clique references refresh immediately after roster changes.
 
-At weeks 12 and 24, each league's last-place manager is eligible for dismissal if the club has at most 0.9 points per game, with 80% probability. Previous managers remain in the world archive. At week 31, players aged 38+ retire with 65% probability; those aged 43+ always retire. Each club adds at least two academy players aged 16–18. If too few retire, the oldest additional outfield veterans leave as free agents. If more retire, every vacant position receives a replacement, including goalkeeper vacancies. Departing players remain in the world, lose their club and contract references, and are removed from rosters; only genuine retirees have `retired=true`. Historical goal and event references continue to resolve. Event IDs and name parameters are deterministic and preserve the display names at the event date.
+At weeks 12 and 24, each league's last-place manager (by the displayed ranking) is eligible for dismissal if the club has at most 0.9 points per game, with 80% probability; a table with no games played is skipped. Background exchanges at weeks 8, 18 and 31 pair two clubs at most one tier apart that share an outfield position. Squad turnover is described in the lifecycle section below. Event IDs and name parameters are deterministic and preserve the display names at the event date.
+
+### Squad lifecycle (hardening pass)
+
+All constants are in `CONFIG.world.lifecycle`; the logic is `src/engine/world/lifecycle.ts`. Only clubs in simulated leagues are processed. Clubs below the frontier are dormant: no development, finances or review.
+
+- **Retirement** (intake week, week 31): probability by age is 0.06 at 33, 0.12 at 34, 0.24 at 35, 0.40 at 36, 0.55 at 37 and 0.70 from 38; age 41 or older always retires.
+- **Contracts**: a contract whose end season is the current season (or earlier) is renewed when the player ranks inside the club's top 17 by squad value or is 21 or younger, and is at most 34. Otherwise the player is released. Squad value is `ability + (age < 23 ? 0.5 × max(0, potential − ability) : 0) − (age > 30 ? 2 × (age − 30) : 0)`. Renewals and signings run 2–4 seasons under 23, 1–2 from 30 and 1–3 otherwise. Wage is `max(50, round(ability² × (0.12 + reputation/1000)))`, with the usual bonus and clause multipliers.
+- **Academy**: two players aged 16–18 per club, placed where the squad is furthest below the generated 22-player template (no third keeper by default).
+- **Trimming**: above 26 players, the lowest-value surplus is released while keeping minimums of 2 GK, 7 DEF, 5 MID and 5 ATT.
+- **Signings** (intake week and weeks 8/18): clubs sorted by reputation sign the best free agent of the needed group whose ability is at most the club's top-eleven mean plus 4, until they reach 23 players and every minimum. If no free agent fits a minimum, a trialist aged 19–27 is generated.
+- **Free agents** leave professional football after one unsigned season at 30+, or two unsigned seasons at any age. Before that, they keep developing.
+- **Readmission**: a dormant club returning to a league retires players aged 37+ (each replaced by a generated player of the same position) and renews expired contracts. Feeder admissions reuse the highest-reputation unclaimed dormant club in the same region before creating a new club.
+- **Rollover**: retired players become `ArchivedPlayer` records, events before the previous season are dropped, and managers not employed by any club are removed.
+
+Measured with seed `long-run` over ten national seasons in Node (compact JSON size of the world):
+
+| Point     | Clubs (non-league) | Players (free agents) | Archived | World JSON |
+| --------- | ------------------ | --------------------- | -------- | ---------- |
+| Generated | 959 (0)            | 21,098 (0)            | 0        | 37.5 MiB   |
+| End S1    | 1,066 (107)        | 25,391 (0)            | 0        | 50.8 MiB   |
+| End S5    | 1,089 (129)        | 28,669 (1,528)        | 5,260    | 60.7 MiB   |
+| End S10   | 1,097 (138)        | 30,471 (2,233)        | 13,482   | 67.2 MiB   |
+| Start S11 | 1,097 (137)        | 28,867 (2,233)        | 15,131   | 58.9 MiB   |
+
+Before this pass the same measurement grew ~15 MiB per season and a season-3 backup (134.4 MB pretty-printed) exceeded the 128 MiB import limit. Growth is now about 1.3 MiB per season, mostly the compact retiree archive. Mean squad age moves from 26.9 at generation to about 25 and then holds; squads hold 23–26 players.
+
+**Known balance issue, deferred to milestone 4:** mean ability still rises over time (top tier 66 → 72, sixth tier 19 → 27 after ten seasons, rising more slowly each season). Generated adults start below their potential and develop toward it, and the 60-week national calendar applies development 60 times a season against the 34-week calibration. Milestone 4 owns the ageing curve and attribute development and should recalibrate both, including generation, so that tiers stay stable.
 
 ### Persistence and worker boundaries
 
-`simulateWeek` copies its input and returns a new JSON-serializable world. Resuming after a JSON save preserves the RNG state, results, events and subsequent seasons exactly. Generation, week advancement and full-season loops run in the module worker; the season loop emits progress and autosave checkpoints between each week (34 for legacy; 60 for national-v1), awaiting acknowledgement before continuing. The engine imports no browser or React modules.
+`simulateWeek` copies its input and returns a new JSON-serializable world. Resuming after a JSON save preserves the RNG state, results, events and subsequent seasons exactly. Generation, week advancement and full-season loops run in the module worker, which simulates in place (`{ inPlace: true }`) because it owns its world; the season loop emits progress and autosave checkpoints between each week (34 for legacy; 60 for national-v1), awaiting acknowledgement before continuing. The engine imports no browser or React modules.
 
 Completed seasons archive all final tables, champions, cup winners and planned league movements. Starting another season retains people, club finances, active contracts, events and season summaries, and replaces current fixtures/results/cup stages; old detailed results are intentionally omitted from the next season's active fixture maps. Released free agents continue attribute development/decline and remain subject to the same yearly retirement check. A historical compact-world Node measurement generated the initial 7,630,528-byte JSON world in about 34 ms and advanced 34 weeks in about 1.95 seconds; the completed world was approximately 9.16 MB. These timings exclude worker message cloning and IndexedDB checkpoints and vary with hardware.
 
 ## National-v1 structure and calendar
+
+Simulating a national week in Node took about 500 ms before the hardening pass, about two thirds of it the whole-world deep copy. With in-place simulation and dormant squads skipped, it takes 72–97 ms across ten seasons, plus 0.6–0.8 s to validate a completed world.
 
 `CONFIG.world.nationalWeeksPerSeason` is 60 abstract game weeks. Calendar consumers use `getSeasonWeeks(world)`; legacy worlds keep 34. Initial national generation contains 959 clubs × 22 players = 21,098 players across 52 league groups. English tiers five/six supply the semi-professional route; other countries include every regional group through tier four. Full group sizes, per-club match counts and movement rules are in [REALISM.md](REALISM.md).
 

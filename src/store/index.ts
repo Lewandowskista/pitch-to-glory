@@ -1,6 +1,11 @@
 import { create, type StateCreator } from 'zustand';
 import type { GalleryState, Settings, World } from '../model/domain';
-import { DEFAULT_SETTINGS, validateSettings, type AppSave } from '../persistence/schema';
+import {
+  DEFAULT_SETTINGS,
+  validateSettings,
+  type AppSave,
+  type SaveRecovery,
+} from '../persistence/schema';
 import { platform } from '../platform';
 import type { MatchSession } from '../engine/match/types';
 
@@ -20,6 +25,9 @@ interface SessionSlice {
   savedChange: number;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   saveError: string | null;
+  /** Explains a repair made while loading, such as a discarded outdated match. */
+  saveNotice: SaveRecovery | null;
+  dismissSaveNotice: () => void;
   applySave: (save: AppSave) => void;
   saved: (save: AppSave, change: number) => void;
   setSaveStatus: (status: SessionSlice['saveStatus'], error?: string) => void;
@@ -86,9 +94,12 @@ const sessionSlice: StateCreator<AppStore, [], [], SessionSlice> = (set) => ({
   savedChange: 0,
   saveStatus: 'idle',
   saveError: null,
-  applySave: (save) =>
+  saveNotice: null,
+  dismissSaveNotice: () => set({ saveNotice: null }),
+  applySave: ({ recovery, ...save }) =>
     set((state) => ({
       activeSave: save,
+      saveNotice: recovery ?? null,
       world: save.payload.kind === 'world' ? save.payload.world : null,
       matchSession: save.payload.kind === 'world' ? (save.payload.matchSession ?? null) : null,
       gallery: save.payload.gallery,

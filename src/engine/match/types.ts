@@ -7,7 +7,12 @@ import type {
   ReplayFrame,
   Tactics,
 } from '../../model/domain';
+import type { RatingFamily } from './situations';
 export type { Tactics } from '../../model/domain';
+
+/** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
+export const MATCH_ENGINE_VERSION = 'match-4';
+
 export interface MatchSetup {
   version: 1;
   seed: string;
@@ -35,9 +40,11 @@ export interface LiveStats {
   saves: number;
   goals: number;
   assists: number;
+  errors: number;
   rating: number;
   fatigue: number;
 }
+export type RatingPart = RatingFamily | 'goals' | 'assists' | 'saves' | 'errors';
 export interface MatchState {
   match: Match;
   currentMoment: KeyMoment | null;
@@ -47,8 +54,17 @@ export interface MatchState {
   substitutionDecisionPending: boolean;
   captain: boolean;
   captainDecisionPending: boolean;
+  /** Team strengths from the shared strength model, using the selected lineups. */
+  strength: [number, number];
+  /** Mean ability of both starting elevens: the reference for attribute multipliers. */
+  matchLevel: number;
+  /** Strength-model expectations after personal tactics, rounded to six decimals. */
   expectedGoals: [number, number];
+  /** Fractions of own attack and opposition attack replaced by personal key moments. */
+  shares: { attack: number; defence: number };
   stats: LiveStats;
+  /** Rating contributions above the base, by decision family and outcome bonus. */
+  ratingParts: Record<RatingPart, number>;
   report: MatchReport | null;
   momentMinutes: number[];
   managerTrustDelta: number;
@@ -58,6 +74,8 @@ export interface MatchState {
 }
 export interface MatchSession {
   version: 1;
+  /** Engine that produced this session; must equal MATCH_ENGINE_VERSION to replay. */
+  engine: string;
   setup: MatchSetup;
   initialTactics: Tactics;
   commands: MatchCommand[];

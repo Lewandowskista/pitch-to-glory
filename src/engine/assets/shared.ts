@@ -23,3 +23,33 @@ export function colors(colors: readonly Hex[]): void {
 export function svg(body: string, viewBox: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" fill="none">${body}</svg>`;
 }
+
+function luminance(color: Hex): number {
+  const [r, g, b] = [1, 3, 5].map((index) => {
+    const channel = parseInt(color.slice(index, index + 2), 16) / 255;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+}
+/** WCAG contrast ratio between two colours. */
+export function contrastRatio(a: Hex, b: Hex): number {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light! + 0.05) / (dark! + 0.05);
+}
+/** Move a colour towards black or white, keeping its hue, until it stands out on a background. */
+export function withContrast(color: Hex, background: Hex, minimum = 3): Hex {
+  if (contrastRatio(color, background) >= minimum) return color;
+  const target = luminance(background) > 0.18 ? 0 : 255;
+  const channels = [1, 3, 5].map((index) => parseInt(color.slice(index, index + 2), 16));
+  for (let step = 1; step <= 10; step++) {
+    const mixed = `#${channels
+      .map((channel) =>
+        Math.round(channel + ((target - channel) * step) / 10)
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('')}` as Hex;
+    if (contrastRatio(mixed, background) >= minimum) return mixed;
+  }
+  return target ? '#ffffff' : '#000000';
+}

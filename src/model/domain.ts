@@ -338,6 +338,22 @@ export interface Player {
   injuryId: Id | null;
   retired: boolean;
   stats: PlayerStats;
+  /** Season in which an unattached player was released; absent while under contract. */
+  releasedSeason?: number;
+}
+/** Compact record of a retired player, kept for history after their full entity is pruned. */
+export interface ArchivedPlayer {
+  id: Id;
+  name: string;
+  birthSeason: number;
+  nationalityId: Id;
+  primaryPosition: Position;
+  avatar: Avatar;
+  retiredSeason: number;
+  stats: Omit<PlayerStats, 'trophies' | 'ratingTotal'>;
+}
+export interface WorldArchive {
+  players: Record<Id, ArchivedPlayer>;
 }
 export interface CareerPlayer extends Player {
   level: number;
@@ -674,12 +690,27 @@ export interface DecisionChoice {
   probability: number;
   factors: ProbabilityFactor[];
   requiredTraitId: Id | null;
+  /** Trait that improves this choice (exact id), whether or not the player owns it. */
+  traitId: Id | null;
+  /** Governing attribute names, strongest first. */
+  attributes: string[];
+  /** Conditional goal probabilities after success/failure, for the selected team (goal) and
+   * the opposition (concede). A direct shot has `successGoal = 1`; a direct save `failureConcede = 1`. */
+  stakes: {
+    successGoal: number;
+    successConcede: number;
+    failureGoal: number;
+    failureConcede: number;
+  };
 }
 export interface KeyMoment {
   id: Id;
   minute: number;
+  situationId: Id;
   situationKey: string;
   frame: ReplayFrame;
+  /** Expected goals this moment replaces for the selected team and against it. */
+  budget: { for: number; against: number };
   choices: DecisionChoice[];
 }
 export interface DecisionInput {
@@ -696,12 +727,15 @@ export interface DecisionOutcome {
 export interface MatchEvent {
   id: Id;
   minute: number;
-  kind: 'goal' | 'pass' | 'shot' | 'tackle' | 'card' | 'substitution' | 'halftime';
+  kind:
+    'goal' | 'pass' | 'shot' | 'save' | 'dribble' | 'tackle' | 'card' | 'substitution' | 'halftime';
   playerId: Id | null;
   teamId: Id;
   point: Point;
   endPoint?: Point;
   commentaryKey: string;
+  /** Names and values substituted into the commentary template. */
+  commentaryParams?: Record<string, string>;
   outcome: DecisionOutcome | null;
 }
 export interface MatchReport {
@@ -748,7 +782,9 @@ export interface GameEvent {
     | 'rivalry'
     | 'retirement'
     | 'youth-intake'
-    | 'manager-change';
+    | 'manager-change'
+    | 'release'
+    | 'signing';
   entityIds: Id[];
   params: Record<string, string | number>;
 }
@@ -793,6 +829,8 @@ export interface World {
   phase: 'active' | 'complete';
   results: Record<Id, BackgroundResult>;
   history: SeasonSummary[];
+  /** Retired people pruned from the live graph. Absent in worlds saved before schema 6. */
+  archive?: WorldArchive;
 }
 export interface BackgroundResult {
   fixtureId: Id;
@@ -853,7 +891,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState | CareerState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 5;
+  schemaVersion: 6;
   engineVersion: string;
   slot: SlotId;
   name: string;

@@ -1,4 +1,12 @@
-import type { FoundationState, WorldState, SaveFile, Settings, SlotId } from '../model/domain';
+import type {
+  FoundationState,
+  WorldState,
+  SaveFile,
+  Settings,
+  SlotId,
+  World,
+} from '../model/domain';
+import type { MatchSession } from '../engine/match/types';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
 import { validateWorld } from './worldSchema';
 import { validateMatchSession } from '../engine/match';
@@ -11,7 +19,12 @@ export const DEFAULT_SETTINGS: Settings = {
   simulationOnly: false,
 };
 export type FoundationSave = Omit<SaveFile, 'payload'> & { payload: FoundationState };
-export type AppSave = Omit<SaveFile, 'payload'> & { payload: FoundationState | WorldState };
+export type AppSave = Omit<SaveFile, 'payload'> & {
+  payload: FoundationState | WorldState;
+  /** Set when loading had to discard a stale or invalid match session; never persisted. */
+  recovery?: SaveRecovery;
+};
+export type SaveRecovery = 'match-discarded';
 export class SaveError extends Error {
   constructor(
     public readonly code: 'invalid' | 'future' | 'conflict' | 'locked' | 'large' | 'busy',
@@ -89,6 +102,8 @@ const migrations: Readonly<Record<number, Migration>> = {
   // Keep the old world untouched. Its absent format discriminator selects legacy rules.
   3: (old) => ({ ...old, schemaVersion: 4 }),
   4: (old) => ({ ...old, schemaVersion: 5 }),
+  // v6 adds optional lifecycle fields (archived people, release seasons) and versioned match sessions.
+  5: (old) => ({ ...old, schemaVersion: 6 }),
 };
 export function migrateSave(value: unknown): AppSave {
   let save = object(value);
@@ -106,45 +121,63 @@ export function migrateSave(value: unknown): AppSave {
   const createdAt = date(save.createdAt);
   const updatedAt = date(save.updatedAt);
   if (Date.parse(updatedAt) < Date.parse(createdAt)) invalid();
+  const { payload, recovery } = validatePayload(save.payload);
   return {
     format: 'pitch-to-glory',
-    schemaVersion: 5,
+    schemaVersion: CONFIG.saves.schemaVersion,
     engineVersion: text(save.engineVersion, 80),
     slot: save.slot as SlotId,
     name: text(save.name, 60),
     createdAt,
     updatedAt,
     revision: integer(save.revision),
-    payload: validatePayload(save.payload),
+    payload,
+    ...(recovery ? { recovery } : {}),
   };
 }
-function validatePayload(value: unknown): FoundationState | WorldState {
+function validatePayload(value: unknown): {
+  payload: FoundationState | WorldState;
+  recovery?: SaveRecovery;
+} {
   const payload = object(value);
-  if (payload.kind === 'foundation') return validateFoundation(payload);
+  if (payload.kind === 'foundation') return { payload: validateFoundation(payload) };
   if (payload.kind !== 'world') invalid();
   const foundation = validateFoundation({ ...payload, kind: 'foundation' });
+  let world;
   try {
-    const world = validateWorld(payload.world);
-    const matchSession =
-      payload.matchSession === undefined ? undefined : validateMatchSession(payload.matchSession);
-    if (matchSession) {
-      const setup = matchSession.setup;
-      if (
-        setup.season !== world.date.season ||
-        !world.clubs[setup.home.id] ||
-        !world.clubs[setup.away.id]
-      )
-        invalid();
-      // Friendly snapshots must originate from this exact world, never imported fabricated squads.
-      for (const club of [setup.home, setup.away]) {
-        if (JSON.stringify(club) !== JSON.stringify(world.clubs[club.id])) invalid();
-        for (const id of club.playerIds)
-          if (JSON.stringify(setup.players[id]) !== JSON.stringify(world.players[id])) invalid();
-      }
-    }
-    return { ...foundation, kind: 'world', world, ...(matchSession ? { matchSession } : {}) };
+    world = validateWorld(payload.world);
   } catch {
     return invalid();
+  }
+  if (payload.matchSession === undefined)
+    return { payload: { ...foundation, kind: 'world', world } };
+  // A match session is optional, replaceable state. If it was made by another engine
+  // version, or no longer replays against this world, drop it and keep the world.
+  const matchSession = matchSessionFor(world, payload.matchSession);
+  return matchSession
+    ? { payload: { ...foundation, kind: 'world', world, matchSession } }
+    : { payload: { ...foundation, kind: 'world', world }, recovery: 'match-discarded' };
+}
+/** Returns the validated session, or null when it cannot belong to this world under this engine. */
+export function matchSessionFor(world: World, value: unknown): MatchSession | null {
+  try {
+    const session = validateMatchSession(value);
+    const setup = session.setup;
+    if (
+      setup.season !== world.date.season ||
+      !world.clubs[setup.home.id] ||
+      !world.clubs[setup.away.id]
+    )
+      return null;
+    // Friendly snapshots must originate from this exact world, never imported fabricated squads.
+    for (const club of [setup.home, setup.away]) {
+      if (JSON.stringify(club) !== JSON.stringify(world.clubs[club.id])) return null;
+      for (const id of club.playerIds)
+        if (JSON.stringify(setup.players[id]) !== JSON.stringify(world.players[id])) return null;
+    }
+    return session;
+  } catch {
+    return null;
   }
 }
 export function parseSave(json: string): AppSave {
@@ -172,7 +205,7 @@ export function createSave(
   const now = new Date().toISOString();
   return migrateSave({
     format: 'pitch-to-glory',
-    schemaVersion: 5,
+    schemaVersion: CONFIG.saves.schemaVersion,
     engineVersion: ENGINE_VERSION,
     slot,
     name,

@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -16,9 +19,10 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
+      - run: npm run format:check
       - run: npm run lint
       - run: npm test
+      # The build script runs the strict typecheck and the per-route bundle budget.
       - run: npm run build
       - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run test:e2e
@@ -50,4 +54,4 @@ jobs:
           path: dist
       - name: Deploy when hosting is configured
         if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''
-        run: npx --yes netlify-cli deploy --dir=dist --prod --site "$NETLIFY_SITE_ID"
+        run: npx --yes netlify-cli@27.11.2 deploy --dir=dist --prod --site "$NETLIFY_SITE_ID"

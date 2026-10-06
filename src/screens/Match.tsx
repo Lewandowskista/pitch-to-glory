@@ -8,9 +8,9 @@ import {
   createMatchSetup,
   type MatchCommand,
 } from '../engine/match';
-import type { SlotId } from '../model/domain';
+import type { DecisionChoice, MatchEvent, SlotId } from '../model/domain';
 import { loadSlot, errorCode } from '../persistence/session';
-import { errorText } from '../i18n';
+import { errorText, t } from '../i18n';
 import { matchText as m, matchLabel, matchFormat } from '../i18n/match';
 import { Page } from '../ui/Page';
 import { Selection } from './match/Selection';
@@ -20,6 +20,52 @@ import { ClubBadge, Factors } from './match/Shared';
 import '../styles/match.css';
 
 const Pitch = lazy(() => import('./match/Pitch'));
+const percent = (value: number) => (value * 100).toFixed(value < 0.1 ? 1 : 0);
+const attributeName = (name: string) =>
+  t.world.attributes[name as keyof typeof t.world.attributes] ?? name;
+function commentaryText(event: MatchEvent): string {
+  return matchFormat(matchLabel(event.commentaryKey), event.commentaryParams ?? {});
+}
+/** What each outcome leads to, so the player sees the risk as well as the chance. */
+function ChoiceHint({
+  choice,
+  id,
+  traits,
+}: {
+  choice: DecisionChoice;
+  id: string;
+  traits: string[];
+}) {
+  const { stakes } = choice;
+  return (
+    <p className="match-choice-hint" id={id}>
+      <span>
+        {matchFormat(m.uses, {
+          attributes: choice.attributes.slice(0, 2).map(attributeName).join(', '),
+        })}
+      </span>
+      {stakes.successGoal > 0 && (
+        <span>
+          {stakes.successGoal === 1
+            ? m.stakeScore
+            : matchFormat(m.stakeGoal, { percent: percent(stakes.successGoal) })}
+        </span>
+      )}
+      <span>
+        {stakes.failureConcede === 1
+          ? m.stakeConcedeDirect
+          : stakes.failureConcede > 0
+            ? matchFormat(m.stakeConcede, { percent: percent(stakes.failureConcede) })
+            : m.stakeSafe}
+      </span>
+      {choice.traitId && traits.includes(choice.traitId) && (
+        <span className="match-tag">
+          {matchFormat(m.traitActive, { trait: m.traits[choice.traitId] ?? choice.traitId })}
+        </span>
+      )}
+    </p>
+  );
+}
 
 export default function MatchScreen() {
   const world = useAppStore((store) => store.world);
@@ -38,6 +84,27 @@ export default function MatchScreen() {
   const [outcomeId, setOutcomeId] = useState<string | null>(null);
   const state = session?.state;
   const status = state?.match.status;
+  const [announcement, setAnnouncement] = useState('');
+  const announcedScore = useRef('');
+  const momentId = state?.currentMoment?.id;
+  const latestEvent = state?.match.events[state.match.events.length - 1];
+  const latestText = latestEvent ? commentaryText(latestEvent) : '';
+  const scoreText =
+    session && state
+      ? matchFormat(m.announceScore, {
+          home: session.setup.home.name,
+          away: session.setup.away.name,
+          homeScore: state.match.score[0],
+          awayScore: state.match.score[1],
+        })
+      : '';
+  const momentText = state?.currentMoment
+    ? matchFormat(m.announceMoment, {
+        minute: state.currentMoment.minute,
+        situation: matchLabel(state.currentMoment.situationKey),
+        count: state.currentMoment.choices.length,
+      })
+    : '';
 
   useEffect(() => {
     const slot = params.get('save');
@@ -177,6 +244,9 @@ export default function MatchScreen() {
         setOutcomeId(null);
         setPlaying((value) => !value);
       }
+      // Focus jumps to the first choice when a moment opens, so a Space pressed to play or
+      // pause must not pick that choice by accident; Enter and 1–4 choose.
+      if (event.code === 'Space' && current.state.currentMoment) event.preventDefault();
       const choice = current.state.currentMoment?.choices[Number(event.key) - 1];
       if (choice && /^[1-4]$/.test(event.key)) {
         event.preventDefault();
@@ -198,6 +268,30 @@ export default function MatchScreen() {
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
   }, [command]);
+
+  // Polite announcements: score changes, then the key moment or the latest commentary line.
+  useEffect(() => {
+    if (!scoreText) {
+      announcedScore.current = '';
+      return;
+    }
+    const scoreChanged = announcedScore.current !== '' && announcedScore.current !== scoreText;
+    announcedScore.current = scoreText;
+    setAnnouncement(
+      [scoreChanged ? scoreText : '', momentText || latestText].filter(Boolean).join(' '),
+    );
+  }, [scoreText, momentText, latestText, latestEvent?.id]);
+  // A new key moment moves focus to its first choice unless the player is typing elsewhere.
+  useEffect(() => {
+    if (!momentId) return;
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      (active.matches('input:not([type="checkbox"]),select,textarea') || active.isContentEditable)
+    )
+      return;
+    choicesRef.current?.querySelector<HTMLButtonElement>('button[data-choice]')?.focus();
+  }, [momentId]);
 
   const outcome = state?.match.events.find((event) => event.id === outcomeId)?.outcome;
   const canPlay =
@@ -230,6 +324,9 @@ export default function MatchScreen() {
       >
         {status ? matchLabel(`match.status.${status}`) : m.selection}
       </span>
+      <div className="sr-only" aria-live="polite" aria-atomic="true" aria-label={m.liveUpdates}>
+        {announcement}
+      </div>
       {world && !active && (
         <p className="notice">
           {m.saveHint} <Link to="/saves">{m.saveLink}</Link>
@@ -404,6 +501,7 @@ export default function MatchScreen() {
                           <div className="match-choice" key={choice.id}>
                             <button
                               data-choice={choice.id}
+                              aria-describedby={`choice-hint-${choice.id}`}
                               onClick={() => command({ type: 'choose', choiceId: choice.id })}
                             >
                               <span className="match-choice-number">{index + 1}</span>
@@ -414,6 +512,11 @@ export default function MatchScreen() {
                                 })}
                               </span>
                             </button>
+                            <ChoiceHint
+                              choice={choice}
+                              id={`choice-hint-${choice.id}`}
+                              traits={session.setup.players[session.setup.selectedPlayerId]!.traits}
+                            />
                             <details>
                               <summary>{m.transparency}</summary>
                               <Factors factors={choice.factors} />
@@ -578,7 +681,7 @@ export default function MatchScreen() {
                         <li key={event.id}>
                           <time>{matchFormat(m.minute, { minute: event.minute })}</time>
                           <div>
-                            <p>{matchLabel(event.commentaryKey)}</p>
+                            <p>{commentaryText(event)}</p>
                             <small>
                               {event.playerId
                                 ? session.setup.players[event.playerId]?.name

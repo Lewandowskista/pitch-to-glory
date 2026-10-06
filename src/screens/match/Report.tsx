@@ -69,6 +69,7 @@ export function Report({
               [m.passes, `${state.stats.passesCompleted}/${state.stats.passesAttempted}`],
               [m.tackles, state.stats.tackles],
               [m.saves, state.stats.saves],
+              [m.errors, state.stats.errors],
             ].map(([name, value]) => (
               <li key={name}>
                 <span>{name}</span>

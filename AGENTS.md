@@ -23,7 +23,10 @@ same persistent world, optionally as the child of their previous player.
   with no browser or React dependencies, so it runs in Web Workers and tests unchanged
 - Match renderer: PixiJS (2D top-down pitch), lazy-loaded, 60fps on a mid-range laptop and
   phone browser
-- Styling: Tailwind CSS + a design-token file (colors, spacing, radii, typography)
+- Styling: Tailwind CSS utilities for all new UI, sharing a single design-token file (colors,
+  spacing, radii, typography, shadows) with the existing component CSS. Screens built before
+  milestone 4 keep their component classes until a later milestone substantially reworks them;
+  new screens use utilities, with small component classes only where utilities become unwieldy
 - Animation: Framer Motion for UI transitions
 - Persistence: IndexedDB via Dexie, with versioned save schema and migrations; 3 save slots;
   autosave after every match and every in-game week

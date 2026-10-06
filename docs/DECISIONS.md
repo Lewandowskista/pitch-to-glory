@@ -66,3 +66,48 @@ Supported browsers load WOFF2 fonts. The service worker precaches those fonts an
 - PixiJS 8.21 is lazy-loaded from the pitch route. Reusable vector tokens interpolate engine positions. Kit selection compares brightness/blue separation; solid home outlines and dashed away rings preserve identity without relying on red/green distinctions. A double gold ring marks the selected player. WebGL loss falls back to a complete SVG pitch. Simulation-only mode keeps all decisions available without constructing a renderer.
 - Friendly matches use 90 regulation minutes and accept draws. Cup extra time/penalties continue through the existing national competition engine; linking career fixtures to interactive knockout matches is an integration task for the career milestone.
 - Reward entrance animation is implemented now; level-up allocation awaits the career progression system. Tutorial, audio and signature celebration systems retain their later milestone scope.
+
+## Hardening pass after milestone 3
+
+An audit of milestones 1–3 (6 October 2026) found that saves could become permanently unloadable, worlds outgrew the backup limit by season 3, and match decisions had a dominant strategy. The user approved a hardening pass before milestone 4. No milestone-4 features were added.
+
+### Saves survive code changes
+
+- Compatibility no longer depends on byte-identical code. A saved match session carries its match-engine version. On load, a session from another engine version, or one that no longer replays or no longer matches the saved world, is **discarded while the world is kept**, and the player is told why (`recovery: 'match-discarded'`). Our own writes stay strict: writing a session that fails validation is rejected rather than silently dropped.
+- National profiles are frozen by **rule fingerprint and profile version**, not by the full profile text. Citations, adaptation notes, names and rule descriptions can be corrected without invalidating saves; league display fields are checked against the profile stored in the save. A sporting rule change requires a new profile version registered beside the old one.
+- `engineVersion` now records the build that last wrote the save (it previously kept the creator's value). It is informational; compatibility is decided by file schema, match-engine version and profile rule version.
+- File schema is **6**. It adds optional `World.archive`, `Player.releasedSeason`, the `release`/`signing` event kinds and versioned match sessions. Schema 1–5 files migrate unchanged.
+
+### Storage layout (IndexedDB v6)
+
+- Each slot is stored as a small metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Match checkpoints and preference changes write only metadata and the session; previously every match minute re-validated and rewrote the whole 40–100 MB world (~1.5 s each).
+- The slot list reads metadata only and reports each slot independently (`ready`, `empty`, or `error` with `invalid`/`future`). One damaged or newer slot no longer hides or disables the other two, and it can still be deleted, replaced or imported over.
+- Database upgrades never validate. Versions 1–5 records are migrated lazily on read; the v6 upgrade only moves data between tables and leaves malformed records untouched. A single bad record can no longer abort an upgrade and lock the player out of every slot.
+- Backups are exported as compact JSON. Pretty-printing roughly doubled file size against the 128 MiB import limit.
+- "Export unsaved copy" validates and serializes in the persistence worker instead of on the UI thread.
+- Concurrent lock requests for a slot within one tab share one acquisition, and a page restored from the back/forward cache re-acquires its slot lock.
+
+### World lifecycle
+
+- Squads are no longer fixed at 22 with the two oldest outfield players released every year (which drove the mean age from 27 to 24 in three seasons while released players never played again). At the intake week each club in a simulated league: retires players on an age curve (6% at 33 rising to 70% at 38, forced at 41); renews expiring contracts for players inside the top 17 by squad value (ability, youthful upside, age) or aged 21 and under, up to age 34, and releases the rest as free agents; adds two academy players; and trims the weakest surplus above 26 while keeping positional minimums (2 GK, 7 DEF, 5 MID, 5 ATT).
+- Free agents sign for clubs below target (23) or below a positional minimum at the intake week and the transfer windows. Stronger clubs choose first, and a club only attracts players up to its own level plus a margin. When nobody suitable exists for a minimum, a trialist is generated so every club can always field a valid squad. Free agents unsigned for a season at 30+, or for two seasons at any age, leave professional football.
+- Clubs that drop below the simulated frontier are **dormant**: their squads are not developed, paid or reviewed. Feeder admissions reuse a dormant club from the same region before creating a new one, and a returning club refreshes ageing players and expired contracts. Previously every departure created a new 22-player club and kept the old one fully simulated.
+- At rollover, retired players become compact archive records (`World.archive.players`), events older than the previous season are dropped (season summaries keep the sporting history), and managers no club employs are removed.
+- Background exchanges now pair clubs at most one tier apart, and they skip clubs with no outfield position in common. Manager dismissals use the displayed national ranking and ignore tables with no games played.
+- Name pools grew from 16 × 16 to roughly 60 × 80 per country; duplicate names within a generated squad fell from 527 of 959 squads to 50.
+- New national worlds number crest shape/symbol pairs across countries (every one of the 495 pairs is used before any repeats; 959 clubs means at most two clubs share a pair, distinguished by colours). The hashed symbol colour is nudged towards black or white until it has at least 3:1 contrast with the crest base; 274 of 959 symbols were previously almost invisible. Legacy generation is unchanged.
+- These lifecycle rules apply to legacy and national worlds alike. They are background AI behaviour, not sporting rules, so existing saves adopt them from their next simulated week; league structures and movement rules are unchanged.
+
+### Performance
+
+- The world worker simulates in place. Each checkpoint is fully posted before the next week mutates the world, and the deep copy had been about two thirds of every simulated week. Pure callers still receive a copy by default.
+- Dormant squads are skipped by development, finances and the annual review.
+
+### Styling: Tailwind for new UI, existing component CSS retained
+
+The audit found Tailwind imported but essentially unused: the screens are styled with about 3,200 lines of component CSS. The user chose a hybrid over converting everything or dropping Tailwind, and AGENTS.md was updated accordingly.
+
+- New UI from milestone 4 onward uses Tailwind utilities. Small component classes are allowed only where utilities become unwieldy (for example, pitch or crest rendering).
+- Screens built before milestone 4 keep their component classes until a later milestone substantially reworks them. No restyling-only churn.
+- There is one token source. `tokens.css` exposes the theme colours to Tailwind through `@theme inline` (`bg-surface`, `text-muted`, `border-line`, `bg-accent-soft`, `text-on-accent`, …), so utilities follow the same light/dark values as component CSS. Use `shadow-surface` rather than `shadow-panel` for the theme-aware panel shadow; Tailwind inlines `shadow-panel` with its light value.
+- The former single `app.css` is split into ordered partials (`base`, `shell`, `menu`, `gallery`, `saves`, `settings`, `feedback`, `responsive`, `world`). They are contiguous ranges of the original file imported in the original order, so the cascade is unchanged. `match.css` stays route-scoped.

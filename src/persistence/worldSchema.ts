@@ -330,7 +330,15 @@ export function validateWorld(value: unknown): World {
     const event = object(value);
     id(event.id);
     date(event.date);
-    options(event.kind, ['transfer', 'retirement', 'youth-intake', 'manager-change', 'trophy']);
+    options(event.kind, [
+      'transfer',
+      'retirement',
+      'youth-intake',
+      'manager-change',
+      'trophy',
+      'release',
+      'signing',
+    ]);
     ids(event.entityIds, 10);
     const params = object(event.params);
     requireValue(Object.keys(params).length <= 20);

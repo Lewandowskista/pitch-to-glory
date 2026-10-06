@@ -103,6 +103,10 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   await pause(page);
   await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
   await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
+  // A new key moment is announced politely and focus moves to its first choice.
+  await expect(page.getByLabel('Live match updates', { exact: true })).toContainText('Key moment');
+  await expect(page.locator('.match-choices button').first()).toBeFocused();
+  await expect(page.locator('.match-choice-hint').first()).toContainText('Uses');
   const minute = await page.getByTestId('match-state').getAttribute('data-minute');
   await expect(page.locator('.save-indicator')).toHaveText('All changes saved', { timeout: 30000 });
   await page.reload();
@@ -139,7 +143,7 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   const download = page.waitForEvent('download');
   await page.locator('.slot-card').first().getByRole('button', { name: 'Export backup' }).click();
   const saved = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
-  expect(saved.schemaVersion).toBe(5);
+  expect(saved.schemaVersion).toBe(6);
   expect(saved.payload.matchSession.state.match.status).toBe('finished');
   expect(
     saved.payload.matchSession.commands.some(
@@ -172,7 +176,11 @@ test('keeper decisions work in simulation-only mode with large mobile text', asy
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
   await pause(page);
   await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-  await expect(page.locator('.match-choices')).toContainText('Catch and hold');
+  // Keeper situations are seeded: shot, one-on-one, cross or distribution.
+  await expect(page.locator('#decision-heading')).toHaveText(
+    /shot is coming|through on goal|cross is swinging|ball is in your hands/,
+  );
+  expect(await page.locator('.match-choices button').count()).toBeGreaterThanOrEqual(2);
   await expect(page.locator('canvas')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,

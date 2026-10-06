@@ -99,3 +99,52 @@ npm run audit
 ```
 
 Use `npm.cmd`/`npx.cmd` when PowerShell blocks script shims. Browser tests use port 4173; Lighthouse uses 4180. Run Lighthouse after other tests finish. Reports/screenshots are ignored artifacts, not shipped raster art.
+
+## Hardening pass verification
+
+Verified on 6 October 2026 on Windows with Node 24 after the post-milestone-3 hardening pass (see the hardening sections of DECISIONS.md). No milestone-4 features were added.
+
+| Check                                               | Result                                                                                                                                           |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Strict TypeScript, ESLint (zero warnings), Prettier | Passed                                                                                                                                           |
+| Vitest                                              | 124 tests across 20 files passed (previously 92 across 17)                                                                                       |
+| Production build and bundle gate                    | Passed; initial route JavaScript 183.9–195.3 KB gzip (Matchday 195.3 KB), all below 300 KB                                                       |
+| Playwright full suite                               | 63 passed, 21 each in Chromium, Firefox and WebKit; no skips                                                                                     |
+| 10,000-match calibration                            | 2.686 goals per match; equal-team home/away goals 1.441/1.230; draws 26.5%; away wins 27.3% at a 15-point and 18.5% at a 45-point reputation gap |
+
+New unit coverage:
+
+- **Saves:**
+  - per-slot listing with damaged and newer-version slots;
+  - deleting and replacing a damaged slot;
+  - splitting a real v5 database without validating it;
+  - discarding forged, stale or outdated-engine match sessions while keeping the world;
+  - strict rejection when writing an invalid session;
+  - world-free match checkpoints with ownership, revision and world-id checks;
+  - a v4 database upgraded through the v6 split.
+- **Lifecycle:**
+  - retirement curve;
+  - contract renewal and release;
+  - free-agent signing;
+  - free-agent retirement;
+  - archiving and pruning at rollover;
+  - dormant-club reuse without double hand-out;
+  - in-place simulation identical to a copied world resumed from JSON mid-season;
+  - a bounded, valid national world across two seasons.
+- **Identity:** crest pair spread, symbol contrast at least 3:1, and rare duplicate names within a squad.
+- **Match engine:**
+  - shared strength model reproduces the background resolver's results;
+  - per-situation expected-value fairness and attribute sensitivity;
+  - independent rolls per choice;
+  - outdated-engine rejection;
+  - each edge-case regression from the audit.
+
+Long-run world measurement (Node, seed `long-run`, ten national seasons) is recorded in BALANCING.md. A completed world holds at 59–67 MiB of compact JSON and grows about 1.3 MiB per season. A simulated week takes 72–97 ms, down from about 500 ms. Before the pass, a season-3 backup (134.4 MB pretty-printed) exceeded the 128 MiB import limit.
+
+Browser-test fixes made during this pass:
+
+- The Saves screen opened a replace-confirmation dialog when a backup was imported into an empty slot while the slot list was still loading. This was a regression from the per-slot listing, now fixed.
+- The conflicting-autosave journey edits IndexedDB directly; it now uses the v6 metadata layout.
+- That journey also had a pre-existing WebKit race under parallel load, where a seed fill was occasionally lost before "Apply seed". It reproduced 1 in 20 on the original code. The step now retries until the applied seed sticks, and it passed 30 of 30 repeated WebKit runs.
+
+Not re-measured in this pass: Lighthouse scores, and physical-device frame rate, Safari, offline and installation checks. The earlier entry-screen Lighthouse results above predate the larger bundles (+5–10 KB gzip per route) and should be re-run before release.

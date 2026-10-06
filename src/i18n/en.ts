@@ -34,6 +34,11 @@ export const en = {
     later: 'Dismiss',
     preferencesError: 'Preferences could not be stored. Export a collection to keep a copy.',
     exportUnsaved: 'Export unsaved copy',
+    dismiss: 'Dismiss',
+    notices: {
+      'match-discarded':
+        'Your world loaded safely, but a match in progress was saved by an older version of the game and could not be resumed. Start it again from Matchday.',
+    },
     reloadSave: 'Reload saved collection',
     recoverTitle: 'Reload the saved collection?',
     recoverBody:
@@ -150,6 +155,11 @@ export const en = {
       'Your browser did not grant persistence. Download a backup to keep your collections safe.',
     wrongFile: 'Choose a Pitch to Glory JSON backup.',
     unsaved: 'Unsaved collection',
+    damaged: 'Unreadable save',
+    damagedBody:
+      'This slot could not be read. Your other slots are unaffected. Import a backup or replace it with your current collection.',
+    futureBody:
+      'This slot was saved by a newer version of Pitch to Glory. Update the game to open it.',
   },
   settings: {
     title: 'Make yourself at home.',
@@ -443,6 +453,8 @@ export const en = {
       'youth-intake': '{name} joins the {club} academy intake.',
       'manager-change': '{new} replaces {old} at {name}.',
       trophy: '{name} win the {competition}.',
+      release: '{name} leaves {club} as a free agent.',
+      signing: '{name} signs for {club} on a free transfer.',
     },
   },
 } as const;

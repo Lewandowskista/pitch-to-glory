@@ -4,6 +4,7 @@ export interface PlatformAdapter {
   shareFile(name: string, content: string, mime: string): Promise<void>;
   readFile(file: File): Promise<string>;
   requestPersistentStorage(): Promise<boolean>;
+  isStoragePersistent(): Promise<boolean>;
   haptic(kind: 'selection' | 'success'): Promise<void>;
   onBack(handler: () => void): () => void;
   wakeLock(): Promise<() => Promise<void>>;
@@ -40,6 +41,13 @@ export const platform: PlatformAdapter = {
   },
   async requestPersistentStorage() {
     return (await navigator.storage?.persist?.()) ?? false;
+  },
+  async isStoragePersistent() {
+    try {
+      return (await navigator.storage?.persisted?.()) ?? false;
+    } catch {
+      return false;
+    }
   },
   async haptic(kind) {
     navigator.vibrate?.(kind === 'success' ? [15, 30, 15] : 8);

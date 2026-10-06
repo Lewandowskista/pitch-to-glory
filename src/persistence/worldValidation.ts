@@ -248,6 +248,10 @@ export function validateEntities(
       number(hidden[key], 1, 99, true);
     array(hidden.revealed, 5).forEach((key) => text(key));
     requireValue(typeof player.retired === 'boolean');
+    if (player.releasedSeason !== undefined) {
+      number(player.releasedSeason, 1800, Number(currentDate.season), true);
+      requireValue(player.clubId === null && !player.retired);
+    }
     if (player.retired) requireValue(player.clubId === null && player.contractId === null);
     else if (player.clubId === null)
       requireValue(player.contractId === null && !registered.has(String(player.id)));
@@ -294,6 +298,22 @@ export function validateEntities(
     text(manager.preferredFormation, 20);
     number(manager.ability, 1, 99);
     if (manager.formerPlayerId !== null) ref(manager.formerPlayerId, players);
+  }
+  if (w.archive !== undefined) {
+    const archive = object(w.archive);
+    requireValue(Object.keys(archive).length === 1);
+    for (const record of Object.values(map(archive.players, 1_000_000))) {
+      requireValue(!Object.hasOwn(players, String(record.id)));
+      text(record.name);
+      number(record.birthSeason, 1800, Number(currentDate.season), true);
+      ref(record.nationalityId, countries);
+      options(record.primaryPosition, positions);
+      avatar(record.avatar);
+      number(record.retiredSeason, 1800, Number(currentDate.season), true);
+      const stats = object(record.stats);
+      for (const key of ['appearances', 'minutes', 'goals', 'assists', 'cleanSheets'])
+        number(stats[key], 0, 1e7, true);
+    }
   }
   for (const room of Object.values(dressingRooms)) {
     ref(room.clubId, clubs);

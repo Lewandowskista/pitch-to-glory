@@ -1,27 +1,103 @@
-export const ENGINE_VERSION = 'match-3';
+/** Identifies the build that last wrote a save. Informational; compatibility uses schema and rule versions. */
+export const ENGINE_VERSION = 'ptg-hardening-1';
 export const CONFIG = {
   match: {
-    ratingBase: 6.5,
-    goalsPerMatch: 2.7,
-    homeAdvantage: 0.18,
-    reputationSlope: 0.026,
+    /** Opportunity count: clamp(momentBase + involvement + round((form − 50) / formStep) ± 1). */
     minimumMoments: 6,
     maximumMoments: 15,
+    momentBase: 8,
+    involvement: { attack: 1, other: 0, keeper: -1 },
+    formStep: 15,
     fatiguePerMinute: 0.48,
+    highRiskFatigue: 0.08,
+    halftimeRecovery: 8,
     substitutionFatigue: 82,
     minimumSubstitutionMinute: 65,
-    attributeScale: 0.004,
-    defenderScale: 0.0025,
-    fatigueScale: 0.002,
-    traitBonus: 0.08,
-    baseDecisionProbability: 0.62,
+    /** No new substitution is triggered from this minute onwards. */
+    substitutionCutoffMinute: 90,
+    /** Background shot → goal conversion, and created-chance goal probability per recorded shot. */
     shotConversion: 0.12,
-    defensiveFailureConversion: 0.16,
-    personalGoalShare: 0.35,
+    chanceConversion: 0.3,
     passPerMinute: 0.48,
-    decisionRatingGain: 0.12,
-    decisionRatingLoss: 0.13,
-    scoringRatingBonus: 0.55,
+    routinePass: { base: 0.68, passing: 0.002, fatigue: 0.0008, minimum: 0.4, maximum: 0.96 },
+    /** Personal tactics adjust strength-model expectations: mentality moves goal share, risk total. */
+    tactics: {
+      mentalityShare: 0.03,
+      riskTotal: { low: 0.95, balanced: 1, high: 1.06 },
+      minimumShare: 0.1,
+      maximumShare: 0.9,
+    },
+    /** Fraction of own [attack] and opposition [defence] expected goals replaced by key moments. */
+    shares: {
+      ST: [0.55, 0.04],
+      LW: [0.42, 0.05],
+      RW: [0.42, 0.05],
+      AM: [0.4, 0.05],
+      CM: [0.26, 0.12],
+      DM: [0.1, 0.26],
+      CB: [0.07, 0.32],
+      LB: [0.1, 0.28],
+      RB: [0.1, 0.28],
+      GK: [0.03, 0.45],
+    },
+    decision: {
+      /** Success odds × (1 + (attribute − matchLevel) × slope), bounded. */
+      attributeSlope: 0.02,
+      attributeMinimum: 0.5,
+      attributeMaximum: 1.6,
+      /** Goal impact (created-chance conversion, failure danger) scales the same way. */
+      impactSlope: 0.01,
+      impactMinimum: 0.7,
+      impactMaximum: 1.3,
+      traitMultiplier: 1.2,
+      roleMultiplier: 1.12,
+      roleCounterRelief: 0.85,
+      /** Non-direct base odds × (1 + (own − opposition strength) × slope), bounded. */
+      teamSlope: 0.012,
+      teamMinimum: 0.75,
+      teamMaximum: 1.3,
+      /** Odds × (1 − (direct opponent ability − matchLevel) × slope), bounded. */
+      matchupSlope: 0.006,
+      matchupMinimum: 0.85,
+      matchupMaximum: 1.15,
+      fatigueThreshold: 25,
+      fatigueSlope: 0.006,
+      fatigueMinimum: 0.6,
+      risk: {
+        low: { odds: 1.1, impact: 0.92 },
+        balanced: { odds: 1, impact: 1 },
+        high: { odds: 0.9, impact: 1.1 },
+      },
+      /** Defensive choices concede this fraction of the replaced opposition expectation. */
+      defensiveEdge: 0.9,
+      minimumProbability: 0.02,
+      maximumProbability: 0.97,
+      maximumShotProbability: 0.6,
+      maximumConversion: 0.95,
+    },
+    /** Odds multipliers 1 + effect for technical/direct choices; pitch below `pitchGood`. */
+    conditions: {
+      technical: { clear: 0, rain: -0.06, wind: 0, snow: -0.1 },
+      direct: { clear: 0, rain: -0.02, wind: -0.08, snow: -0.05 },
+      pitchGood: 70,
+      pitchSlope: 0.004,
+    },
+    rating: {
+      base: 6.3,
+      decisionWeight: 0.6,
+      /** Equal goal and assist credit keeps finishing and creating choices rating-neutral. */
+      goal: 0.6,
+      assist: 0.6,
+      /** Saves and defensive stops: stop × expected goals removed ÷ success probability. */
+      stop: 1.5,
+      /** Every goal conceded from the player's own key moment. */
+      error: -0.45,
+      minimum: 3,
+      maximum: 10,
+    },
+    momentum: { decay: 0.85, shot: 4, goal: 12, success: 3, failure: 2, minimum: 5, maximum: 95 },
+    possession: { strengthSlope: 0.45, mentality: 3, momentum: 0.08, minimum: 30, maximum: 70 },
+    commentaryVariants: 3,
     xp: {
       perMinute: 1.2,
       ratingThreshold: 6,
@@ -35,7 +111,7 @@ export const CONFIG = {
   gallery: { clubs: 15, players: 8, ages: [17, 28, 42] as const },
   workers: { transportBatchEntries: 32, transportYieldMs: 8 },
   saves: {
-    schemaVersion: 5,
+    schemaVersion: 6,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,
@@ -64,9 +140,40 @@ export const CONFIG = {
     transferWeeks: [8, 18, 31] as const,
     managerWeeks: [12, 24] as const,
     intakeWeek: 31,
-    retirementAge: 38,
-    forcedRetirementAge: 43,
     youthIntakePerClub: 2,
+    /** Squad lifecycle: retirement, contracts, releases, free-agent signings and pruning. */
+    lifecycle: {
+      /** [age, probability] pairs; ages above the last entry use its probability. */
+      retirementCurve: [
+        [33, 0.06],
+        [34, 0.12],
+        [35, 0.24],
+        [36, 0.4],
+        [37, 0.55],
+        [38, 0.7],
+      ] as const,
+      forcedRetirementAge: 41,
+      squadTarget: 23,
+      squadMaximum: 26,
+      groupMinimum: { GK: 2, DEF: 7, MID: 5, ATT: 5 },
+      /** Expiring contracts are renewed for players ranked inside this many by squad value. */
+      renewalRank: 17,
+      renewalYouthAge: 21,
+      renewalMaximumAge: 34,
+      youngAge: 23,
+      veteranAge: 30,
+      contractYears: { young: [2, 4], prime: [1, 3], veteran: [1, 2] } as const,
+      potentialValueWeight: 0.5,
+      agedValuePenalty: 2,
+      /** Free agents sign for clubs whose top-eleven ability is at least theirs minus this. */
+      signingAbilityMargin: 4,
+      fillerAge: [19, 27] as const,
+      freeAgentRetirementAge: 30,
+      freeAgentSeasons: 2,
+      readmissionRetirementAge: 37,
+      /** Seasons of world events kept in the live graph (current plus previous). */
+      eventSeasonsKept: 2,
+    },
     generation: {
       reputationCeiling: 99,
       reputationFloor: 87,
@@ -156,7 +263,6 @@ export const CONFIG = {
       keeperGrowthEndAge: 32,
       keeperDeclineAge: 35,
       keeperDeclineDivisor: 4,
-      retirementChance: 0.65,
     },
   },
 } as const;

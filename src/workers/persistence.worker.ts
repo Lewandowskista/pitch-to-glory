@@ -22,45 +22,28 @@ export async function executePersistenceRequest(
       return { requestId: request.requestId, ok: true, value: undefined };
     }
     const repository = new LocalSaveRepository(resolveDatabase(request.database), request.owner);
-    if (request.operation === 'match-checkpoint') {
-      const current = await repository.read(request.slot);
-      if (!current || current.revision !== request.expectedRevision)
-        throw new SaveError('conflict');
-      if (current.payload.kind !== 'world' || current.payload.world.id !== request.worldId)
-        throw new SaveError('invalid');
-      const payload = {
-        kind: 'world' as const,
-        world: current.payload.world,
-        gallery: current.payload.gallery,
-        settings: current.payload.settings,
-      };
-      const saved = await repository.write(
-        {
-          ...current,
-          updatedAt: request.updatedAt,
-          payload: {
-            ...payload,
-            ...(request.matchSession ? { matchSession: request.matchSession } : {}),
-          },
-        },
-        request.expectedRevision,
-      );
-      if (saved.payload.kind !== 'world') throw new SaveError('invalid');
-      const receipt = {
-        kind: 'world' as const,
-        gallery: saved.payload.gallery,
-        settings: saved.payload.settings,
-        ...(saved.payload.matchSession ? { matchSession: saved.payload.matchSession } : {}),
-      };
-      return { requestId: request.requestId, ok: true, value: { ...saved, payload: receipt } };
+    if (request.operation === 'write-without-world') {
+      const value = await repository.writeWithoutWorld(request.value, request.expectedRevision);
+      return { requestId: request.requestId, ok: true, value };
     }
     if (request.operation === 'export') {
-      const save = await repository.read(request.slot);
-      if (!save) throw new SaveError('invalid');
       return {
         requestId: request.requestId,
         ok: true,
-        value: { name: save.name, json: JSON.stringify(save, null, 2) },
+        value: await repository.exportJSON(request.slot),
+      };
+    }
+    if (request.operation === 'serialize') {
+      const { recovery: _recovery, ...file } = createSave(
+        request.slot,
+        request.name,
+        request.payload,
+      );
+      void _recovery;
+      return {
+        requestId: request.requestId,
+        ok: true,
+        value: { name: request.name, json: JSON.stringify(file) },
       };
     }
     const value =
@@ -80,25 +63,16 @@ export async function executePersistenceRequest(
                 : await repository
                     .remove(request.slot, request.expectedRevision)
                     .then(() => undefined);
+    // Write receipts never echo the world back to the UI thread, which already holds it.
     if (
       (request.operation === 'write' || request.operation === 'create') &&
       value &&
       !Array.isArray(value) &&
       value.payload.kind === 'world'
     ) {
-      return {
-        requestId: request.requestId,
-        ok: true,
-        value: {
-          ...value,
-          payload: {
-            kind: 'world',
-            gallery: value.payload.gallery,
-            settings: value.payload.settings,
-            ...(value.payload.matchSession ? { matchSession: value.payload.matchSession } : {}),
-          },
-        },
-      };
+      const { world: _world, ...payload } = value.payload;
+      void _world;
+      return { requestId: request.requestId, ok: true, value: { ...value, payload } };
     }
     return { requestId: request.requestId, ok: true, value };
   } catch (error) {

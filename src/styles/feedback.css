@@ -1,0 +1,97 @@
+/* Dialogs, inline and global notices, PWA prompt and loading states. */
+.dialog {
+  border: 1px solid var(--line);
+  color: var(--ink);
+  background: var(--surface);
+  border-radius: var(--radius-panel);
+  padding: 0;
+  max-width: min(480px, calc(100vw - 2rem));
+  width: 100%;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  box-shadow: 0 30px 100px #0005;
+}
+.dialog::backdrop {
+  background: #102219aa;
+}
+.dialog-inner {
+  padding: 2rem;
+}
+.dialog h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.dialog p {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 1rem;
+}
+.dialog-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+.inline-error,
+.global-error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--radius-control);
+  font-size: 0.8rem;
+  margin-top: 1rem;
+}
+.global-error {
+  margin: 1rem 2rem 0;
+}
+.inline-error .text-button,
+.global-error .text-button {
+  color: var(--danger);
+}
+.global-notice {
+  color: var(--ink);
+  background: var(--accent-soft);
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--radius-control);
+  font-size: 0.8rem;
+  margin: 1rem 2rem 0;
+}
+.global-notice .text-button {
+  color: var(--accent);
+}
+@media (max-width: 760px) {
+  .global-notice {
+    margin: 1rem 1rem 0;
+  }
+}
+.pwa-prompt {
+  position: fixed;
+  bottom: 1.2rem;
+  right: 1.2rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 30px #0002;
+  border-radius: var(--radius-control);
+  padding: 0.8rem 1rem;
+  max-width: calc(100vw - 2rem);
+  font-size: 0.75rem;
+}
+.pwa-prompt .button {
+  font-size: 0.7rem;
+}
+.loading-page,
+.error-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}

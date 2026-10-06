@@ -345,8 +345,9 @@ test('conflicting autosave can export local changes and reload the saved version
           const read = store.get(1);
           read.onsuccess = () => {
             const save = read.result;
+            // Slot metadata record (IndexedDB layout v6): preferences live beside the revision.
             save.revision++;
-            save.payload.gallery.seed = 'other-writer';
+            save.gallery.seed = 'other-writer';
             store.put(save);
           };
           tx.oncomplete = () => {
@@ -361,8 +362,14 @@ test('conflicting autosave can export local changes and reload the saved version
       }),
   );
   await page.getByRole('link', { name: 'Open gallery' }).click();
-  await page.getByLabel('Collection seed', { exact: true }).fill('local-unsaved');
-  await page.getByRole('button', { name: 'Apply seed' }).click();
+  const seedInput = page.getByLabel('Collection seed', { exact: true });
+  // Under load WebKit can lose a fill made while the lazy gallery route is still settling;
+  // retry until the applied seed sticks rather than exporting the default by accident.
+  await expect(async () => {
+    await seedInput.fill('local-unsaved');
+    await page.getByRole('button', { name: 'Apply seed' }).click();
+    await expect(seedInput).toHaveValue('local-unsaved', { timeout: 1000 });
+  }).toPass();
   await expect(page.locator('.global-error')).toContainText('has changed since it was opened');
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export unsaved copy' }).click();

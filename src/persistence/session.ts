@@ -2,7 +2,8 @@ import type { FoundationState, WorldState, SlotId } from '../model/domain';
 import { useAppStore } from '../store';
 import { saves, slotLocks } from './runtime';
 import { AutosaveQueue } from './autosave';
-import { SaveError, type AppSave } from './schema';
+import { SaveError } from './schema';
+import { CONFIG, ENGINE_VERSION } from '../engine/config';
 
 export function errorCode(error: unknown): string {
   return error instanceof SaveError
@@ -35,15 +36,14 @@ export const autosave = new AutosaveQueue(async () => {
     if (!(await slotLocks.acquire(active.slot))) throw new SaveError('locked');
     const payload = snapshot();
     const value = { ...active, payload, updatedAt: new Date().toISOString() };
-    // Minute checkpoints send only the compact match; the worker retains the 959-club graph.
-    const matchOnly =
+    // When the world graph is the one already stored, write only preferences and the match
+    // session. Match checkpoints run every simulated minute and must not rewrite the world.
+    const worldUnchanged =
       payload.kind === 'world' &&
       active.payload.kind === 'world' &&
-      payload.world === active.payload.world &&
-      JSON.stringify(payload.settings) === JSON.stringify(active.payload.settings) &&
-      JSON.stringify(payload.gallery) === JSON.stringify(active.payload.gallery);
-    const save = matchOnly
-      ? await saves.writeMatchCheckpoint(value, active.revision)
+      payload.world === active.payload.world;
+    const save = worldUnchanged
+      ? await saves.writeWithoutWorldChange(value, active.revision)
       : await saves.write(value, active.revision);
     useAppStore.getState().saved(save, state.change);
     if (useAppStore.getState().change !== state.change) autosave.schedule();
@@ -76,13 +76,24 @@ export async function saveSlot(slot: SlotId, name: string, expected: number | nu
   expected = await flushExpected(slot, expected);
   await own(slot, async () => {
     const previous = useAppStore.getState().activeSave?.slot;
-    const current = await saves.read(slot);
-    const save = current
-      ? await saves.write(
-          { ...current, name, payload: snapshot(), updatedAt: new Date().toISOString() },
-          expected,
-        )
-      : await saves.create(slot, name, snapshot(), expected);
+    const current = (await saves.list())[slot - 1];
+    const save =
+      current?.status === 'ready'
+        ? await saves.write(
+            {
+              format: 'pitch-to-glory',
+              schemaVersion: CONFIG.saves.schemaVersion,
+              engineVersion: ENGINE_VERSION,
+              slot,
+              name,
+              createdAt: current.createdAt,
+              updatedAt: new Date().toISOString(),
+              revision: current.revision,
+              payload: snapshot(),
+            },
+            expected,
+          )
+        : await saves.create(slot, name, snapshot(), expected);
     if (previous && previous !== slot) await slotLocks.release(previous);
     useAppStore.getState().applySave(save);
   });
@@ -101,21 +112,12 @@ export async function importSlot(
     useAppStore.getState().applySave(save);
   });
 }
-export async function deleteSlot(slot: SlotId, expected: number): Promise<void> {
+export async function deleteSlot(slot: SlotId, expected: number | null): Promise<void> {
   assertNotSimulating();
-  expected = (await flushExpected(slot, expected))!;
+  expected = await flushExpected(slot, expected);
   await own(slot, async () => {
     await saves.remove(slot, expected);
     if (useAppStore.getState().activeSave?.slot === slot) useAppStore.getState().clearSession();
-  });
-}
-export async function exportSlot(slot: SlotId): Promise<AppSave> {
-  assertNotSimulating();
-  await autosave.flush();
-  return own(slot, async () => {
-    const save = await saves.read(slot);
-    if (!save) throw new SaveError('invalid');
-    return save;
   });
 }
 export async function exportSlotJSON(slot: SlotId): Promise<{ name: string; json: string }> {

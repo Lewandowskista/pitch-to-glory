@@ -52,7 +52,12 @@ scope.onmessage = createChunkReceiver<WorkerRequest>((data) => {
         }),
       yieldControl: () => new Promise((resolve) => setTimeout(resolve, 0)),
     },
-    { generate: generateWorld, week: simulateWeek, nextSeason: startNextSeason },
+    {
+      generate: generateWorld,
+      // The worker owns its copy, and each checkpoint is fully posted before the next week.
+      week: (world) => simulateWeek(world, { inPlace: true }),
+      nextSeason: (world) => startNextSeason(world, { inPlace: true }),
+    },
   ).finally(() => {
     current = null;
     pending = null;

@@ -1,4 +1,10 @@
-import type { MatchSession, Tactics } from '../../engine/match';
+import {
+  conditionsEffect,
+  positionFamily,
+  rolesForPosition,
+  type MatchSession,
+  type Tactics,
+} from '../../engine/match';
 import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
 import { ClubBadge, Footballer } from './Shared';
 
@@ -13,22 +19,19 @@ export function Preview({
 }) {
   const { setup, state } = session;
   const player = setup.players[setup.selectedPlayerId]!;
-  const roleIds =
-    player.primaryPosition === 'GK'
-      ? ['balanced', 'sweeper-keeper', 'shot-stopper', 'safe-distribution']
-      : ['LW', 'RW', 'LM', 'RM'].includes(player.primaryPosition)
-        ? ['balanced', 'hug-touchline', 'cut-inside', 'track-back']
-        : ['CB', 'LB', 'RB', 'DM'].includes(player.primaryPosition)
-          ? ['balanced', 'hold-position', 'ball-winner', 'push-forward']
-          : ['balanced', 'playmaker', 'run-behind', 'target-player'];
+  const roleIds = rolesForPosition(player.primaryPosition);
+  const family = positionFamily(player.primaryPosition);
   const instruction =
-    player.primaryPosition === 'GK'
+    family === 'keeper'
       ? 'keeper'
-      : ['CB', 'LB', 'RB', 'DM'].includes(player.primaryPosition)
+      : family === 'defence'
         ? 'defend'
-        : ['CM', 'AM', 'LM', 'RM'].includes(player.primaryPosition)
+        : ['CM', 'AM'].includes(player.primaryPosition)
           ? 'midfield'
           : 'attack';
+  const signed = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100)}%`;
+  const technical = conditionsEffect('technical', state.match.weather, state.match.pitchCondition);
+  const direct = conditionsEffect('direct', state.match.weather, state.match.pitchCondition);
   return (
     <div className="match-preview">
       <section className="match-panel">
@@ -43,6 +46,21 @@ export function Preview({
           <span>
             {m.pitch}
             <strong>{matchFormat(m.pitchValue, { value: state.match.pitchCondition })}</strong>
+          </span>
+          <span>
+            {m.conditions}
+            <strong>
+              {technical || direct
+                ? [
+                    technical
+                      ? matchFormat(m.conditionsTechnical, { value: signed(technical) })
+                      : '',
+                    direct ? matchFormat(m.conditionsDirect, { value: signed(direct) }) : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+                : m.conditionsNeutral}
+            </strong>
           </span>
         </div>
         <h3>{m.instructions}</h3>
@@ -71,7 +89,7 @@ export function Preview({
             >
               {roleIds.map((role) => (
                 <option key={role} value={role}>
-                  {m.roles[role as keyof typeof m.roles]}
+                  {m.roles[role]}
                 </option>
               ))}
             </select>

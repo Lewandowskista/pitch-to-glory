@@ -32,9 +32,72 @@ function canonicalData(value: unknown): string {
   };
   return JSON.stringify(ordered(value));
 }
-const profileFingerprints = new Map(
-  NATIONAL_PROFILES.map((profile) => [profile.counterpart, canonicalData(profile)]),
+/**
+ * Sporting rules are frozen per profile version. Only rule-bearing fields take part in the
+ * fingerprint, so corrected citations, adaptation notes, names or rule descriptions in a
+ * later build never invalidate an existing save. A rule change requires a new profile
+ * version, registered alongside the old one so saved worlds keep their original rules.
+ */
+export function profileRuleFingerprint(profile: unknown): string {
+  const p = object(profile);
+  return canonicalData({
+    version: p.version,
+    counterpart: p.counterpart,
+    divisions: array(p.divisions, 12).map((value) => {
+      const d = object(value);
+      return {
+        id: d.id,
+        tier: d.tier,
+        status: d.status,
+        regularRounds: d.regularRounds,
+        automaticPromotion: d.automaticPromotion,
+        automaticRelegation: d.automaticRelegation,
+        groups: array(d.groups, 12).map((group) => {
+          const g = object(group);
+          return { id: g.id, region: g.region, size: g.size };
+        }),
+        zones: array(d.zones, 10).map((zone) => {
+          const z = object(zone);
+          return { from: z.from, to: z.to, kind: z.kind };
+        }),
+      };
+    }),
+  });
+}
+const profileRules = new Map(
+  NATIONAL_PROFILES.map((profile) => [
+    `${profile.version}:${profile.counterpart}`,
+    profileRuleFingerprint(profile),
+  ]),
 );
+interface SavedDivision {
+  id: string;
+  tier: number;
+  status: string;
+  rules: string;
+  name: string;
+  groups: { id: string; name: string; region: string; size: number }[];
+}
+function savedProfile(value: unknown): { referenceSeason: string; divisions: SavedDivision[] } {
+  const p = object(value);
+  requireValue(p.version === 1);
+  text(p.counterpart);
+  text(p.referenceSeason, 20);
+  for (const divisionValue of array(p.divisions, 12)) {
+    const d = object(divisionValue);
+    text(d.id);
+    text(d.name);
+    text(d.rules, 4000);
+    for (const groupValue of array(d.groups, 12)) {
+      const g = object(groupValue);
+      text(g.id);
+      text(g.name);
+      text(g.region);
+      number(g.size, 2, 32, true);
+    }
+  }
+  return p as unknown as { referenceSeason: string; divisions: SavedDivision[] };
+}
 export function validateNationalWorld(value: unknown): World {
   const w = object(value);
   id(w.id);
@@ -85,11 +148,14 @@ export function validateNationalWorld(value: unknown): World {
     requireValue(!counterparts.has(String(country.counterpart)));
     counterparts.add(String(country.counterpart));
     text(country.referenceSeason);
-    const profile = object(profiles[String(country.id)]);
-    const canonical = NATIONAL_PROFILES.find((p) => p.counterpart === country.counterpart);
+    const profileValue = object(profiles[String(country.id)]);
+    requireValue(profileValue.counterpart === country.counterpart);
     requireValue(
-      canonical && canonicalData(profile) === profileFingerprints.get(canonical.counterpart),
+      profileRuleFingerprint(profileValue) ===
+        profileRules.get(`${String(profileValue.version)}:${String(country.counterpart)}`),
     );
+    // Structure and display text come from the profile frozen in this save.
+    const canonical = savedProfile(profileValue);
     requireValue(country.referenceSeason === canonical.referenceSeason);
     const leagueIds = ids(country.leagueIds, 30);
     requireValue(leagueIds.length === canonical.divisions.reduce((n, d) => n + d.groups.length, 0));
@@ -843,7 +909,15 @@ export function validateNationalWorld(value: unknown): World {
     const event = object(eventValue);
     id(event.id);
     date(event.date);
-    options(event.kind, ['transfer', 'retirement', 'youth-intake', 'manager-change', 'trophy']);
+    options(event.kind, [
+      'transfer',
+      'retirement',
+      'youth-intake',
+      'manager-change',
+      'trophy',
+      'release',
+      'signing',
+    ]);
     ids(event.entityIds, 10);
     const params = object(event.params);
     requireValue(Object.keys(params).length <= 20);

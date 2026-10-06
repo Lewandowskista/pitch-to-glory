@@ -47,11 +47,20 @@ export class SlotLocks {
     SlotId,
     { releaseNative: () => void; timer: ReturnType<typeof setInterval>; native: boolean }
   >();
+  private readonly acquiring = new Map<SlotId, Promise<boolean>>();
   constructor(db: SaveDatabase, owner: string) {
     this.lease = new LeaseLock(db, owner);
   }
-  async acquire(slot: SlotId): Promise<boolean> {
+  /** Concurrent requests for the same slot in one tab share one acquisition. */
+  acquire(slot: SlotId): Promise<boolean> {
     validateSlot(slot);
+    const inFlight = this.acquiring.get(slot);
+    if (inFlight) return inFlight;
+    const attempt = this.acquireOnce(slot).finally(() => this.acquiring.delete(slot));
+    this.acquiring.set(slot, attempt);
+    return attempt;
+  }
+  private async acquireOnce(slot: SlotId): Promise<boolean> {
     const existing = this.held.get(slot);
     if (existing) return this.lease.acquire(slot, existing.native);
     let releaseNative = () => {};

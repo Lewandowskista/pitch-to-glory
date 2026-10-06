@@ -1,0 +1,137 @@
+/* Clubhouse (title / main menu) screen. */
+.hero {
+  min-height: 465px;
+  background: #075e45;
+  color: #fff7e4;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  display: flex;
+  align-items: center;
+}
+.hero-copy {
+  padding: 2.8rem 3rem;
+  position: relative;
+  z-index: 2;
+  width: 55%;
+}
+.eyebrow {
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #d9e2b7;
+  margin-bottom: 1.2rem;
+}
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(3.8rem, 5.1vw, 6.5rem);
+  line-height: 0.97;
+  font-weight: 400;
+  max-width: 440px;
+}
+.hero-description {
+  max-width: 340px;
+  color: #e4edd7;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  margin: 1.1rem 0 1.5rem;
+}
+.hero-button {
+  background: #efcf63;
+  color: #153c2d;
+}
+.stadium {
+  position: absolute;
+  width: 64%;
+  max-width: none;
+  right: -6%;
+  bottom: -4%;
+  z-index: 1;
+}
+.menu-intro {
+  margin-top: 2.4rem;
+  margin-bottom: 1.3rem;
+}
+.menu-intro h2 {
+  font-family: var(--font-display);
+  font-size: 2.1rem;
+  font-weight: 400;
+}
+.menu-intro p {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+.discovery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.1rem;
+}
+.discovery {
+  background: var(--surface);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+  box-shadow: var(--shadow-panel);
+}
+.discovery-art {
+  height: 155px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+.crest-art {
+  background: var(--art-green);
+  gap: 0.1rem;
+}
+.kit-art {
+  background: var(--art-gold);
+}
+.avatar-art {
+  background: var(--art-blue);
+  align-items: flex-end;
+}
+.discovery-art img {
+  width: 27%;
+  max-height: 130px;
+  transition: transform 0.2s;
+}
+.discovery-art img:nth-child(2) {
+  width: 33%;
+  z-index: 1;
+}
+.discovery-art img:first-child {
+  transform: rotate(-10deg);
+}
+.discovery-art img:last-child {
+  transform: rotate(10deg);
+}
+.discovery:hover .discovery-art img {
+  transform: translateY(-5px);
+}
+.discovery-copy {
+  padding: 1.35rem;
+}
+.discovery h3 {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.discovery p {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-top: 0.45rem;
+  min-height: 3.2em;
+}
+.discovery span {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.1rem;
+  font-size: 0.7rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+.discovery span svg {
+  width: 17px;
+}

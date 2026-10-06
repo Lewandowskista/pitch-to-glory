@@ -30,6 +30,17 @@ export function useAutosave(): void {
         .then(() => slotLocks.releaseAll())
         .catch(() => {});
     };
+    // A page restored from the back/forward cache released its locks on pagehide.
+    const restore = (event: PageTransitionEvent) => {
+      const active = useAppStore.getState().activeSave;
+      if (!event.persisted || !active) return;
+      void slotLocks
+        .acquire(active.slot)
+        .then((owned) => {
+          if (!owned) useAppStore.getState().setSaveStatus('error', 'locked');
+        })
+        .catch(() => useAppStore.getState().setSaveStatus('error', 'storage'));
+    };
     const preventDirtyExit = (event: BeforeUnloadEvent) => {
       const state = useAppStore.getState();
       if (
@@ -41,11 +52,13 @@ export function useAutosave(): void {
     };
     document.addEventListener('visibilitychange', hide);
     window.addEventListener('pagehide', leave);
+    window.addEventListener('pageshow', restore);
     window.addEventListener('beforeunload', preventDirtyExit);
     return () => {
       unsubscribe();
       document.removeEventListener('visibilitychange', hide);
       window.removeEventListener('pagehide', leave);
+      window.removeEventListener('pageshow', restore);
       window.removeEventListener('beforeunload', preventDirtyExit);
       autosave.dispose();
     };

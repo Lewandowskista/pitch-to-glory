@@ -120,7 +120,11 @@ describe('persistence worker service', () => {
       value: { name: save.name, revision: 1 },
     });
     const list = await request({ operation: 'list' });
-    expect(list.ok && list.value).toEqual([{ ...save, revision: 1 }, undefined, undefined]);
+    expect(list.ok && list.value).toMatchObject([
+      { slot: 1, status: 'ready', name: save.name, revision: 1 },
+      { slot: 2, status: 'empty' },
+      { slot: 3, status: 'empty' },
+    ]);
     expect(
       await request({ operation: 'write', value: { ...save, name: 'Stale' }, expectedRevision: 0 }),
     ).toMatchObject({ ok: false, code: 'conflict' });

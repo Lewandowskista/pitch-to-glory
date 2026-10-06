@@ -13,7 +13,7 @@ import {
   loadSlot,
   saveSlot,
 } from '../persistence/session';
-import type { AppSave } from '../persistence/schema';
+import type { SlotListing } from '../persistence/localRepository';
 import { platform } from '../platform';
 import { errorText, format, t } from '../i18n';
 import { Page } from '../ui/Page';
@@ -26,7 +26,7 @@ export default function Saves() {
   const active = useAppStore((s) => s.activeSave);
   const world = useAppStore((s) => s.world);
   const worldJob = useAppStore((s) => s.worldJob);
-  const [collections, setCollections] = useState<(AppSave | undefined)[] | null>(null);
+  const [collections, setCollections] = useState<SlotListing[] | null>(null);
   const [name, setName] = useState<string>(t.saves.defaultName);
   const [busy, setBusy] = useState(false);
   const blocked = busy || !collections || Boolean(worldJob);
@@ -53,6 +53,15 @@ export default function Saves() {
     } else setParams({}, { replace: true });
   };
   useEffect(() => {
+    let current = true;
+    void platform.isStoragePersistent().then((persistent) => {
+      if (current && persistent) setProtection(t.saves.protected);
+    });
+    return () => {
+      current = false;
+    };
+  }, []);
+  useEffect(() => {
     const subscription = liveQuery(() => saves.list()).subscribe({
       next: setCollections,
       error: () => setError(t.errors.storage),
@@ -64,8 +73,8 @@ export default function Saves() {
       const current = collections[slot - 1];
       setReviewed({
         slot: slot as SlotId,
-        revision: current?.revision ?? null,
-        name: current?.name ?? t.saves.unsaved,
+        revision: current && current.status !== 'empty' ? current.revision : null,
+        name: (current && current.status !== 'empty' ? current.name : null) ?? t.saves.unsaved,
       });
     }
     if (!action && reviewed) setReviewed(null);
@@ -85,11 +94,11 @@ export default function Saves() {
   const open = async (action: string, slot: SlotId) => {
     // Settle this tab's pending edits before pinning what the player reviews.
     await autosave.flush();
-    const current = await saves.read(slot);
+    const current = (await saves.list())[slot - 1];
     setReviewed({
       slot,
-      revision: current?.revision ?? null,
-      name: current?.name ?? t.saves.unsaved,
+      revision: current && current.status !== 'empty' ? current.revision : null,
+      name: (current && current.status !== 'empty' ? current.name : null) ?? t.saves.unsaved,
     });
     opened.current = true;
     setParams({ action, slot: String(slot) });
@@ -99,7 +108,9 @@ export default function Saves() {
     await run(async () => {
       const json = await platform.readFile(file);
       await saves.validateJSON(json);
-      if (collections?.[target - 1]) {
+      const listing = collections?.[target - 1];
+      // Ask before replacing an occupied (or unreadable) slot; an empty one imports directly.
+      if (listing && listing.status !== 'empty') {
         setPending(json);
         await open('import', target);
       } else {
@@ -112,7 +123,7 @@ export default function Saves() {
     void run(async () => {
       if (!reviewed) return;
       const target = reviewed.slot;
-      if (action === 'delete' && reviewed.revision !== null) {
+      if (action === 'delete') {
         await deleteSlot(target, reviewed.revision);
         setNotice(t.saves.deleted);
       } else if (action === 'replace') {
@@ -173,7 +184,10 @@ export default function Saves() {
       </p>
       <div className="slot-grid" aria-busy={!collections}>
         {([1, 2, 3] as const).map((target) => {
-          const collection = collections?.[target - 1];
+          const listing = collections?.[target - 1];
+          const collection = listing?.status === 'ready' ? listing : undefined;
+          const damaged = listing?.status === 'error' ? listing : undefined;
+          const occupied = Boolean(collection || damaged);
           const current = active?.slot === target;
           return (
             <article className={`slot-card ${current ? 'active-slot' : ''}`} key={target}>
@@ -188,37 +202,47 @@ export default function Saves() {
               </div>
               <div className="slot-art">
                 {collection ? (
-                  (collection.payload.kind === 'world'
-                    ? Object.values(collection.payload.world.clubs).slice(0, 3)
-                    : generateGallery(collection.payload.gallery.seed).clubs.slice(0, 3)
+                  (collection.world
+                    ? collection.world.crests.map((crest, index) => ({ id: String(index), crest }))
+                    : generateGallery(collection.gallerySeed).clubs.slice(0, 3)
                   ).map((club) => <Artwork key={club.id} svg={renderCrest(club.crest)} alt="" />)
                 ) : (
                   <Icon name="save" />
                 )}
               </div>
               <div className="slot-copy">
-                <h2>{!collections ? t.saves.loading : (collection?.name ?? t.saves.empty)}</h2>
+                <h2>
+                  {!collections
+                    ? t.saves.loading
+                    : (collection?.name ??
+                      damaged?.name ??
+                      (damaged ? t.saves.damaged : t.saves.empty))}
+                </h2>
                 <p>
                   {!collections
                     ? t.saves.loadingBody
                     : collection
                       ? format(t.saves.savedAt, {
-                          date: new Intl.DateTimeFormat('en', {
+                          date: new Intl.DateTimeFormat(undefined, {
                             dateStyle: 'medium',
                             timeStyle: 'short',
                           }).format(new Date(collection.updatedAt)),
                         })
-                      : t.saves.emptyBody}
+                      : damaged
+                        ? damaged.code === 'future'
+                          ? t.saves.futureBody
+                          : t.saves.damagedBody
+                        : t.saves.emptyBody}
                 </p>
                 {collection && (
                   <p className="slot-seed">
-                    {collection.payload.kind === 'world'
+                    {collection.world
                       ? format(t.saves.worldSummary, {
-                          season: collection.payload.world.date.season,
-                          week: collection.payload.world.date.week,
-                          clubs: Object.keys(collection.payload.world.clubs).length,
+                          season: collection.world.season,
+                          week: collection.world.week,
+                          clubs: collection.world.clubs,
                         })
-                      : format(t.saves.seed, { seed: collection.payload.gallery.seed })}
+                      : format(t.saves.seed, { seed: collection.gallerySeed })}
                   </p>
                 )}
               </div>
@@ -234,15 +258,15 @@ export default function Saves() {
                       })
                     }
                   >
-                    {collection.payload.kind === 'world' ? t.saves.loadWorldAction : t.saves.load}
+                    {collection.kind === 'world' ? t.saves.loadWorldAction : t.saves.load}
                     <Icon name="arrow" />
                   </button>
                 )}
                 <button
-                  className={`button ${collection ? 'secondary' : ''}`}
+                  className={`button ${occupied ? 'secondary' : ''}`}
                   disabled={blocked || !name.trim()}
                   onClick={() => {
-                    if (collection) void run(() => open('replace', target));
+                    if (occupied) void run(() => open('replace', target));
                     else
                       void run(async () => {
                         await saveSlot(target, name.trim(), null);
@@ -251,10 +275,10 @@ export default function Saves() {
                   }}
                 >
                   {world
-                    ? collection
+                    ? occupied
                       ? t.saves.replaceWorld
                       : t.saves.saveWorld
-                    : collection
+                    : occupied
                       ? t.saves.replace
                       : t.saves.save}
                 </button>
@@ -294,7 +318,7 @@ export default function Saves() {
                       }}
                     />
                   </label>
-                  {collection && (
+                  {occupied && (
                     <button
                       className="delete-tool"
                       title={t.saves.delete}

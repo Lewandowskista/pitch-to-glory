@@ -1,0 +1,176 @@
+/* App shell: sidebar, top bar, page frame and bottom navigation. */
+.sidebar {
+  width: 240px;
+  height: 100dvh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 2.1rem 1.25rem 1.1rem;
+  z-index: 20;
+}
+.brand {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0 0.5rem;
+}
+.brand > span {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  line-height: 0.95;
+  letter-spacing: 0.025em;
+}
+.brand > span > span {
+  display: block;
+}
+.brand-caption {
+  font-size: 0.7rem;
+  color: var(--muted);
+  padding: 1.2rem 0.5rem 2rem;
+}
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.sidebar nav a {
+  display: flex;
+  gap: 0.85rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-control);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.sidebar nav a.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.sidebar nav a:hover {
+  background: var(--surface-soft);
+}
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 1.5rem 0.5rem 0;
+}
+.local-save {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+}
+.local-save svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.local-save strong {
+  display: block;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.local-save span {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+.shortcut-button {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 1.35rem;
+  border: 0;
+  background: transparent;
+  font-size: 0.7rem;
+  color: var(--muted);
+  min-height: 44px;
+  padding: 0.2rem 0;
+}
+.shortcut-button span {
+  display: inline-grid;
+  place-items: center;
+  height: 24px;
+  width: 24px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.workspace {
+  margin-left: 240px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  min-height: 82px;
+  gap: 1rem;
+  padding: 0 clamp(1.5rem, 3vw, 3.2rem);
+  border-bottom: 1px solid var(--line);
+}
+.breadcrumb {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.save-indicator {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.save-indicator svg {
+  width: 15px;
+  height: 15px;
+}
+.header-settings {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+}
+#main {
+  flex: 1;
+  min-width: 0;
+}
+.page {
+  padding: 2.5rem clamp(1.5rem, 3vw, 3.2rem);
+  max-width: 1600px;
+  margin: 0 auto;
+}
+.page-heading {
+  margin-bottom: 2rem;
+}
+.page-heading h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 4.5vw, 4.2rem);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: 0.005em;
+}
+.page-heading p {
+  font-size: 0.9rem;
+  color: var(--muted);
+  max-width: 660px;
+  margin-top: 0.8rem;
+}
+.page-footer {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--muted);
+  padding: 1.5rem clamp(1.5rem, 3vw, 3.2rem);
+  border-top: 1px solid var(--line);
+}
+.bottom-nav {
+  display: none;
+}

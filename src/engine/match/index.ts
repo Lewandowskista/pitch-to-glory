@@ -6,52 +6,132 @@ import type {
   ReplayFrame,
   Tactics,
   ProbabilityFactor,
-  DecisionChoice,
   MatchEvent,
   MatchReport,
+  DecisionOutcome,
+  Position,
 } from '../../model/domain';
-import { createRng } from '../rng';
-import type { MatchSetup, MatchSession, MatchState, MatchCommand } from './types';
+import { createRng, type Rng } from '../rng';
+import { expectedGoals, playerAbility, teamStrength } from '../strength';
+import {
+  MATCH_ENGINE_VERSION,
+  type MatchSetup,
+  type MatchSession,
+  type MatchState,
+  type MatchCommand,
+  type RatingPart,
+} from './types';
 import { MATCH_CONFIG as C } from './tuning';
 import { validateSetup, validateTactics, validateCommand, validateJson } from './validation';
+import { SITUATION_BY_ID, type ChoiceTemplate, type Situation } from './situations';
+import { halftimeRole, roleEffect, shiftMentality } from './roles';
+import {
+  buildChoices,
+  clamp,
+  momentBudget,
+  round6,
+  situationWeights,
+  type DecisionContext,
+} from './decisions';
 export * from './types';
 export { MATCH_CONFIG } from './tuning';
-const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+export { SITUATIONS, SITUATION_BY_ID } from './situations';
+export type { Situation, ChoiceTemplate, RatingFamily } from './situations';
+export {
+  ROLES_BY_FAMILY,
+  rolesForPosition,
+  isRoleFor,
+  halftimeRole,
+  positionFamily,
+  shiftMentality,
+} from './roles';
+export {
+  buildChoices,
+  expectedImpact,
+  momentBudget,
+  situationWeights,
+  conditionsEffect,
+  type DecisionContext,
+} from './decisions';
+
+/** Thrown before replay when a saved session was produced by a different match engine. */
+export class OutdatedMatchSessionError extends Error {
+  constructor(found: unknown) {
+    super(
+      `Match session engine ${typeof found === 'string' ? found : 'unknown'} is not ${MATCH_ENGINE_VERSION}`,
+    );
+    this.name = 'OutdatedMatchSessionError';
+  }
+}
+
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const SLOTS: Position[] = ['GK', 'LB', 'CB', 'CB', 'RB', 'CM', 'DM', 'CM', 'LW', 'ST', 'RW'];
+const COMPATIBLE: Record<Position, Position[]> = {
+  GK: ['GK'],
+  CB: ['CB', 'LB', 'RB', 'DM'],
+  LB: ['LB', 'RB', 'CB'],
+  RB: ['RB', 'LB', 'CB'],
+  DM: ['DM', 'CM', 'CB'],
+  CM: ['CM', 'DM', 'AM'],
+  AM: ['CM', 'AM', 'ST'],
+  LW: ['LW', 'RW', 'ST'],
+  RW: ['RW', 'LW', 'ST'],
+  ST: ['ST', 'LW', 'RW'],
+};
+const ATTACKERS: Position[] = ['ST', 'LW', 'RW', 'AM'];
+const RATING_PARTS: RatingPart[] = [
+  'shooting',
+  'passing',
+  'dribbling',
+  'defending',
+  'goalkeeping',
+  'goals',
+  'assists',
+  'saves',
+  'errors',
+];
+
+function fit(player: Player, position: Position): number {
+  return player.primaryPosition === position
+    ? 100
+    : (player.secondaryPositions.find((p) => p.position === position)?.familiarity ?? 0);
+}
+function byAbility(players: Record<string, Player>) {
+  return (a: string, b: string) =>
+    playerAbility(players[b]!) - playerAbility(players[a]!) || (a < b ? -1 : 1);
+}
+/** 4-3-3 by positional fit, then ability; the selected player always starts. */
 function lineup(club: Club, players: Record<string, Player>, selected: string): Lineup {
   const available = club.playerIds.filter((id) => {
     const p = players[id];
     return p && !p.retired && !p.injuryId && p.fitness > 0;
   });
   if (available.length < 11) throw new Error('A match requires eleven available players per team');
-  const keeper = available.find((id) => players[id]!.primaryPosition === 'GK');
-  if (!keeper) throw new Error('A match requires a goalkeeper');
-  const starters = [keeper];
-  for (const position of ['LB', 'CB', 'CB', 'RB', 'CM', 'DM', 'CM', 'LW', 'ST', 'RW']) {
+  const keepers = available.filter((id) => players[id]!.primaryPosition === 'GK');
+  if (!keepers.length) throw new Error('A match requires a goalkeeper');
+  const starters = [[...keepers].sort(byAbility(players))[0]!];
+  for (const position of SLOTS.slice(1)) {
     const candidates = available.filter(
       (id) => !starters.includes(id) && players[id]!.primaryPosition !== 'GK',
     );
-    candidates.sort((a, b) => {
-      const fit = (id: string) =>
-        players[id]!.primaryPosition === position
-          ? 100
-          : (players[id]!.secondaryPositions.find((p) => p.position === position)?.familiarity ??
-            0);
-      return fit(b) - fit(a) || players[b]!.fitness - players[a]!.fitness || a.localeCompare(b);
-    });
+    candidates.sort(
+      (a, b) => fit(players[b]!, position) - fit(players[a]!, position) || byAbility(players)(a, b),
+    );
     if (candidates[0]) starters.push(candidates[0]);
   }
   if (available.includes(selected) && !starters.includes(selected)) {
-    if (players[selected]!.primaryPosition === 'GK') starters[0] = selected;
+    const position = players[selected]!.primaryPosition;
+    if (position === 'GK') starters[0] = selected;
     else {
-      const position = players[selected]!.primaryPosition;
-      const samePosition = starters.findIndex((id) => players[id]!.primaryPosition === position);
-      const compatible = ['AM', 'CM', 'DM'].includes(position)
-        ? 6
-        : ['CB', 'LB', 'RB'].includes(position)
-          ? 3
-          : 9;
-      starters[samePosition > 0 ? samePosition : compatible] = selected;
+      // Replace the weakest starter in the closest matching slot.
+      const slots = COMPATIBLE[position]
+        .map((candidate) => SLOTS.flatMap((slot, index) => (slot === candidate ? [index] : [])))
+        .find((indices) => indices.length)!;
+      const replaced = [...slots].sort(
+        (a, b) =>
+          playerAbility(players[starters[a]!]!) - playerAbility(players[starters[b]!]!) || b - a,
+      )[0]!;
+      starters[replaced] = selected;
     }
   }
   if (starters.length !== 11) throw new Error('Invalid lineup');
@@ -96,48 +176,88 @@ export function createMatchSetup(
     neutral: false,
   });
 }
-function rates(setup: MatchSetup, tactics: Tactics): [number, number] {
-  const gap = clamp(setup.home.reputation - setup.away.reputation, -75, 75);
-  let share =
-    1 / (1 + Math.exp(-(gap * C.reputationSlope + (setup.neutral ? 0 : C.homeAdvantage))));
-  const selectedHome = setup.players[setup.selectedPlayerId]!.clubId === setup.home.id;
-  const adjustment =
-    (tactics.mentality === 'attacking' ? 0.035 : tactics.mentality === 'defensive' ? -0.035 : 0) +
-    (tactics.role === 'cut-inside' ? 0.015 : tactics.role === 'track-back' ? -0.015 : 0);
-  share = clamp(share + (selectedHome ? adjustment : -adjustment), 0.12, 0.88);
-  const total =
-    C.goalsPerMatch * (tactics.risk === 'high' ? 1.09 : tactics.risk === 'low' ? 0.94 : 1);
-  return [total * share, total * (1 - share)];
+const selectedSide = (setup: MatchSetup) =>
+  setup.players[setup.selectedPlayerId]!.clubId === setup.home.id ? 0 : 1;
+
+/** Strength-model expectations adjusted by personal tactics, rounded for stable replay. */
+function rates(setup: MatchSetup, strength: [number, number], tactics: Tactics): [number, number] {
+  const [home, away] = expectedGoals(strength[0], strength[1], setup.neutral);
+  const total = (home + away) * C.tactics.riskTotal[tactics.risk];
+  const shift =
+    (tactics.mentality === 'attacking' ? 1 : tactics.mentality === 'defensive' ? -1 : 0) *
+      C.tactics.mentalityShare +
+    (roleEffect(tactics.role).share ?? 0);
+  const share = clamp(
+    home / (home + away) + (selectedSide(setup) === 0 ? shift : -shift),
+    C.tactics.minimumShare,
+    C.tactics.maximumShare,
+  );
+  return [round6(total * share), round6(total * (1 - share))];
+}
+function shares(position: Position, role: string): MatchState['shares'] {
+  const [attack, defence] = C.shares[position];
+  const weights = situationWeights(position, role);
+  return {
+    attack: weights.some((w) => w.situation.attackWeight > 0) ? attack : 0,
+    defence: weights.some((w) => w.situation.defenceWeight > 0) ? defence : 0,
+  };
+}
+function possessionBase(setup: MatchSetup, state: Pick<MatchState, 'strength'>, tactics: Tactics) {
+  const mentality =
+    (tactics.mentality === 'attacking' ? 1 : tactics.mentality === 'defensive' ? -1 : 0) *
+    C.possession.mentality *
+    (selectedSide(setup) === 0 ? 1 : -1);
+  return 50 + (state.strength[0] - state.strength[1]) * C.possession.strengthSlope + mentality;
+}
+function updatePossession(session: MatchSession): void {
+  const s = session.state;
+  s.stats.homePossession = Math.round(
+    clamp(
+      possessionBase(session.setup, s, s.match.tactics) +
+        (s.match.momentum - 50) * C.possession.momentum,
+      C.possession.minimum,
+      C.possession.maximum,
+    ),
+  );
 }
 export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSession {
   validateSetup(setup);
-  validateTactics(tactics);
+  const selected = setup.players[setup.selectedPlayerId]!;
+  validateTactics(tactics, selected.primaryPosition);
   const home = lineup(setup.home, setup.players, setup.selectedPlayerId),
     away = lineup(setup.away, setup.players, setup.selectedPlayerId);
+  const starters = (team: Lineup) => team.starterIds.map((id) => setup.players[id]!);
+  const strength: [number, number] = [
+    round6(teamStrength(setup.home.reputation, starters(home))),
+    round6(teamStrength(setup.away.reputation, starters(away))),
+  ];
+  const matchLevel = round6(
+    [...starters(home), ...starters(away)].reduce((sum, p) => sum + playerAbility(p), 0) / 22,
+  );
   const rng = createRng(`${setup.seed}:preview`);
-  const player = setup.players[setup.selectedPlayerId]!;
   const involvement =
-    player.primaryPosition === 'GK'
-      ? 0
-      : ['ST', 'AM', 'LW', 'RW'].includes(player.primaryPosition)
-        ? 3
-        : 1;
+    selected.primaryPosition === 'GK'
+      ? C.involvement.keeper
+      : ATTACKERS.includes(selected.primaryPosition)
+        ? C.involvement.attack
+        : C.involvement.other;
   const count = clamp(
-    8 + involvement + Math.round((player.form - 50) / 15) + rng.int(-1, 1),
+    C.momentBase + involvement + Math.round((selected.form - 50) / C.formStep) + rng.int(-1, 1),
     C.minimumMoments,
     C.maximumMoments,
   );
-  const minutes = Array.from(
-    { length: count },
-    (_, i) => Math.round(6 + (i * 78) / (count - 1)) + rng.int(-2, 2),
-  );
-  const selected = setup.players[setup.selectedPlayerId]!;
+  const minutes: number[] = [];
+  for (let i = 0; i < count; i++)
+    minutes.push(
+      Math.max((minutes[i - 1] ?? 0) + 1, Math.round(6 + (i * 78) / (count - 1)) + rng.int(-2, 2)),
+    );
+  const keeper = selected.primaryPosition === 'GK';
   const objectives = [
     { id: 'rating', kind: 'rating' as const, target: 7, progress: 0 },
     {
-      id: selected.primaryPosition === 'GK' ? 'clean-sheet' : 'passing',
-      kind: selected.primaryPosition === 'GK' ? ('clean-sheet' as const) : ('passing' as const),
-      target: selected.primaryPosition === 'GK' ? 1 : 85,
+      id: keeper ? 'clean-sheet' : 'passing',
+      kind: keeper ? ('clean-sheet' as const) : ('passing' as const),
+      target: keeper ? 1 : 85,
       progress: 0,
     },
   ];
@@ -161,13 +281,14 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
     keyMoments: [],
     reports: [],
   };
-  const captainId = [...(selected.clubId === setup.home.id ? home : away).starterIds].sort(
+  const captainId = [...(selectedSide(setup) === 0 ? home : away).starterIds].sort(
     (a, b) =>
       setup.players[b]!.attributes.leadership - setup.players[a]!.attributes.leadership ||
-      a.localeCompare(b),
+      (a < b ? -1 : 1),
   )[0];
-  return {
+  const session: MatchSession = {
     version: 1,
+    engine: MATCH_ENGINE_VERSION,
     setup: copy(setup),
     initialTactics: copy(tactics),
     commands: [],
@@ -180,7 +301,10 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       substitutionDecisionPending: false,
       captain: captainId === selected.id,
       captainDecisionPending: false,
-      expectedGoals: rates(setup, tactics),
+      strength,
+      matchLevel,
+      expectedGoals: rates(setup, strength, tactics),
+      shares: shares(selected.primaryPosition, tactics.role),
       stats: {
         homeShots: 0,
         awayShots: 0,
@@ -191,9 +315,14 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
         saves: 0,
         goals: 0,
         assists: 0,
-        rating: 6.5,
+        errors: 0,
+        rating: C.rating.base,
         fatigue: selected.fatigue,
       },
+      ratingParts: Object.fromEntries(RATING_PARTS.map((part) => [part, 0])) as Record<
+        RatingPart,
+        number
+      >,
       report: null,
       momentMinutes: minutes,
       managerTrustDelta: 0,
@@ -202,28 +331,30 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       headlineKey: 'match.headline.steady',
     },
   };
+  updatePossession(session);
+  return session;
 }
+const FORMATION_POINTS = [
+  [5, 50],
+  [24, 15],
+  [22, 38],
+  [22, 62],
+  [24, 85],
+  [45, 27],
+  [42, 50],
+  [45, 73],
+  [70, 18],
+  [76, 50],
+  [70, 82],
+];
 function frame(setup: MatchSetup, home: Lineup, away: Lineup, minute: number): ReplayFrame {
   const rng = createRng(`${setup.seed}:frame:${minute}`);
-  const positions = [
-    [5, 50],
-    [24, 15],
-    [22, 38],
-    [22, 62],
-    [24, 85],
-    [45, 27],
-    [42, 50],
-    [45, 73],
-    [70, 18],
-    [76, 50],
-    [70, 82],
-  ];
   return {
     timeMs: minute * 60000,
     ball: { x: rng.int(20, 80), y: rng.int(12, 88) },
     players: [home, away].flatMap((team, side) =>
       team.starterIds.map((id, i) => {
-        const base = positions[i]!;
+        const base = FORMATION_POINTS[i]!;
         const flip = (side === 1) !== minute > 45;
         const x = clamp(base[0]! + rng.int(-5, 5), 2, 98);
         return {
@@ -235,129 +366,12 @@ function frame(setup: MatchSetup, home: Lineup, away: Lineup, minute: number): R
     ),
   };
 }
-function choices(session: MatchSession): DecisionChoice[] {
-  const s = session.state,
-    p = session.setup.players[session.setup.selectedPlayerId]!;
-  const opponent = p.clubId === session.setup.home.id ? session.setup.away : session.setup.home;
-  const keeper = p.primaryPosition === 'GK',
-    defender = ['CB', 'LB', 'RB', 'DM'].includes(p.primaryPosition);
-  const actions = keeper
-    ? ['hold', 'parry', 'rush', 'distribute']
-    : defender
-      ? ['intercept', 'tackle', 'clear', 'pass']
-      : ['pass', 'near', 'far', 'dribble'];
-  return actions.map((id) => {
-    const attribute =
-      id === 'hold'
-        ? p.keeperAttributes.handling
-        : id === 'parry'
-          ? p.keeperAttributes.reflexes
-          : id === 'rush'
-            ? p.keeperAttributes.oneOnOnes
-            : id === 'distribute'
-              ? p.keeperAttributes.kicking
-              : id === 'pass'
-                ? (p.attributes.passing + p.attributes.vision) / 2
-                : id === 'dribble'
-                  ? (p.attributes.dribbling + p.attributes.agility) / 2
-                  : id === 'intercept'
-                    ? (p.attributes.positioning + p.attributes.decisions) / 2
-                    : id === 'tackle'
-                      ? p.attributes.tackling
-                      : id === 'clear'
-                        ? p.attributes.composure
-                        : id === 'far'
-                          ? (p.attributes.finishing + p.attributes.composure) / 2
-                          : p.attributes.finishing;
-    const traitPattern =
-      id === 'far'
-        ? /finesse/i
-        : id === 'dribble'
-          ? /trickster/i
-          : ['intercept', 'tackle'].includes(id)
-            ? /ball.winner/i
-            : keeper
-              ? /safe.hands/i
-              : id === 'pass'
-                ? /playmaker/i
-                : /finisher/i;
-    const trait = p.traits.some((t) => traitPattern.test(t)) ? C.traitBonus : 0;
-    const shot = ['near', 'far'].includes(id);
-    const base = shot
-      ? ((s.expectedGoals[p.clubId === session.setup.home.id ? 0 : 1] * C.personalGoalShare) /
-          s.momentMinutes.length) *
-        (id === 'near' ? 1.1 : 0.9)
-      : id === 'clear'
-        ? 0.78
-        : id === 'pass' || id === 'distribute'
-          ? 0.8
-          : id === 'rush'
-            ? 0.52
-            : C.baseDecisionProbability;
-    const role = s.match.tactics.role;
-    const roleBonus =
-      (role === 'cut-inside' && shot) ||
-      (role === 'track-back' && defender) ||
-      (role === 'sweeper-keeper' && id === 'rush') ||
-      (role === 'hug-touchline' && id === 'pass') ||
-      (role === 'playmaker' && id === 'pass') ||
-      (role === 'run-behind' && id === 'dribble') ||
-      (role === 'target-player' && id === 'near') ||
-      (role === 'ball-winner' && id === 'tackle') ||
-      (role === 'hold-position' && id === 'intercept') ||
-      (role === 'push-forward' && id === 'pass') ||
-      (role === 'shot-stopper' && id === 'parry') ||
-      (role === 'safe-distribution' && id === 'distribute')
-        ? shot
-          ? 0.008
-          : 0.04
-        : 0;
-    const risk =
-      s.match.tactics.risk === 'high'
-        ? shot
-          ? 0.008
-          : -0.04
-        : s.match.tactics.risk === 'low'
-          ? shot
-            ? -0.008
-            : 0.04
-          : 0;
-    const factors: ProbabilityFactor[] = [
-      { labelKey: 'match.factor.base', source: 'attribute', contribution: base },
-      {
-        labelKey: 'match.factor.attribute',
-        source: 'attribute',
-        contribution: (attribute - 50) * (shot ? C.attributeScale / 10 : C.attributeScale),
-      },
-      { labelKey: 'match.factor.trait', source: 'trait', contribution: trait },
-      {
-        labelKey: 'match.factor.defender',
-        source: 'defender',
-        contribution: -(opponent.reputation - 50) * (shot ? C.defenderScale / 10 : C.defenderScale),
-      },
-      {
-        labelKey: 'match.factor.fatigue',
-        source: 'fatigue',
-        contribution: -s.stats.fatigue * (shot ? C.fatigueScale / 10 : C.fatigueScale),
-      },
-      { labelKey: 'match.factor.risk', source: 'attribute', contribution: risk },
-      { labelKey: 'match.factor.role', source: 'attribute', contribution: roleBonus },
-      {
-        labelKey: 'match.factor.weather',
-        source: 'attribute',
-        contribution: s.match.weather === 'clear' ? 0 : shot ? -0.004 : -0.025,
-      },
-    ];
-    const raw = factors.reduce((sum, f) => sum + f.contribution, 0),
-      probability = clamp(raw, shot ? 0.02 : 0.12, 0.94);
-    if (raw !== probability)
-      factors.push({
-        labelKey: 'match.factor.limit',
-        source: 'attribute',
-        contribution: probability - raw,
-      });
-    return { id, labelKey: `match.choice.${id}`, probability, factors, requiredTraitId: null };
-  });
+/** True when the team attacks towards x = 100 at this minute. */
+const attacksRight = (session: MatchSession, teamId: string, minute: number) =>
+  (teamId === session.setup.home.id) !== minute > 45;
+function line(session: MatchSession, base: string): string {
+  const salt = `${session.state.match.id}:${session.state.match.events.length}`;
+  return `${base}.${createRng(`${session.setup.seed}:commentary:${salt}`).int(0, C.commentaryVariants - 1)}`;
 }
 function event(
   session: MatchSession,
@@ -365,14 +379,15 @@ function event(
   teamId: string,
   playerId: string | null,
   commentaryKey: string,
-  outcome: MatchEvent['outcome'] = null,
-): void {
+  outcome: DecisionOutcome | null = null,
+  target?: number,
+): MatchEvent {
   const m = session.state.match;
   const currentFrame = session.state.frames[session.state.frames.length - 1]!;
   const point = {
     ...(currentFrame.players.find((player) => player.id === playerId)?.point ?? currentFrame.ball),
   };
-  const direction = (teamId === session.setup.home.id) !== m.minute > 45 ? 1 : -1;
+  const direction = attacksRight(session, teamId, m.minute) ? 1 : -1;
   let endPoint: { x: number; y: number } | undefined;
   if (kind === 'pass') {
     const team = teamId === session.setup.home.id ? m.home : m.away;
@@ -382,22 +397,21 @@ function event(
         team.starterIds.includes(player.id) &&
         session.setup.players[player.id]!.primaryPosition !== 'GK',
     );
-    receivers.sort((a, b) => {
-      const distance = (player: typeof a) =>
-        Math.hypot(player.point.x - point.x, player.point.y - point.y) +
-        ((player.point.x - point.x) * direction < 0 ? 20 : 0);
-      return distance(a) - distance(b) || a.id.localeCompare(b.id);
-    });
+    // Squared distances avoid engine-dependent square roots in replayed ordering.
+    const distance = (player: (typeof receivers)[number]) => {
+      const dx = player.point.x - point.x,
+        dy = player.point.y - point.y;
+      return dx * dx + dy * dy + (dx * direction < 0 ? 400 : 0);
+    };
+    receivers.sort((a, b) => distance(a) - distance(b) || (a.id < b.id ? -1 : 1));
     endPoint = {
       ...(receivers[0]?.point ?? { x: clamp(point.x + direction * 12, 0, 100), y: point.y }),
     };
-  } else if (kind === 'shot' || kind === 'goal') {
-    endPoint = {
-      x: direction > 0 ? 100 : 0,
-      y: outcome?.input.choiceId === 'near' ? 47 : outcome?.input.choiceId === 'far' ? 53 : 50,
-    };
-  }
-  m.events.push({
+  } else if (kind === 'shot' || kind === 'goal')
+    endPoint = { x: direction > 0 ? 100 : 0, y: target ?? 50 };
+  else if (kind === 'dribble') endPoint = { x: clamp(point.x + direction * 9, 0, 100), y: point.y };
+  const name = playerId ? session.setup.players[playerId]?.name : undefined;
+  const created: MatchEvent = {
     id: `${m.id}:event:${m.events.length}`,
     minute: m.minute,
     kind,
@@ -406,58 +420,107 @@ function event(
     point,
     ...(endPoint ? { endPoint } : {}),
     commentaryKey,
+    ...(name ? { commentaryParams: { player: name } } : {}),
     outcome,
-  });
+  };
+  m.events.push(created);
+  return created;
 }
-function goal(session: MatchSession, side: number, playerId: string | null): void {
+const sideTeam = (session: MatchSession, side: number) =>
+  side === 0 ? session.setup.home.id : session.setup.away.id;
+function recordShot(session: MatchSession, side: number, id: string, key: string, target?: number) {
+  if (side === 0) session.state.stats.homeShots++;
+  else session.state.stats.awayShots++;
+  return event(session, 'shot', sideTeam(session, side), id, line(session, key), null, target);
+}
+function goal(session: MatchSession, side: number, playerId: string, target?: number): void {
   const m = session.state.match;
   m.score[side]!++;
   event(
     session,
     'goal',
-    side === 0 ? session.setup.home.id : session.setup.away.id,
+    sideTeam(session, side),
     playerId,
-    'match.commentary.goal',
+    line(session, 'match.commentary.goal'),
+    null,
+    target,
   );
-  if (playerId === session.setup.selectedPlayerId) session.state.stats.goals++;
+  if (playerId === session.setup.selectedPlayerId) {
+    session.state.stats.goals++;
+    addRating(session, 'goals', C.rating.goal);
+  }
   const currentFrame = session.state.frames[session.state.frames.length - 1]!;
   session.state.frames[session.state.frames.length - 1] = {
     ...currentFrame,
     ball: { ...m.events[m.events.length - 1]!.endPoint! },
   };
 }
-function simulateMinuteGoals(session: MatchSession, quality = 0, keeperSave = false): void {
+function addRating(session: MatchSession, part: RatingPart, delta: number): void {
+  const s = session.state;
+  s.ratingParts = { ...s.ratingParts, [part]: round6(s.ratingParts[part] + delta) };
+  const total = RATING_PARTS.reduce<number>((sum, key) => sum + s.ratingParts[key], C.rating.base);
+  s.stats.rating = round6(clamp(total, C.rating.minimum, C.rating.maximum));
+}
+/** Picks a likely finisher: forwards most often, never the goalkeeper. */
+function finisher(session: MatchSession, side: number, rng: Rng, exclude?: string): string {
+  const team = side === 0 ? session.state.match.home : session.state.match.away;
+  const pool = team.starterIds.filter(
+    (id) => id !== exclude && session.setup.players[id]!.primaryPosition !== 'GK',
+  );
+  const weighted = pool.flatMap((id) => {
+    const position = session.setup.players[id]!.primaryPosition;
+    const weight =
+      position === 'ST' ? 4 : ATTACKERS.includes(position) ? 3 : position === 'CM' ? 2 : 1;
+    return Array.from({ length: weight }, () => id);
+  });
+  return rng.pick(weighted);
+}
+/** A created chance becomes a recorded shot, and a goal with the given total probability. */
+function chance(
+  session: MatchSession,
+  side: number,
+  scorer: string,
+  probability: number,
+  rng: Rng,
+  key: string,
+): boolean {
+  if (probability <= 0) return false;
+  const shot = Math.min(1, probability / C.chanceConversion);
+  if (rng.next() >= shot) return false;
+  recordShot(session, side, scorer, key);
+  if (rng.next() >= probability / shot) return false;
+  goal(session, side, scorer);
+  return true;
+}
+function simulateMinuteGoals(session: MatchSession): void {
   const s = session.state,
     rng = createRng(`${session.setup.seed}:minute:${s.match.minute}`);
   const selected = session.setup.players[session.setup.selectedPlayerId]!,
-    selectedHome = selected.clubId === session.setup.home.id;
+    own = selectedSide(session.setup);
   for (let side = 0; side < 2; side++) {
-    const own = (side === 0) === selectedHome;
-    // Personal attacking moments replace a portion of the team's shot budget.
-    const attacking =
-      !['GK', 'CB', 'LB', 'RB', 'DM'].includes(selected.primaryPosition) && !s.substituted;
-    const defensive =
-      !s.substituted && ['GK', 'CB', 'LB', 'RB', 'DM'].includes(selected.primaryPosition);
-    const share = (own && attacking) || (!own && defensive) ? C.personalGoalShare : 0;
-    const base = (s.expectedGoals[side]! * (1 - share)) / 90;
-    const chance = clamp(base * (own ? 1 + quality : keeperSave ? 0.15 : 1), 0, 0.2);
-    if (rng.next() < chance / C.shotConversion) {
-      const team = side === 0 ? s.match.home : s.match.away;
-      const candidates = team.starterIds.filter(
-        (id) =>
-          session.setup.players[id]!.primaryPosition !== 'GK' && (!attacking || id !== selected.id),
+    // Personal key moments replace part of each side's expected goals while the player is on.
+    const replaced = s.substituted ? 0 : side === own ? s.shares.attack : s.shares.defence;
+    const rate = clamp((s.expectedGoals[side]! * (1 - replaced)) / 90, 0, 0.2);
+    if (rng.next() < rate / C.shotConversion) {
+      const id = finisher(
+        session,
+        side,
+        rng,
+        side === own && !s.substituted ? selected.id : undefined,
       );
-      const id = rng.pick(candidates);
-      recordShot(session, side, id);
+      recordShot(session, side, id, 'match.commentary.attempt');
       if (rng.next() < C.shotConversion) goal(session, side, id);
     }
   }
   // Ordinary passes are real logged actions and contribute to the pass map.
   if (!s.substituted && selected.primaryPosition !== 'GK' && rng.next() < C.passPerMinute) {
-    const probability = clamp(
-      0.68 + selected.attributes.passing * 0.002 - s.stats.fatigue * 0.0008,
-      0.4,
-      0.96,
+    const P = C.routinePass;
+    const probability = round6(
+      clamp(
+        P.base + selected.attributes.passing * P.passing - s.stats.fatigue * P.fatigue,
+        P.minimum,
+        P.maximum,
+      ),
     );
     const roll = rng.next(),
       success = roll < probability;
@@ -468,7 +531,7 @@ function simulateMinuteGoals(session: MatchSession, quality = 0, keeperSave = fa
       'pass',
       selected.clubId!,
       selected.id,
-      success ? 'match.commentary.success' : 'match.commentary.failure',
+      line(session, `match.commentary.routine.${success ? 'success' : 'failure'}`),
       {
         input: { momentId: `routine:${s.match.minute}`, choiceId: 'pass' },
         success,
@@ -480,29 +543,27 @@ function simulateMinuteGoals(session: MatchSession, quality = 0, keeperSave = fa
       },
     );
   }
-  s.match.momentum = clamp(
-    50 + (s.match.score[0] - s.match.score[1]) * 9 + rng.int(-15, 15),
-    5,
-    95,
-  );
-  s.stats.homePossession = Math.round(
-    clamp(50 + (session.setup.home.reputation - session.setup.away.reputation) * 0.22, 30, 70),
-  );
   s.match.rng = rng.snapshot();
 }
-function recordShot(session: MatchSession, side: number, id: string): void {
-  if (side === 0) session.state.stats.homeShots++;
-  else session.state.stats.awayShots++;
-  event(
-    session,
-    'shot',
-    side === 0 ? session.setup.home.id : session.setup.away.id,
-    id,
-    'match.commentary.shot',
-  );
+/** Momentum decays towards even and reacts to this minute's shots, goals and decisions. */
+function updateMomentum(session: MatchSession): void {
+  const m = session.state.match,
+    M = C.momentum;
+  let impulse = 0;
+  for (const e of m.events) {
+    if (e.minute !== m.minute) continue;
+    const sign = e.teamId === session.setup.home.id ? 1 : -1;
+    if (e.kind === 'shot') impulse += sign * M.shot;
+    else if (e.kind === 'goal') impulse += sign * M.goal;
+    else if (e.outcome && !e.outcome.input.momentId.startsWith('routine:'))
+      impulse += sign * (e.outcome.success ? M.success : -M.failure);
+  }
+  m.momentum = clamp(50 + Math.round((m.momentum - 50) * M.decay) + impulse, M.minimum, M.maximum);
+  updatePossession(session);
 }
 function afterMinute(session: MatchSession) {
   const s = session.state;
+  updateMomentum(session);
   if (s.match.minute === 45) {
     s.match.status = 'halftime';
     event(
@@ -518,11 +579,22 @@ function afterMinute(session: MatchSession) {
     s.match.reports = [s.report];
   }
 }
+const RATING_LABELS: Record<RatingPart, string> = {
+  shooting: 'match.rating.shooting',
+  passing: 'match.rating.passing',
+  dribbling: 'match.rating.dribbling',
+  defending: 'match.rating.defending',
+  goalkeeping: 'match.rating.goalkeeping',
+  goals: 'match.rating.goals',
+  assists: 'match.rating.assists',
+  saves: 'match.rating.saves',
+  errors: 'match.rating.errors',
+};
 function report(session: MatchSession): MatchReport {
   const s = session.state,
     m = s.match,
     id = session.setup.selectedPlayerId;
-  const rating = Math.round(clamp(s.stats.rating, 3, 10) * 10) / 10;
+  const rating = Math.round(clamp(s.stats.rating, C.rating.minimum, C.rating.maximum) * 10) / 10;
   const playerEvents = m.events.filter((e) => e.playerId === id);
   const passes = playerEvents
     .filter((e) => e.kind === 'pass')
@@ -538,7 +610,7 @@ function report(session: MatchSession): MatchReport {
       to: { ...(e.endPoint ?? e.point) },
       goal: m.events.some((g) => g.kind === 'goal' && g.minute === e.minute && g.playerId === id),
     }));
-  const ownSide = session.setup.players[id]!.clubId === session.setup.home.id ? 0 : 1;
+  const ownSide = selectedSide(session.setup);
   const objectives = m.objectives.map((o) => ({
     ...o,
     progress:
@@ -562,21 +634,28 @@ function report(session: MatchSession): MatchReport {
       : rating >= 7
         ? 'match.headline.strong'
         : 'match.headline.steady';
+  // Every contribution is listed; the final factor absorbs the 3–10 bound and the rounding.
+  const ratingFactors: ProbabilityFactor[] = [
+    { labelKey: 'match.rating.base', source: 'attribute', contribution: C.rating.base },
+    ...RATING_PARTS.filter((part) => s.ratingParts[part] !== 0).map((part) => ({
+      labelKey: RATING_LABELS[part],
+      source: 'attribute' as const,
+      contribution: s.ratingParts[part],
+    })),
+  ];
+  const limit = round6(
+    rating - ratingFactors.reduce((sum, f) => sum + f.contribution, 0 as number),
+  );
+  if (limit !== 0)
+    ratingFactors.push({
+      labelKey: 'match.rating.limit',
+      source: 'attribute',
+      contribution: limit,
+    });
   return {
     playerId: id,
-    rating: Math.round(rating * 10) / 10,
-    ratingFactors: [
-      {
-        labelKey: 'match.rating.decisions',
-        source: 'attribute',
-        contribution: rating - C.ratingBase,
-      },
-      {
-        labelKey: 'match.rating.base',
-        source: 'attribute',
-        contribution: C.ratingBase,
-      },
-    ],
+    rating,
+    ratingFactors,
     xp: Math.round(
       s.selectedPlayerMinutes * C.xp.perMinute +
         Math.max(0, rating - C.xp.ratingThreshold) * C.xp.perRating +
@@ -598,12 +677,222 @@ function report(session: MatchSession): MatchReport {
     headlineId: s.headlineKey,
   };
 }
+/** Best bench replacement: same position, then a compatible one, then any outfielder. */
+function replacement(session: MatchSession, bench: string[], player: Player): string | undefined {
+  const players = session.setup.players;
+  const tier = (id: string) => {
+    const candidate = players[id]!;
+    if ((candidate.primaryPosition === 'GK') !== (player.primaryPosition === 'GK')) return 0;
+    if (candidate.primaryPosition === player.primaryPosition) return 3;
+    return fit(candidate, player.primaryPosition) > 0 ||
+      COMPATIBLE[player.primaryPosition].includes(candidate.primaryPosition)
+      ? 2
+      : 1;
+  };
+  return bench
+    .filter((id) => tier(id) > 0)
+    .sort((a, b) => tier(b) - tier(a) || byAbility(players)(a, b))[0];
+}
+function contextFor(session: MatchSession, situation: Situation, rng: Rng): DecisionContext {
+  const s = session.state,
+    setup = session.setup,
+    side = selectedSide(setup);
+  const player = setup.players[setup.selectedPlayerId]!;
+  const opposition = side === 0 ? s.match.away : s.match.home;
+  const pickAbility = (positions: Position[]) => {
+    const pool = opposition.starterIds.filter((id) =>
+      positions.includes(setup.players[id]!.primaryPosition),
+    );
+    return round6(
+      playerAbility(setup.players[rng.pick(pool.length ? pool : opposition.starterIds)]!),
+    );
+  };
+  const weights = situationWeights(player.primaryPosition, s.match.tactics.role);
+  return {
+    player,
+    situation,
+    budget: momentBudget(
+      situation,
+      weights,
+      s.shares,
+      { own: s.expectedGoals[side]!, opposition: s.expectedGoals[1 - side]! },
+      s.momentMinutes.length,
+    ),
+    matchLevel: s.matchLevel,
+    fatigue: s.stats.fatigue,
+    tactics: s.match.tactics,
+    weather: s.match.weather,
+    pitchCondition: s.match.pitchCondition,
+    strengthGap: round6(s.strength[side]! - s.strength[1 - side]!),
+    opponents: {
+      keeper: pickAbility(['GK']),
+      defender: pickAbility(['CB', 'LB', 'RB', 'DM']),
+      attacker: pickAbility(['ST', 'LW', 'RW', 'AM']),
+    },
+  };
+}
+function openMoment(next: MatchSession): void {
+  const s = next.state,
+    m = s.match,
+    setup = next.setup;
+  const player = setup.players[setup.selectedPlayerId]!;
+  const rng = createRng(`${setup.seed}:situation:${m.minute}`);
+  const weights = situationWeights(player.primaryPosition, m.tactics.role);
+  let target = rng.next() * weights.reduce((sum, w) => sum + w.weight, 0);
+  let situation = weights[weights.length - 1]!.situation;
+  for (const w of weights) {
+    target -= w.weight;
+    if (target < 0) {
+      situation = w.situation;
+      break;
+    }
+  }
+  const context = contextFor(next, situation, rng);
+  // Place the selected player where the situation happens, attacking the correct end.
+  const right = attacksRight(next, player.clubId!, m.minute);
+  const width = clamp(
+    (rng.next() < 0.5 ? situation.spot.width : 100 - situation.spot.width) + rng.int(-4, 4),
+    2,
+    98,
+  );
+  const spot = {
+    x: right ? situation.spot.depth : 100 - situation.spot.depth,
+    y: width,
+  };
+  const currentFrame = s.frames[s.frames.length - 1]!;
+  const momentFrame: ReplayFrame = {
+    ...currentFrame,
+    ball: { ...spot },
+    players: currentFrame.players.map((p) =>
+      p.id === player.id ? { ...p, point: { ...spot } } : p,
+    ),
+  };
+  s.frames[s.frames.length - 1] = momentFrame;
+  const moment = {
+    id: `${m.id}:moment:${m.minute}`,
+    minute: m.minute,
+    situationId: situation.id,
+    situationKey: `match.situation.${situation.id}`,
+    frame: momentFrame,
+    budget: context.budget,
+    choices: buildChoices(context),
+  };
+  s.currentMoment = moment;
+  m.keyMoments.push(moment);
+  m.status = 'decision';
+}
+function resolveChoice(next: MatchSession, choiceId: string): void {
+  const s = next.state,
+    m = s.match,
+    setup = next.setup;
+  const moment = s.currentMoment!;
+  const choice = moment.choices.find((c) => c.id === choiceId);
+  const template: ChoiceTemplate | undefined = SITUATION_BY_ID[moment.situationId]?.choices.find(
+    (c) => c.id === choiceId,
+  );
+  if (!choice || !template) throw new Error('Invalid decision choice');
+  // Each choice has its own stream, so alternatives at the same moment never share a roll.
+  const rng = createRng(`${setup.seed}:decision:${m.minute}:${moment.id}:${choice.id}`);
+  const roll = rng.next(),
+    success = roll < choice.probability;
+  const p = setup.players[setup.selectedPlayerId]!,
+    side = selectedSide(setup),
+    stakes = choice.stakes;
+  const outcome: DecisionOutcome = {
+    input: { momentId: moment.id, choiceId: choice.id },
+    success,
+    roll,
+    probability: choice.probability,
+    factors: choice.factors,
+  };
+  const key = `match.commentary.${template.commentary}.${success ? 'success' : 'failure'}`;
+  const opponentShooter = () => finisher(next, 1 - side, rng);
+  if (template.direct === 'against') {
+    // The shot is already on its way: record it, then the goalkeeper's attempt.
+    const shooter = opponentShooter();
+    recordShot(next, 1 - side, shooter, 'match.commentary.attempt');
+    event(next, template.event, p.clubId!, p.id, line(next, key), outcome);
+    if (!success) {
+      goal(next, 1 - side, shooter);
+      s.stats.errors++;
+      addRating(next, 'errors', C.rating.error);
+    }
+  } else if (template.event === 'shot') {
+    if (side === 0) s.stats.homeShots++;
+    else s.stats.awayShots++;
+    event(next, 'shot', p.clubId!, p.id, line(next, key), outcome, template.target);
+    if (success) goal(next, side, p.id, template.target);
+  } else event(next, template.event, p.clubId!, p.id, line(next, key), outcome);
+  if (template.stat === 'passes') {
+    s.stats.passesAttempted++;
+    if (success) s.stats.passesCompleted++;
+  } else if (template.stat === 'tackles' && success) s.stats.tackles++;
+  if (template.stat === 'saves' && success) s.stats.saves++;
+  if (success && (template.family === 'goalkeeping' || template.family === 'defending')) {
+    // A stop earns credit in proportion to the danger it removed and its difficulty, so its
+    // expected value (stop × danger) is the same for every defensive choice.
+    const danger =
+      template.againstShare *
+      moment.budget.against *
+      (template.opponent === 'attacker' ? C.decision.defensiveEdge : 1);
+    addRating(next, 'saves', (C.rating.stop * danger) / choice.probability);
+  }
+  // Follow-up chances: created for the selected team, or conceded to the opposition.
+  const goalProbability = success
+    ? template.direct === 'for'
+      ? 0
+      : stakes.successGoal
+    : stakes.failureGoal;
+  if (goalProbability > 0) {
+    const self = success && template.scorer === 'self';
+    const scorer = self ? p.id : finisher(next, side, rng, p.id);
+    const scored = chance(
+      next,
+      side,
+      scorer,
+      goalProbability,
+      rng,
+      self ? 'match.commentary.attempt' : 'match.commentary.chance',
+    );
+    if (scored && success && template.assist && !self) {
+      s.stats.assists++;
+      addRating(next, 'assists', C.rating.assist);
+    }
+  }
+  const concedeProbability = success
+    ? stakes.successConcede
+    : template.direct === 'against'
+      ? 0
+      : stakes.failureConcede;
+  if (concedeProbability > 0) {
+    const conceded = chance(
+      next,
+      1 - side,
+      opponentShooter(),
+      concedeProbability,
+      rng,
+      'match.commentary.counter',
+    );
+    if (conceded) {
+      s.stats.errors++;
+      addRating(next, 'errors', C.rating.error);
+    }
+  }
+  // Expected-value-neutral decision credit: harder successes earn more, safe failures cost more.
+  const weight = C.rating.decisionWeight;
+  addRating(
+    next,
+    template.family,
+    success ? weight * (1 - choice.probability) : -weight * choice.probability,
+  );
+}
 export function applyMatchCommand(session: MatchSession, command: MatchCommand): MatchSession {
   validateCommand(command);
   const source = session.state;
   const state: MatchState = {
     ...source,
     stats: { ...source.stats },
+    ratingParts: { ...source.ratingParts },
     frames: [...source.frames],
     match: {
       ...source.match,
@@ -616,7 +905,8 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
   };
   const next: MatchSession = { ...session, commands: [...session.commands, copy(command)], state };
   const m = state.match;
-  if (!command || typeof command !== 'object') throw new Error('Invalid match command');
+  const setup = session.setup;
+  const player = setup.players[setup.selectedPlayerId]!;
   if (command.type === 'kickoff') {
     if (m.status !== 'preview') throw new Error('Match already started');
     m.status = 'live';
@@ -624,145 +914,52 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     if (m.status !== 'live' || state.captainDecisionPending || state.substitutionDecisionPending)
       throw new Error('Cannot advance paused match');
     m.minute++;
-    state.frames.push(frame(session.setup, m.home, m.away, m.minute));
+    state.frames.push(frame(setup, m.home, m.away, m.minute));
     if (!state.substituted) {
       state.selectedPlayerMinutes++;
-      const p = session.setup.players[session.setup.selectedPlayerId]!;
-      state.stats.fatigue = clamp(
-        state.stats.fatigue +
-          C.fatiguePerMinute * (1.3 - p.attributes.stamina / 150) +
-          (m.tactics.risk === 'high' ? 0.08 : 0),
-        0,
-        100,
+      state.stats.fatigue = round6(
+        clamp(
+          state.stats.fatigue +
+            C.fatiguePerMinute * (1.3 - player.attributes.stamina / 150) +
+            (m.tactics.risk === 'high' ? C.highRiskFatigue : 0),
+          0,
+          100,
+        ),
       );
+      // Fatigue already starts from the player's condition, so it is the only trigger.
       if (
         m.minute >= C.minimumSubstitutionMinute &&
-        (state.stats.fatigue >= C.substitutionFatigue || p.fitness < 50)
+        m.minute < C.substitutionCutoffMinute &&
+        state.stats.fatigue >= C.substitutionFatigue
       ) {
-        const team = p.clubId === session.setup.home.id ? 'home' : 'away';
+        const team = selectedSide(setup) === 0 ? 'home' : 'away';
         const current = m[team];
-        const replacement = current.benchIds.find(
-          (id) =>
-            (session.setup.players[id]!.primaryPosition === 'GK') === (p.primaryPosition === 'GK'),
-        );
-        if (replacement) {
+        const incoming = replacement(next, current.benchIds, player);
+        if (incoming) {
           state.substituted = true;
           state.substitutionDecisionPending = true;
           m[team] = {
             ...current,
-            starterIds: current.starterIds.map((id) => (id === p.id ? replacement : id)),
-            benchIds: current.benchIds.filter((id) => id !== replacement),
+            starterIds: current.starterIds.map((id) => (id === player.id ? incoming : id)),
+            benchIds: current.benchIds.filter((id) => id !== incoming),
           };
-          state.frames[state.frames.length - 1] = frame(session.setup, m.home, m.away, m.minute);
-          event(next, 'substitution', p.clubId!, p.id, 'match.commentary.substitution');
+          state.frames[state.frames.length - 1] = frame(setup, m.home, m.away, m.minute);
+          event(next, 'substitution', player.clubId!, player.id, 'match.commentary.substitution');
         }
       }
     }
-    if (!state.substituted && state.momentMinutes.includes(m.minute)) {
-      const currentFrame = state.frames[state.frames.length - 1]!;
-      const selectedPoint = currentFrame.players.find(
-        (player) => player.id === session.setup.selectedPlayerId,
-      )!.point;
-      state.frames[state.frames.length - 1] = { ...currentFrame, ball: { ...selectedPoint } };
-      const moment = {
-        id: `${m.id}:moment:${m.minute}`,
-        minute: m.minute,
-        situationKey:
-          session.setup.players[session.setup.selectedPlayerId]!.primaryPosition === 'GK'
-            ? 'match.situation.keeper'
-            : 'match.situation.outfield',
-        frame: state.frames[state.frames.length - 1]!,
-        choices: choices(next),
-      };
-      state.currentMoment = moment;
-      m.keyMoments.push(moment);
-      m.status = 'decision';
-    } else {
+    if (!state.substituted && state.momentMinutes.includes(m.minute)) openMoment(next);
+    else {
       simulateMinuteGoals(next);
       afterMinute(next);
     }
   } else if (command.type === 'choose') {
     if (m.status !== 'decision' || !state.currentMoment) throw new Error('No decision pending');
-    const choice = state.currentMoment.choices.find((c) => c.id === command.choiceId);
-    if (!choice) throw new Error('Invalid decision choice');
-    const rng = createRng(`${session.setup.seed}:decision:${m.minute}`),
-      roll = rng.next(),
-      success = roll < choice.probability;
-    const p = session.setup.players[session.setup.selectedPlayerId]!,
-      keeper = p.primaryPosition === 'GK',
-      defender = ['CB', 'LB', 'RB', 'DM'].includes(p.primaryPosition);
-    const shot = ['near', 'far'].includes(choice.id),
-      pass = ['pass', 'distribute'].includes(choice.id),
-      side = p.clubId === session.setup.home.id ? 0 : 1;
-    const outcome = {
-      input: { momentId: state.currentMoment.id, choiceId: choice.id },
-      success,
-      roll,
-      probability: choice.probability,
-      factors: choice.factors,
-    };
-    event(
-      next,
-      shot ? 'shot' : pass ? 'pass' : 'tackle',
-      p.clubId!,
-      p.id,
-      success ? 'match.commentary.success' : 'match.commentary.failure',
-      outcome,
-    );
-    if (shot) {
-      if (side === 0) state.stats.homeShots++;
-      else state.stats.awayShots++;
-      if (success) goal(next, side, p.id);
-    } else if (pass) {
-      state.stats.passesAttempted++;
-      if (success) state.stats.passesCompleted++;
-    } else if (success && !keeper && choice.id !== 'dribble') state.stats.tackles++;
-    if ((keeper || defender) && !pass) {
-      const opposition = side === 0 ? m.away : m.home;
-      const shooter = rng.pick(
-        opposition.starterIds.filter((id) => session.setup.players[id]!.primaryPosition !== 'GK'),
-      );
-      if (keeper || !success) {
-        recordShot(next, 1 - side, shooter);
-        if (keeper && success) state.stats.saves++;
-        if (!success && rng.next() < C.defensiveFailureConversion) goal(next, 1 - side, shooter);
-      }
-    }
-    if (!shot && !keeper && !defender && success) {
-      const conversion =
-        (state.expectedGoals[side]! * C.personalGoalShare) /
-        state.momentMinutes.length /
-        choice.probability;
-      if (rng.next() < conversion) {
-        const teammate = rng.pick(
-          (side === 0 ? m.home : m.away).starterIds.filter(
-            (id) => id !== p.id && session.setup.players[id]!.primaryPosition !== 'GK',
-          ),
-        );
-        recordShot(next, side, pass ? teammate : p.id);
-        goal(next, side, pass ? teammate : p.id);
-        if (pass) state.stats.assists++;
-      }
-    }
-    state.stats.rating = clamp(
-      state.stats.rating +
-        (success ? C.decisionRatingGain : -C.decisionRatingLoss) +
-        (shot && success ? C.scoringRatingBonus : 0),
-      3,
-      10,
-    );
-    simulateMinuteGoals(
-      next,
-      defender ? (success ? 0.02 : -0.02) : 0,
-      keeper && choice.id !== 'distribute' && success,
-    );
+    resolveChoice(next, command.choiceId);
+    simulateMinuteGoals(next);
     // End the highlight at the resolved action or goal, never an unrelated ball position.
-    const goalEvent = m.events.findLast(
-      (event) => event.minute === m.minute && event.kind === 'goal',
-    );
-    const actionEvent = m.events.find(
-      (event) => event.outcome?.input.momentId === state.currentMoment!.id,
-    );
+    const goalEvent = m.events.findLast((e) => e.minute === m.minute && e.kind === 'goal');
+    const actionEvent = m.events.find((e) => e.outcome?.input.momentId === state.currentMoment!.id);
     const currentFrame = state.frames[state.frames.length - 1]!;
     const destination =
       goalEvent?.endPoint ?? actionEvent?.endPoint ?? actionEvent?.point ?? currentFrame.ball;
@@ -776,30 +973,36 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     state.managerTrustDelta =
       command.response === 'complain' ? -5 : command.response === 'motivate' ? 3 : 1;
     if (command.response === 'role') {
-      m.tactics.role =
-        session.setup.players[session.setup.selectedPlayerId]!.primaryPosition === 'GK'
-          ? 'sweeper-keeper'
-          : ['CB', 'LB', 'RB', 'DM'].includes(
-                session.setup.players[session.setup.selectedPlayerId]!.primaryPosition,
-              )
-            ? 'track-back'
-            : 'cut-inside';
-      state.expectedGoals = rates(session.setup, m.tactics);
+      m.tactics.role = halftimeRole(player.primaryPosition, m.tactics.role);
+      state.expectedGoals = rates(setup, state.strength, m.tactics);
+      state.shares = shares(player.primaryPosition, m.tactics.role);
     }
-    state.stats.fatigue = Math.max(0, state.stats.fatigue - 8);
+    state.stats.fatigue = round6(Math.max(0, state.stats.fatigue - C.halftimeRecovery));
     m.status = 'live';
     state.captainDecisionPending = state.captain;
   } else if (command.type === 'substitution') {
-    if (!state.substitutionDecisionPending || !['accept', 'encourage'].includes(command.response))
+    if (
+      m.status === 'finished' ||
+      !state.substitutionDecisionPending ||
+      !['accept', 'encourage'].includes(command.response)
+    )
       throw new Error('No substitution response pending');
     state.substitutionDecisionPending = false;
     if (command.response === 'encourage') state.managerTrustDelta += 1;
   } else if (command.type === 'captain') {
-    if (!state.captainDecisionPending || !['push', 'calm'].includes(command.instruction))
+    if (
+      m.status !== 'live' ||
+      !state.captainDecisionPending ||
+      !['push', 'calm'].includes(command.instruction)
+    )
       throw new Error('No captain decision pending');
     state.captainDecisionPending = false;
-    m.tactics.mentality = command.instruction === 'push' ? 'attacking' : 'balanced';
-    state.expectedGoals = rates(session.setup, m.tactics);
+    m.tactics.mentality = shiftMentality(
+      m.tactics.mentality,
+      command.instruction === 'push' ? 1 : -1,
+    );
+    state.expectedGoals = rates(setup, state.strength, m.tactics);
+    updatePossession(next);
   } else throw new Error('Unknown match command');
   return next;
 }
@@ -807,7 +1010,7 @@ function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (value && typeof value === 'object')
     return `{${Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
       .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`)
       .join(',')}}`;
   return JSON.stringify(value);
@@ -816,6 +1019,8 @@ export function validateMatchSession(value: unknown): MatchSession {
   validateJson(value);
   if (!value || typeof value !== 'object') throw new Error('Invalid match session');
   const session = value as MatchSession;
+  // Sessions from another engine cannot replay; callers discard them and keep the world.
+  if (session.engine !== MATCH_ENGINE_VERSION) throw new OutdatedMatchSessionError(session.engine);
   if (
     session.version !== 1 ||
     !session.setup ||
@@ -831,8 +1036,7 @@ export function validateMatchSession(value: unknown): MatchSession {
   )
     throw new Error('Invalid match session');
   validateSetup(session.setup);
-  const setup = session.setup;
-  let replay = createMatchSession(setup, session.initialTactics);
+  let replay = createMatchSession(session.setup, session.initialTactics);
   for (const command of session.commands) replay = applyMatchCommand(replay, command);
   if (canonical(replay) !== canonical(session))
     throw new Error('Match session differs from deterministic replay');

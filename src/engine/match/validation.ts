@@ -1,4 +1,6 @@
+import type { Position } from '../../model/domain';
 import type { MatchSetup, MatchCommand, Tactics } from './types';
+import { isRoleFor } from './roles';
 
 const attributes = [
   'finishing',
@@ -135,12 +137,12 @@ export function validateSetup(setup: MatchSetup): void {
   const p = setup.players[setup.selectedPlayerId]!;
   if (p.retired || p.injuryId || p.fitness <= 0) throw new Error('Selected player unavailable');
 }
-export function validateTactics(t: Tactics): void {
+/** Tactics must use a personal role from the selected player's own position list. */
+export function validateTactics(t: Tactics, position: Position): void {
   if (
     !t ||
     typeof t.role !== 'string' ||
-    !t.role ||
-    t.role.length > 80 ||
+    !isRoleFor(position, t.role) ||
     !['low', 'balanced', 'high'].includes(t.risk) ||
     !['defensive', 'balanced', 'attacking'].includes(t.mentality) ||
     Object.keys(t).sort().join(',') !== 'mentality,risk,role'

@@ -14,6 +14,7 @@ import type {
 import { generateAvatar } from '../assets/avatar';
 import { CREST_SHAPES, CREST_SYMBOLS, generateCrest } from '../assets/crest';
 import { generateKits } from '../assets/kit';
+import { withContrast } from '../assets/shared';
 import { CONFIG } from '../config';
 import { createRng, hashSeed, type Rng } from '../rng';
 import {
@@ -267,6 +268,9 @@ export function generateWorld(
     events: [],
   };
   const crestOffset = rng.int(0, CREST_SHAPES.length * CREST_SYMBOLS.length - 1);
+  // National worlds number crests across countries so no shape/symbol pair repeats until
+  // every pair has been used once; legacy worlds keep their original per-country stride.
+  let crestSequence = 0;
   for (let countryIndex = 0; countryIndex < CONFIG.world.countries; countryIndex++) {
     const countryId = `country:${countryIndex}`;
     const cupId = `cup:${countryIndex}`;
@@ -325,12 +329,16 @@ export function generateWorld(
           : cityName(countryIndex, clubIndex);
         const crest = generateCrest(scoped);
         const crestIndex =
-          (crestOffset + countryIndex * 32 + clubIndex) %
+          (crestOffset + (national ? crestSequence++ : countryIndex * 32 + clubIndex)) %
           (CREST_SHAPES.length * CREST_SYMBOLS.length);
         crest.shape = crestIndex % CREST_SHAPES.length;
         crest.symbol = Math.floor(crestIndex / CREST_SHAPES.length);
         if (national)
-          crest.colors[2] = `#${(((crestOffset + countryIndex * 10000 + clubIndex + 1) * 2654435761) >>> 0).toString(16).padStart(8, '0').slice(-6)}`;
+          // The hashed symbol colour keeps recipes distinct; contrast keeps the symbol visible.
+          crest.colors[2] = withContrast(
+            `#${(((crestOffset + countryIndex * 10000 + clubIndex + 1) * 2654435761) >>> 0).toString(16).padStart(8, '0').slice(-6)}`,
+            crest.colors[0],
+          );
         const reputation = scoped.int(
           Math.max(5, GEN.reputationFloor - tier * GEN.reputationTierStep),
           Math.max(15, GEN.reputationCeiling - tier * GEN.reputationTierStep),

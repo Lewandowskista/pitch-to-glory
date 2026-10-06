@@ -1,0 +1,415 @@
+/* Shared breakpoints for the shell and early screens, and reduced motion. */
+@media (min-width: 1600px) {
+  .hero {
+    min-height: 530px;
+  }
+  .hero-copy {
+    padding: 3.6rem;
+  }
+  .stadium {
+    width: 59%;
+    right: -1%;
+  }
+  .crest-card img {
+    height: 165px;
+    width: 150px;
+  }
+}
+@media (max-width: 1200px) {
+  .sidebar {
+    width: 210px;
+  }
+  .workspace {
+    margin-left: 210px;
+  }
+  .hero-copy {
+    padding: 2rem;
+    width: 58%;
+  }
+  .hero {
+    min-height: 430px;
+  }
+  .hero h1 {
+    font-size: 4rem;
+  }
+  .hero-description {
+    max-width: 265px;
+  }
+  .stadium {
+    width: 69%;
+    right: -16%;
+    bottom: -1%;
+  }
+  .crest-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .slot-grid {
+    gap: 0.8rem;
+  }
+  .slot-header,
+  .slot-copy,
+  .slot-actions {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .slot-art {
+    height: 130px;
+  }
+  .settings-layout {
+    gap: 2rem;
+  }
+  .storage-panel {
+    flex-wrap: wrap;
+  }
+  .storage-panel > div {
+    flex: 1;
+  }
+  .storage-panel .button {
+    margin-left: 2rem;
+  }
+  .discovery-copy {
+    padding: 1rem;
+  }
+}
+@media (max-width: 900px) {
+  .sidebar {
+    width: 190px;
+    padding-inline: 0.8rem;
+  }
+  .workspace {
+    margin-left: 190px;
+  }
+  .brand-caption {
+    font-size: 0.6rem;
+  }
+  .sidebar nav a {
+    font-size: 0.75rem;
+  }
+  .hero h1 {
+    font-size: 3.5rem;
+  }
+  .stadium {
+    width: 75%;
+    right: -23%;
+    bottom: 1%;
+    opacity: 0.85;
+  }
+  .discovery-grid {
+    gap: 0.75rem;
+  }
+  .discovery-art {
+    height: 125px;
+  }
+  .discovery-copy h3 {
+    font-size: 0.8rem;
+  }
+  .discovery-copy p {
+    font-size: 0.65rem;
+  }
+  .slot-grid {
+    grid-template-columns: 1fr;
+  }
+  .slot-art {
+    height: 140px;
+  }
+  .slot-art img {
+    width: 80px;
+  }
+  .slot-art img:nth-child(2) {
+    width: 100px;
+  }
+  .slot-tools {
+    gap: 1.25rem;
+  }
+  .slot-tools button,
+  .file-button {
+    font-size: 0.75rem;
+  }
+  .kit-grid,
+  .avatar-grid {
+    grid-template-columns: 1fr;
+  }
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+  .settings-preview {
+    display: none;
+  }
+  .design-count {
+    display: none;
+  }
+  .gallery-tabs {
+    gap: 1.2rem;
+  }
+}
+@media (max-width: 700px) {
+  .sidebar {
+    display: none;
+  }
+  .workspace {
+    margin-left: 0;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+  .topbar {
+    min-height: 66px;
+    padding: 0.5rem 1.2rem;
+  }
+  .breadcrumb {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 400;
+  }
+  .save-indicator {
+    font-size: 0.58rem;
+  }
+  .header-settings {
+    display: none;
+  }
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    min-height: 72px;
+    padding: 0.4rem 0.4rem calc(0.4rem + env(safe-area-inset-bottom));
+    z-index: 30;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .bottom-nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 0.4rem 0.2rem;
+    border-radius: 0.7rem;
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  .bottom-nav a.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .bottom-nav svg {
+    width: 20px;
+    height: 20px;
+  }
+  .page {
+    padding: 1.6rem 1.2rem;
+  }
+  .page-heading {
+    margin-bottom: 1.5rem;
+  }
+  .page-heading h1 {
+    font-size: 2.7rem;
+  }
+  .page-heading p {
+    font-size: 0.8rem;
+  }
+  .hero {
+    min-height: 625px;
+    display: block;
+  }
+  .hero-copy {
+    width: 100%;
+    padding: 2rem 1.6rem;
+  }
+  .hero h1 {
+    font-size: 4.5rem;
+    max-width: 320px;
+  }
+  .hero-description {
+    max-width: 310px;
+    font-size: 0.8rem;
+    margin: 0.9rem 0 1.15rem;
+  }
+  .eyebrow {
+    margin-bottom: 1rem;
+    font-size: 0.6rem;
+  }
+  .stadium {
+    width: 95%;
+    right: -8%;
+    bottom: -4%;
+    opacity: 1;
+  }
+  .hero-button {
+    position: relative;
+    z-index: 2;
+  }
+  .menu-intro {
+    margin-top: 1.6rem;
+  }
+  .menu-intro p {
+    font-size: 0.75rem;
+  }
+  .discovery-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .discovery {
+    display: grid;
+    grid-template-columns: 40% 60%;
+  }
+  .discovery-art {
+    height: 100%;
+    min-height: 165px;
+  }
+  .discovery-copy {
+    padding: 1.2rem;
+  }
+  .discovery-copy h3 {
+    font-size: 0.9rem;
+  }
+  .discovery-copy p {
+    font-size: 0.7rem;
+  }
+  .discovery-art img {
+    width: 31%;
+  }
+  .discovery-art img:nth-child(2) {
+    width: 37%;
+  }
+  .seed-toolbar {
+    gap: 0.7rem;
+  }
+  .seed-toolbar form {
+    max-width: none;
+    flex: 1 1 100%;
+  }
+  .seed-toolbar > .button {
+    font-size: 0.75rem;
+  }
+  .save-gallery {
+    font-size: 0.7rem;
+    margin-left: 0;
+  }
+  .seed-hint {
+    margin-top: 0.75rem;
+  }
+  .gallery-navigation {
+    margin-top: 1.5rem;
+  }
+  .gallery-tabs {
+    gap: 1.1rem;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .gallery-tabs button {
+    font-size: 0.72rem;
+  }
+  .gallery-note {
+    font-size: 0.7rem;
+  }
+  .crest-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .crest-card {
+    padding: 1.6rem 0.6rem 1rem;
+  }
+  .crest-card img {
+    height: 140px;
+    width: 125px;
+  }
+  .crest-card h2 {
+    font-size: 0.72rem;
+  }
+  .kit-club,
+  .avatar-club {
+    padding: 1rem;
+  }
+  .kit-trio {
+    gap: 0.35rem;
+  }
+  .kit-trio > div {
+    padding: 0.8rem 0.3rem;
+  }
+  .kit-trio h3 {
+    font-size: 0.68rem;
+  }
+  .kit-trio p {
+    font-size: 0.58rem;
+  }
+  .storage-panel {
+    padding: 1.2rem;
+    margin-top: 1.75rem;
+  }
+  .storage-panel .button {
+    margin-left: 0;
+    width: 100%;
+  }
+  .storage-panel > svg {
+    display: none;
+  }
+  .theme-selector {
+    gap: 0.6rem;
+  }
+  .theme-selector label {
+    padding: 1rem 0.5rem;
+  }
+  .motion-setting {
+    gap: 1rem;
+  }
+  .page-footer {
+    font-size: 0.6rem;
+    padding: 1.3rem 1.2rem;
+  }
+  .page-footer span:last-child {
+    display: none;
+  }
+  .pwa-prompt {
+    bottom: calc(85px + env(safe-area-inset-bottom));
+    right: 1rem;
+  }
+  .dialog-inner {
+    padding: 1.5rem;
+  }
+  .dialog-actions {
+    flex-wrap: wrap;
+  }
+  .global-error {
+    margin-inline: 1.2rem;
+  }
+}
+@media (max-width: 380px) {
+  .hero h1 {
+    font-size: 3.8rem;
+  }
+  .hero {
+    min-height: 590px;
+  }
+  .gallery-tabs {
+    gap: 0.55rem;
+  }
+  .gallery-tabs button {
+    font-size: 0.65rem;
+  }
+  .seed-input .button {
+    padding-inline: 0.8rem;
+  }
+  .save-gallery {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+[data-reduced-motion='true'] *,
+[data-reduced-motion='true'] *::before,
+[data-reduced-motion='true'] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

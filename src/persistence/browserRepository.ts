@@ -1,8 +1,17 @@
 import type { FoundationState, WorldState, SlotId } from '../model/domain';
-import { LocalSaveRepository, SaveDatabase } from './localRepository';
-import { persistenceRequest, type SaveWriteReceipt } from './workerClient';
+import {
+  LocalSaveRepository,
+  SaveDatabase,
+  type SaveWriteReceipt,
+  type SlotListing,
+} from './localRepository';
+import { persistenceRequest } from './workerClient';
 import { createSave, parseSave, SaveError, type AppSave } from './schema';
 
+/**
+ * Browser repository. Validation, JSON and IndexedDB work run in the persistence worker;
+ * Node tests use the same local repository directly.
+ */
 export class SaveRepository extends LocalSaveRepository {
   constructor(
     private readonly database: SaveDatabase,
@@ -19,10 +28,9 @@ export class SaveRepository extends LocalSaveRepository {
       ? persistenceRequest(this.database.name, this.tabOwner, { operation: 'read', slot })
       : super.read(slot);
   }
-  override async list(): Promise<(AppSave | undefined)[]> {
+  override async list(): Promise<SlotListing[]> {
     if (!this.delegated) return super.list();
-    // Observe the full primary-key range without loading large row values.
-    // Dexie relays committed worker mutations to this liveQuery dependency.
+    // Observe the primary-key range so Dexie relays committed worker mutations to liveQuery.
     await this.database.saves.count();
     return persistenceRequest(this.database.name, this.tabOwner, { operation: 'list' });
   }
@@ -48,20 +56,30 @@ export class SaveRepository extends LocalSaveRepository {
         })
       : super.import(json, slot, expectedRevision);
   }
-  async writeMatchCheckpoint(value: AppSave, expectedRevision: number): Promise<AppSave> {
-    if (!this.delegated || value.payload.kind !== 'world')
-      return this.write(value, expectedRevision);
-    const receipt = await persistenceRequest<SaveWriteReceipt>(this.database.name, this.tabOwner, {
-      operation: 'match-checkpoint',
+  /**
+   * Save preferences and the match session while the world graph is unchanged. Match
+   * checkpoints use this every simulated minute, so it never transfers or stores the world.
+   */
+  async writeWithoutWorldChange(value: AppSave, expectedRevision: number): Promise<AppSave> {
+    if (value.payload.kind !== 'world') return this.write(value, expectedRevision);
+    const parts = {
       slot: value.slot,
       worldId: value.payload.world.id,
-      matchSession: value.payload.matchSession ?? null,
-      expectedRevision,
       updatedAt: value.updatedAt,
-    });
+      gallery: value.payload.gallery,
+      settings: value.payload.settings,
+      matchSession: value.payload.matchSession ?? null,
+    };
+    const receipt = this.delegated
+      ? await persistenceRequest<SaveWriteReceipt>(this.database.name, this.tabOwner, {
+          operation: 'write-without-world',
+          value: parts,
+          expectedRevision,
+        })
+      : await super.writeWithoutWorld(parts, expectedRevision);
     return this.combineReceipt(receipt, value.payload);
   }
-  override remove(slot: SlotId, expectedRevision: number): Promise<void> {
+  override remove(slot: SlotId, expectedRevision: number | null): Promise<void> {
     return this.delegated
       ? persistenceRequest(this.database.name, this.tabOwner, {
           operation: 'remove',
@@ -102,11 +120,22 @@ export class SaveRepository extends LocalSaveRepository {
       return persistenceRequest(this.database.name, this.tabOwner, { operation: 'validate', json });
     parseSave(json);
   }
-  async exportJSON(slot: SlotId): Promise<{ name: string; json: string }> {
+  override async exportJSON(slot: SlotId): Promise<{ name: string; json: string }> {
+    return this.delegated
+      ? persistenceRequest(this.database.name, this.tabOwner, { operation: 'export', slot })
+      : super.exportJSON(slot);
+  }
+  /** Serialize an unsaved in-memory snapshot as a backup file, off the main thread. */
+  async serialize(slot: SlotId, name: string, payload: FoundationState | WorldState) {
     if (this.delegated)
-      return persistenceRequest(this.database.name, this.tabOwner, { operation: 'export', slot });
-    const save = await super.read(slot);
-    if (!save) throw new SaveError('invalid');
-    return { name: save.name, json: JSON.stringify(save, null, 2) };
+      return persistenceRequest<{ name: string; json: string }>(this.database.name, this.tabOwner, {
+        operation: 'serialize',
+        slot,
+        name,
+        payload,
+      });
+    const { recovery: _recovery, ...file } = createSave(slot, name, payload);
+    void _recovery;
+    return { name, json: JSON.stringify(file) };
   }
 }

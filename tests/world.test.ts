@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it } from 'vitest';
 import type { World, Standing } from '../src/model/domain';
+import { CONFIG } from '../src/engine/config';
 
 const generationPath = '../src/engine/world/generate';
 const simulationPath = '../src/engine/world/simulate';
@@ -21,12 +22,14 @@ async function engine() {
 }
 
 function assertSquads(world: World) {
+  const lifecycle = CONFIG.world.lifecycle;
   for (const club of Object.values(world.clubs)) {
-    expect(club.playerIds).toHaveLength(22);
-    expect(new Set(club.playerIds).size).toBe(22);
-    expect(club.playerIds.filter((id) => world.players[id]!.primaryPosition === 'GK')).toHaveLength(
-      2,
-    );
+    expect(club.playerIds.length).toBeGreaterThanOrEqual(19);
+    expect(club.playerIds.length).toBeLessThanOrEqual(lifecycle.squadMaximum);
+    expect(new Set(club.playerIds).size).toBe(club.playerIds.length);
+    expect(
+      club.playerIds.filter((id) => world.players[id]!.primaryPosition === 'GK').length,
+    ).toBeGreaterThanOrEqual(lifecycle.groupMinimum.GK);
     expect(world.leagues[club.leagueId]!.clubIds).toContain(club.id);
     expect(world.managers[club.managerId]).toBeDefined();
     expect(world.dressingRooms[club.dressingRoomId]!.clubId).toBe(club.id);
@@ -296,7 +299,17 @@ describe('seeded world', () => {
     ).toBe(true);
     for (const movement of world.history[0]!.movements)
       expect(next.clubs[movement.clubId]!.leagueId).toBe(movement.toLeagueId);
-    expect(Object.keys(next.players)).toHaveLength(Object.keys(world.players).length);
+    // Retired people leave the live graph for the compact archive at rollover.
+    const retired = Object.values(world.players).filter((player) => player.retired);
+    expect(retired.length).toBeGreaterThan(0);
+    expect(Object.keys(next.players)).toHaveLength(
+      Object.keys(world.players).length - retired.length,
+    );
+    for (const player of retired)
+      expect(next.archive!.players[player.id]).toMatchObject({
+        name: player.name,
+        retiredSeason: world.date.season,
+      });
     expect(() => startNextSeason(next)).toThrow();
     assertSquads(next);
   }, 30000);

@@ -5,14 +5,14 @@ import { t, errorText } from '../i18n';
 import { useAppStore } from '../store';
 import { useAutosave } from '../hooks/useAutosave';
 import { autosave, errorCode, reloadActiveSlot, snapshot } from '../persistence/session';
-import { createSave } from '../persistence/schema';
+import { saves } from '../persistence/runtime';
 import { platform } from '../platform';
 import { Icon, type IconName } from './Icon';
 import { Dialog } from './Dialog';
 import { PwaPrompt } from './PwaPrompt';
 const items: { path: string; label: string; icon: IconName }[] = [
   { path: '/', label: t.app.menu, icon: 'home' },
-  { path: '/world', label: t.app.world, icon: 'ball' },
+  { path: '/world', label: t.app.world, icon: 'globe' },
   { path: '/match', label: t.app.match, icon: 'ball' },
   { path: '/gallery', label: t.app.gallery, icon: 'gallery' },
   { path: '/saves', label: t.app.saves, icon: 'save' },
@@ -25,6 +25,7 @@ export function Shell() {
   const error = useAppStore((s) => s.saveError);
   const worldJob = useAppStore((s) => s.worldJob);
   const dirty = useAppStore((s) => Boolean(s.activeSave && s.change !== s.savedChange));
+  const saveNotice = useAppStore((s) => s.saveNotice);
   const location = useLocation();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -196,12 +197,15 @@ export function Shell() {
                 <button
                   className="text-button"
                   onClick={() => {
-                    const copy = createSave(active.slot, active.name, snapshot());
-                    void platform
-                      .saveFile(
-                        'pitch-to-glory-unsaved.json',
-                        JSON.stringify(copy, null, 2),
-                        'application/json',
+                    // Validation and serialization of a large world run in the persistence worker.
+                    void saves
+                      .serialize(active.slot, active.name, snapshot())
+                      .then((file) =>
+                        platform.saveFile(
+                          'pitch-to-glory-unsaved.json',
+                          file.json,
+                          'application/json',
+                        ),
                       )
                       .catch((error) =>
                         useAppStore.getState().setSaveStatus('error', errorCode(error)),
@@ -222,6 +226,17 @@ export function Shell() {
                 </button>
               </>
             )}
+          </div>
+        )}
+        {saveNotice && (
+          <div className="global-notice" role="status">
+            {t.app.notices[saveNotice]}
+            <button
+              className="text-button"
+              onClick={() => useAppStore.getState().dismissSaveNotice()}
+            >
+              {t.app.dismiss}
+            </button>
           </div>
         )}
         <main id="main" ref={main} tabIndex={-1}>

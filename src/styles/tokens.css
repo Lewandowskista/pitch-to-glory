@@ -8,6 +8,29 @@
   --radius-control: 0.75rem;
   --shadow-panel: 0 8px 28px rgb(27 48 33 / 0.04);
 }
+/*
+ * Theme colours for Tailwind utilities (bg-surface, text-muted, border-line, bg-accent-soft,
+ * text-on-accent, ...). `inline` makes each utility read the live variable below, so the
+ * light/dark values defined on :root apply to utilities and component classes alike.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-art-green: var(--art-green);
+  --color-art-gold: var(--art-gold);
+  --color-art-blue: var(--art-blue);
+  /* Use shadow-surface rather than shadow-panel: it follows the dark-theme shadow. */
+  --shadow-surface: var(--shadow-panel);
+}
 :root {
   color-scheme: light;
   --bg: #f4f5ee;

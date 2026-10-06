@@ -2,7 +2,6 @@ import type {
   BackgroundResult,
   Club,
   Fixture,
-  GameEvent,
   Player,
   SeasonSummary,
   World,
@@ -10,12 +9,22 @@ import type {
 import { CONFIG } from '../config';
 import { createRng, restoreRng, type Rng } from '../rng';
 import { ATTRIBUTE_KEYS, KEEPER_KEYS, MENTAL_KEYS, PHYSICAL_KEYS, clampAttribute } from './catalog';
-import { generateManager, generatePlayer } from './generate';
+import { generateManager } from './generate';
 import { addCupRound, createLeagueFixtures, emptyStanding, sortStandings } from './schedule';
 import { advanceNationalPyramid } from './pyramid';
 import { getSeasonWeeks } from './calendar';
 import { rankStandings } from './ranking';
 import { resetNationalSeason } from './movement';
+import { recordEvent as event } from './events';
+import { expectedGoals, selectStartingPlayers, teamStrength } from '../strength';
+import {
+  archiveAndPrune,
+  fillSquads,
+  isActiveClub,
+  refreshDressingRoom,
+  refreshReturningClub,
+  seasonalSquadReview,
+} from './lifecycle';
 
 const copyWorld = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const BACKGROUND = CONFIG.world.background;
@@ -23,20 +32,6 @@ const DEVELOPMENT = CONFIG.world.development;
 const clampPercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 const money = (value: number): number => Math.max(0, Math.round(value));
 
-function event(
-  world: World,
-  kind: GameEvent['kind'],
-  entityIds: string[],
-  params: GameEvent['params'],
-): void {
-  world.events.push({
-    id: `event:${world.date.season}:${world.date.week}:${world.events.length}`,
-    date: { ...world.date },
-    kind,
-    entityIds,
-    params,
-  });
-}
 function poisson(rng: Rng, mean: number): number {
   const stop = Math.exp(-mean);
   let product = 1;
@@ -47,32 +42,9 @@ function poisson(rng: Rng, mean: number): number {
   } while (product > stop && count <= CONFIG.world.maxGoals);
   return Math.min(CONFIG.world.maxGoals, count - 1);
 }
-function ability(player: Player): number {
-  const values = Object.values(
-    player.primaryPosition === 'GK' ? player.keeperAttributes : player.attributes,
-  );
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
+/** The background XI: available squad members, best by ability within each line. */
 function startingPlayers(world: World, club: Club): Player[] {
-  const ranked = club.playerIds
-    .map((id) => world.players[id]!)
-    .filter((player) => !player.retired)
-    .sort((a, b) => ability(b) - ability(a) || (a.id < b.id ? -1 : 1));
-  const keeper = ranked.find((player) => player.primaryPosition === 'GK')!;
-  const defence = ranked
-    .filter((player) => ['CB', 'LB', 'RB'].includes(player.primaryPosition))
-    .slice(0, 4);
-  const midfield = ranked
-    .filter((player) => ['DM', 'CM', 'AM'].includes(player.primaryPosition))
-    .slice(0, 3);
-  const attack = ranked
-    .filter((player) => ['LW', 'RW', 'ST'].includes(player.primaryPosition))
-    .slice(0, 3);
-  const selected = [keeper, ...defence, ...midfield, ...attack];
-  for (const player of ranked)
-    if (selected.length < 11 && !selected.includes(player) && player.primaryPosition !== 'GK')
-      selected.push(player);
-  return selected;
+  return selectStartingPlayers(club.playerIds.map((id) => world.players[id]!));
 }
 function scoreGoals(
   players: Player[],
@@ -117,23 +89,16 @@ function resolveFixture(world: World, fixture: Fixture): void {
   const away = world.clubs[fixture.awayId]!;
   const homePlayers = startingPlayers(world, home);
   const awayPlayers = startingPlayers(world, away);
-  const strength = (club: Club, players: Player[]) =>
-    club.reputation * BACKGROUND.reputationWeight +
-    (players.reduce((sum, player) => sum + ability(player), 0) / players.length) *
-      BACKGROUND.squadWeight;
-  const difference =
-    (strength(home, homePlayers) - strength(away, awayPlayers)) * CONFIG.world.strengthScale;
-  const homeAdvantage = fixture.neutral ? 0 : CONFIG.world.homeAdvantage;
-  const score: [number, number] = [
-    poisson(
-      rng,
-      Math.max(BACKGROUND.minimumGoals, CONFIG.world.baseGoals + homeAdvantage + difference),
-    ),
-    poisson(
-      rng,
-      Math.max(BACKGROUND.minimumGoals, CONFIG.world.baseGoals - homeAdvantage - difference),
-    ),
-  ];
+  // Shared with the interactive match engine so played and simulated fixtures agree.
+  const homeStrength = teamStrength(home.reputation, homePlayers);
+  const awayStrength = teamStrength(away.reputation, awayPlayers);
+  const difference = (homeStrength - awayStrength) * CONFIG.world.strengthScale;
+  const [homeGoals, awayGoals] = expectedGoals(
+    homeStrength,
+    awayStrength,
+    Boolean(fixture.neutral),
+  );
+  const score: [number, number] = [poisson(rng, homeGoals), poisson(rng, awayGoals)];
   let winnerId = score[0] === score[1] ? null : score[0] > score[1] ? home.id : away.id;
   let penalties: [number, number] | null = null;
   let extraTime: [number, number] | undefined;
@@ -258,6 +223,8 @@ function resolveFixture(world: World, fixture: Fixture): void {
 function developPlayers(world: World, rng: Rng): void {
   for (const player of Object.values(world.players)) {
     if (player.retired) continue;
+    // Squads of clubs below the simulated frontier are dormant until readmitted.
+    if (player.clubId && !isActiveClub(world, world.clubs[player.clubId]!)) continue;
     const age = world.date.season - player.birthSeason;
     const youthFactor =
       age < DEVELOPMENT.youthAge
@@ -309,6 +276,7 @@ function developPlayers(world: World, rng: Rng): void {
 }
 function updateFinances(world: World): void {
   for (const club of Object.values(world.clubs)) {
+    if (!isActiveClub(world, club)) continue;
     const wages = club.playerIds.reduce(
       (sum, id) => sum + world.contracts[world.players[id]!.contractId!]!.weeklyWage,
       0,
@@ -331,8 +299,24 @@ function exchangeTransfers(world: World, rng: Rng): void {
       .flatMap((id) => world.leagues[id]!.clubIds)
       .map((id) => world.clubs[id]!);
     const a = rng.pick(clubs);
-    const b = rng.pick(clubs.filter((club) => club.id !== a.id));
-    const position = rng.pick(['CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST'] as const);
+    // Exchanges happen between clubs of a similar level, never top flight and sixth tier.
+    const tier = world.leagues[a.leagueId]!.tier;
+    const b = rng.pick(
+      clubs.filter(
+        (club) => club.id !== a.id && Math.abs(world.leagues[club.leagueId]!.tier - tier) <= 1,
+      ),
+    );
+    const positionsOf = (club: Club) =>
+      new Set(club.playerIds.map((id) => world.players[id]!.primaryPosition));
+    const shared = [...positionsOf(a)].filter(
+      (position) => position !== 'GK' && positionsOf(b).has(position),
+    );
+    if (!shared.length) continue;
+    const position = rng.pick(
+      (['CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST'] as const).filter((p) =>
+        shared.includes(p),
+      ),
+    );
     const playerA = rng.pick(
       a.playerIds
         .map((id) => world.players[id]!)
@@ -370,8 +354,13 @@ function exchangeTransfers(world: World, rng: Rng): void {
 }
 function managerChanges(world: World, rng: Rng): void {
   for (const league of Object.values(world.leagues)) {
-    const bottom = sortStandings(league.standings).at(-1)!;
+    const table =
+      world.format === 'national-v1'
+        ? rankStandings(world, league.standings, league.fixtureIds)
+        : sortStandings(league.standings);
+    const bottom = table.at(-1)!;
     if (
+      bottom.played === 0 ||
       bottom.points / bottom.played > BACKGROUND.managerPointsThreshold ||
       rng.next() > BACKGROUND.managerDismissalChance
     )
@@ -392,82 +381,6 @@ function managerChanges(world: World, rng: Rng): void {
       new: manager.name,
     });
   }
-}
-function intakeAndRetirement(world: World, rng: Rng): void {
-  for (const player of Object.values(world.players)) {
-    if (player.retired || player.clubId) continue;
-    const age = world.date.season - player.birthSeason;
-    if (
-      age >= CONFIG.world.forcedRetirementAge ||
-      (age >= CONFIG.world.retirementAge && rng.next() < DEVELOPMENT.retirementChance)
-    ) {
-      player.retired = true;
-      event(world, 'retirement', [player.id], { name: player.name, club: '', age });
-    }
-  }
-  for (const club of Object.values(world.clubs)) {
-    const departing: Player[] = [];
-    const roster = club.playerIds.map((id) => world.players[id]!);
-    for (const player of roster) {
-      const age = world.date.season - player.birthSeason;
-      if (
-        age >= CONFIG.world.forcedRetirementAge ||
-        (age >= CONFIG.world.retirementAge && rng.next() < DEVELOPMENT.retirementChance)
-      ) {
-        player.retired = true;
-        departing.push(player);
-        event(world, 'retirement', [player.id, club.id], {
-          name: player.name,
-          club: club.name,
-          age,
-        });
-      }
-    }
-    // Academies add at least two players. Surplus veterans leave as free agents, not fictitious retirees.
-    for (const player of [...roster].sort(
-      (a, b) => a.birthSeason - b.birthSeason || (a.id < b.id ? -1 : 1),
-    )) {
-      if (departing.length >= CONFIG.world.youthIntakePerClub) break;
-      if (!departing.includes(player) && player.primaryPosition !== 'GK') departing.push(player);
-    }
-    for (let index = 0; index < departing.length; index++) {
-      const previous = departing[index]!;
-      previous.clubId = null;
-      if (previous.contractId) delete world.contracts[previous.contractId];
-      previous.contractId = null;
-      club.playerIds = club.playerIds.filter((id) => id !== previous.id);
-      const id = `youth:${world.date.season}:${club.id}:${index}`;
-      const { player, contract } = generatePlayer(
-        id,
-        club,
-        previous.primaryPosition,
-        rng.int(...CONFIG.world.generation.youthAge),
-        world.date,
-        rng,
-      );
-      world.players[id] = player;
-      world.contracts[contract.id] = contract;
-      club.playerIds.push(id);
-      event(world, 'youth-intake', [player.id, club.id], {
-        name: player.name,
-        club: club.name,
-        position: player.primaryPosition,
-      });
-    }
-    refreshDressingRoom(world, club);
-  }
-}
-function refreshDressingRoom(world: World, club: Club): void {
-  const dressing = world.dressingRooms[club.dressingRoomId]!;
-  dressing.leaderIds = club.playerIds
-    .map((id) => world.players[id]!)
-    .sort((a, b) => b.attributes.leadership - a.attributes.leadership)
-    .slice(0, 2)
-    .map((player) => player.id);
-  dressing.cliques = dressing.cliques.map((clique) => ({
-    ...clique,
-    playerIds: clique.playerIds.filter((id) => club.playerIds.includes(id)),
-  }));
 }
 function advanceCups(world: World): void {
   for (const cup of Object.values(world.competitions)) {
@@ -539,9 +452,17 @@ function archiveSeason(world: World): void {
   world.phase = 'complete';
 }
 
-export function simulateWeek(input: World): World {
+export interface SimulationOptions {
+  /**
+   * Mutate the given world instead of copying it. Only for callers that own the object
+   * and have finished serializing any earlier checkpoint of it, such as the world worker;
+   * the deep copy was two thirds of each simulated week's cost.
+   */
+  inPlace?: boolean;
+}
+export function simulateWeek(input: World, options: SimulationOptions = {}): World {
   if (input.phase === 'complete') return input;
-  const world = copyWorld(input);
+  const world = options.inPlace ? input : copyWorld(input);
   const rng = restoreRng(world.rng);
   const fixtures = Object.values(world.fixtures)
     .filter(
@@ -560,25 +481,31 @@ export function simulateWeek(input: World): World {
   advanceCups(world);
   if (world.format === 'national-v1') advanceNationalPyramid(world);
   developPlayers(world, rng);
-  if ((CONFIG.world.transferWeeks as readonly number[]).includes(world.date.week))
+  if ((CONFIG.world.transferWeeks as readonly number[]).includes(world.date.week)) {
     exchangeTransfers(world, rng);
+    fillSquads(world, rng);
+  }
   if ((CONFIG.world.managerWeeks as readonly number[]).includes(world.date.week))
     managerChanges(world, rng);
-  if (world.date.week === CONFIG.world.intakeWeek) intakeAndRetirement(world, rng);
+  if (world.date.week === CONFIG.world.intakeWeek) seasonalSquadReview(world, rng);
   updateFinances(world);
   if (world.date.week === getSeasonWeeks(world)) archiveSeason(world);
   world.date.week++;
   world.rng = rng.snapshot();
   return world;
 }
-export function startNextSeason(input: World): World {
+export function startNextSeason(input: World, options: SimulationOptions = {}): World {
   if (input.phase !== 'complete')
     throw new Error('The current season must finish before starting another');
-  const world = copyWorld(input);
+  const world = options.inPlace ? input : copyWorld(input);
   const summary = world.history.at(-1)!;
+  archiveAndPrune(world, world.date.season);
   for (const movement of summary.movements)
     world.clubs[movement.clubId]!.leagueId = movement.toLeagueId;
   world.date = { season: world.date.season + 1, week: 1, day: 1 };
+  for (const movement of summary.movements)
+    if (movement.fromLeagueId.startsWith('feeder:') && world.leagues[movement.toLeagueId])
+      refreshReturningClub(world, world.clubs[movement.clubId]!);
   world.phase = 'active';
   world.fixtures = {};
   world.results = {};

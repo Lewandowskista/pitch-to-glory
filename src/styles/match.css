@@ -395,6 +395,18 @@
 .match-choice strong {
   font-size: 0.85rem;
 }
+.match-choice-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.match-choice-hint .match-tag {
+  font-size: 0.68rem;
+}
 .match-factors li {
   font-size: 0.75rem;
 }
