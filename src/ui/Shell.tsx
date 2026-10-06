@@ -12,12 +12,15 @@ import { Dialog } from './Dialog';
 import { PwaPrompt } from './PwaPrompt';
 const items: { path: string; label: string; icon: IconName }[] = [
   { path: '/', label: t.app.menu, icon: 'home' },
+  { path: '/career', label: t.app.career, icon: 'career' },
   { path: '/world', label: t.app.world, icon: 'globe' },
   { path: '/match', label: t.app.match, icon: 'ball' },
   { path: '/gallery', label: t.app.gallery, icon: 'gallery' },
   { path: '/saves', label: t.app.saves, icon: 'save' },
   { path: '/settings', label: t.app.settings, icon: 'settings' },
 ];
+const pageLabel = (pathname: string) =>
+  t.app.careerPages[pathname] ?? items.find((item) => item.path === pathname)?.label;
 export function Shell() {
   const settings = useAppStore((s) => s.settings);
   const active = useAppStore((s) => s.activeSave);
@@ -65,13 +68,18 @@ export function Shell() {
     return () => media.removeEventListener('change', update);
   }, [settings]);
   useEffect(() => {
-    const label = items.find((item) => item.path === location.pathname)?.label ?? t.app.menu;
+    const label = pageLabel(location.pathname) ?? t.app.menu;
     document.title = `${label} · ${t.app.name}`;
     if (!location.search) {
       main.current?.focus({ preventScroll: true });
       window.scrollTo(0, 0);
     }
     void autosave.flush().catch(() => {});
+    // On narrow screens with large text the bottom bar scrolls: keep the current tab in view.
+    const bar = document.querySelector<HTMLElement>('.bottom-nav');
+    const current = bar?.querySelector<HTMLElement>('a.active');
+    if (bar && current && bar.scrollWidth > bar.clientWidth)
+      bar.scrollLeft = current.offsetLeft - (bar.clientWidth - current.offsetWidth) / 2;
   }, [location.pathname, location.search]);
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
@@ -97,35 +105,38 @@ export function Shell() {
     window.addEventListener('keydown', keyboard);
     return () => window.removeEventListener('keydown', keyboard);
   }, [location.pathname, location.search, navigate, setParams]);
-  const links = items.map((item) => (
-    <NavLink
-      end={item.path === '/'}
-      to={item.path}
-      key={item.path}
-      onKeyDown={(event) => {
-        if (
-          event.key === 'ArrowDown' ||
-          event.key === 'ArrowRight' ||
-          event.key === 'ArrowUp' ||
-          event.key === 'ArrowLeft'
-        ) {
-          event.preventDefault();
-          const links = Array.from(
-            event.currentTarget.parentElement?.querySelectorAll<HTMLAnchorElement>('a') ?? [],
-          );
-          const index = links.indexOf(event.currentTarget);
-          links[
-            (index +
-              (event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : links.length - 1)) %
-              links.length
-          ]?.focus();
-        }
-      }}
-    >
-      <Icon name={item.icon} />
-      <span>{item.label}</span>
-    </NavLink>
-  ));
+  const links = (compact: boolean) =>
+    items.map((item) => (
+      <NavLink
+        end={item.path === '/'}
+        to={item.path}
+        key={item.path}
+        // The accessible name is the visible short label (WCAG 2.5.3); the full name is a tooltip.
+        title={compact ? item.label : undefined}
+        onKeyDown={(event) => {
+          if (
+            event.key === 'ArrowDown' ||
+            event.key === 'ArrowRight' ||
+            event.key === 'ArrowUp' ||
+            event.key === 'ArrowLeft'
+          ) {
+            event.preventDefault();
+            const links = Array.from(
+              event.currentTarget.parentElement?.querySelectorAll<HTMLAnchorElement>('a') ?? [],
+            );
+            const index = links.indexOf(event.currentTarget);
+            links[
+              (index +
+                (event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : links.length - 1)) %
+                links.length
+            ]?.focus();
+          }
+        }}
+      >
+        <Icon name={item.icon} />
+        <span>{compact ? (t.app.short[item.path] ?? item.label) : item.label}</span>
+      </NavLink>
+    ));
   return (
     <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
       <a href="#main" className="skip-link">
@@ -140,7 +151,7 @@ export function Shell() {
           </span>
         </Link>
         <p className="brand-caption">{t.app.tagline}</p>
-        <nav aria-label={t.app.navigation}>{links}</nav>
+        <nav aria-label={t.app.navigation}>{links(false)}</nav>
         <div className="sidebar-bottom">
           <div className="local-save">
             <Icon name="save" />
@@ -157,9 +168,7 @@ export function Shell() {
       </aside>
       <div className="workspace">
         <header className="topbar">
-          <span className="breadcrumb">
-            {items.find((item) => item.path === location.pathname)?.label ?? t.app.name}
-          </span>
+          <span className="breadcrumb">{pageLabel(location.pathname) ?? t.app.name}</span>
           {worldJob && (
             <Link className="simulation-link" to="/world">
               {t.world.advancing}
@@ -248,7 +257,7 @@ export function Shell() {
         </footer>
       </div>
       <nav className="bottom-nav" aria-label={t.app.navigation}>
-        {links}
+        {links(true)}
       </nav>
       <PwaPrompt />
       {params.get('help') === '1' && (

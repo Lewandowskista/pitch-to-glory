@@ -8,15 +8,18 @@ import type {
 } from '../../model/domain';
 import { CONFIG } from '../config';
 import { createRng, restoreRng, type Rng } from '../rng';
-import { ATTRIBUTE_KEYS, KEEPER_KEYS, MENTAL_KEYS, PHYSICAL_KEYS, clampAttribute } from './catalog';
+import { developWeek, recalibratePotential } from '../ageing';
 import { generateManager } from './generate';
 import { addCupRound, createLeagueFixtures, emptyStanding, sortStandings } from './schedule';
 import { advanceNationalPyramid } from './pyramid';
+import { resolvePostseasonTie } from './postseason';
 import { getSeasonWeeks } from './calendar';
 import { rankStandings } from './ranking';
 import { resetNationalSeason } from './movement';
 import { recordEvent as event } from './events';
 import { expectedGoals, selectStartingPlayers, teamStrength } from '../strength';
+import { careerWeek, refreshMentor } from '../career/training';
+import { pendingCareerFixture } from '../career/fixtures';
 import {
   archiveAndPrune,
   fillSquads,
@@ -28,7 +31,6 @@ import {
 
 const copyWorld = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const BACKGROUND = CONFIG.world.background;
-const DEVELOPMENT = CONFIG.world.development;
 const clampPercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 const money = (value: number): number => Math.max(0, Math.round(value));
 
@@ -82,13 +84,42 @@ function scoreGoals(
     return { playerId: scorer.id, teamId, minute: rng.int(1, 90) };
   });
 }
-/** Background resolver only; interactive decisions, highlights and match reports arrive in milestone 3. */
-function resolveFixture(world: World, fixture: Fixture): void {
+/** A fixture played interactively, committed through the same resolver as background games. */
+export interface PlayedFixture {
+  /** Regulation score, home first. Extra time and penalties are added here if required. */
+  score: [number, number];
+  /** Regulation goals; a missing assist is assigned the way background goals are. */
+  goals: { playerId: string; teamId: string; minute: number; assistId?: string }[];
+  /** Minutes played by everyone who appeared, per side. */
+  minutes: { home: Record<string, number>; away: Record<string, number> };
+  /** Interactive ratings (the career player); others use the background rating. */
+  ratings: Record<string, number>;
+}
+/** Record a played fixture's result exactly once, through the shared resolver. */
+export function commitPlayedFixture(world: World, fixtureId: string, played: PlayedFixture): void {
+  const fixture = world.fixtures[fixtureId];
+  if (!fixture || world.results[fixtureId]) throw new Error('Fixture already resolved');
+  resolveFixture(world, fixture, played);
+  // Settle what the result decides immediately (tie aggregates, a cup final's winner), so the
+  // committed world is consistent before the rest of the week is simulated.
+  const tie = fixture.tieId ? world.pyramid?.ties[fixture.tieId] : undefined;
+  if (tie) resolvePostseasonTie(world, tie);
+  if (world.competitions[fixture.competitionId]) advanceCups(world);
+  const league = world.leagues[fixture.competitionId];
+  if (league)
+    league.standings =
+      world.format === 'national-v1'
+        ? rankStandings(world, league.standings, league.fixtureIds)
+        : sortStandings(league.standings);
+}
+function resolveFixture(world: World, fixture: Fixture, played?: PlayedFixture): void {
   const rng = createRng(`${world.seed}:result:${fixture.id}`);
   const home = world.clubs[fixture.homeId]!;
   const away = world.clubs[fixture.awayId]!;
-  const homePlayers = startingPlayers(world, home);
-  const awayPlayers = startingPlayers(world, away);
+  const appeared = (side: Record<string, number>) =>
+    Object.keys(side).map((id) => world.players[id]!);
+  const homePlayers = played ? appeared(played.minutes.home) : startingPlayers(world, home);
+  const awayPlayers = played ? appeared(played.minutes.away) : startingPlayers(world, away);
   // Shared with the interactive match engine so played and simulated fixtures agree.
   const homeStrength = teamStrength(home.reputation, homePlayers);
   const awayStrength = teamStrength(away.reputation, awayPlayers);
@@ -98,7 +129,10 @@ function resolveFixture(world: World, fixture: Fixture): void {
     awayStrength,
     Boolean(fixture.neutral),
   );
-  const score: [number, number] = [poisson(rng, homeGoals), poisson(rng, awayGoals)];
+  const score: [number, number] = played
+    ? [...played.score]
+    : [poisson(rng, homeGoals), poisson(rng, awayGoals)];
+  const regulation: [number, number] = [...score];
   let winnerId = score[0] === score[1] ? null : score[0] > score[1] ? home.id : away.id;
   let penalties: [number, number] | null = null;
   let extraTime: [number, number] | undefined;
@@ -145,10 +179,36 @@ function resolveFixture(world: World, fixture: Fixture): void {
     penalties = homeWins ? [loserScore + 1, loserScore] : [loserScore, loserScore + 1];
     winnerId = homeWins ? home.id : away.id;
   }
-  const goals = [
-    ...scoreGoals(homePlayers, home.id, score[0], rng),
-    ...scoreGoals(awayPlayers, away.id, score[1], rng),
-  ].sort((a, b) => a.minute - b.minute);
+  const goals = (
+    played
+      ? [
+          ...played.goals.map((goal) => {
+            const side = goal.teamId === home.id ? homePlayers : awayPlayers;
+            world.players[goal.playerId]!.stats.goals++;
+            const assister =
+              goal.assistId ??
+              (rng.next() < BACKGROUND.assistedGoalChance
+                ? rng.pick(side.filter((p) => p.id !== goal.playerId && p.primaryPosition !== 'GK'))
+                    .id
+                : undefined);
+            if (assister) world.players[assister]!.stats.assists++;
+            return { playerId: goal.playerId, teamId: goal.teamId, minute: goal.minute };
+          }),
+          // Extra-time goals after an interactive 90 minutes use the background scorers.
+          ...scoreGoals(homePlayers, home.id, score[0] - regulation[0], rng).map((goal) => ({
+            ...goal,
+            minute: 90 + Math.ceil(goal.minute / 3),
+          })),
+          ...scoreGoals(awayPlayers, away.id, score[1] - regulation[1], rng).map((goal) => ({
+            ...goal,
+            minute: 90 + Math.ceil(goal.minute / 3),
+          })),
+        ]
+      : [
+          ...scoreGoals(homePlayers, home.id, score[0], rng),
+          ...scoreGoals(awayPlayers, away.id, score[1], rng),
+        ]
+  ).sort((a, b) => a.minute - b.minute);
   world.results[fixture.id] = {
     fixtureId: fixture.id,
     score,
@@ -157,16 +217,18 @@ function resolveFixture(world: World, fixture: Fixture): void {
     goals,
     ...(extraTime ? { extraTime } : {}),
   };
-  for (const [players, ownGoals, oppositionGoals] of [
-    [homePlayers, score[0], score[1]],
-    [awayPlayers, score[1], score[0]],
+  for (const [players, ownGoals, oppositionGoals, minutes] of [
+    [homePlayers, score[0], score[1], played?.minutes.home],
+    [awayPlayers, score[1], score[0], played?.minutes.away],
   ] as const) {
     for (const player of players) {
+      const played90 = minutes ? minutes[player.id]! : 90;
       player.stats.appearances++;
-      player.stats.minutes += extraTime ? 120 : 90;
+      player.stats.minutes += played90 + (extraTime && played90 >= 90 ? 30 : 0);
       if (oppositionGoals === 0) player.stats.cleanSheets++;
       const scored = goals.filter((goal) => goal.playerId === player.id).length;
-      const rating = Math.max(
+      const interactive = played?.ratings[player.id];
+      const background = Math.max(
         BACKGROUND.minimumRating,
         Math.min(
           BACKGROUND.maximumRating,
@@ -180,6 +242,7 @@ function resolveFixture(world: World, fixture: Fixture): void {
             rng.next() * BACKGROUND.ratingVariation,
         ),
       );
+      const rating = interactive ?? background;
       player.stats.ratingTotal = Math.round((player.stats.ratingTotal + rating) * 100) / 100;
       player.form = clampPercent(
         player.form * BACKGROUND.formRetention + rating * 10 * BACKGROUND.formRatingWeight,
@@ -192,7 +255,9 @@ function resolveFixture(world: World, fixture: Fixture): void {
               ? -BACKGROUND.moraleResultDelta
               : 0),
       );
-      player.fatigue = clampPercent(player.fatigue + BACKGROUND.matchFatigue);
+      player.fatigue = clampPercent(
+        player.fatigue + (BACKGROUND.matchFatigue * Math.max(played90, 1)) / 90,
+      );
     }
   }
   const league = fixture.phaseId
@@ -221,58 +286,30 @@ function resolveFixture(world: World, fixture: Fixture): void {
 }
 
 function developPlayers(world: World, rng: Rng): void {
+  const seasonWeeks = getSeasonWeeks(world);
+  const careerId = world.career?.playerId;
   for (const player of Object.values(world.players)) {
     if (player.retired) continue;
     // Squads of clubs below the simulated frontier are dormant until readmitted.
     if (player.clubId && !isActiveClub(world, world.clubs[player.clubId]!)) continue;
-    const age = world.date.season - player.birthSeason;
-    const youthFactor =
-      age < DEVELOPMENT.youthAge
-        ? DEVELOPMENT.youthFactor
-        : age < DEVELOPMENT.growthEndAge
-          ? DEVELOPMENT.adultFactor
-          : 0;
-    const professionalism = DEVELOPMENT.professionalismBase + player.hidden.professionalism / 100;
-    for (const key of ATTRIBUTE_KEYS) {
-      const mentalGrowth =
-        MENTAL_KEYS.includes(key) && age < DEVELOPMENT.mentalEndAge ? DEVELOPMENT.mentalFactor : 0;
-      if (
-        player.attributes[key] < player.potential &&
-        rng.next() < CONFIG.world.developmentChance * (youthFactor + mentalGrowth) * professionalism
-      )
-        player.attributes[key]++;
-      if (
-        age >= DEVELOPMENT.declineStartAge &&
-        rng.next() <
-          CONFIG.world.declineChance *
-            ((age - DEVELOPMENT.declineStartAge + 1) / DEVELOPMENT.declineAgeDivisor) *
-            (PHYSICAL_KEYS.includes(key)
-              ? DEVELOPMENT.physicalDeclineFactor
-              : MENTAL_KEYS.includes(key)
-                ? DEVELOPMENT.mentalDeclineFactor
-                : DEVELOPMENT.technicalDeclineFactor)
-      )
-        player.attributes[key] = clampAttribute(player.attributes[key] - 1);
-    }
-    if (player.primaryPosition === 'GK')
-      for (const key of KEEPER_KEYS) {
-        if (
-          age < DEVELOPMENT.keeperGrowthEndAge &&
-          player.keeperAttributes[key] < player.potential &&
-          rng.next() < CONFIG.world.developmentChance * professionalism
-        )
-          player.keeperAttributes[key]++;
-        if (
-          age >= DEVELOPMENT.keeperDeclineAge &&
-          rng.next() <
-            (CONFIG.world.declineChance * (age - DEVELOPMENT.keeperDeclineAge + 1)) /
-              DEVELOPMENT.keeperDeclineDivisor
-        )
-          player.keeperAttributes[key] = clampAttribute(player.keeperAttributes[key] - 1);
-      }
+    // The career player grows through XP and training; their ageing runs in the career week.
+    if (player.id !== careerId)
+      developWeek(player, world.date.season - player.birthSeason, seasonWeeks, rng);
     player.fatigue = clampPercent(player.fatigue - BACKGROUND.weeklyRecovery);
     player.fitness = clampPercent(100 - player.fatigue * BACKGROUND.fitnessFatigueWeight);
   }
+}
+/**
+ * Worlds generated before development version 2 treated potential as a ceiling well above
+ * eventual ability, which made the world drift upward. Re-estimate it once from current
+ * ability and age, so these worlds follow the same equilibrium as new ones.
+ */
+function recalibrateDevelopment(world: World): void {
+  if (world.developmentVersion === 2) return;
+  for (const player of Object.values(world.players))
+    if (!player.retired && player.id !== world.career?.playerId)
+      player.potential = recalibratePotential(player, world.date.season - player.birthSeason);
+  world.developmentVersion = 2;
 }
 function updateFinances(world: World): void {
   for (const club of Object.values(world.clubs)) {
@@ -298,6 +335,7 @@ function exchangeTransfers(world: World, rng: Rng): void {
     const clubs = country.leagueIds
       .flatMap((id) => world.leagues[id]!.clubIds)
       .map((id) => world.clubs[id]!);
+    const careerId = world.career?.playerId;
     const a = rng.pick(clubs);
     // Exchanges happen between clubs of a similar level, never top flight and sixth tier.
     const tier = world.leagues[a.leagueId]!.tier;
@@ -306,8 +344,10 @@ function exchangeTransfers(world: World, rng: Rng): void {
         (club) => club.id !== a.id && Math.abs(world.leagues[club.leagueId]!.tier - tier) <= 1,
       ),
     );
+    // The career player only moves through their own decisions (milestone 5).
+    const movable = (club: Club) => club.playerIds.filter((id) => id !== careerId);
     const positionsOf = (club: Club) =>
-      new Set(club.playerIds.map((id) => world.players[id]!.primaryPosition));
+      new Set(movable(club).map((id) => world.players[id]!.primaryPosition));
     const shared = [...positionsOf(a)].filter(
       (position) => position !== 'GK' && positionsOf(b).has(position),
     );
@@ -318,12 +358,12 @@ function exchangeTransfers(world: World, rng: Rng): void {
       ),
     );
     const playerA = rng.pick(
-      a.playerIds
+      movable(a)
         .map((id) => world.players[id]!)
         .filter((player) => player.primaryPosition === position),
     );
     const playerB = rng.pick(
-      b.playerIds
+      movable(b)
         .map((id) => world.players[id]!)
         .filter((player) => player.primaryPosition === position),
     );
@@ -459,11 +499,69 @@ export interface SimulationOptions {
    * the deep copy was two thirds of each simulated week's cost.
    */
   inPlace?: boolean;
+  /**
+   * Allow the background resolver to play the career player's pending fixture. Only for
+   * callers that have deliberately chosen to skip it; the normal path plays it interactively
+   * (or with the auto-play policy) and commits it before the week is simulated.
+   */
+  allowCareerFixture?: boolean;
+}
+/** Thrown when a week would simulate a career fixture that has not been played. */
+export class CareerMatchPendingError extends Error {
+  constructor(public readonly fixtureId: string) {
+    super('The career player has a match to play this week');
+    this.name = 'CareerMatchPendingError';
+  }
+}
+/**
+ * If the career player's club dropped below the simulated frontier, the player joins a club
+ * in the lowest simulated division of the same country (same region where possible), so the
+ * career always has fixtures. Transfers proper arrive in milestone 5.
+ */
+function keepCareerInSimulatedLeagues(world: World): void {
+  const player = world.players[world.career!.playerId]!;
+  const current = player.clubId ? world.clubs[player.clubId] : undefined;
+  if (!current || world.leagues[current.leagueId]) return;
+  const country = world.countries[current.countryId]!;
+  const bottom = Math.max(...country.leagueIds.map((id) => world.leagues[id]!.tier));
+  // Runs after movements are applied, so read each club's new league, not stale memberships.
+  const candidates = Object.values(world.clubs)
+    .filter(
+      (club) =>
+        club.countryId === current.countryId &&
+        world.leagues[club.leagueId]?.tier === bottom &&
+        !club.identity?.reserveParentId,
+    )
+    .sort(
+      (a, b) =>
+        Number(b.identity?.region === current.identity?.region) -
+          Number(a.identity?.region === current.identity?.region) ||
+        a.playerIds.length - b.playerIds.length ||
+        (a.id < b.id ? -1 : 1),
+    );
+  const destination = candidates[0];
+  if (!destination) return;
+  const contract = world.contracts[player.contractId!]!;
+  current.playerIds = current.playerIds.filter((id) => id !== player.id);
+  destination.playerIds.push(player.id);
+  player.clubId = destination.id;
+  contract.clubId = destination.id;
+  refreshDressingRoom(world, current);
+  refreshDressingRoom(world, destination);
+  event(world, 'transfer', [player.id, current.id, destination.id], {
+    name: player.name,
+    old: current.name,
+    new: destination.name,
+    fee: 0,
+  });
 }
 export function simulateWeek(input: World, options: SimulationOptions = {}): World {
   if (input.phase === 'complete') return input;
+  const pending = options.allowCareerFixture ? null : pendingCareerFixture(input);
+  if (pending) throw new CareerMatchPendingError(pending.id);
   const world = options.inPlace ? input : copyWorld(input);
   const rng = restoreRng(world.rng);
+  recalibrateDevelopment(world);
   const fixtures = Object.values(world.fixtures)
     .filter(
       (fixture) =>
@@ -481,6 +579,7 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   advanceCups(world);
   if (world.format === 'national-v1') advanceNationalPyramid(world);
   developPlayers(world, rng);
+  if (world.career) careerWeek(world);
   if ((CONFIG.world.transferWeeks as readonly number[]).includes(world.date.week)) {
     exchangeTransfers(world, rng);
     fillSquads(world, rng);
@@ -506,6 +605,10 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
   for (const movement of summary.movements)
     if (movement.fromLeagueId.startsWith('feeder:') && world.leagues[movement.toLeagueId])
       refreshReturningClub(world, world.clubs[movement.clubId]!);
+  if (world.career) {
+    keepCareerInSimulatedLeagues(world);
+    refreshMentor(world);
+  }
   world.phase = 'active';
   world.fixtures = {};
   world.results = {};

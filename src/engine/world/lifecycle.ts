@@ -233,13 +233,16 @@ export function seasonalSquadReview(world: World, rng: Rng): void {
     )
       retirePlayer(world, player, null);
   }
+  // The career player retires, renews and leaves only through their own decisions.
+  const careerId = world.career?.playerId;
   for (const club of Object.values(world.clubs)) {
     if (!isActiveClub(world, club)) continue;
     for (const player of roster(world, club))
-      if (rng.next() < retirementProbability(ageOf(world, player)))
+      if (rng.next() < retirementProbability(ageOf(world, player)) && player.id !== careerId)
         retirePlayer(world, player, club);
     const ranked = rankByValue(world, roster(world, club));
     for (const [rank, player] of ranked.entries()) {
+      if (player.id === careerId) continue;
       const contract = world.contracts[player.contractId!]!;
       if (contract.end.season > season) continue;
       const age = ageOf(world, player);
@@ -272,6 +275,7 @@ export function seasonalSquadReview(world: World, rng: Rng): void {
     const counts = groupCounts(world, club);
     for (const player of rankByValue(world, roster(world, club)).reverse()) {
       if (club.playerIds.length <= L.squadMaximum) break;
+      if (player.id === careerId) continue;
       const group = GROUP[player.primaryPosition];
       if (counts[group] <= L.groupMinimum[group]) continue;
       counts[group]--;
@@ -350,6 +354,7 @@ export function fillSquads(world: World, rng: Rng): void {
 export function refreshReturningClub(world: World, club: Club): void {
   const rng = createRng(`${world.seed}:readmission:${world.date.season}:${club.id}`);
   for (const [index, player] of roster(world, club).entries()) {
+    if (player.id === world.career?.playerId) continue;
     if (ageOf(world, player) >= L.readmissionRetirementAge) {
       const position = player.primaryPosition;
       retirePlayer(world, player, club);

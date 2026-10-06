@@ -11,7 +11,7 @@ import type { RatingFamily } from './situations';
 export type { Tactics } from '../../model/domain';
 
 /** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
-export const MATCH_ENGINE_VERSION = 'match-4';
+export const MATCH_ENGINE_VERSION = 'match-5';
 
 export interface MatchSetup {
   version: 1;
@@ -22,6 +22,14 @@ export interface MatchSetup {
   players: Record<string, Player>;
   selectedPlayerId: string;
   neutral: boolean;
+  /** A scheduled fixture played by the career player; absent for friendlies. */
+  fixture?: MatchFixture;
+}
+export interface MatchFixture {
+  id: string;
+  competitionId: string;
+  /** 1 for league games, higher for cups, playoffs and finals (feeds big-game skills and XP). */
+  importance: number;
 }
 export type MatchCommand =
   | { type: 'kickoff' }

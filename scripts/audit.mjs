@@ -46,6 +46,8 @@ try {
     ['match-mobile', '/match', 'mobile'],
     ['saves-mobile', '/saves', 'mobile'],
     ['world-mobile', '/world', 'mobile'],
+    ['career-mobile', '/career', 'mobile'],
+    ['career-new-mobile', '/career/new', 'mobile'],
   ]) {
     const output = `artifacts/lighthouse-${name}.json`;
     const args = [

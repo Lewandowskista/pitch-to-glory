@@ -104,6 +104,8 @@ const migrations: Readonly<Record<number, Migration>> = {
   4: (old) => ({ ...old, schemaVersion: 5 }),
   // v6 adds optional lifecycle fields (archived people, release seasons) and versioned match sessions.
   5: (old) => ({ ...old, schemaVersion: 6 }),
+  // v7 adds the optional career and development version on the world.
+  6: (old) => ({ ...old, schemaVersion: 7 }),
 };
 export function migrateSave(value: unknown): AppSave {
   let save = object(value);

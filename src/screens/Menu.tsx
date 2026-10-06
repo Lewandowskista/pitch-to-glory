@@ -1,5 +1,11 @@
-import { Link } from 'react-router-dom';
-import { t } from '../i18n';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAppStore } from '../store';
+import { saves } from '../persistence/runtime';
+import { loadSlot, errorCode } from '../persistence/session';
+import type { SlotId } from '../model/domain';
+import { errorText } from '../i18n';
+import { format, t } from '../i18n';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
 import { Artwork } from '../ui/Artwork';
@@ -9,7 +15,37 @@ import { renderKit } from '../engine/assets/kit';
 import { renderAvatar } from '../engine/assets/avatar';
 import stadium from '../assets/stadium.svg';
 const sample = generateGallery('pitch-to-glory');
+/** The most recently saved career, offered as "Continue" from the clubhouse. */
+function useSavedCareer(skip: boolean) {
+  const [saved, setSaved] = useState<{ slot: SlotId; name: string } | null>(null);
+  useEffect(() => {
+    if (skip) return;
+    let current = true;
+    void saves
+      .list()
+      .then((list) => {
+        const careers = list.flatMap((entry) =>
+          entry.status === 'ready' && entry.world?.career
+            ? [{ slot: entry.slot, name: entry.world.career.name, updatedAt: entry.updatedAt }]
+            : [],
+        );
+        careers.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+        if (current) setSaved(careers[0] ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [skip]);
+  return saved;
+}
 export default function Menu() {
+  const world = useAppStore((s) => s.world);
+  const loaded = world?.career ? world.players[world.career.playerId] : undefined;
+  const saved = useSavedCareer(Boolean(loaded));
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   return (
     <Page className="menu-page">
       <section className="hero">
@@ -17,18 +53,65 @@ export default function Menu() {
           <p className="eyebrow">{t.menu.eyebrow}</p>
           <h1>{t.menu.headline}</h1>
           <p className="hero-description">{t.menu.body}</p>
-          <Link className="button hero-button" to="/gallery">
-            {t.menu.explore}
-            <Icon name="arrow" />
-          </Link>
-          <Link className="button secondary menu-world-link" to="/world">
-            {t.menu.world}
-            <Icon name="ball" />
-          </Link>
-          <Link className="text-button menu-world-link" to="/match">
-            {t.app.match}
-            <Icon name="arrow" />
-          </Link>
+          <div className="relative z-[2] mt-6 flex flex-wrap items-center gap-3">
+            {loaded ? (
+              <Link className="button hero-button" to="/career">
+                {format(t.menu.continueCareer, { name: loaded.name })}
+                <Icon name="career" />
+              </Link>
+            ) : saved ? (
+              <button
+                className="button hero-button"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  setError('');
+                  void loadSlot(saved.slot)
+                    .then(() => navigate(`/career?save=${saved.slot}`))
+                    .catch((cause: unknown) => setError(errorText(errorCode(cause))))
+                    .finally(() => setBusy(false));
+                }}
+              >
+                {format(t.menu.continueCareer, { name: saved.name })}
+                <Icon name="career" />
+              </button>
+            ) : null}
+            <Link
+              className={`button ${loaded || saved ? 'secondary' : 'hero-button'}`}
+              to="/career/new"
+            >
+              {t.menu.startCareer}
+              <Icon name="arrow" />
+            </Link>
+          </div>
+          {error && (
+            <p role="alert" className="relative z-[2] mt-3 text-sm font-semibold text-gold">
+              {error}
+            </p>
+          )}
+          <div className="relative z-[2] mt-3 flex flex-wrap items-center gap-x-1 gap-y-2">
+            <Link
+              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-[#fff7e4] underline underline-offset-4 transition-colors hover:bg-white/10"
+              to="/gallery"
+            >
+              {t.menu.explore}
+              <Icon name="arrow" />
+            </Link>
+            <Link
+              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-[#fff7e4] underline underline-offset-4 transition-colors hover:bg-white/10"
+              to="/world"
+            >
+              {t.menu.world}
+              <Icon name="ball" />
+            </Link>
+            <Link
+              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-[#fff7e4] underline underline-offset-4 transition-colors hover:bg-white/10"
+              to="/match"
+            >
+              {t.app.match}
+              <Icon name="arrow" />
+            </Link>
+          </div>
         </div>
         <img className="stadium" src={stadium} alt={t.menu.artLabel} />
       </section>

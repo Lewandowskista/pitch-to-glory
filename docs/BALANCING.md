@@ -111,3 +111,95 @@ National generation adjusts lower-tier reputation/economics for semi-professiona
 ## Interactive matches
 
 All match tunables are exposed through `CONFIG.match` in `src/engine/config.ts`. The pure command engine produces role-specific opportunities and transparent probability factors. [Match balancing](MATCH-BALANCING.md) records the sporting formulas, calibrated distributions and report calculations. Friendly rewards are calculated performance values until milestone 4 supplies progression.
+
+## Development and ageing (milestone 4)
+
+All constants are in `CONFIG.world.development`; the logic is in `src/engine/ageing.ts`.
+
+**Potential.**
+
+- Since development version 2, `potential` is a player's peak overall ability, not an attribute ceiling.
+- Generation draws it as `0.75 × club reputation + 13 ± 8`.
+- An attribute's peak is `potential + positional emphasis (8 on the position's three key attributes) + offset`. The offset is a stable ±10 value derived from the player id and attribute name, so every player keeps a distinct profile without storing a second attribute set.
+- Untrained attributes (an outfielder's goalkeeping; a keeper's outfield technique and physique) are static values in 1–25.
+
+**Age curves.** Each category scales the peak by age, interpolated linearly between these points:
+
+| Category                            | 16   | 18   | 21   | 23–24     | 26–28                | 30   | 32   | 34–35     | 37   | 40   |
+| ----------------------------------- | ---- | ---- | ---- | --------- | -------------------- | ---- | ---- | --------- | ---- | ---- |
+| Pace, acceleration                  | 0.84 | 0.91 | 0.97 | 1.00      | 1.00 (26), 0.96 (28) | 0.90 | 0.83 | 0.72 (35) | —    | 0.60 |
+| Strength, stamina, agility, jumping | 0.80 | 0.88 | 0.95 | 1.00 (24) | 1.00                 | 0.96 | 0.91 | 0.85 (34) | 0.76 | 0.68 |
+| Technical                           | 0.76 | 0.83 | 0.90 | 0.96 (24) | 1.00                 | 1.00 | 0.97 | 0.93 (34) | 0.86 | 0.80 |
+| Mental (incl. aggression)           | 0.70 | 0.77 | 0.84 | 0.91 (24) | 0.96 (27)            | 1.00 | 1.00 | 1.00 (34) | 0.97 | 0.93 |
+| Goalkeeping                         | 0.72 | 0.80 | 0.87 | 0.93 (24) | 0.98 (27)            | 1.00 | 1.00 | 0.95 (35) | 0.89 | 0.80 |
+
+**AI development.**
+
+- Each week, every trained attribute moves one point toward `peak × curve(age)`.
+- The chance is `min(0.9, |gap| × rate / seasonWeeks)`, where rate is `0.75 × professionalism factor` for growth and `0.75` for decline. Professionalism factor is `0.6 + professionalism/100`.
+- So a gap closes by roughly three quarters each season, independent of calendar length.
+- Generation places players on their curve (±2), so new worlds start at equilibrium.
+- Worlds without `developmentVersion: 2` are recalibrated once on their next simulated week: `potential := trained ability / weighted curve(age) − mean emphasis`.
+
+**Measured** (seed `drift-check-2`, six national seasons): mean ability by tier at generation is 67.3 / 56.6 / 46.5 / 36.2 / 26.6 / 20.0. After six seasons it is 64.3 / 55.7 / 44.9 / 36.8 / 26.5 / 21.6, stable from season three onward. Before development version 2 the top tier rose from 66 to 72 over ten seasons.
+
+**Lifecycle adjustment.** Squad value now subtracts 1 per year over 30 (was 2), and expiring contracts renew up to age 35 (was 34). The share of players aged 29+ at season start holds near 29%.
+
+## Career progression (milestone 4)
+
+All constants are in `CONFIG.career`; the logic is in `src/engine/career/`.
+
+**XP and levels.**
+
+- Match XP is the report's performance XP (`minutes × 1.2 + max(0, rating − 6) × 25 + goals × 30 + assists × 20 + objectives × 15`), multiplied by:
+  - opposition: `clamp(1 + (opponent reputation − own reputation) × 0.01, 0.8, 1.3)`;
+  - importance: league 1, promotion/survival phase 1.1, cup 1.15, playoff tie 1.25, final 1.5.
+- Going from level n to n + 1 needs `round(300 × 1.06^(n − 1))` XP, up to level 99.
+- Each level grants 8 attribute points and 1 skill point.
+- Auto-played seasons in Node reached about level 11 in a first season (about 39 appearances).
+
+**Attribute costs.**
+
+- The soft cap for an attribute is `(potential + positional emphasis) × curve(age)`, with no hidden offset.
+- Raising an attribute costs 1 point below the cap, 2 within five above it, and 3 beyond. Pace and physical attributes cost one more from age 29. 99 is the maximum.
+- Outfield players cannot raise goalkeeping attributes; keepers raise goalkeeping and mental attributes.
+
+**Creation.**
+
+- Age 16–18, potential 74–88.
+- Starting attributes are the trial club's average ability for the position family, minus 3, plus the archetype's emphasis, plus half the positional emphasis, ±2, capped by the age-adjusted cap.
+- The archetype's tier-one skill is granted free.
+
+**Skill tree.**
+
+- 49 skills in 8 branches: finishing, creativity, dribbling, defending, physical, mentality, set pieces, goalkeeping.
+- Costs and minimum levels by tier: tier 1 costs 1 point from level 1; tier 2 costs 2 from level 5; tier 3 costs 2 from level 12; tier 4 costs 3 from level 20.
+- Every skill grants small permanent attribute bonuses and one or more of:
+  - boosted key-moment choices (`TRAIT_BOOSTS`, success odds ×1.2);
+  - an unlocked key-moment choice (`requiredTraitId`);
+  - a systemic effect: Professional ×1.2 training gains; Second Wind ×0.7 training fatigue; Iron Man halves injury risk; Big Game Player ×1.1 odds on every choice in fixtures of importance above 1; Leader and Captain's Voice raise leadership, which decides the captaincy.
+
+**Training.**
+
+- Three weekly sessions plus an optional mentor session.
+- Gain per session is low 0.08, normal 0.13, high 0.19 attribute points (mentor 0.15), multiplied by:
+  - learning by age: 1.3 at 16, 1.15 at 20, 1.0 at 24, 0.85 at 28, 0.65 at 32, 0.5 at 36;
+  - `(0.6 + professionalism/100) / 1.1`;
+  - Professional.
+- A mentor's lead in the focus adds up to +50%.
+- A group focus splits its gain across the group's trainable attributes. Progress above the soft cap is halved and stops five points above it.
+- Learning a position adds familiarity 2 / 4 / 6 by intensity (×1.5 with a mentor).
+- Fatigue per session is low 1, normal 2, high 5, extra 3, recovery −12, against the weekly −10 recovery every player receives.
+
+**Injuries.**
+
+- Risk per session is low 0.002, normal 0.005, high 0.013, extra 0.004, plus 0.008 per match.
+- Every risk is multiplied by `(1 + fatigue/50) × (0.5 + injury proneness/100)`, and by 0.5 with Iron Man.
+- Types and weights: knock 30 (1–2 weeks), muscle strain 22 (2–4), ankle sprain 16 (2–5), hamstring strain 14 (3–6), groin strain 8 (3–6), calf tear 6 (5–9), broken foot 2.5 (8–14), knee ligament 1.2 (16–30).
+- A knee ligament injury is career-threatening 25% of the time; on recovery it costs 6 pace and 6 acceleration.
+- Rushing a return cuts the remaining weeks to 60% (minimum 1), then risks a re-injury of the same kind in each match for six weeks with probability 0.15.
+- Auto-played Node seasons saw 7–9 injured weeks per season at default intensities.
+
+**Ageing for the career player.** Past a category's peak (pace 26, physical 28, technical 30, mental 34, keeper 33), attributes above the age-adjusted cap decline toward it using the AI decline rate. The player never grows automatically.
+
+**Hidden attributes.** These are revealed at 5, 15, 30, 50 and 80 appearances, in this order: professionalism, consistency, injury proneness, big-match temperament, ambition.

@@ -14,8 +14,10 @@ import {
   ref,
   standings,
   validateEntities,
+  playedThisWeek,
 } from './worldValidation';
 import { validateNationalWorld } from './nationalWorldSchema';
+import { validateCareer } from './careerValidation';
 
 // This module validates imported data; it never imports the heavy generation/simulation code.
 export function validateWorld(value: unknown): World {
@@ -123,6 +125,7 @@ export function validateWorld(value: unknown): World {
         if (home !== away) requireValue(pairs.get(`${home}|${away}`) === 2);
   }
   validateEntities(w);
+  validateCareer(w);
   for (const cup of Object.values(competitions)) {
     text(cup.name);
     requireValue(
@@ -188,7 +191,7 @@ export function validateWorld(value: unknown): World {
     requireValue(
       Number(object(fixture.date).week) < Number(currentDate.week)
         ? Object.hasOwn(results, String(fixture.id))
-        : !Object.hasOwn(results, String(fixture.id)),
+        : !Object.hasOwn(results, String(fixture.id)) || playedThisWeek(w, fixture),
     );
     const league = leagues[String(fixture.competitionId)];
     if (league)
@@ -215,7 +218,9 @@ export function validateWorld(value: unknown): World {
     const score = array(result.score, 2);
     requireValue(score.length === 2);
     score.forEach((goal) => number(goal, 0, CONFIG.world.maxGoals, true));
-    requireValue(Number(object(fixture.date).week) < Number(currentDate.week));
+    requireValue(
+      Number(object(fixture.date).week) < Number(currentDate.week) || playedThisWeek(w, fixture),
+    );
     const home = score[0] as number,
       away = score[1] as number;
     let winner = home > away ? fixture.homeId : away > home ? fixture.awayId : null;

@@ -11,12 +11,14 @@ import {
   number,
   object,
   options,
+  playedThisWeek,
   ref,
   requireValue,
   standings,
   text,
   validateEntities,
 } from './worldValidation';
+import { validateCareer } from './careerValidation';
 
 // Bounds apply before traversing imported graphs. Rules are frozen by profile version.
 function canonicalData(value: unknown): string {
@@ -316,6 +318,7 @@ export function validateNationalWorld(value: unknown): World {
   }
   requireValue(members.size === Object.keys(clubs).length);
   validateEntities(w, feederIds);
+  validateCareer(w);
   for (const club of Object.values(clubs)) {
     const identity = object(club.identity);
     requireValue(identity.counterpart === countries[String(club.countryId)]!.counterpart);
@@ -483,7 +486,7 @@ export function validateNationalWorld(value: unknown): World {
     requireValue(
       Number(object(f.date).week) < Number(current.week)
         ? Object.hasOwn(results, String(f.id))
-        : !Object.hasOwn(results, String(f.id)),
+        : !Object.hasOwn(results, String(f.id)) || playedThisWeek(w, f),
     );
   }
   for (const [key, resultValue] of Object.entries(results)) {

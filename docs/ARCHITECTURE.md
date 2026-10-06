@@ -1,6 +1,6 @@
 ﻿# Pitch to Glory architecture
 
-Milestones 1–3 plus the post-milestone-3 hardening pass, 6 October 2026. The root AGENTS.md is the product authority. Assets, saves, world simulation and interactive friendly matches are implemented; later career systems remain typed contracts.
+Milestones 1–4 (including the post-milestone-3 hardening pass), 6 October 2026. The root AGENTS.md is the product authority. Assets, saves, world simulation and interactive friendly matches are implemented; later career systems remain typed contracts.
 
 ## Boundaries and folders
 
@@ -10,6 +10,9 @@ src/
     assets/           Crest, kit and avatar recipes and geometry
     world/            Generation, schedules, background scores, squad lifecycle and seasons
     match/            Deterministic command engine, session types and replay validation
+    career/           Career creation, progression, skills, training, injuries, fixtures and commit
+    ageing.ts         Age curves, attribute targets and AI development
+    strength.ts       Team strength model shared by background and interactive matches
     config.ts         Tunable constants; no browser dependencies
   model/              Serializable domain contracts below
   persistence/        Dexie tables, schema upgrades, validation, slot repository
@@ -378,8 +381,10 @@ export interface Player {
   injuryId: Id | null;
   retired: boolean;
   stats: PlayerStats;
+  /** Season in which an unattached player was released; absent while under contract. */
   releasedSeason?: number;
 }
+/** Compact record of a retired player, kept for history after their full entity is pruned. */
 export interface ArchivedPlayer {
   id: Id;
   name: string;
@@ -393,53 +398,114 @@ export interface ArchivedPlayer {
 export interface WorldArchive {
   players: Record<Id, ArchivedPlayer>;
 }
-export interface CareerPlayer extends Player {
-  level: number;
-  xp: number;
-  attributePoints: number;
-  skillPoints: number;
-  fame: number;
-  finances: PersonalFinances;
-  agentId: Id | null;
-  rivalId: Id;
-  parentPlayerId: Id | null;
-  inheritedBonus: Partial<Attributes>;
-  training: TrainingSchedule;
-  wardrobe: Wardrobe;
-  celebrationId: Id;
-  tutorial: TutorialProgress;
-}
+/** A skill-tree node. Its id doubles as the trait id the match engine reads from `traits`. */
 export interface Skill {
   id: Id;
-  nameKey: string;
-  descriptionKey: string;
-  branch: string;
+  branch: SkillBranch;
+  /** Grid position within its branch, for layout: tier 1 is the root. */
+  tier: number;
   prerequisites: Id[];
   pointCost: number;
-  attributeBonuses: Partial<Attributes>;
-  decisionIds: Id[];
+  minimumLevel: number;
+  /** Small permanent attribute bonuses applied when unlocked (soft caps do not apply). */
+  attributeBonuses: Partial<Attributes & KeeperAttributes>;
+  /** Restricts a skill to goalkeepers or outfield players. */
+  for: 'all' | 'outfield' | 'keeper';
 }
+export type SkillBranch =
+  | 'finishing'
+  | 'creativity'
+  | 'dribbling'
+  | 'defending'
+  | 'physical'
+  | 'mentality'
+  | 'set-pieces'
+  | 'goalkeeping';
+export type TrainingGroup = 'technical' | 'physical' | 'mental' | 'goalkeeping';
+/** A training focus: an attribute group, one attribute, a position to learn, or recovery. */
+export type TrainingFocus =
+  TrainingGroup | 'recovery' | keyof Attributes | keyof KeeperAttributes | `position:${Position}`;
 export interface TrainingSession {
-  day: number;
-  focus: keyof Attributes | keyof KeeperAttributes | Position;
+  focus: TrainingFocus;
   intensity: 'low' | 'normal' | 'high';
-  mentorId: Id | null;
-  extra: boolean;
 }
-export interface TrainingSchedule {
+export interface TrainingPlan {
   sessions: TrainingSession[];
+  /** Optional extra session led by the club's best teammate for that focus. */
+  extra: { focus: TrainingFocus; mentorId: Id } | null;
+}
+export interface TrainingReport {
+  season: number;
   week: number;
+  /** Fractional progress added per attribute this week (whole points already applied). */
+  gains: Record<string, number>;
+  improved: string[];
+  declined: string[];
+  familiarity: { position: Position; familiarity: number } | null;
+  fatigue: number;
+  injuryId: Id | null;
 }
 export interface Injury {
   id: Id;
   playerId: Id;
   kind: string;
   started: GameDate;
-  expectedRecovery: GameDate;
+  /** Whole weeks until fit again, counted down at each simulated week. */
+  weeksRemaining: number;
   severity: number;
+  /** Chance of aggravating the injury in each match while a rushed return is active. */
   reinjuryRisk: number;
-  recovery: 'rehab' | 'rush';
+  /** Null until the player chooses how to recover. */
+  recovery: 'rehab' | 'rush' | null;
   careerThreatening: boolean;
+  cause: 'training' | 'match';
+}
+export interface CareerMatchRecord {
+  fixtureId: Id;
+  season: number;
+  week: number;
+  competitionId: Id;
+  opponentId: Id;
+  home: boolean;
+  /** Own goals first. */
+  score: [number, number];
+  result: 'win' | 'draw' | 'loss';
+  /** Extra time and penalties decided after an interactive 90 minutes, if needed. */
+  decided?: 'extra-time' | 'penalties';
+  minutes: number;
+  rating: number;
+  goals: number;
+  assists: number;
+  cleanSheet: boolean;
+  xp: number;
+  /** Played by the headless decision policy during season simulation. */
+  auto: boolean;
+}
+/**
+ * The career. The player is an ordinary entry in `world.players` and their club's squad;
+ * this record holds progression. Unlocked skills are mirrored into `player.traits`.
+ */
+export interface Career {
+  version: 1;
+  playerId: Id;
+  archetype: string;
+  startSeason: number;
+  level: number;
+  /** Total XP earned in the career. */
+  xp: number;
+  attributePoints: number;
+  skillPoints: number;
+  skills: Id[];
+  training: TrainingPlan;
+  /** Fractional training progress per attribute, below one point. */
+  trainingProgress: Record<string, number>;
+  lastTraining: TrainingReport | null;
+  injury: Injury | null;
+  /** After a rushed return: chance of breaking down in each match, for a number of weeks. */
+  reinjury: { risk: number; weeks: number; kind: string } | null;
+  /** Cumulative fame from match reports; fame systems arrive in milestone 7. */
+  fame: number;
+  matches: CareerMatchRecord[];
 }
 export interface Agent {
   id: Id;
@@ -728,12 +794,27 @@ export interface DecisionChoice {
   probability: number;
   factors: ProbabilityFactor[];
   requiredTraitId: Id | null;
+  /** Trait that improves this choice (exact id), whether or not the player owns it. */
+  traitId: Id | null;
+  /** Governing attribute names, strongest first. */
+  attributes: string[];
+  /** Conditional goal probabilities after success/failure, for the selected team (goal) and
+   * the opposition (concede). A direct shot has `successGoal = 1`; a direct save `failureConcede = 1`. */
+  stakes: {
+    successGoal: number;
+    successConcede: number;
+    failureGoal: number;
+    failureConcede: number;
+  };
 }
 export interface KeyMoment {
   id: Id;
   minute: number;
+  situationId: Id;
   situationKey: string;
   frame: ReplayFrame;
+  /** Expected goals this moment replaces for the selected team and against it. */
+  budget: { for: number; against: number };
   choices: DecisionChoice[];
 }
 export interface DecisionInput {
@@ -750,12 +831,17 @@ export interface DecisionOutcome {
 export interface MatchEvent {
   id: Id;
   minute: number;
-  kind: 'goal' | 'pass' | 'shot' | 'tackle' | 'card' | 'substitution' | 'halftime';
+  kind:
+    'goal' | 'pass' | 'shot' | 'save' | 'dribble' | 'tackle' | 'card' | 'substitution' | 'halftime';
   playerId: Id | null;
   teamId: Id;
   point: Point;
   endPoint?: Point;
   commentaryKey: string;
+  /** Names and values substituted into the commentary template. */
+  commentaryParams?: Record<string, string>;
+  /** On goal events: the selected player, when their key-moment choice created the goal. */
+  assistId?: Id;
   outcome: DecisionOutcome | null;
 }
 export interface MatchReport {
@@ -810,6 +896,10 @@ export interface GameEvent {
 }
 export interface World {
   format?: 'legacy' | 'national-v1';
+  /** 2: potential is peak overall ability and development follows age curves. */
+  developmentVersion?: 2;
+  /** The player's career, when this world hosts one (milestone 4). */
+  career?: Career;
   pyramid?: NationalPyramidState;
   id: Id;
   seed: string;
@@ -849,6 +939,7 @@ export interface World {
   phase: 'active' | 'complete';
   results: Record<Id, BackgroundResult>;
   history: SeasonSummary[];
+  /** Retired people pruned from the live graph. Absent in worlds saved before schema 6. */
   archive?: WorldArchive;
 }
 export interface BackgroundResult {
@@ -894,12 +985,6 @@ export interface FoundationState {
   gallery: GalleryState;
   settings: Settings;
 }
-export interface CareerState {
-  kind: 'career';
-  world: World;
-  player: CareerPlayer;
-  edits: WorldEdits;
-}
 export interface WorldState {
   kind: 'world';
   gallery: GalleryState;
@@ -907,10 +992,10 @@ export interface WorldState {
   world: World;
   matchSession?: import('../engine/match/types').MatchSession;
 }
-export type SavePayload = FoundationState | WorldState | CareerState;
+export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 6;
+  schemaVersion: 7;
   engineVersion: string;
   slot: SlotId;
   name: string;
@@ -937,7 +1022,7 @@ export interface SlotSummary {
 }
 ```
 
-`SavePayload` reserves a career variant for later schema work. Runtime saves accept validated `FoundationState` and `WorldState`; career payloads are rejected until their own migration and validation exist. No empty career is fabricated.
+Save payloads are validated `FoundationState` or `WorldState`; a career travels inside the world as `World.career` (see the career section below).
 
 ## Engine, store, UI and worker interaction
 
@@ -1089,3 +1174,45 @@ The match slice stores an immutable session. Browser intervals dispatch compact 
 The lazy Pitch route imports PixiJS only when rendered. A ticker interpolates reusable player/ball vector objects towards engine frame coordinates. ResizeObserver adjusts canvas and stage scale; cleanup handles asynchronous initialization, unmount and context loss. SVG fallback uses the same kit selection and token conventions. Simulation-only presentation renders commentary and decisions without constructing the pitch. Reports use SVG to visualize actual recorded positions, passes and shots.
 
 File schema v5 added optional WorldState.matchSession; v6 versions it by match engine. Match state is validated by finite bounded setup checks, legal commands and exact deterministic replay; its team/player snapshots must match the saved world. For minute checkpoints the browser sends the session, preferences, world id and expected revision. The persistence worker validates the session by replay, checks ownership, revision and world id against the slot metadata, and writes only the metadata and `matches` records atomically. The world graph is neither transferred nor rewritten. World transfers still use bounded batches. Full-time explicitly flushes autosave before displaying the saved indicator.
+
+## Career player (milestone 4)
+
+`World.career` holds the progression record; the player is a normal entry in `world.players`. Key modules:
+
+- `engine/career/catalogue.ts`: archetypes and the 49-skill tree.
+- `engine/career/create.ts`: trial offers and career creation.
+- `engine/career/progression.ts`: XP and levels, soft-cap costs, attribute allocation, skills. UI actions return a new world that copies only the career record and the career player.
+- `engine/career/training.ts`: the weekly career step (training, injuries, recovery, ageing decline, hidden reveals) and the recovery choice.
+- `engine/career/fixtures.ts`: pending and next fixtures, fixture kind and importance.
+- `engine/career/matches.ts`: match setup for a fixture, the commit path, and the headless auto-play policy.
+- `engine/career/season.ts`: one week with career fixtures stopped or auto-played.
+
+Weekly flow:
+
+1. The world worker calls `advanceCareerWeek`.
+2. If the career player's club has an unplayed fixture this week and the player is fit, the job ends with `pendingFixtureId` (notice `matchday`). With auto-play, the worker plays and commits that fixture first.
+3. The UI creates a session from `careerMatchSetup` and the player plays it.
+4. At full time the UI starts a `commit-match` job. The worker commits the result and the career progress, and returns the world plus the outcome (XP, level-ups, injury).
+5. The store replaces the world (clearing the session) and keeps `careerResult` in memory for the report.
+
+`simulateWeek` refuses a week with a pending career fixture, so the background resolver can never play the career player's match. A committed fixture already has a result, which the resolver skips.
+
+```typescript
+// Worker request additions
+| { type: 'simulate-to-match'; world: World }
+| { type: 'simulate-season'; world: World; autoPlay: boolean }
+| { type: 'commit-match'; world: World; session: MatchSession }
+| { type: 'create-career'; world: World; seed: string; draft: CareerDraft; clubId: Id }
+// Responses: 'result' may carry `outcome: CareerMatchOutcome`; 'complete' carries `pendingFixtureId`.
+```
+
+Validation (`persistence/careerValidation.ts`) checks every career field against the world:
+
+- level equals `levelForXp(xp)`;
+- points are within what the levels earned;
+- skills exist and have their prerequisites, and the player's traits equal the skills;
+- training foci are valid for the player's position;
+- the injury and the player's `injuryId` agree;
+- the match history is bounded.
+
+AI players cannot carry injuries.

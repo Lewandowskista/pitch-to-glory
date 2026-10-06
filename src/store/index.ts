@@ -8,6 +8,7 @@ import {
 } from '../persistence/schema';
 import { platform } from '../platform';
 import type { MatchSession } from '../engine/match/types';
+import type { CareerMatchOutcome } from '../engine/career/matches';
 
 interface SettingsSlice {
   settings: Settings;
@@ -34,7 +35,14 @@ interface SessionSlice {
   clearSession: () => void;
 }
 export interface WorldJob {
-  type: 'generate' | 'simulate-week' | 'simulate-season' | 'next-season';
+  type:
+    | 'generate'
+    | 'simulate-week'
+    | 'simulate-season'
+    | 'simulate-to-match'
+    | 'next-season'
+    | 'commit-match'
+    | 'create-career';
   completedWeeks: number;
   totalWeeks: number;
   cancelling: boolean;
@@ -42,7 +50,16 @@ export interface WorldJob {
 interface WorldSlice {
   world: World | null;
   worldJob: WorldJob | null;
-  worldNotice: 'generated' | 'advanced' | 'finished' | 'cancelled' | 'newSeason' | null;
+  worldNotice:
+    | 'generated'
+    | 'advanced'
+    | 'finished'
+    | 'cancelled'
+    | 'newSeason'
+    | 'matchday'
+    | 'careerCreated'
+    | 'recorded'
+    | null;
   worldError: string | null;
   setWorld: (world: World) => void;
   setWorldJob: (job: WorldJob | null) => void;
@@ -51,6 +68,9 @@ interface WorldSlice {
 interface MatchSlice {
   matchSession: MatchSession | null;
   setMatchSession: (session: MatchSession | null) => void;
+  /** The last committed career match, kept in memory for its report (not saved). */
+  careerResult: { session: MatchSession; outcome: CareerMatchOutcome } | null;
+  setCareerResult: (result: MatchSlice['careerResult']) => void;
 }
 export type AppStore = SettingsSlice & GallerySlice & SessionSlice & WorldSlice & MatchSlice;
 let preferences: Settings;
@@ -127,6 +147,8 @@ const worldSlice: StateCreator<AppStore, [], [], WorldSlice> = (set) => ({
 const matchSlice: StateCreator<AppStore, [], [], MatchSlice> = (set) => ({
   matchSession: null,
   setMatchSession: (matchSession) => set((state) => ({ matchSession, change: state.change + 1 })),
+  careerResult: null,
+  setCareerResult: (careerResult) => set({ careerResult }),
 });
 export const useAppStore = create<AppStore>()((...args) => ({
   ...settingsSlice(...args),

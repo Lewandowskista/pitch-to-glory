@@ -108,6 +108,7 @@ function contexts(position: Position, value = 60): DecisionContext[] {
       10,
     ),
     matchLevel: 60,
+    importance: 1,
     fatigue: 0,
     tactics: { role: 'balanced', risk: 'balanced', mentality: 'balanced' },
     weather: 'clear',

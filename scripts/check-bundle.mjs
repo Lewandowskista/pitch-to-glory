@@ -2,7 +2,19 @@ import { readFileSync, statSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 const manifest = JSON.parse(readFileSync('dist/.vite/manifest.json', 'utf8'));
 const entry = Object.values(manifest).find((chunk) => chunk.isEntry);
-for (const route of ['Menu', 'Gallery', 'Saves', 'Settings', 'World', 'Match']) {
+for (const route of [
+  'Menu',
+  'Gallery',
+  'Saves',
+  'Settings',
+  'World',
+  'Match',
+  'career/CareerNew',
+  'career/CareerHub',
+  'career/CareerProfile',
+  'career/CareerSkills',
+  'career/CareerTraining',
+]) {
   const visited = new Set();
   let bytes = 0;
   function visit(chunk) {

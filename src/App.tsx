@@ -9,6 +9,11 @@ const Saves = lazy(() => import('./screens/Saves'));
 const Settings = lazy(() => import('./screens/Settings'));
 const World = lazy(() => import('./screens/World'));
 const Match = lazy(() => import('./screens/Match'));
+const CareerNew = lazy(() => import('./screens/career/CareerNew'));
+const CareerHub = lazy(() => import('./screens/career/CareerHub'));
+const CareerProfile = lazy(() => import('./screens/career/CareerProfile'));
+const CareerSkills = lazy(() => import('./screens/career/CareerSkills'));
+const CareerTraining = lazy(() => import('./screens/career/CareerTraining'));
 export default function App() {
   return (
     <ErrorBoundary>
@@ -28,6 +33,11 @@ export default function App() {
               <Route path="settings" element={<Settings />} />
               <Route path="world" element={<World />} />
               <Route path="match" element={<Match />} />
+              <Route path="career" element={<CareerHub />} />
+              <Route path="career/new" element={<CareerNew />} />
+              <Route path="career/profile" element={<CareerProfile />} />
+              <Route path="career/skills" element={<CareerSkills />} />
+              <Route path="career/training" element={<CareerTraining />} />
               <Route
                 path="*"
                 element={

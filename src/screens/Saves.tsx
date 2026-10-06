@@ -201,7 +201,18 @@ export default function Saves() {
                 )}
               </div>
               <div className="slot-art">
-                {collection ? (
+                {collection?.world?.career ? (
+                  <div className="flex items-center gap-3">
+                    <Artwork
+                      svg={renderCrest(collection.world.career.crest)}
+                      alt={collection.world.career.clubName}
+                      className="h-24 w-24"
+                    />
+                    <span className="rounded-full bg-accent px-3 py-1 text-xs font-bold text-on-accent">
+                      {t.menu.careerSave}
+                    </span>
+                  </div>
+                ) : collection ? (
                   (collection.world
                     ? collection.world.crests.map((crest, index) => ({ id: String(index), crest }))
                     : generateGallery(collection.gallerySeed).clubs.slice(0, 3)
@@ -234,6 +245,17 @@ export default function Saves() {
                           : t.saves.damagedBody
                         : t.saves.emptyBody}
                 </p>
+                {collection?.world?.career && (
+                  <p className="mt-2 text-sm font-semibold">
+                    {format(t.menu.careerSummary, {
+                      name: collection.world.career.name,
+                      level: collection.world.career.level,
+                    })}
+                    <span className="block text-xs font-normal text-muted">
+                      {collection.world.career.clubName}
+                    </span>
+                  </p>
+                )}
                 {collection && (
                   <p className="slot-seed">
                     {collection.world
@@ -336,8 +358,17 @@ export default function Saves() {
         })}
       </div>
       {active && (
-        <Link className="button secondary open-gallery" to={world ? '/world' : '/gallery'}>
-          {world ? t.saves.loadWorld : t.saves.loadGallery}
+        <Link
+          className="button secondary open-gallery"
+          to={world?.career ? '/career' : world ? '/world' : '/gallery'}
+        >
+          {world?.career
+            ? format(t.menu.continueCareer, {
+                name: world.players[world.career.playerId]?.name ?? '',
+              })
+            : world
+              ? t.saves.loadWorld
+              : t.saves.loadGallery}
           <Icon name="arrow" />
         </Link>
       )}

@@ -44,16 +44,16 @@ describe('browser job lifecycle', () => {
           }),
       )
       .mockResolvedValue(undefined);
-    const cancelledStartup = startWorldJob('generate', 'cancelled');
+    const cancelledStartup = startWorldJob('generate', { seed: 'cancelled' });
     cancelWorldJob();
     await Promise.resolve();
-    const ignoredWhileCancelling = startWorldJob('generate', 'too-early');
+    const ignoredWhileCancelling = startWorldJob('generate', { seed: 'too-early' });
     releaseFlush!();
     await Promise.all([cancelledStartup, ignoredWhileCancelling]);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(instances).toHaveLength(0);
     expect(useAppStore.getState().worldJob).toBeNull();
-    await startWorldJob('generate', 'fresh');
+    await startWorldJob('generate', { seed: 'fresh' });
     expect(instances).toHaveLength(1);
   });
   it('retains the loaded world if generation is cancelled during old-slot lock cleanup', async () => {
@@ -89,7 +89,7 @@ describe('browser job lifecycle', () => {
           release = resolve;
         }),
     );
-    await startWorldJob('generate', 'new-seed');
+    await startWorldJob('generate', { seed: 'new-seed' });
     deliver!({
       data: { requestId, type: 'result', world: newWorld },
     } as MessageEvent<WorkerResponse>);

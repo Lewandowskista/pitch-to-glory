@@ -3,13 +3,19 @@ import type { World } from '../src/model/domain';
 import type { WorkerResponse } from '../src/workers/protocol';
 
 const initial = { date: { season: 2026, week: 1, day: 1 }, phase: 'active' } as World;
+const step = (world: World) => ({ world, pendingFixtureId: null });
 const operations = {
   generate: () => initial,
-  week: (world: World): World => ({
-    ...world,
-    date: { ...world.date, week: world.date.week + 1 },
-    phase: world.date.week === 3 ? 'complete' : 'active',
-  }),
+  week: (world: World) =>
+    step({
+      ...world,
+      date: { ...world.date, week: world.date.week + 1 },
+      phase: world.date.week === 3 ? 'complete' : 'active',
+    }),
+  commit: () => {
+    throw new Error('Not used');
+  },
+  createCareer: (world: World) => world,
   nextSeason: (world: World): World => ({
     ...world,
     date: { ...world.date, season: world.date.season + 1, week: 1 },
@@ -27,7 +33,7 @@ describe('worker job protocol', () => {
       season: { end: { week: 60 } },
     } as World;
     await runWorldJob(
-      { requestId: 'national-calendar', type: 'simulate-season', world: national },
+      { requestId: 'national-calendar', type: 'simulate-season', world: national, autoPlay: false },
       {
         emit: (event) => events.push(event),
         checkpoint: async () => {},
@@ -36,26 +42,28 @@ describe('worker job protocol', () => {
       },
       {
         ...operations,
-        week: (world) => ({
-          ...world,
-          date: { ...world.date, week: world.date.week + 1 },
-          phase: world.date.week === 60 ? 'complete' : 'active',
-        }),
+        week: (world) =>
+          step({
+            ...world,
+            date: { ...world.date, week: world.date.week + 1 },
+            phase: world.date.week === 60 ? 'complete' : 'active',
+          }),
       },
     );
     expect(events[0]).toMatchObject({ type: 'progress', totalWeeks: 15 });
     expect(events.filter((event) => event.type === 'checkpoint')).toHaveLength(15);
-    expect(events.at(-1)).toMatchObject({
-      type: 'result',
+    expect(events.at(-2)).toMatchObject({
+      type: 'checkpoint',
       world: { phase: 'complete', date: { week: 61 } },
     });
+    expect(events.at(-1)).toMatchObject({ type: 'complete', phase: 'complete' });
   });
   it('does not simulate another week until the previous checkpoint is acknowledged', async () => {
     const { runWorldJob } = await import('../src/workers/run');
     const events: WorkerResponse[] = [];
     let acknowledge: (() => void) | undefined;
     const promise = runWorldJob(
-      { requestId: 'one', type: 'simulate-season', world: initial },
+      { requestId: 'one', type: 'simulate-season', world: initial, autoPlay: false },
       {
         emit: (response) => events.push(response),
         cancelled: () => false,
@@ -69,7 +77,7 @@ describe('worker job protocol', () => {
     );
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(events.filter((event) => event.type === 'checkpoint')).toHaveLength(1);
-    expect(events.some((event) => event.type === 'result')).toBe(false);
+    expect(events.some((event) => event.type === 'complete')).toBe(false);
     acknowledge!();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(events.filter((event) => event.type === 'checkpoint')).toHaveLength(2);
@@ -77,14 +85,14 @@ describe('worker job protocol', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     acknowledge!();
     await promise;
-    expect(events.at(-1)).toMatchObject({ type: 'result', world: { phase: 'complete' } });
+    expect(events.at(-1)).toMatchObject({ type: 'complete', phase: 'complete' });
   });
   it('cancels at a checkpoint without consuming the next week', async () => {
     const { runWorldJob } = await import('../src/workers/run');
     const events: WorkerResponse[] = [];
     let cancel = false;
     await runWorldJob(
-      { requestId: 'cancel', type: 'simulate-season', world: initial },
+      { requestId: 'cancel', type: 'simulate-season', world: initial, autoPlay: false },
       {
         emit: (response) => events.push(response),
         cancelled: () => cancel,
@@ -124,7 +132,7 @@ describe('worker job protocol', () => {
     let cancelled = false,
       yields = 0;
     await runWorldJob(
-      { requestId: 'yield-cancel', type: 'simulate-season', world: initial },
+      { requestId: 'yield-cancel', type: 'simulate-season', world: initial, autoPlay: false },
       {
         emit: (response) => events.push(response),
         checkpoint: async () => {},

@@ -12,11 +12,17 @@ import type { DecisionChoice, MatchEvent, SlotId } from '../model/domain';
 import { loadSlot, errorCode } from '../persistence/session';
 import { errorText, t } from '../i18n';
 import { matchText as m, matchLabel, matchFormat } from '../i18n/match';
+import { careerText as c } from '../i18n/career';
 import { Page } from '../ui/Page';
 import { Selection } from './match/Selection';
 import { Preview } from './match/Preview';
 import { Report } from './match/Report';
 import { ClubBadge, Factors } from './match/Shared';
+import { CareerFixture, CareerNoMatch, CareerReportActions } from './match/CareerMatchday';
+import { pendingCareerFixture } from '../engine/career/fixtures';
+import { careerMatchSetup, defaultTactics } from '../engine/career/matches';
+import { startWorldJob } from '../workers/client';
+import { competitionName } from './career/selectors';
 import '../styles/match.css';
 
 const Pitch = lazy(() => import('./match/Pitch'));
@@ -60,7 +66,9 @@ function ChoiceHint({
       </span>
       {choice.traitId && traits.includes(choice.traitId) && (
         <span className="match-tag">
-          {matchFormat(m.traitActive, { trait: m.traits[choice.traitId] ?? choice.traitId })}
+          {matchFormat(m.traitActive, {
+            trait: c.skillNames[choice.traitId] ?? m.traits[choice.traitId] ?? choice.traitId,
+          })}
         </span>
       )}
     </p>
@@ -293,6 +301,28 @@ export default function MatchScreen() {
     choicesRef.current?.querySelector<HTMLButtonElement>('button[data-choice]')?.focus();
   }, [momentId]);
 
+  // Career fixtures: the session's setup names the scheduled fixture it plays.
+  const careerResult = useAppStore((store) => store.careerResult);
+  const careerFixture = session?.setup.fixture;
+  const pending = world?.career && !session ? pendingCareerFixture(world) : null;
+  const recordResult = useCallback(() => {
+    const current = useAppStore.getState().matchSession;
+    if (
+      !current?.setup.fixture ||
+      current.state.match.status !== 'finished' ||
+      useAppStore.getState().worldJob
+    )
+      return;
+    void startWorldJob('commit-match', { session: current });
+  }, []);
+  // Full time reached while playing records the result once. A session restored already
+  // finished (after a refresh) waits for the explicit "Record result" action instead.
+  const previousStatus = useRef(status);
+  useEffect(() => {
+    const was = previousStatus.current;
+    previousStatus.current = status;
+    if (status === 'finished' && was && was !== 'finished' && careerFixture) recordResult();
+  }, [status, careerFixture, recordResult]);
   const outcome = state?.match.events.find((event) => event.id === outcomeId)?.outcome;
   const canPlay =
     status === 'live' &&
@@ -308,13 +338,25 @@ export default function MatchScreen() {
     <Page className="match-page">
       <header className="page-heading">
         <div>
-          <span className="eyebrow">{m.friendly}</span>
+          <span className="eyebrow">
+            {careerFixture && world
+              ? competitionName(world, careerFixture.competitionId)
+              : world?.career
+                ? c.hub.matchday
+                : m.friendly}
+          </span>
           <h1>{m.title}</h1>
           <p>{m.description}</p>
         </div>
-        <Link className="button secondary" to="/world">
-          {m.backWorld}
-        </Link>
+        {world?.career ? (
+          <Link className="button secondary" to="/career">
+            {c.report.hub}
+          </Link>
+        ) : (
+          <Link className="button secondary" to="/world">
+            {m.backWorld}
+          </Link>
+        )}
       </header>
       <span
         className="sr-only"
@@ -324,7 +366,13 @@ export default function MatchScreen() {
       >
         {status ? matchLabel(`match.status.${status}`) : m.selection}
       </span>
-      <div className="sr-only" aria-live="polite" aria-atomic="true" aria-label={m.liveUpdates}>
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="live-updates"
+      >
         {announcement}
       </div>
       {world && !active && (
@@ -347,6 +395,42 @@ export default function MatchScreen() {
             {m.world}
           </Link>
         </section>
+      ) : !session && world.career ? (
+        careerResult ? (
+          <Report
+            session={careerResult.session}
+            career={{
+              outcome: careerResult.outcome,
+              recording: false,
+              onRecord: recordResult,
+              actions: <CareerReportActions world={world} outcome={careerResult.outcome} />,
+            }}
+          />
+        ) : pending ? (
+          <CareerFixture
+            world={world}
+            fixture={pending}
+            disabled={Boolean(job)}
+            onPrepare={() => {
+              try {
+                const current = useAppStore.getState().world;
+                if (!current || useAppStore.getState().worldJob) return;
+                const fixture = pendingCareerFixture(current);
+                if (!fixture) return;
+                useAppStore
+                  .getState()
+                  .setMatchSession(
+                    createMatchSession(careerMatchSetup(current, fixture), defaultTactics(current)),
+                  );
+                setError('');
+              } catch {
+                setError(m.unavailable);
+              }
+            }}
+          />
+        ) : (
+          <CareerNoMatch world={world} />
+        )
       ) : !session ? (
         job ? (
           <section className="match-panel">
@@ -407,6 +491,7 @@ export default function MatchScreen() {
             <>
               <Preview
                 session={session}
+                note={careerFixture ? c.report.previewNote : undefined}
                 onTactics={(tactics) =>
                   useAppStore.getState().setMatchSession(createMatchSession(session.setup, tactics))
                 }
@@ -415,12 +500,24 @@ export default function MatchScreen() {
                   setPlaying(false);
                 }}
               />
-              <div className="match-controls" style={{ marginTop: '1rem' }}>
-                <button className="button secondary" onClick={reset}>
-                  {m.newFixture}
-                </button>
-              </div>
+              {!careerFixture && (
+                <div className="match-controls" style={{ marginTop: '1rem' }}>
+                  <button className="button secondary" onClick={reset}>
+                    {m.newFixture}
+                  </button>
+                </div>
+              )}
             </>
+          ) : status === 'finished' && careerFixture ? (
+            <Report
+              session={session}
+              career={{
+                outcome: null,
+                recording: job?.type === 'commit-match',
+                onRecord: recordResult,
+                actions: null,
+              }}
+            />
           ) : status === 'finished' ? (
             <Report
               session={session}

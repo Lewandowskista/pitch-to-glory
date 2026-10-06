@@ -33,6 +33,8 @@ export interface DecisionContext {
   budget: { for: number; against: number };
   /** Mean starting-XI ability of both teams; attributes are judged relative to it. */
   matchLevel: number;
+  /** Fixture importance: 1 for league games and friendlies. */
+  importance: number;
   fatigue: number;
   tactics: Tactics;
   weather: Match['weather'];
@@ -68,6 +70,68 @@ export function conditionsEffect(
       Math.max(0, C.conditions.pitchGood - pitchCondition) * C.conditions.pitchSlope
     );
   return sensitivity === 'direct' ? C.conditions.direct[weather] : 0;
+}
+
+/**
+ * Skills that improve choices beyond each choice's own `traitId`, by exact skill id. The
+ * skill tree (milestone 4) is the only source of traits.
+ */
+export const TRAIT_BOOSTS: Readonly<Record<string, readonly string[]>> = {
+  'clinical-finisher': ['near-post', 'control-shoot'],
+  'finesse-shot': ['far-post', 'long-shot', 'curler'],
+  'long-ranger': ['long-shot', 'curler'],
+  'chip-specialist': ['far-post', 'control-shoot'],
+  poacher: ['near-post', 'header', 'control-shoot'],
+  acrobat: ['bicycle-kick', 'control-shoot'],
+  playmaker: ['square-pass', 'through-ball', 'lay-off', 'short-pass'],
+  'through-ball-artist': ['through-ball', 'disguised-pass'],
+  crosser: ['cross-switch'],
+  maestro: ['disguised-pass', 'lay-off', 'short-pass'],
+  'tempo-setter': ['short-pass', 'clear-long', 'lay-off'],
+  trickster: ['take-on', 'drive-inside'],
+  'close-control': ['carry-forward', 'carry-out', 'press-escape'],
+  'speed-dribbler': ['carry-forward', 'take-on'],
+  'escape-artist': ['press-escape', 'carry-out'],
+  'ball-winner': ['intercept', 'tackle'],
+  interceptor: ['intercept'],
+  'last-ditch': ['slide-block', 'tackle'],
+  'man-marker': ['jockey', 'intercept'],
+  'aerial-dominance': ['header', 'claim'],
+  engine: ['carry-forward', 'carry-out', 'jockey'],
+  sprinter: ['carry-forward', 'take-on', 'jockey'],
+  'aerial-threat': ['header'],
+  composed: ['near-post', 'far-post', 'short-pass'],
+  'set-piece-specialist': ['cross-switch', 'curler'],
+  curler: ['curler', 'far-post'],
+  'safe-hands': ['hold', 'claim'],
+  'cat-reflexes': ['parry', 'tip-over', 'stay-line'],
+  'one-on-one-specialist': ['rush', 'smother'],
+  commanding: ['claim', 'punch'],
+  distributor: ['short-distribution', 'long-distribution', 'quick-release'],
+  sweeper: ['rush'],
+  visionary: ['through-ball', 'disguised-pass', 'cross-switch'],
+  flair: ['take-on', 'drive-inside'],
+  magician: ['take-on', 'drive-inside', 'carry-forward', 'press-escape'],
+  'defensive-wall': ['intercept', 'tackle', 'jockey', 'slide-block'],
+  powerhouse: ['tackle', 'header', 'carry-out'],
+  clutch: ['near-post', 'far-post', 'header', 'long-shot'],
+  'delivery-specialist': ['cross-switch', 'clear-long'],
+  'free-kick-master': ['curler', 'long-shot'],
+  'reaction-saves': ['hold', 'parry', 'tip-over', 'stay-line'],
+  'aerial-command': ['claim', 'punch', 'hold-line'],
+  wall: ['hold', 'parry', 'tip-over', 'stay-line', 'rush', 'smother', 'claim', 'punch'],
+};
+/** Odds multiplier from the player's skills for one choice. */
+export function traitMultiplier(
+  traits: readonly string[],
+  template: Pick<ChoiceTemplate, 'id' | 'traitId'>,
+  importance: number,
+): number {
+  const boosted =
+    (template.traitId !== null && traits.includes(template.traitId)) ||
+    traits.some((trait) => TRAIT_BOOSTS[trait]?.includes(template.id));
+  const bigGame = importance > 1 && traits.includes('big-game-player');
+  return (boosted ? D.traitMultiplier : 1) * (bigGame ? D.bigGameMultiplier : 1);
 }
 
 /** Builds the displayed choices for a situation. Factors sum exactly to the probability. */
@@ -137,11 +201,7 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
       const steps: [string, ProbabilityFactor['source'], number][] = [
         ['match.factor.defender', 'defender', (t.direct ? 1 : team) * matchup],
         ['match.factor.attribute', 'attribute', attribute],
-        [
-          'match.factor.trait',
-          'trait',
-          t.traitId && player.traits.includes(t.traitId) ? D.traitMultiplier : 1,
-        ],
+        ['match.factor.trait', 'trait', traitMultiplier(player.traits, t, context.importance)],
         ['match.factor.fatigue', 'fatigue', fatigue],
         ['match.factor.role', 'attribute', role.choices?.includes(t.id) ? D.roleMultiplier : 1],
         ['match.factor.risk', 'attribute', t.direct ? 1 : risk.odds],

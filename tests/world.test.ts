@@ -343,11 +343,26 @@ describe('seeded world', () => {
     expect(
       next.clubs[club.id]!.playerIds.filter((id) => next.players[id]!.primaryPosition === 'GK'),
     ).toHaveLength(2);
+    // Development follows age curves, so growth and decline show across seasons, not weeks.
+    const { startNextSeason } = await engine();
+    let later = next;
+    while (later.phase === 'active') later = simulateWeek(later);
+    later = startNextSeason(later);
+    for (let week = 0; week < 20; week++) later = simulateWeek(later);
     const youthIds = Object.values(initial.players)
-      .filter((player) => initial.date.season - player.birthSeason < 24)
+      .filter(
+        (player) =>
+          initial.date.season - player.birthSeason < 22 && later.players[player.id]?.clubId,
+      )
       .map((player) => player.id);
     const oldIds = Object.values(initial.players)
-      .filter((player) => initial.date.season - player.birthSeason > 30)
+      .filter(
+        (player) =>
+          initial.date.season - player.birthSeason > 30 &&
+          initial.date.season - player.birthSeason < 37 &&
+          later.players[player.id] &&
+          !later.players[player.id]!.retired,
+      )
       .map((player) => player.id);
     const aggregate = (
       world: World,
@@ -359,10 +374,10 @@ describe('seeded world', () => {
           sum + keys.reduce((total, key) => total + world.players[id]!.attributes[key], 0),
         0,
       );
-    expect(aggregate(next, youthIds, ['passing', 'vision'])).toBeGreaterThan(
+    expect(aggregate(later, youthIds, ['passing', 'vision'])).toBeGreaterThan(
       aggregate(initial, youthIds, ['passing', 'vision']),
     );
-    expect(aggregate(next, oldIds, ['pace', 'acceleration'])).toBeLessThan(
+    expect(aggregate(later, oldIds, ['pace', 'acceleration'])).toBeLessThan(
       aggregate(initial, oldIds, ['pace', 'acceleration']),
     );
     for (const player of Object.values(next.players)) {

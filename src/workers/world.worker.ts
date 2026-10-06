@@ -1,5 +1,8 @@
 import { generateWorld } from '../engine/world/generate';
-import { simulateWeek, startNextSeason } from '../engine/world/simulate';
+import { startNextSeason } from '../engine/world/simulate';
+import { advanceCareerWeek } from '../engine/career/season';
+import { commitCareerMatch } from '../engine/career/matches';
+import { createCareer } from '../engine/career/create';
 import { runWorldJob } from './run';
 import type { WorkerRequest } from './protocol';
 import { createChunkReceiver, sendChunked } from './transport';
@@ -37,14 +40,7 @@ scope.onmessage = createChunkReceiver<WorkerRequest>((data) => {
   void runWorldJob(
     data,
     {
-      emit: (response) =>
-        sendChunked(
-          scope,
-          response.type === 'result' &&
-            (data.type === 'simulate-week' || data.type === 'simulate-season')
-            ? { requestId: response.requestId, type: 'complete', phase: response.world.phase }
-            : response,
-        ),
+      emit: (response) => sendChunked(scope, response),
       cancelled: () => cancelled,
       checkpoint: (week) =>
         new Promise<void>((resolve) => {
@@ -55,8 +51,10 @@ scope.onmessage = createChunkReceiver<WorkerRequest>((data) => {
     {
       generate: generateWorld,
       // The worker owns its copy, and each checkpoint is fully posted before the next week.
-      week: (world) => simulateWeek(world, { inPlace: true }),
+      week: (world, autoPlay) => advanceCareerWeek(world, { inPlace: true, autoPlay }),
       nextSeason: (world) => startNextSeason(world, { inPlace: true }),
+      commit: (world, session) => ({ world, outcome: commitCareerMatch(world, session) }),
+      createCareer: (world, seed, draft, clubId) => createCareer(world, draft, clubId, seed),
     },
   ).finally(() => {
     current = null;

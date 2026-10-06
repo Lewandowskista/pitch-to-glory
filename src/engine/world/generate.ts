@@ -1,9 +1,7 @@
 import type {
-  Attributes,
   Club,
   Contract,
   GameDate,
-  KeeperAttributes,
   Manager,
   Personality,
   Player,
@@ -14,15 +12,15 @@ import type {
 import { generateAvatar } from '../assets/avatar';
 import { CREST_SHAPES, CREST_SYMBOLS, generateCrest } from '../assets/crest';
 import { generateKits } from '../assets/kit';
+import { generateAttributes } from '../ageing';
+import { playerAbility } from '../strength';
 import { withContrast } from '../assets/shared';
 import { CONFIG } from '../config';
 import { createRng, hashSeed, type Rng } from '../rng';
 import {
-  ATTRIBUTE_KEYS,
   CLUB_SUFFIXES,
   COUNTRY_NAMES,
   FORMATIONS,
-  KEEPER_KEYS,
   POSITIONS,
   STYLES,
   cityName,
@@ -76,34 +74,19 @@ export function generatePlayer(
       ? rng.int(0, CONFIG.world.countries - 1)
       : Number(club.countryId.split(':')[1])
     : null;
-  const base = clampAttribute(
-    club.reputation * GEN.attributeReputationWeight +
-      within(rng, GEN.attributeBase) -
-      (age < GEN.youngAge ? GEN.youngPenalty : 0),
+  // Potential is the player's peak overall ability; attributes sit on the age curve toward it,
+  // so generated worlds start at the same equilibrium the weekly development maintains.
+  const potential = clampAttribute(
+    club.reputation * GEN.peakReputationWeight +
+      GEN.peakBase +
+      rng.int(-GEN.talentSpread, GEN.talentSpread),
   );
-  const attributes = Object.fromEntries(
-    ATTRIBUTE_KEYS.map((key) => [
-      key,
-      clampAttribute(base + rng.int(-GEN.attributeSpread, GEN.attributeSpread)),
-    ]),
-  ) as Attributes;
-  const mainKeys: (keyof Attributes)[] =
-    position === 'ST'
-      ? ['finishing', 'heading', 'composure']
-      : ['CB', 'LB', 'RB', 'DM'].includes(position)
-        ? ['tackling', 'positioning', 'strength']
-        : ['passing', 'dribbling', 'vision'];
-  for (const key of mainKeys)
-    attributes[key] = clampAttribute(attributes[key] + GEN.positionalBonus);
-  if (position === 'GK') attributes.finishing = within(rng, GEN.keeperFinishing);
-  const keeperAttributes = Object.fromEntries(
-    KEEPER_KEYS.map((key) => [
-      key,
-      position === 'GK'
-        ? clampAttribute(base + within(rng, GEN.keeperSpread))
-        : within(rng, GEN.outfieldKeeping),
-    ]),
-  ) as KeeperAttributes;
+  const { attributes, keeperAttributes } = generateAttributes(
+    { id, primaryPosition: position, potential },
+    age,
+    rng,
+  );
+  const base = playerAbility({ primaryPosition: position, attributes, keeperAttributes });
   const contractId = `contract:${id}`;
   const weeklyWage = Math.max(
     GEN.wageFloor,
@@ -162,16 +145,7 @@ export function generatePlayer(
       ambition: rng.int(1, 99),
       revealed: [],
     },
-    potential: Math.max(
-      ...Object.values(position === 'GK' ? keeperAttributes : attributes),
-      clampAttribute(
-        base +
-          rng.int(
-            GEN.potentialBonus[0],
-            age < GEN.youngPotentialAge ? GEN.youngPotentialBonus : GEN.potentialBonus[1],
-          ),
-      ),
-    ),
+    potential,
     personality: personality(rng),
     contractId,
     traits: [],
@@ -218,6 +192,7 @@ export function generateWorld(
           },
         }
       : {}),
+    developmentVersion: 2,
     id: `world:${hashSeed(seed)}`,
     seed,
     rng: rng.snapshot(),

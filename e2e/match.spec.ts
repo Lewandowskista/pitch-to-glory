@@ -104,7 +104,7 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
   await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
   // A new key moment is announced politely and focus moves to its first choice.
-  await expect(page.getByLabel('Live match updates', { exact: true })).toContainText('Key moment');
+  await expect(page.getByTestId('live-updates')).toContainText('Key moment');
   await expect(page.locator('.match-choices button').first()).toBeFocused();
   await expect(page.locator('.match-choice-hint').first()).toContainText('Uses');
   const minute = await page.getByTestId('match-state').getAttribute('data-minute');
@@ -143,7 +143,7 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   const download = page.waitForEvent('download');
   await page.locator('.slot-card').first().getByRole('button', { name: 'Export backup' }).click();
   const saved = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
-  expect(saved.schemaVersion).toBe(6);
+  expect(saved.schemaVersion).toBe(7);
   expect(saved.payload.matchSession.state.match.status).toBe('finished');
   expect(
     saved.payload.matchSession.commands.some(

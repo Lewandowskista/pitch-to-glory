@@ -7,7 +7,7 @@ Prepared on **6 October 2026** and updated the same day after the post-milestone
 1. Read [AGENTS.md](../AGENTS.md) in full before changing anything.
 2. Read this handoff, then [README.md](../README.md), [DECISIONS.md](DECISIONS.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 3. Read [REALISM.md](REALISM.md) before touching world generation, league sizes, schedules or sporting movement.
-4. Read the **Hardening pass verification** section of [VERIFICATION.md](VERIFICATION.md) and the hardening sections at the end of [DECISIONS.md](DECISIONS.md). Earlier verification sections are historical.
+4. Read the **Milestone 4 verification** section of [VERIFICATION.md](VERIFICATION.md), [MILESTONE-4.md](MILESTONE-4.md), and the hardening and milestone-4 sections at the end of [DECISIONS.md](DECISIONS.md). Earlier verification sections are historical.
 5. Inspect `git status`, the latest commits and the actual implementation. Documented test results are a recorded baseline, not proof that a later checkout still passes.
 6. Follow the user's current requested scope. The next product milestone is **Milestone 4**, but this handoff itself does not authorize starting it. Work one milestone at a time and stop with a summary before advancing.
 
@@ -36,7 +36,7 @@ When a historical plan differs from the current state, use AGENTS.md for require
 
 ## Implemented state
 
-**Milestones 1–3 are implemented and hardened; milestone 4 has not started.** Release acceptance still has the explicit gaps listed below.
+**Milestones 1–4 are implemented (with the post-milestone-3 hardening pass); milestone 5 has not started.** Release acceptance still has the explicit gaps listed below.
 
 - Foundation: Vite, React 18, strict TypeScript, route splitting, Zustand slices, Tailwind/design tokens, Framer Motion, Dexie, Vitest, Playwright, lint/format tooling, PWA/update handling, web platform adapter and CI/static-host configuration.
 - Art and shell: seeded SVG crests, home/away/third kits and ageing avatars; asset gallery; title/menu, settings and three save slots; responsive sidebar/bottom navigation; light/dark themes, font scaling and reduced motion.
@@ -54,7 +54,7 @@ When a historical plan differs from the current state, use AGENTS.md for require
   - CI hardening.
   - Tailwind hybrid styling rule.
 
-Implemented routes are `/`, `/gallery`, `/saves`, `/settings`, `/world` and `/match`. No future screen placeholders should be added.
+Implemented routes are `/`, `/gallery`, `/saves`, `/settings`, `/world`, `/match`, `/career`, `/career/new`, `/career/profile`, `/career/skills` and `/career/training`. No future screen placeholders should be added.
 
 ### User-confirmed realism requirement
 
@@ -83,13 +83,18 @@ England extends through tier six, including National League North/South. Referen
 - `src/platform/` owns browser-specific save/share/storage and other platform capabilities. Do not install Capacitor before milestone 11.
 - All UI copy belongs in `src/i18n/`; styling uses the shared tokens and existing flat vector direction. No external image downloads or hotlinks.
 
-### Friendly matches and milestone-4 integration
+### Career player (milestone 4)
 
-There is no career-creation wizard or career progression yet. Matchday currently lets the user select an available footballer from a saved world and play a **90-minute friendly**. Its expected goals come from `src/engine/strength.ts`, the same model the background resolver uses, so a fixture played interactively and one simulated in the background have matching expectations. Key moments come from the situation catalogue in `src/engine/match/situations.ts`; choices already carry `traitId`/`requiredTraitId` hooks for milestone 4's skill tree. Match sessions carry `engine: 'match-4'`; bump `MATCH_ENGINE_VERSION` whenever sporting logic changes, so older sessions are discarded rather than mis-replayed. XP and fame are calculated but not granted; league standings/results and player progression remain unchanged. Draws are valid.
-
-The background world resolver and interactive command engine are separate. When milestone 4 links the career player to a scheduled fixture, ensure the background simulation does not also resolve that fixture or apply its statistics/rewards. Define a single commit path for the result and progression, with save/replay coverage. Interactive cup extra-time/penalty integration also remains future work; the world engine already handles its own competition ties.
-
-An unfinished match blocks world advancement/replacement. Preserve that protection and saved decision restoration. Playback pauses on hidden tabs/navigation/dialogs and requires explicit resumption.
+- `World.career` holds the career; the player is a normal squad member.
+- The career player's fixtures are played on Matchday (or auto-played during season simulation) and committed once by the world worker through `commitPlayedFixture`, the same resolver path as background games. `simulateWeek` refuses a week with an unplayed career fixture.
+- Worlds without a career keep the friendly flow.
+- Skills are trait ids read by the match engine (`TRAIT_BOOSTS`, `requiredTraitId`).
+- Development version 2 places AI players on age curves, which fixed the ability drift. Older worlds are recalibrated once.
+- The AI lifecycle excludes the career player.
+- Contracts, agents, transfers and loans are milestone 5. The career player's contract currently runs untouched, and a club relegated below the frontier triggers a simple relocation recorded as a transfer event; replace both with real negotiations.
+- Squad-role promises should decide selection; today the player always starts when fit.
+- When milestone 5 adds career transfers, re-pick the training mentor (`refreshMentor` already handles a mentor who leaves).
+- Bump `MATCH_ENGINE_VERSION` (currently `match-5`) whenever match logic changes. File schema is 7.
 
 ### Legacy saves and storage
 
@@ -97,23 +102,23 @@ Missing world `format` identifies the preserved compact world: 24 eight-club lea
 
 The national calendar changes yearly finance/development/recovery totals relative to the compact calendar; later career balancing must account for that.
 
-**Mean ability still drifts upward** over many seasons: the top tier goes from 66 to 72 over ten seasons. Generated adults start below their potential, and development runs 60 times a season. Milestone 4 owns ageing and development and should recalibrate both, including generation (see BALANCING.md).
+Ability drift is fixed by development version 2: tier means now stay within about 3 points over many seasons (see BALANCING.md).
 
-Detailed current fixtures and results are replaced on rollover. Retired players move to the compact `World.archive`, and events older than the previous season are pruned. Over ten seasons a world holds at 59–67 MiB of compact JSON, against the **128 MiB** import limit, growing about 1.3 MiB per season (mostly archive records). The career player and their family must never be pruned; when milestone 4 adds the career player, exclude it from the lifecycle's release, retirement and archive rules.
+Detailed current fixtures and results are replaced on rollover. Retired players move to the compact `World.archive`, and events older than the previous season are pruned. Over ten seasons a world holds at 59–67 MiB of compact JSON, against the **128 MiB** import limit, growing about 1.3 MiB per season (mostly archive records). The career player is excluded from the lifecycle's release, retirement and trimming. Their family (milestone 8) must also never be pruned.
 
 ## Verification baseline and remaining gaps
 
-Recorded on 6 October 2026 after the hardening pass; see VERIFICATION.md for full evidence:
+Recorded on 6 October 2026 after milestone 4; see VERIFICATION.md for full evidence:
 
-| Check                                            | Recorded result                                                                                               |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| Typecheck, lint, formatting and production build | Passed                                                                                                        |
-| Vitest                                           | 124 tests across 20 files passed                                                                              |
-| Playwright full suite                            | 63 passed, 21 each in Chromium, Firefox and WebKit; no skips                                                  |
-| 10,000-match benchmark                           | 2.686 goals per match; home advantage; away upsets 27.3% at a 15-point and 18.5% at a 45-point gap            |
-| Initial-route JavaScript                         | 183.9–195.3 KB gzip; all six routes below 300 KB; PixiJS deferred                                             |
-| Lighthouse                                       | Last measured before the hardening pass (mobile 89–93, desktop 100, accessibility 100); re-run before release |
-| Simulated national week (Node)                   | 72–97 ms, down from about 500 ms                                                                              |
+| Check                                            | Recorded result                                                                                                        |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Typecheck, lint, formatting and production build | Passed                                                                                                                 |
+| Vitest                                           | 153 tests across 23 files passed                                                                                       |
+| Playwright full suite                            | 66 passed, 22 each in Chromium, Firefox and WebKit; no skips                                                           |
+| 10,000-match benchmark                           | 2.758 goals per match; home advantage; away upsets 26.1% at a 15-point and 17.7% at a 45-point gap                     |
+| Initial-route JavaScript                         | 190.5–221.7 KB gzip; all eleven routes below 300 KB; PixiJS deferred                                                   |
+| Lighthouse                                       | Mobile performance 88–93, desktop 100, accessibility 100 on all nine configurations; cold mobile interactive 2.9–3.4 s |
+| Simulated national week (Node)                   | About 80–100 ms; a fully auto-played career season is about 15 s                                                       |
 
 Remaining checks and scope limits:
 
@@ -161,7 +166,7 @@ Optional inspection scripts are `scripts/capture.mjs` (screen captures) and `scr
 ## Git and delivery state
 
 - Repository root on the original machine: `C:\Users\Stefan\Game Mod`.
-- Git was initialized after milestones 1–3. Branch: **main**. Initial implementation commit: **`d1c1be7` — Build Pitch to Glory through milestone 3**. The hardening pass is commit **`2f71752` — Harden saves, world lifecycle and match decisions after milestone 3**.
+- Git was initialized after milestones 1–3. Branch: **main**. Initial implementation commit: **`d1c1be7` — Build Pitch to Glory through milestone 3**. The hardening pass is commit **`2f71752`**. Milestone 4 follows it; check `git log` for its commit.
 - No remote or hosting deployment is configured at this snapshot. Do not infer that the local commit exists on GitHub. The new handoff document is subsequent work; inspect `git status` and newer commits when continuing.
 - `.gitignore` excludes dependencies, builds, local test reports/artifacts, logs and environment files. Never stage generated large backup fixtures or credentials.
 - `netlify.toml` supplies the static-host configuration. `.github/workflows/ci.yml` contains checks and optional deployment; publishing requires the configured Netlify production secrets and explicit deployment scope.
@@ -170,9 +175,13 @@ Historical plans stating that there is no repository are time-specific records. 
 
 ## Next milestone and continuation prompt
 
-The next milestone is **4: career creation/player attributes, XP and level-up allocation, training, the skill tree and attribute ageing**. It must include goalkeeper support and connect the completed match report/engine to career persistence without double-counting background fixtures. No further product input is needed under the existing spec unless the user wants to change it. Do not begin contracts/agents/transfers, media or other milestone-5+ work at the same time.
+The next milestone is **5: contracts, agents, transfers and loans, scouting interest and negotiations**. It should:
 
-Paste this into Claude Code when you want it to continue milestone 4:
+- replace the career player's untouched contract and the relegation relocation with real contract and transfer flows;
+- turn squad-role promises into selection;
+- keep the single commit path for career fixtures.
+
+Do not begin media, relationships or other milestone-6+ work at the same time.
 
 ```text
 You are continuing Pitch to Glory in this repository.
@@ -181,23 +190,20 @@ Read AGENTS.md in full before doing anything, then read docs/HANDOFF.md
 and follow its reading order. AGENTS.md is the product source of truth.
 Inspect git status and the current code before modifying files.
 
-Milestones 1–3 are implemented. Implement Milestone 4 only, following
+Milestones 1–4 are implemented. Implement Milestone 5 only, following
 the mandatory stack, SVG art direction, accessibility, save compatibility
-and quality requirements. Do not start Milestone 5 or add future UI stubs.
+and quality requirements. New UI uses Tailwind utilities with the shared
+tokens. Do not start Milestone 6 or add future UI stubs.
 
 Preserve the source-documented national pyramids and legacy world rules.
-Current saves are schema 6 (IndexedDB layout v6). Bump MATCH_ENGINE_VERSION
-when match logic changes. New UI uses Tailwind utilities with shared tokens.
-Recalibrate development/ageing so mean ability no longer drifts upward, and
-keep the career player out of the AI squad lifecycle. Matchday currently runs friendlies; connect
-career fixtures/rewards carefully so the background worker does not resolve
-the same player match twice. Keep the engine deterministic and framework-free.
+Current saves are schema 7; bump MATCH_ENGINE_VERSION when match logic
+changes. Career fixtures are committed once through commitPlayedFixture;
+keep that single path. The career player is excluded from the AI squad
+lifecycle; contracts and transfers must now handle them explicitly.
 
 Make reasonable decisions for ambiguities, record them in docs/DECISIONS.md,
 and continue. Update architecture, balancing, verification, README and the
 handoff as appropriate. Run typecheck, lint, formatting, unit tests, build
 and critical flows in Chromium, Firefox and WebKit before finishing.
-Report measured limitations candidly and stop with a Milestone 4 summary.
+Report measured limitations candidly and stop with a Milestone 5 summary.
 ```
-
-If handing off a different task, replace the milestone-4 instructions with the actual authorized scope; keep the reading order and compatibility safeguards.

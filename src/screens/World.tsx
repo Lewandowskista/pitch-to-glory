@@ -17,6 +17,9 @@ import { ClubInspector } from './world/ClubInspector';
 import stadium from '../assets/stadium.svg';
 import { loadSlot, errorCode } from '../persistence/session';
 import type { SlotId } from '../model/domain';
+import { pendingCareerFixture } from '../engine/career/fixtures';
+import { careerText as c } from '../i18n/career';
+import { continueToMatchday, simulateCareerSeason } from './career/actions';
 
 const integer = new Intl.NumberFormat('en');
 const nationalViews = ['table', 'fixtures', 'playoffs', 'cup', 'history'] as const;
@@ -150,9 +153,11 @@ export default function WorldScreen() {
           }),
     });
   };
+  const pending = world?.career ? pendingCareerFixture(world) : null;
+  const awaitingRecovery = Boolean(world?.career?.injury && world.career.injury.recovery === null);
   const create = () => {
     if (world) update({ new: '1' });
-    else void startWorldJob('generate', seed);
+    else void startWorldJob('generate', { seed });
   };
   return (
     <Page className="world-page">
@@ -252,6 +257,31 @@ export default function WorldScreen() {
                   {t.world.next}
                   <Icon name="arrow" />
                 </button>
+              ) : world.career ? (
+                <>
+                  {pending ? (
+                    <Link className="button" to="/match">
+                      {c.hub.play}
+                      <Icon name="ball" />
+                    </Link>
+                  ) : (
+                    <button
+                      className="button"
+                      disabled={Boolean(job) || awaitingRecovery}
+                      onClick={continueToMatchday}
+                    >
+                      {c.hub.continue}
+                      <Icon name="arrow" />
+                    </button>
+                  )}
+                  <button
+                    className="button secondary"
+                    disabled={Boolean(job) || awaitingRecovery}
+                    onClick={() => update({ autoplay: '1' })}
+                  >
+                    {t.world.finish}
+                  </button>
+                </>
               ) : (
                 <>
                   <button
@@ -276,6 +306,28 @@ export default function WorldScreen() {
               </Link>
             </div>
           </section>
+          {world.career && (pending || notice === 'matchday') && (
+            <div className="mb-6 flex flex-wrap items-center gap-4 rounded-panel bg-field p-4 text-white shadow-surface sm:p-5">
+              <Icon name="ball" className="shrink-0 text-gold" />
+              <div className="min-w-0 flex-1 basis-60">
+                <strong className="block font-display text-2xl leading-none">
+                  {c.hub.matchday}
+                </strong>
+                <p className="text-sm text-white/85">{c.hub.matchdayBody}</p>
+              </div>
+              <Link className="button" to="/match">
+                {c.hub.play}
+              </Link>
+            </div>
+          )}
+          {world.career && awaitingRecovery && (
+            <p className="mb-6 rounded-control bg-danger-soft p-4 text-sm font-semibold text-danger">
+              {c.hub.injuredBlock}{' '}
+              <Link className="underline" to="/career">
+                {c.titles.hub}
+              </Link>
+            </p>
+          )}
           <dl className="world-facts" aria-label={t.world.facts}>
             {[
               [t.world.countries, Object.keys(world.countries).length],
@@ -688,6 +740,19 @@ export default function WorldScreen() {
           </details>
         </>
       )}
+      {world?.career && params.get('autoplay') === '1' && (
+        <Dialog
+          title={c.hub.autoTitle}
+          body={c.hub.autoBody}
+          confirmLabel={c.hub.autoConfirm}
+          busy={Boolean(job)}
+          onClose={() => update({ autoplay: null })}
+          onConfirm={() => {
+            update({ autoplay: null });
+            simulateCareerSeason(true);
+          }}
+        />
+      )}
       {world && params.get('new') === '1' && (
         <Dialog
           title={t.world.replaceTitle}
@@ -709,7 +774,7 @@ export default function WorldScreen() {
               season: null,
               save: null,
             });
-            void startWorldJob('generate', seed);
+            void startWorldJob('generate', { seed });
           }}
         />
       )}

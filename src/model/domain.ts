@@ -355,53 +355,114 @@ export interface ArchivedPlayer {
 export interface WorldArchive {
   players: Record<Id, ArchivedPlayer>;
 }
-export interface CareerPlayer extends Player {
-  level: number;
-  xp: number;
-  attributePoints: number;
-  skillPoints: number;
-  fame: number;
-  finances: PersonalFinances;
-  agentId: Id | null;
-  rivalId: Id;
-  parentPlayerId: Id | null;
-  inheritedBonus: Partial<Attributes>;
-  training: TrainingSchedule;
-  wardrobe: Wardrobe;
-  celebrationId: Id;
-  tutorial: TutorialProgress;
-}
+/** A skill-tree node. Its id doubles as the trait id the match engine reads from `traits`. */
 export interface Skill {
   id: Id;
-  nameKey: string;
-  descriptionKey: string;
-  branch: string;
+  branch: SkillBranch;
+  /** Grid position within its branch, for layout: tier 1 is the root. */
+  tier: number;
   prerequisites: Id[];
   pointCost: number;
-  attributeBonuses: Partial<Attributes>;
-  decisionIds: Id[];
+  minimumLevel: number;
+  /** Small permanent attribute bonuses applied when unlocked (soft caps do not apply). */
+  attributeBonuses: Partial<Attributes & KeeperAttributes>;
+  /** Restricts a skill to goalkeepers or outfield players. */
+  for: 'all' | 'outfield' | 'keeper';
 }
+export type SkillBranch =
+  | 'finishing'
+  | 'creativity'
+  | 'dribbling'
+  | 'defending'
+  | 'physical'
+  | 'mentality'
+  | 'set-pieces'
+  | 'goalkeeping';
+export type TrainingGroup = 'technical' | 'physical' | 'mental' | 'goalkeeping';
+/** A training focus: an attribute group, one attribute, a position to learn, or recovery. */
+export type TrainingFocus =
+  TrainingGroup | 'recovery' | keyof Attributes | keyof KeeperAttributes | `position:${Position}`;
 export interface TrainingSession {
-  day: number;
-  focus: keyof Attributes | keyof KeeperAttributes | Position;
+  focus: TrainingFocus;
   intensity: 'low' | 'normal' | 'high';
-  mentorId: Id | null;
-  extra: boolean;
 }
-export interface TrainingSchedule {
+export interface TrainingPlan {
   sessions: TrainingSession[];
+  /** Optional extra session led by the club's best teammate for that focus. */
+  extra: { focus: TrainingFocus; mentorId: Id } | null;
+}
+export interface TrainingReport {
+  season: number;
   week: number;
+  /** Fractional progress added per attribute this week (whole points already applied). */
+  gains: Record<string, number>;
+  improved: string[];
+  declined: string[];
+  familiarity: { position: Position; familiarity: number } | null;
+  fatigue: number;
+  injuryId: Id | null;
 }
 export interface Injury {
   id: Id;
   playerId: Id;
   kind: string;
   started: GameDate;
-  expectedRecovery: GameDate;
+  /** Whole weeks until fit again, counted down at each simulated week. */
+  weeksRemaining: number;
   severity: number;
+  /** Chance of aggravating the injury in each match while a rushed return is active. */
   reinjuryRisk: number;
-  recovery: 'rehab' | 'rush';
+  /** Null until the player chooses how to recover. */
+  recovery: 'rehab' | 'rush' | null;
   careerThreatening: boolean;
+  cause: 'training' | 'match';
+}
+export interface CareerMatchRecord {
+  fixtureId: Id;
+  season: number;
+  week: number;
+  competitionId: Id;
+  opponentId: Id;
+  home: boolean;
+  /** Own goals first. */
+  score: [number, number];
+  result: 'win' | 'draw' | 'loss';
+  /** Extra time and penalties decided after an interactive 90 minutes, if needed. */
+  decided?: 'extra-time' | 'penalties';
+  minutes: number;
+  rating: number;
+  goals: number;
+  assists: number;
+  cleanSheet: boolean;
+  xp: number;
+  /** Played by the headless decision policy during season simulation. */
+  auto: boolean;
+}
+/**
+ * The career. The player is an ordinary entry in `world.players` and their club's squad;
+ * this record holds progression. Unlocked skills are mirrored into `player.traits`.
+ */
+export interface Career {
+  version: 1;
+  playerId: Id;
+  archetype: string;
+  startSeason: number;
+  level: number;
+  /** Total XP earned in the career. */
+  xp: number;
+  attributePoints: number;
+  skillPoints: number;
+  skills: Id[];
+  training: TrainingPlan;
+  /** Fractional training progress per attribute, below one point. */
+  trainingProgress: Record<string, number>;
+  lastTraining: TrainingReport | null;
+  injury: Injury | null;
+  /** After a rushed return: chance of breaking down in each match, for a number of weeks. */
+  reinjury: { risk: number; weeks: number; kind: string } | null;
+  /** Cumulative fame from match reports; fame systems arrive in milestone 7. */
+  fame: number;
+  matches: CareerMatchRecord[];
 }
 export interface Agent {
   id: Id;
@@ -736,6 +797,8 @@ export interface MatchEvent {
   commentaryKey: string;
   /** Names and values substituted into the commentary template. */
   commentaryParams?: Record<string, string>;
+  /** On goal events: the selected player, when their key-moment choice created the goal. */
+  assistId?: Id;
   outcome: DecisionOutcome | null;
 }
 export interface MatchReport {
@@ -790,6 +853,10 @@ export interface GameEvent {
 }
 export interface World {
   format?: 'legacy' | 'national-v1';
+  /** 2: potential is peak overall ability and development follows age curves. */
+  developmentVersion?: 2;
+  /** The player's career, when this world hosts one (milestone 4). */
+  career?: Career;
   pyramid?: NationalPyramidState;
   id: Id;
   seed: string;
@@ -875,12 +942,6 @@ export interface FoundationState {
   gallery: GalleryState;
   settings: Settings;
 }
-export interface CareerState {
-  kind: 'career';
-  world: World;
-  player: CareerPlayer;
-  edits: WorldEdits;
-}
 export interface WorldState {
   kind: 'world';
   gallery: GalleryState;
@@ -888,10 +949,10 @@ export interface WorldState {
   world: World;
   matchSession?: import('../engine/match/types').MatchSession;
 }
-export type SavePayload = FoundationState | WorldState | CareerState;
+export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 6;
+  schemaVersion: 7;
   engineVersion: string;
   slot: SlotId;
   name: string;

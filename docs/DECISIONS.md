@@ -111,3 +111,41 @@ The audit found Tailwind imported but essentially unused: the screens are styled
 - Screens built before milestone 4 keep their component classes until a later milestone substantially reworks them. No restyling-only churn.
 - There is one token source. `tokens.css` exposes the theme colours to Tailwind through `@theme inline` (`bg-surface`, `text-muted`, `border-line`, `bg-accent-soft`, `text-on-accent`, …), so utilities follow the same light/dark values as component CSS. Use `shadow-surface` rather than `shadow-panel` for the theme-aware panel shadow; Tailwind inlines `shadow-panel` with its light value.
 - The former single `app.css` is split into ordered partials (`base`, `shell`, `menu`, `gallery`, `saves`, `settings`, `feedback`, `responsive`, `world`). They are contiguous ranges of the original file imported in the original order, so the cascade is unchanged. `match.css` stays route-scoped.
+
+## Milestone 4: the career player
+
+The user's "Proceed with Milestone 4" authorizes this milestone only. The design and checklist are in [MILESTONE-4.md](MILESTONE-4.md); the formulas are in [BALANCING.md](BALANCING.md).
+
+**Where the career lives.**
+
+- The career lives in `World.career`, and the player is an ordinary member of `world.players` and of their club's squad. Background fixtures, tables, statistics and squad views treat them like any player, and the simulation worker can apply training, recovery and ageing each week without a second payload.
+- The placeholder `CareerState`/`CareerPlayer` types from milestone 1 were removed; save payloads remain `foundation` or `world`.
+
+**Starting a career.**
+
+- A career starts at one of three trial clubs from the bottom simulated tier of the chosen country (England's National League North/South, the lowest regional groups elsewhere), matching AGENTS.md §1. Reserve teams are never offered.
+- The career can start in a newly generated world or in a loaded world without a career.
+- The player always starts when fit. Squad-role promises and manager selection belong to contracts (milestone 5) and relationships (milestone 6).
+
+**One commit path.**
+
+- The career player's fixtures are played interactively (or by the headless auto-play policy during season simulation) and committed once through `commitPlayedFixture`, which shares the background resolver's standings, statistics, extra-time and penalty code.
+- `simulateWeek` refuses to run a week with an unplayed career fixture unless explicitly allowed. The worker therefore stops at matchdays, or auto-plays when the player chose season simulation with auto-play.
+- An injured player misses the match and the fixture is simulated normally, without XP.
+- Committing runs in the world worker. The committed world replaces the finished session in the store, and the session is kept only in memory for the report, so a saved world never sits beside a session it already contains.
+- An interactive match always covers 90 minutes. Knockout and deciding-leg draws are settled after it with the background extra-time and penalty rules, and the report records how the tie was decided.
+
+**Progression and ageing.**
+
+- Development version 2: `potential` means peak overall ability, AI attributes follow age curves toward an id-derived profile, and generation starts players on their curve. This fixed the upward ability drift the hardening pass deferred.
+- Older worlds are recalibrated once. Abilities in recalibrated worlds keep their values and only move toward the new targets gradually.
+- The career player grows only through XP, attribute points and training. Ageing pulls attributes above the age-adjusted soft cap back down after each category's peak.
+- The AI lifecycle never retires, releases, trims, exchanges or re-contracts the career player.
+- If the career club drops below the simulated frontier, the player joins a club in the lowest simulated division of the same country (same region where possible), recorded as a transfer event. Real transfers arrive in milestone 5.
+- Retirement is milestone 8; forced retirement does not apply to the career player yet.
+
+**Injuries.** The injury system is implemented now, for the career player only, because training intensity must carry real risk (AGENTS.md §6). Types, durations, the rehab-or-rush choice and the rare career-threatening tail follow §8. AI players remain injury-free; validation rejects an injury on anyone but the career player.
+
+**Skills.** There are 49 skills, slightly above the specified ~40, so goalkeepers have a full branch. Every skill has a tested effect: boosted choices, an unlocked choice or a systemic effect. Skill ids double as trait ids.
+
+**Versions.** File schema 7 adds the optional career and development version. The match engine is `match-5`: sessions saved by `match-4` are discarded on load with the existing notice, and the world is kept.

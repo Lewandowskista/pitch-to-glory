@@ -148,3 +148,62 @@ Browser-test fixes made during this pass:
 - That journey also had a pre-existing WebKit race under parallel load, where a seed fill was occasionally lost before "Apply seed". It reproduced 1 in 20 on the original code. The step now retries until the applied seed sticks, and it passed 30 of 30 repeated WebKit runs.
 
 Not re-measured in this pass: Lighthouse scores, and physical-device frame rate, Safari, offline and installation checks. The earlier entry-screen Lighthouse results above predate the larger bundles (+5–10 KB gzip per route) and should be re-run before release.
+
+## Milestone 4 verification
+
+Verified on 6 October 2026 on Windows with Node 24 and the production build.
+
+| Check                                               | Result                                                                                                                                  |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Strict TypeScript, ESLint (zero warnings), Prettier | Passed                                                                                                                                  |
+| Vitest                                              | 153 tests across 23 files passed                                                                                                        |
+| Production build and bundle gate                    | Passed. Initial route JavaScript 190.5–221.7 KB gzip: Matchday 221.7 KB, career routes 204.3–210.4 KB, all below 300 KB                 |
+| Playwright full suite                               | 66 passed, 22 each in Chromium, Firefox and WebKit, including the career journey                                                        |
+| 10,000-match calibration (after generation changed) | 2.758 goals per match; equal-team home/away goals 1.521/1.225; draws 25.1%; away upsets 26.1% at a 15-point and 17.7% at a 45-point gap |
+
+**Lighthouse** (idle local production preview, simulated mobile throttling):
+
+| Screen           | Device  | Performance | Accessibility | Interactive |
+| ---------------- | ------- | ----------- | ------------- | ----------- |
+| Main menu        | Mobile  | 89          | 100           | 3.4 s       |
+| Main menu        | Desktop | 100         | 100           | 0.8 s       |
+| Asset gallery    | Mobile  | 93          | 100           | 2.9 s       |
+| Settings         | Mobile  | 90          | 100           | 3.2 s       |
+| Matchday entry   | Mobile  | 89          | 100           | 3.4 s       |
+| Save slots       | Mobile  | 89          | 100           | 3.2 s       |
+| World entry      | Mobile  | 89          | 100           | 3.4 s       |
+| Career hub entry | Mobile  | 88          | 100           | 3.4 s       |
+| Career wizard    | Mobile  | 90          | 100           | 3.4 s       |
+
+All scores meet the specified thresholds. The first Milestone 4 audit measured Matchday accessibility at 96 and two issues were fixed:
+
+- the live-update region carried an `aria-label` on a plain element;
+- the narrow bottom navigation used full names as accessible names while showing short labels.
+
+Cold mobile entries take 2.9–3.4 seconds to become interactive, still above the strict under-three-second target, and slightly slower than before because the shared shell grew. This remains release performance work.
+
+**New unit coverage:**
+
+- **Ageing:** curves; stable per-player profiles; development toward targets; one-time recalibration; tier ability stable over four legacy seasons.
+- **Career creation:** trial offers; creation validity and rejection rules; keeper careers.
+- **Progression:** XP and levels; soft-cap costs including the physical surcharge; allocation with structural sharing; skill gating and bonuses; every skill has a real effect.
+- **Training, injuries and ageing:** training progress, familiarity and fatigue; injuries, recovery choice and healing; mentor replacement; ageing decline.
+- **Commit path:** the pending-fixture guard; one commit with conserved standings, goals and appearances; a mid-week save in legacy and national worlds; rejected forged sessions; extra time and penalties after an interactive draw; a full auto-played season.
+- **Lifecycle and saves:** exclusion from the AI lifecycle; relocation when the career club leaves the simulated leagues; career save round trip and rejected forgeries.
+- **Match engine:** unlocked choices are fair; skill boosts and big-game bonus apply; assists are tagged on goal events.
+
+**The career browser journey (three engines):**
+
+- wizard steps with browser back/forward, a new world built in the worker, a trial club, and saving into slot 1;
+- the hub, continuing to a matchday, and playing to full time with skip and number keys;
+- XP on the report and playing on until a level-up;
+- raising an attribute, keyboard navigation of the skill tree and unlocking a skill;
+- changing the training plan;
+- autosaving after each recorded match (mid-week), and the save card and refresh restoring the hub and training plan;
+- dark-theme, 390 px captures of every career page with a horizontal-overflow check (Chromium).
+
+No console errors or page errors were observed.
+
+The UI worker found a real defect during this milestone, now fixed: the validators rejected the save made right after a career match, because that week's other fixtures were still unplayed.
+
+**Not done:** physical device frame-rate checks and Safari release-device checks remain outstanding, as before.

@@ -1,53 +1,63 @@
 /* Element reset, typography, buttons and form controls. */
-* {
-  box-sizing: border-box;
-}
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--font-sans);
-  line-height: 1.55;
-}
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-button,
-a,
-input,
-label {
-  -webkit-tap-highlight-color: transparent;
-}
-button,
-a {
-  touch-action: manipulation;
-}
-button {
-  cursor: pointer;
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-a {
-  color: inherit;
-  text-decoration: none;
-}
-button {
-  color: inherit;
-}
-img {
-  display: block;
-  max-width: 100%;
-}
-h1,
-h2,
-h3,
-p {
-  margin: 0;
+/*
+ * Element defaults sit in the base layer so Tailwind utilities on new UI can override them;
+ * component classes (unlayered) already outranked these element selectors.
+ */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    line-height: 1.55;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+  button,
+  a,
+  input,
+  label {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button,
+  a {
+    touch-action: manipulation;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  button {
+    color: inherit;
+  }
+  img {
+    display: block;
+    max-width: 100%;
+  }
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+  label {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
 }
 ::selection {
   background: #efcf63;
@@ -72,10 +82,6 @@ input:not([type='radio']):not([type='range']):not([type='checkbox']):not([type='
   background: var(--surface);
   color: var(--ink);
   padding: 0.7rem 0.9rem;
-}
-label {
-  font-size: 0.85rem;
-  font-weight: 600;
 }
 .button {
   display: inline-flex;

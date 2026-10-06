@@ -141,3 +141,32 @@ Policy fairness: with every footballer in both squads rated 60, 250 seeded match
 With real generated squads the striker's elite finishing makes shooting worth more than passing (1.53 vs 1.31 goals for always-first vs always-fourth), which is intended specialisation; average ratings per policy stay within 6.68–6.82 for the striker, 6.55–6.65 for the centre back and 6.68–6.72 for the goalkeeper.
 
 Tests enforce: 2.5–2.9 goals, home advantage, 18–35 % draws, close-gap upsets 15–36 %, wide-gap upsets 3–20 % and fewer than close-gap; analytic equality of each situation's choices within ±15 % of the moment budget and no defensive choice above the background expectation; higher success and goal value from 40 to 80 for every choice; policy goal bands within ±12 %; separate roll streams; substitution, captain, half-time role, keeper-save, conditions, momentum/possession, i18n-coverage and engine-version regressions; factor sums and replay determinism. Interactive career fixtures (milestone 4) will feed results back to the world.
+
+## Milestone 4 changes (engine `match-5`)
+
+- **Fixture context.**
+  - `MatchSetup.fixture` (`id`, `competitionId`, `importance` 1–2) marks a scheduled career fixture; friendlies omit it.
+  - `match.fixtureId` is the real fixture id, and the venue's neutrality comes from the fixture.
+  - Importance is league 1, phase 1.1, cup 1.15, playoff tie 1.25, final 1.5. It feeds the Big Game Player skill and career XP.
+- **Skill boosts.**
+  - Besides a choice's own `traitId`, the `TRAIT_BOOSTS` table maps each skill id to the choices it improves.
+  - Any match multiplies success odds by `traitMultiplier` (1.2) once.
+  - Big Game Player multiplies every choice's odds by 1.1 in fixtures of importance above 1.
+  - The factor appears as the existing "trait" probability factor, so the displayed factors still sum to the probability.
+- **Skill-unlocked choices.** Eight choices appear only with a skill and are added only to situations that had fewer than four choices, so keys 1–4 still cover every option:
+
+  | Choice                            | Situation        | Skill                 |
+  | --------------------------------- | ---------------- | --------------------- |
+  | Disguise a defence-splitting pass | build-up         | Maestro               |
+  | Curl it into the top corner       | edge of area     | Curler                |
+  | Try an overhead kick              | aerial chance    | Acrobat               |
+  | Throw in a sliding block          | defend an attack | Last-Ditch            |
+  | Dance away from the press         | build out        | Escape Artist         |
+  | Tip it over the bar               | shot incoming    | Cat Reflexes          |
+  | Smother it at the striker's feet  | one-on-one       | One-on-One Specialist |
+  | Release a quick counter           | distribution     | Distributor           |
+
+  Their expected value is anchored to the moment budget like every other choice. Tests assert each is never weaker than its situation's average and that its advantage over the mean stays below 0.35 of the budget.
+
+- **Assists.** A goal created by the selected player's choice is tagged with `assistId`, so a committed career fixture credits the assist to the right player. Other assists in committed fixtures are assigned with the background resolver's 78% rule.
+- **Calibration.** Because generation changed (development version 2), the 10,000-match gate was re-measured: 2.758 goals per match, equal-team home/away goals 1.521/1.225, draws 25.1%, away underdog wins 26.1% at a 15-point and 17.7% at a 45-point reputation gap. All within the asserted bands.

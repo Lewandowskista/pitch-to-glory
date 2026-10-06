@@ -12,8 +12,11 @@ export function Preview({
   session,
   onTactics,
   onKickoff,
+  note,
 }: {
   session: MatchSession;
+  /** Replaces the friendly-match explanation (career fixtures). */
+  note?: string;
   onTactics: (tactics: Tactics) => void;
   onKickoff: () => void;
 }) {
@@ -131,7 +134,7 @@ export function Preview({
         <button className="button match-kickoff" onClick={onKickoff}>
           {m.kickoff}
         </button>
-        <p className="muted">{m.friendlyBody}</p>
+        <p className="muted">{note ?? m.friendlyBody}</p>
       </section>
       {[setup.home, setup.away].map((club, index) => {
         const lineup = index === 0 ? state.match.home : state.match.away;

@@ -12,7 +12,8 @@ export type IconName =
   | 'upload'
   | 'trash'
   | 'ball'
-  | 'globe';
+  | 'globe'
+  | 'career';
 const paths: Record<IconName, string> = {
   home: 'M3 10L12 3L21 10V21H15V14H9V21H3Z',
   gallery: 'M3 3H10V10H3ZM14 3H21V10H14ZM3 14H10V21H3ZM14 14H21V21H14Z',
@@ -29,6 +30,8 @@ const paths: Record<IconName, string> = {
   trash: 'M3 6H21M9 6V3H15V6M5 6L6 21H18L19 6M10 10V17M14 10V17',
   globe:
     'M12 2A10 10 0 1 0 12 22A10 10 0 1 0 12 2M2 12H22M12 2C9 5 8 8.5 8 12S9 19 12 22M12 2C15 5 16 8.5 16 12S15 19 12 22',
+  career:
+    'M8 3L3 5.5L1.5 10.5L5 11.5V21H19V11.5L22.5 10.5L21 5.5L16 3Q12 6.5 8 3ZM12 11L13.2 13.4L15.8 13.8L13.9 15.6L14.4 18.2L12 17L9.6 18.2L10.1 15.6L8.2 13.8L10.8 13.4Z',
   ball: 'M12 2A10 10 0 1 0 12 22A10 10 0 1 0 12 2M12 8L16 11L14 16H10L8 11ZM12 8V2M16 11L22 9M14 16L18 20M10 16L6 20M8 11L2 9',
 };
 export function Icon({ name, className = '' }: { name: IconName; className?: string }) {

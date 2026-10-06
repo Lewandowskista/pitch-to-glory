@@ -50,6 +50,8 @@ export const CONFIG = {
       impactMinimum: 0.7,
       impactMaximum: 1.3,
       traitMultiplier: 1.2,
+      /** All choices in a fixture of importance above 1, with the Big Game Player skill. */
+      bigGameMultiplier: 1.1,
       roleMultiplier: 1.12,
       roleCounterRelief: 0.85,
       /** Non-direct base odds × (1 + (own − opposition strength) × slope), bounded. */
@@ -108,10 +110,96 @@ export const CONFIG = {
     },
     fame: { ratingThreshold: 6.5, perRating: 2, perGoal: 2 },
   },
+  /** Career player progression (milestone 4). See docs/BALANCING.md. */
+  career: {
+    /** XP needed from level n to n + 1 is levelXpBase × levelXpGrowth^(n − 1). */
+    levelXpBase: 300,
+    levelXpGrowth: 1.06,
+    maximumLevel: 99,
+    attributePointsPerLevel: 8,
+    skillPointsPerLevel: 1,
+    /** Fixture importance multiplies match XP and powers big-game skills. */
+    importance: { league: 1, phase: 1.1, cup: 1.15, tie: 1.25, final: 1.5 },
+    /** XP multiplier from opposition reputation relative to the player's club. */
+    oppositionSlope: 0.01,
+    oppositionRange: [0.8, 1.3] as const,
+    /** Attribute point costs relative to the age-adjusted soft cap. */
+    costs: {
+      belowCap: 1,
+      nearCap: 2,
+      beyondCap: 3,
+      capMargin: 5,
+      physicalAge: 29,
+      physicalSurcharge: 1,
+    },
+    start: {
+      ageRange: [16, 18] as const,
+      potential: [74, 88] as const,
+      /** Starting attributes sit this far below the trial club's squad average... */
+      belowClub: 3,
+      /** ...plus the archetype's emphasis, scaled by this factor. */
+      emphasisScale: 1,
+      noise: 2,
+      offers: 3,
+    },
+    training: {
+      sessions: 3,
+      gain: { low: 0.08, normal: 0.13, high: 0.19 },
+      mentorGain: 0.15,
+      /** Mentor quality multiplies gain by up to 1 + this, from the mentor's lead in the focus. */
+      mentorBonus: 0.5,
+      fatigue: { low: 1, normal: 2, high: 5, extra: 3, recovery: -12 },
+      injuryRisk: { low: 0.002, normal: 0.005, high: 0.013, extra: 0.004 },
+      /** Learning speed by age: [age, multiplier]. */
+      ageLearning: [
+        [16, 1.3],
+        [20, 1.15],
+        [24, 1],
+        [28, 0.85],
+        [32, 0.65],
+        [36, 0.5],
+      ] as const,
+      familiarity: { low: 2, normal: 4, high: 6 },
+      /** Training progress above the soft cap is slowed by this factor and stops at cap + margin. */
+      beyondCapFactor: 0.5,
+      professionalSkill: 1.2,
+      secondWindSkill: 0.7,
+    },
+    injuries: {
+      matchChance: 0.008,
+      ironManSkill: 0.5,
+      fatigueWeight: 50,
+      types: [
+        { kind: 'knock', weight: 30, weeks: [1, 2], severity: 1, threatening: 0 },
+        { kind: 'muscle-strain', weight: 22, weeks: [2, 4], severity: 2, threatening: 0 },
+        { kind: 'ankle-sprain', weight: 16, weeks: [2, 5], severity: 2, threatening: 0 },
+        { kind: 'hamstring-strain', weight: 14, weeks: [3, 6], severity: 3, threatening: 0 },
+        { kind: 'groin-strain', weight: 8, weeks: [3, 6], severity: 3, threatening: 0 },
+        { kind: 'calf-tear', weight: 6, weeks: [5, 9], severity: 3, threatening: 0 },
+        { kind: 'broken-foot', weight: 2.5, weeks: [8, 14], severity: 4, threatening: 0 },
+        { kind: 'knee-ligament', weight: 1.2, weeks: [16, 30], severity: 5, threatening: 0.25 },
+      ] as const,
+      rush: { durationFactor: 0.6, reinjuryRisk: 0.15 },
+      /** A career-threatening injury permanently costs this much pace and acceleration. */
+      threateningLoss: 6,
+    },
+    /** Hidden attributes revealed at these appearance counts, in this order. */
+    reveal: {
+      appearances: [5, 15, 30, 50, 80] as const,
+      order: [
+        'professionalism',
+        'consistency',
+        'injuryProneness',
+        'bigMatchTemperament',
+        'ambition',
+      ] as const,
+    },
+    historyLimit: 2000,
+  },
   gallery: { clubs: 15, players: 8, ages: [17, 28, 42] as const },
   workers: { transportBatchEntries: 32, transportYieldMs: 8 },
   saves: {
-    schemaVersion: 6,
+    schemaVersion: 7,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,
@@ -135,8 +223,6 @@ export const CONFIG = {
     homeAdvantage: 0.14,
     strengthScale: 0.012,
     maxGoals: 10,
-    developmentChance: 0.045,
-    declineChance: 0.035,
     transferWeeks: [8, 18, 31] as const,
     managerWeeks: [12, 24] as const,
     intakeWeek: 31,
@@ -159,12 +245,12 @@ export const CONFIG = {
       /** Expiring contracts are renewed for players ranked inside this many by squad value. */
       renewalRank: 17,
       renewalYouthAge: 21,
-      renewalMaximumAge: 34,
+      renewalMaximumAge: 35,
       youngAge: 23,
       veteranAge: 30,
       contractYears: { young: [2, 4], prime: [1, 3], veteran: [1, 2] } as const,
       potentialValueWeight: 0.5,
-      agedValuePenalty: 2,
+      agedValuePenalty: 1,
       /** Free agents sign for clubs whose top-eleven ability is at least theirs minus this. */
       signingAbilityMargin: 4,
       fillerAge: [19, 27] as const,
@@ -182,20 +268,13 @@ export const CONFIG = {
       managerAbility: [25, 95],
       personality: [15, 95],
       adultAge: [17, 36],
-      veteranAge: [38, 42],
+      veteranAge: [32, 37],
       youthAge: [16, 18],
-      attributeReputationWeight: 0.7,
-      attributeBase: [5, 19],
+      /** Peak overall ability (potential): reputation × weight + base ± talent. */
+      peakReputationWeight: 0.75,
+      peakBase: 13,
+      talentSpread: 8,
       youngAge: 20,
-      youngPenalty: 12,
-      attributeSpread: 14,
-      positionalBonus: 8,
-      keeperFinishing: [1, 20],
-      keeperSpread: [-10, 15],
-      outfieldKeeping: [1, 25],
-      potentialBonus: [8, 18],
-      youngPotentialAge: 22,
-      youngPotentialBonus: 30,
       secondaryFamiliarity: [35, 85],
       morale: [55, 85],
       form: [45, 75],
@@ -247,22 +326,88 @@ export const CONFIG = {
       transferContractYears: 2,
       transferBudgetBalanceShare: 0.35,
     },
+    /**
+     * Ageing and development. Each attribute category follows an age curve (multiplier of a
+     * player's peak value); AI players move toward their target, and generation places them
+     * on the same curve so the world starts at equilibrium.
+     */
     development: {
-      youthAge: 24,
-      growthEndAge: 29,
-      youthFactor: 1.7,
-      adultFactor: 0.65,
-      mentalEndAge: 36,
-      mentalFactor: 0.65,
+      /** [age, multiplier] points, linearly interpolated and clamped at the ends. */
+      curves: {
+        pace: [
+          [16, 0.84],
+          [18, 0.91],
+          [21, 0.97],
+          [23, 1],
+          [26, 1],
+          [28, 0.96],
+          [30, 0.9],
+          [32, 0.83],
+          [35, 0.72],
+          [40, 0.6],
+        ],
+        physical: [
+          [16, 0.8],
+          [18, 0.88],
+          [21, 0.95],
+          [24, 1],
+          [28, 1],
+          [30, 0.96],
+          [32, 0.91],
+          [34, 0.85],
+          [37, 0.76],
+          [40, 0.68],
+        ],
+        technical: [
+          [16, 0.76],
+          [18, 0.83],
+          [21, 0.9],
+          [24, 0.96],
+          [26, 1],
+          [30, 1],
+          [32, 0.97],
+          [34, 0.93],
+          [37, 0.86],
+          [40, 0.8],
+        ],
+        mental: [
+          [16, 0.7],
+          [18, 0.77],
+          [21, 0.84],
+          [24, 0.91],
+          [27, 0.96],
+          [30, 1],
+          [34, 1],
+          [37, 0.97],
+          [40, 0.93],
+        ],
+        keeper: [
+          [16, 0.72],
+          [18, 0.8],
+          [21, 0.87],
+          [24, 0.93],
+          [27, 0.98],
+          [29, 1],
+          [33, 1],
+          [35, 0.95],
+          [37, 0.89],
+          [40, 0.8],
+        ],
+      },
+      /** Age after which each category only declines toward its target (career player). */
+      peakEnd: { pace: 26, physical: 28, technical: 30, mental: 34, keeper: 33 },
+      /** Stable per-attribute deviation from a player's peak, derived from the player id. */
+      profileSpread: 10,
+      /** Peak emphasis on the attributes a position relies on. */
+      positionalEmphasis: 8,
+      /** Generated attributes sit within this many points of their age target. */
+      generationNoise: 2,
+      /** Fraction of the gap to target closed per season (growth scaled by professionalism). */
+      growthPerSeason: 0.75,
+      declinePerSeason: 0.75,
       professionalismBase: 0.6,
-      declineStartAge: 30,
-      declineAgeDivisor: 5,
-      physicalDeclineFactor: 2,
-      mentalDeclineFactor: 0.15,
-      technicalDeclineFactor: 0.7,
-      keeperGrowthEndAge: 32,
-      keeperDeclineAge: 35,
-      keeperDeclineDivisor: 4,
+      /** Outfield players' goalkeeping attributes stay in this static band (and vice versa for keepers' outfield physical/technical). */
+      untrainedRange: [1, 25],
     },
   },
 } as const;

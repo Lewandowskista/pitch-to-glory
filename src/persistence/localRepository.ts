@@ -32,6 +32,8 @@ export interface WorldSummary {
   week: number;
   clubs: number;
   crests: Crest[];
+  /** Present for career worlds: the player shown on the save card. */
+  career?: { name: string; level: number; clubName: string; crest: Crest };
 }
 /**
  * Small per-slot envelope. The world graph and the match session live in their own
@@ -105,7 +107,22 @@ export function summarizeWorld(world: World): WorldSummary {
     crests: Object.values(world.clubs)
       .slice(0, 3)
       .map((club) => club.crest),
+    ...careerSummary(world),
   };
+}
+function careerSummary(world: World): Pick<WorldSummary, 'career'> {
+  const player = world.career ? world.players[world.career.playerId] : undefined;
+  const club = player?.clubId ? world.clubs[player.clubId] : undefined;
+  return player && club
+    ? {
+        career: {
+          name: player.name,
+          level: world.career!.level,
+          clubName: club.name,
+          crest: club.crest,
+        },
+      }
+    : {};
 }
 function metaFor(save: AppSave): SaveMeta {
   const { payload } = save;

@@ -209,7 +209,7 @@ test('mobile shell, large text and dark gallery fit the viewport', async ({ page
   await page.getByRole('radio', { name: 'Dark', exact: true }).check();
   await page.getByLabel('Text size', { exact: true }).focus();
   await page.keyboard.press('End');
-  await page.locator('.bottom-nav').getByRole('link', { name: 'Asset gallery' }).click();
+  await page.locator('.bottom-nav').getByRole('link', { name: 'Gallery', exact: true }).click();
   await expect(page.locator('.bottom-nav')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,

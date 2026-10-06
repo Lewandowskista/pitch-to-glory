@@ -38,7 +38,8 @@ export function playerAbility(
 
 export function selectStartingPlayers<T extends Player>(players: readonly T[]): T[] {
   const ranked = players
-    .filter((player) => !player.retired)
+    // Only the career player can be injured; AI selections are unchanged.
+    .filter((player) => !player.retired && !player.injuryId)
     .sort((a, b) => playerAbility(b) - playerAbility(a) || (a.id < b.id ? -1 : 1));
   const keeper = ranked.find((player) => player.primaryPosition === 'GK');
   const defence = ranked.filter((player) => DEFENCE.includes(player.primaryPosition)).slice(0, 4);

@@ -148,6 +148,7 @@ export function createMatchSetup(
   awayId: string,
   selectedPlayerId: string,
   seed: string,
+  options: { neutral?: boolean; fixture?: MatchSetup['fixture'] } = {},
 ): MatchSetup {
   const home = world.clubs[homeId],
     away = world.clubs[awayId];
@@ -173,7 +174,8 @@ export function createMatchSetup(
     away,
     players,
     selectedPlayerId,
-    neutral: false,
+    neutral: options.neutral ?? false,
+    ...(options.fixture ? { fixture: options.fixture } : {}),
   });
 }
 const selectedSide = (setup: MatchSetup) =>
@@ -263,7 +265,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   ];
   const match: MatchState['match'] = {
     id: `match:${setup.seed}`,
-    fixtureId: `friendly:${setup.seed}`,
+    fixtureId: setup.fixture?.id ?? `friendly:${setup.seed}`,
     seed: setup.seed,
     rng: rng.snapshot(),
     home,
@@ -719,6 +721,7 @@ function contextFor(session: MatchSession, situation: Situation, rng: Rng): Deci
       s.momentMinutes.length,
     ),
     matchLevel: s.matchLevel,
+    importance: setup.fixture?.importance ?? 1,
     fatigue: s.stats.fatigue,
     tactics: s.match.tactics,
     weather: s.match.weather,
@@ -855,6 +858,9 @@ function resolveChoice(next: MatchSession, choiceId: string): void {
       self ? 'match.commentary.attempt' : 'match.commentary.chance',
     );
     if (scored && success && template.assist && !self) {
+      // Tag the goal so a committed fixture credits the assist to the right player.
+      const scoredGoal = m.events.findLast((e) => e.kind === 'goal');
+      if (scoredGoal) scoredGoal.assistId = p.id;
       s.stats.assists++;
       addRating(next, 'assists', C.rating.assist);
     }

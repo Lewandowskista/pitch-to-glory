@@ -4,6 +4,23 @@ import { CREST_SHAPES, CREST_SYMBOLS } from '../engine/assets/crest';
 export function requireValue(condition: unknown): asserts condition {
   if (!condition) throw new Error('invalid-world');
 }
+/**
+ * A career match is committed during its week, before the rest of the week is simulated, so
+ * a current-week fixture of the career player's club may already have a result.
+ */
+export function playedThisWeek(w: Record<string, unknown>, fixture: Record<string, unknown>) {
+  const career = w.career as { playerId?: unknown } | undefined;
+  if (!career) return false;
+  const player = (w.players as Record<string, { clubId?: unknown }>)[String(career.playerId)];
+  const club = player?.clubId;
+  return (
+    Number(object(fixture.date).week) === Number(object(w.date).week) &&
+    club !== undefined &&
+    club !== null &&
+    (fixture.homeId === club || fixture.awayId === club)
+  );
+}
+
 export function object(value: unknown): Record<string, unknown> {
   requireValue(value !== null && typeof value === 'object' && !Array.isArray(value));
   return value as Record<string, unknown>;
@@ -172,6 +189,7 @@ export function validateEntities(
   w: Record<string, unknown>,
   feederClubIds: readonly string[] = [],
 ): void {
+  if (w.developmentVersion !== undefined) requireValue(w.developmentVersion === 2);
   const currentDate = object(w.date);
   const countries = object(w.countries),
     leagues = object(w.leagues);
@@ -261,7 +279,11 @@ export function validateEntities(
       requireValue(registered.has(String(player.id)));
     }
     for (const key of ['fitness', 'fatigue', 'morale', 'form']) number(player[key], 0, 100);
-    requireValue(player.injuryId === null);
+    // Only the career player can be injured; validateCareer checks the link.
+    if (player.injuryId !== null) {
+      id(player.injuryId);
+      requireValue(object(w.career ?? {}).playerId === player.id);
+    }
     ids(player.traits, 50);
     const stats = object(player.stats);
     for (const key of ['appearances', 'minutes', 'goals', 'assists', 'cleanSheets'])

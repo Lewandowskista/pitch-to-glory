@@ -79,6 +79,15 @@ export function validateSetup(setup: MatchSetup): void {
     !string(setup.selectedPlayerId)
   )
     throw new Error('Invalid match setup');
+  if (
+    setup.fixture !== undefined &&
+    (!setup.fixture ||
+      !string(setup.fixture.id) ||
+      !string(setup.fixture.competitionId) ||
+      !number(setup.fixture.importance, 1, 2) ||
+      Object.keys(setup.fixture).sort().join(',') !== 'competitionId,id,importance')
+  )
+    throw new Error('Invalid match fixture');
   const ids: string[] = [];
   for (const club of [setup.home, setup.away]) {
     if (
