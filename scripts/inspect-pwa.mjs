@@ -1,0 +1,10 @@
+import { chromium } from '@playwright/test';
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.goto('http://127.0.0.1:4173/');
+await page.waitForLoadState('networkidle');
+await page.evaluate(() => navigator.serviceWorker.ready);
+const cdp = await page.context().newCDPSession(page);
+console.log(JSON.stringify(await cdp.send('Page.getInstallabilityErrors'), null, 2));
+console.log(JSON.stringify(await cdp.send('Page.getAppManifest'), null, 2));
+await browser.close();

@@ -1,0 +1,21 @@
+export const pitchCopy = {
+  label:
+    'Live football pitch. Home players have solid outlines; away players have dashed outer rings. Your player has a double gold ring.',
+  fallback: 'Using the accessible pitch view. Match decisions and controls remain available.',
+  home: 'Home · solid outline',
+  away: 'Away · dashed ring',
+  selected: 'You · double gold ring',
+  heatmap: 'Movement heatmap',
+  passes: 'Pass map',
+  shots: 'Shot map',
+  density: 'Brighter cells show more recorded positions.',
+  passLegend: 'Solid blue: completed. Dashed coral: incomplete.',
+  shotLegend: 'Gold star: goal. White circle: other shot.',
+  noPasses: 'No passes recorded.',
+  noShots: 'No shots recorded.',
+  noMovement: 'No player positions recorded.',
+  samples: 'recorded positions',
+  attempts: 'attempts',
+  completed: 'completed',
+  scored: 'scored',
+};

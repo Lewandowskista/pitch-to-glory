@@ -1,0 +1,45 @@
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Bebas Neue', sans-serif;
+  --color-field: #075e45;
+  --color-gold: #efcf63;
+  --spacing: 0.25rem;
+  --radius-panel: 1.25rem;
+  --radius-control: 0.75rem;
+  --shadow-panel: 0 8px 28px rgb(27 48 33 / 0.04);
+}
+:root {
+  color-scheme: light;
+  --bg: #f4f5ee;
+  --surface: #ffffff;
+  --surface-soft: #e9ede2;
+  --ink: #23342a;
+  --muted: #5e6c61;
+  --line: #dce3d8;
+  --accent: #075e45;
+  --accent-soft: #e0ebe2;
+  --on-accent: #ffffff;
+  --danger: #a72d30;
+  --danger-soft: #fff0ef;
+  --art-green: #e4eddd;
+  --art-gold: #f4ead4;
+  --art-blue: #e4ebee;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #14251e;
+  --surface: #1b2e25;
+  --surface-soft: #233a2e;
+  --ink: #edf2e7;
+  --muted: #b2c1b5;
+  --line: #354a3d;
+  --accent: #9ed9b7;
+  --accent-soft: #304e3b;
+  --on-accent: #14251e;
+  --danger: #ffada5;
+  --danger-soft: #422b29;
+  --art-green: #2d4636;
+  --art-gold: #433e2e;
+  --art-blue: #2d3e43;
+  --shadow-panel: 0 8px 28px rgb(0 0 0 / 0.08);
+}
