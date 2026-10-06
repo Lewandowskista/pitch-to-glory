@@ -7,6 +7,8 @@ import type {
   World,
 } from '../model/domain';
 import type { MatchSession } from '../engine/match/types';
+import { attachMarket } from '../engine/career/market/agents';
+import { initialMarket } from '../engine/career/market/records';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
 import { validateWorld } from './worldSchema';
 import { validateMatchSession } from '../engine/match';
@@ -108,7 +110,26 @@ const migrations: Readonly<Record<number, Migration>> = {
   6: (old) => ({ ...old, schemaVersion: 7 }),
   // v8 marks worlds with real countries and referenced fictional clubs (identityVersion 2).
   7: (old) => ({ ...old, schemaVersion: 8 }),
+  // v9 adds the career market (milestone 5): agents, finances, relationships and moves.
+  8: (old) => ({ ...old, schemaVersion: 9, payload: withCareerMarket(old.payload) }),
 };
+/**
+ * Careers saved before milestone 5 gain an empty market: the agent pool, wage records and
+ * relationships with the current club. Malformed payloads are left for validation to reject.
+ */
+function withCareerMarket(payload: unknown): unknown {
+  try {
+    const p = object(payload);
+    if (p.kind !== 'world') return payload;
+    const world = object(p.world) as unknown as World;
+    if (!world.career || world.career.market) return payload;
+    world.career.market = initialMarket(world);
+    attachMarket(world);
+  } catch {
+    // Validation reports the problem.
+  }
+  return payload;
+}
 export function migrateSave(value: unknown): AppSave {
   let save = object(value);
   if (save.format !== 'pitch-to-glory') invalid();

@@ -1,9 +1,13 @@
 import type { Fixture, World } from '../../model/domain';
 import { CONFIG } from '../config';
+import { careerSelection } from './market/rules';
 
 const C = CONFIG.career;
 
-/** The earliest unplayed fixture of the career player's club this week, if they can play. */
+/**
+ * The earliest unplayed fixture of the career player's club this week that they will play:
+ * fit, registered and picked by the manager.
+ */
 export function pendingCareerFixture(world: World): Fixture | null {
   const career = world.career;
   if (!career || world.phase === 'complete') return null;
@@ -19,7 +23,8 @@ export function pendingCareerFixture(world: World): Fixture | null {
           (fixture.homeId === clubId || fixture.awayId === clubId) &&
           !world.results[fixture.id],
       )
-      .sort((a, b) => a.date.day - b.date.day || (a.id < b.id ? -1 : 1))[0] ?? null
+      .sort((a, b) => a.date.day - b.date.day || (a.id < b.id ? -1 : 1))
+      .find((fixture) => careerSelection(world, fixture).selected) ?? null
   );
 }
 /** The next fixture of the career player's club from this week on (for the hub). */

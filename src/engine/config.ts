@@ -195,11 +195,158 @@ export const CONFIG = {
       ] as const,
     },
     historyLimit: 2000,
+    /** Contracts, agents, transfers and loans (milestone 5). See docs/BALANCING.md. */
+    market: {
+      /** Transfer windows as [first, last] fractions of the season's weeks. */
+      windows: [
+        [0, 0.13],
+        [0.47, 0.55],
+      ] as const,
+      /** Market value: valueAtAbility × e^(valueSlope × (ability − referenceAbility)). */
+      valueAtAbility: 150_000,
+      referenceAbility: 80,
+      valueSlope: 0.07,
+      /** Young players are valued for upside: 1 + gap × youthUpside, at most youthCap. */
+      youngAge: 21,
+      youthUpside: 0.03,
+      youthCap: 2.5,
+      primeUpside: 0.015,
+      /** Value multiplier from age 28, falling by veteranStep each year after 30. */
+      peakAge: 28,
+      peakFactor: 0.85,
+      veteranStep: 0.12,
+      minimumAgeFactor: 0.2,
+      /** Value multiplier by full seasons left on the contract after this one: 0, 1, 2+. */
+      contractFactor: [0.55, 0.8, 1] as const,
+      /** Wage multiplier by squad role, on top of the generation wage formula. */
+      roleWage: { key: 1.15, rotation: 1, backup: 0.85, youth: 0.8 },
+      /** A selling club's asking price as a multiple of value, by the player's role there. */
+      askingFactor: { key: 1.5, rotation: 1.2, backup: 0.9, youth: 1.1 },
+      transferRequestDiscount: 0.85,
+      openingBid: 0.8,
+      /** A buyer bids up to value × (1 + confidence × bidConfidenceWeight), within its budget. */
+      bidConfidenceWeight: 0.005,
+      /** Lines a squad fields, for the role a player can be promised. */
+      slots: { GK: 1, DEF: 4, MID: 3, ATT: 3 },
+      /** Selection: chance of starting by role, then adjustments. */
+      selection: {
+        base: { key: 0.97, rotation: 0.85, backup: 0.45, youth: 0.6 },
+        inTeam: 0.08,
+        perPlaceOutside: 0.05,
+        maximumPlacesOutside: 4,
+        form: 0.003,
+        trust: 0.002,
+        tiredFatigue: 70,
+        tired: 0.15,
+        minimum: 0.05,
+        keyFloor: 0.9,
+        /** Share of matchdays a promise guarantees; below it the promise is broken. */
+        promise: { key: 0.7, rotation: 0.4 },
+        promiseMinimumMatchdays: 10,
+      },
+      /** Interest and scouting. */
+      scouting: {
+        /** Visibility by the player's division tier (index 0 = tier 1). */
+        visibility: [1, 0.85, 0.7, 0.55, 0.45, 0.4] as const,
+        foreign: 0.35,
+        startChance: 0.04,
+        maximumTransfer: 10,
+        maximumLoan: 4,
+        /** Interested clubs' level against the player's projected ability. */
+        bandBelow: 6,
+        bandAbove: 10,
+        projectedUpside: 0.3,
+        projectedCap: 10,
+        /** Confidence gain per week: performance × gain × (1 + network bonus) − decay. */
+        gain: 10,
+        decay: 3,
+        noise: 2,
+        idleDecay: 4,
+        scoutingAt: 35,
+        offerAt: 70,
+        loanOfferAt: 50,
+        weeks: 4,
+        loanWeeks: 2,
+        offerChance: 0.4,
+        maximumOpenOffers: 2,
+        /** Recent ratings: the last n matches within this many weeks. */
+        recentMatches: 6,
+        recentWeeks: 12,
+        neutralRating: 6,
+      },
+      negotiation: {
+        offerWeeks: 3,
+        renewalWeeks: 4,
+        /** The club's wage ceiling above its opening offer, plus agent and desire bonuses. */
+        wageStretch: 0.12,
+        agentStretch: 0.0025,
+        desireStretch: 0.0025,
+        openingWage: 0.95,
+        walkAwayWage: 1.3,
+        patience: 2,
+        agentPatienceAt: 60,
+        /** A key role is conceded one step above the club's view only with this confidence. */
+        roleConfidence: 85,
+        minimumClauseFactor: 1.5,
+        defaultClauseFactor: 2.5,
+        signingBonusWeeks: 4,
+        maximumSigningBonusWeeks: 6,
+        agentBonusWeeks: 0.05,
+        /** The agent's estimate of the wage ceiling is off by up to (100 − skill) / estimateError. */
+        estimateError: 250,
+        maximumYears: 5,
+      },
+      loans: {
+        wageShare: [0.5, 1] as const,
+        purchaseOptionChance: 0.35,
+        purchaseOptionFactor: 1.1,
+        purchaseRating: 6.8,
+        selectionBelow: 0.4,
+        droppedMatchdays: 3,
+        requestedChance: 0.5,
+        chance: 0.15,
+      },
+      renewal: {
+        /** Final-season renewal talks open from this fraction of the season. */
+        finalSeasonFrom: 0.25,
+        chance: 0.25,
+        /** Underpaid by this much, the club may improve terms unprompted. */
+        underpaid: 1.4,
+        improveChance: 0.1,
+        askUnderpaid: 1.15,
+        askCooldownWeeks: 8,
+        minimumTrust: 35,
+      },
+      transferRequest: {
+        trust: -15,
+        fans: -10,
+        withdrawTrust: 5,
+        withdrawFans: 3,
+        brokenTrust: -5,
+      },
+      relationships: { trust: 55, fans: 50, newManager: 50, renewalTrust: 5 },
+      agents: {
+        pool: 8,
+        changeCooldownWeeks: 4,
+        pitchChance: 0.0025,
+        connectedPitch: 2,
+        adviceWeeks: 8,
+        underpaid: 1.3,
+      },
+      /** Standing for agents: ability, club reputation and fame. */
+      standing: { ability: 0.55, reputation: 0.45, fameDivisor: 25, fameCap: 15 },
+      bonusDefenders: ['GK', 'CB', 'LB', 'RB'] as const,
+      sellOnAge: 23,
+      sellOnPercent: 10,
+      inboxLimit: 200,
+      /** Every interest from bigger clubs also counts for the buyer's reputation step. */
+      upwardStep: 5,
+    },
   },
   gallery: { clubs: 15, players: 8, ages: [17, 28, 42] as const },
   workers: { transportBatchEntries: 32, transportYieldMs: 8 },
   saves: {
-    schemaVersion: 8,
+    schemaVersion: 9,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,

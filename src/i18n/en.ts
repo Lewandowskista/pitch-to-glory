@@ -16,6 +16,9 @@ export const en = {
       '/career/profile': 'Player profile',
       '/career/skills': 'Skill tree',
       '/career/training': 'Training',
+      '/career/transfers': 'Transfers and contract',
+      '/career/agent': 'Agent',
+      '/career/inbox': 'Inbox',
     } as Record<string, string>,
     short: {
       '/': 'Club',

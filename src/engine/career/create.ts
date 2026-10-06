@@ -12,11 +12,14 @@ import {
 } from '../ageing';
 import { playerAbility } from '../strength';
 import { generatePlayer } from '../world/generate';
-import { refreshDressingRoom } from '../world/lifecycle';
+import { refreshDressingRoom } from '../world/dressing';
 import { getSeasonWeeks } from '../world/calendar';
 import { ARCHETYPE_BY_ID } from './catalogue';
 import { grantStartingSkill } from './progression';
 import { defaultTrainingPlan } from './training';
+import { initialMarket } from './market/records';
+import { bonusesFor, marketWage } from './market/rules';
+import { attachMarket } from './market/agents';
 
 const S = CONFIG.career.start;
 
@@ -117,7 +120,13 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
   player.morale = 75;
   player.fitness = 100;
   player.fatigue = 0;
-  contract.role = 'youth';
+  // A trial earns a squad place: rotation, so the player is picked often enough to develop.
+  // Terms are priced from the player's actual starting ability.
+  contract.role = 'rotation';
+  const terms = { weeklyWage: marketWage(club, player, 'rotation') };
+  Object.assign(contract, terms, bonusesFor(terms.weeklyWage), {
+    releaseClause: terms.weeklyWage * CONFIG.world.generation.releaseWageMultiplier,
+  });
   contract.end = { season: world.date.season + 3, week: getSeasonWeeks(world), day: 7 };
   world.players[id] = player;
   world.contracts[contract.id] = contract;
@@ -140,8 +149,10 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
     reinjury: null,
     fame: 0,
     matches: [],
+    market: initialMarket(world),
   };
   grantStartingSkill(career, player, archetype.startingSkill);
   world.career = career;
+  attachMarket(world);
   return world;
 }

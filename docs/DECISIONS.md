@@ -171,3 +171,18 @@ Implementation decisions:
 - **Wizard and Rules panel.** The career wizard lists the real country names. The Rules panel shows "Real-world model: <competition> · <season> rules". Postseason labels come from the division and stage, not the engine key, so no real competition names leak into the UI.
 - **Identity data stays in the worker.** All identity data lives in `src/engine/world/identities/` and ships only in the world-worker bundle.
 - **Open review items for the user:** "Lisbon Lions" also evokes Celtic's 1967 side; "Bochum Unrelegatables" is a fan nickname rather than an official one; Paris clubs sit in the Northwest game region and Monaco in South.
+
+## Milestone 5: contracts, agents, transfers and loans
+
+- **Scope: the player's market.** The full market (interest, bids, negotiation, loans) is built around the career player. AI clubs keep the existing like-for-like exchanges, because a full AI transfer market would change the balance of every simulated league; a later milestone can extend it.
+- **Role promises decide selection.** This was the open item from milestone 4. A seeded draw keeps background and interactive paths consistent. A trial earns a rotation contract so early careers still play regularly, and starts rise as the player improves.
+- **Deterministic negotiation.** Clubs answer counter-offers by rule, not by dice, so the talks can explain every response, in line with AGENTS.md §9.5 (decision transparency). Uncertainty comes from the private limits, which an agent estimates.
+- **Windows and visibility.** Offers made by the weekly simulation are dated from the week the player sees them, and never outlive the window. Renewals and pre-contracts are allowed outside windows, as in real football.
+- **Club option at expiry.** A contract that runs out without a new deal is extended by one season, so a career world never holds an unattached player. Pre-contracts provide the free-agent route.
+- **Registration after a move.** The player is registered from the following week, so they can never play twice in one week.
+- **Minimal relationships now.** The transfer request must affect relationships (AGENTS.md §8), so manager trust and fan affection per club are introduced as `Relationship` records. Trust also feeds selection. Milestone 6 adds teammates, media and performance effects.
+- **Inbox now.** The inbox screen from AGENTS.md §10 is built here, because offers need a place to arrive. It holds market messages only until later milestones add more.
+- **Structural sharing for actions.** UI market actions copy only the records they change, about 15 ms on a national world, instead of deep-copying the world.
+- **Bundle.** The schema 9 migration lives in the shell bundle, as validators already did. Agent generation therefore uses a compact name list, not the name catalogues. The shell grew from about 191 to about 199 KB gzip.
+- **Accessibility tooling.** `axe-core` is now an explicit dev dependency. The market journey checks the populated pages with it, because Lighthouse only sees empty-state pages in a fresh profile.
+- **Versions.** File schema 9; `MATCH_ENGINE_VERSION` is unchanged (`match-5`), because the match engine itself did not change.

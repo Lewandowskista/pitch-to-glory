@@ -16,6 +16,7 @@ import { commitPlayedFixture, type PlayedFixture } from '../world/simulate';
 import { addXp } from './progression';
 import { injure, injuryFactor, revealHidden } from './training';
 import { fixtureImportance } from './fixtures';
+import { accrueMatchBonuses } from './market/moves';
 export * from './fixtures';
 
 const C = CONFIG.career;
@@ -154,6 +155,8 @@ export function commitCareerMatch(
     auto: Boolean(options.auto),
   };
   career.matches.push(record);
+  accrueMatchBonuses(world, record.goals, record.cleanSheet);
+  if (career.market.selection.season === world.date.season) career.market.selection.selected++;
   if (career.matches.length > C.historyLimit)
     career.matches.splice(0, career.matches.length - C.historyLimit);
   // Knocks and re-injury after a rushed return.

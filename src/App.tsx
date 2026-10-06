@@ -14,6 +14,9 @@ const CareerHub = lazy(() => import('./screens/career/CareerHub'));
 const CareerProfile = lazy(() => import('./screens/career/CareerProfile'));
 const CareerSkills = lazy(() => import('./screens/career/CareerSkills'));
 const CareerTraining = lazy(() => import('./screens/career/CareerTraining'));
+const CareerTransfers = lazy(() => import('./screens/career/CareerTransfers'));
+const CareerAgent = lazy(() => import('./screens/career/CareerAgent'));
+const CareerInbox = lazy(() => import('./screens/career/CareerInbox'));
 export default function App() {
   return (
     <ErrorBoundary>
@@ -38,6 +41,9 @@ export default function App() {
               <Route path="career/profile" element={<CareerProfile />} />
               <Route path="career/skills" element={<CareerSkills />} />
               <Route path="career/training" element={<CareerTraining />} />
+              <Route path="career/transfers" element={<CareerTransfers />} />
+              <Route path="career/agent" element={<CareerAgent />} />
+              <Route path="career/inbox" element={<CareerInbox />} />
               <Route
                 path="*"
                 element={

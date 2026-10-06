@@ -14,6 +14,9 @@ for (const route of [
   'career/CareerProfile',
   'career/CareerSkills',
   'career/CareerTraining',
+  'career/CareerTransfers',
+  'career/CareerAgent',
+  'career/CareerInbox',
 ]) {
   const visited = new Set();
   let bytes = 0;

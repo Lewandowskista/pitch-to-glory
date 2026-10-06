@@ -19,6 +19,7 @@ import {
   validateEntities,
 } from './worldValidation';
 import { validateCareer } from './careerValidation';
+import { validateMarket } from './marketValidation';
 
 // Bounds apply before traversing imported graphs. Rules are frozen by profile version.
 function canonicalData(value: unknown): string {
@@ -319,6 +320,7 @@ export function validateNationalWorld(value: unknown): World {
   requireValue(members.size === Object.keys(clubs).length);
   validateEntities(w, feederIds);
   validateCareer(w);
+  validateMarket(w);
   for (const club of Object.values(clubs)) {
     const identity = object(club.identity);
     requireValue(identity.counterpart === countries[String(club.countryId)]!.counterpart);
@@ -920,6 +922,8 @@ export function validateNationalWorld(value: unknown): World {
       'trophy',
       'release',
       'signing',
+      'loan',
+      'contract',
     ]);
     ids(event.entityIds, 10);
     const params = object(event.params);
@@ -941,16 +945,11 @@ export function validateNationalWorld(value: unknown): World {
     );
     ids(trophy.playerIds, 40).forEach((key) => ref(key, object(w.players)));
   }
-  for (const key of ['matches', 'agents', 'negotiations', 'nationalTeams'])
+  for (const key of ['matches', 'nationalTeams'])
     requireValue(Object.keys(object(w[key])).length === 0);
   for (const key of [
-    'scouting',
-    'offers',
-    'loans',
-    'relationships',
     'rivalries',
     'media',
-    'inbox',
     'sponsorships',
     'challenges',
     'callUps',

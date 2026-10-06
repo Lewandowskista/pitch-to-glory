@@ -232,3 +232,65 @@ Verified on 6 October 2026:
   - older fictional profile names still validating;
   - real reserve counts and the reserve demotion target.
 - **Browser journeys** check real country names, "Real-world model" rule lines, group names (Nord, Nordost, Girone I), the Terza Serie Cup and derived postseason labels.
+
+## Milestone 5 verification
+
+Verified on 6 October 2026:
+
+| Check             | Result                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| Strict TypeScript | Passed                                                                                                |
+| ESLint, Prettier  | Passed                                                                                                |
+| Vitest            | 176 tests across 25 files passed (19 new market tests)                                                |
+| Production build  | Passed; all fourteen routes 198.6–239.8 KB gzip (budget 300 KB)                                       |
+| Playwright        | 69 tests passed, 23 each in Chromium, Firefox and WebKit                                              |
+| axe-core          | No serious or critical WCAG A/AA violations on Transfers, talks, Agent, Inbox and hub, light and dark |
+
+**Unit coverage:**
+
+- windows, value, wages;
+- seeded and registered selection;
+- an unpicked player left out of the background XI and counted;
+- asking price, rejected bids and release clauses;
+- counter-offers met halfway, then the walk-away;
+- a completed transfer: fee, sell-on, registration, structural sharing, valid world;
+- the agent's estimate and stretched limits;
+- transfer requests and withdrawal;
+- loans, from start to the rollover return;
+- refused and opened renewal asks, and renewal with the loyalty bonus;
+- the club option and an agreed pre-contract at rollover;
+- pay day and commission;
+- agent standing and cooldown;
+- deterministic interest, with offers only in windows;
+- save round trip, forgery rejection and the schema 8 migration.
+
+**The market browser journey:** a save built with the engine and imported through the Saves screen.
+
+- The inbox's unread badge, and opening a message.
+- The link to the talks; a counter-offer met halfway, with its reason.
+- Browser back and forward.
+- Accepting, and the moved contract and career moves.
+- The transfer-request dialog closed with Escape.
+- Hiring an agent; autosave, and a refresh restoring both.
+- axe checks in both themes; 390 px overflow checks of every market page and the hub.
+
+The career journey was updated: a level-up can now land in a week with a second fixture.
+
+**Measured (Node):**
+
+| Measurement                                             | Result                                                            |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| Market actions on a national world (structural sharing) | read 0.1 ms; counter and completed transfer about 15 ms           |
+| Career week with an auto-played match                   | about 284 ms, against 239 ms for a plain week on the same machine |
+
+**Defects found and fixed during the milestone:**
+
+- offers made in a window's last week expired before the player saw them;
+- the opening wage could fall below the wage floor;
+- the trial contract was priced from pre-career attributes, so every new career started underpaid;
+- the release-clause input's `step` made the browser block the counter-offer form silently;
+- the unread badge's hidden text escaped the nav scroller and widened the page at phone width;
+- a long inbox subject overflowed the hub card;
+- the career-moves table's scroll region was not keyboard focusable (axe).
+
+**Not done:** Lighthouse still audits empty-state career routes only. Physical-device and Safari release checks remain outstanding, as before.

@@ -292,6 +292,11 @@ export function validateEntities(
     number(stats.ratingTotal, 0, 1e8);
     ids(stats.trophies, 1000);
   }
+  // A loaned player is registered with the loan club while contracted to the parent club;
+  // marketValidation checks the loan itself.
+  const loaned = new Set(
+    (Array.isArray(w.loans) ? w.loans : []).map((loan) => String(object(loan).playerId)),
+  );
   for (const contract of Object.values(contracts)) {
     ref(contract.playerId, players);
     ref(contract.clubId, clubs);
@@ -299,7 +304,8 @@ export function validateEntities(
     date(contract.end);
     requireValue(
       players[String(contract.playerId)]!.contractId === contract.id &&
-        players[String(contract.playerId)]!.clubId === contract.clubId,
+        (players[String(contract.playerId)]!.clubId === contract.clubId ||
+          loaned.has(String(contract.playerId))),
     );
     options(contract.role, ['key', 'rotation', 'backup', 'youth']);
     for (const key of [

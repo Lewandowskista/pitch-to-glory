@@ -14,6 +14,7 @@ import type { Career, Club, Crest, Player, SlotId, World } from '../../model/dom
 import { cancelWorldJob } from '../../workers/client';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
+import { marketText as m } from '../../i18n/market';
 
 /** Shared Tailwind class strings, so every career card reads as one family. */
 export const ui = {
@@ -87,10 +88,14 @@ const sections = [
   { to: '/career/profile', label: c.sectionNames.profile, end: false },
   { to: '/career/skills', label: c.sectionNames.skills, end: false },
   { to: '/career/training', label: c.sectionNames.training, end: false },
+  { to: '/career/transfers', label: m.sectionNames.transfers, end: false },
+  { to: '/career/agent', label: m.sectionNames.agent, end: false },
+  { to: '/career/inbox', label: m.sectionNames.inbox, end: false },
 ];
 export function CareerNav() {
   const [params] = useSearchParams();
   const save = params.get('save');
+  const unread = useAppStore((s) => s.world?.inbox.filter((message) => !message.read).length ?? 0);
   return (
     <nav aria-label={c.sections} className="mb-6 overflow-x-auto">
       <ul className="flex min-w-max gap-2 rounded-control border border-line bg-surface p-1.5 shadow-surface">
@@ -110,7 +115,7 @@ export function CareerNav() {
                 links[(index + step) % links.length]?.focus();
               }}
               className={({ isActive }) =>
-                `flex min-h-11 items-center rounded-[0.6rem] px-4 text-sm font-semibold transition-colors ${
+                `relative flex min-h-11 items-center rounded-[0.6rem] px-4 text-sm font-semibold transition-colors ${
                   isActive
                     ? 'bg-accent text-on-accent'
                     : 'text-muted hover:bg-surface-soft hover:text-ink'
@@ -118,6 +123,17 @@ export function CareerNav() {
               }
             >
               {section.label}
+              {section.to === '/career/inbox' && unread > 0 && (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="ml-2 grid min-w-6 place-items-center rounded-full bg-gold px-1.5 text-xs font-bold text-[#1d3127]"
+                  >
+                    {unread}
+                  </span>
+                  <span className="sr-only"> · {format(m.inbox.unread, { count: unread })}</span>
+                </>
+              )}
             </NavLink>
           </li>
         ))}

@@ -12,6 +12,7 @@ src/
       identities/     Real countries and towns; fictional clubs and competitions with real references
     match/            Deterministic command engine, session types and replay validation
     career/           Career creation, progression, skills, training, injuries, fixtures and commit
+      market/         Contracts, agents, scouting, offers, negotiation, loans and the weekly market
     ageing.ts         Age curves, attribute targets and AI development
     strength.ts       Team strength model shared by background and interactive matches
     config.ts         Tunable constants; no browser dependencies
@@ -349,6 +350,8 @@ export interface Contract {
   cleanSheetBonus: number;
   releaseClause: number | null;
   sellOnPercent: number;
+  /** The club owed `sellOnPercent` of the next fee: the club that sold the player. */
+  sellOnClubId?: Id;
   loyaltyBonus: number;
 }
 export interface PlayerStats {
@@ -509,36 +512,108 @@ export interface Career {
   /** Cumulative fame from match reports; fame systems arrive in milestone 7. */
   fame: number;
   matches: CareerMatchRecord[];
+  /** Contracts, agent, transfers and loans (milestone 5). */
+  market: CareerMarket;
+}
+export interface Payslip {
+  season: number;
+  week: number;
+  wage: number;
+  bonuses: number;
+  commission: number;
+}
+export interface CareerFinances {
+  cash: number;
+  lifetimeEarnings: number;
+  agentFees: number;
+  lastPay: Payslip | null;
+}
+export interface CareerMove {
+  date: GameDate;
+  kind:
+    'transfer' | 'loan' | 'loan-return' | 'renewal' | 'pre-contract' | 'extension' | 'relocation';
+  fromClubId: Id | null;
+  toClubId: Id;
+  fee: number;
+  weeklyWage: number;
+}
+export interface CareerMarket {
+  agentId: Id | null;
+  /** When the agent last changed, for the change cooldown. */
+  agentChanged: GameDate | null;
+  /** When an agent last gave unprompted advice. */
+  lastAdvice: GameDate | null;
+  finances: CareerFinances;
+  /** Bonuses earned since the last pay day. */
+  pendingBonuses: number;
+  transferRequest: GameDate | null;
+  loanRequest: GameDate | null;
+  /** Earliest date the player may ask for a new contract again. */
+  renewalAskAfter: GameDate | null;
+  /** Playing time this season against the squad role promise. */
+  selection: { season: number; selected: number; dropped: number; promiseBroken: boolean };
+  /** First week the player may play for their current club after a move. */
+  registeredFrom: GameDate;
+  moves: CareerMove[];
+  /** Monotonic counter for market record ids (offers, messages, interest, loans). */
+  sequence: number;
 }
 export interface Agent {
   id: Id;
   name: string;
   avatar: Avatar;
-  negotiation: number;
-  network: number;
-  commissionPercent: number;
+  /** Aggressive negotiator, well-connected, or cheap. */
   personality: 'aggressive' | 'connected' | 'economical';
+  /** 1–99: how far clubs stretch in talks, and how well the agent reads their limits. */
+  negotiation: number;
+  /** 1–99: how many clubs hear about the client, and how far abroad. */
+  network: number;
+  /** Share of the client's wages, bonuses and signing-on fees. */
+  commissionPercent: number;
+  /** Minimum career standing the agent requires before taking on a client. */
+  minimumStanding: number;
   clientIds: Id[];
 }
 export interface ScoutingInterest {
   id: Id;
   clubId: Id;
   playerId: Id;
+  kind: 'transfer' | 'loan';
   started: GameDate;
   weeksObserved: number;
+  /** 0–100. */
   confidence: number;
   stage: 'watching' | 'scouting' | 'offer';
+  /** When the club last made an offer; it waits for the next window to try again. */
+  lastOffer: GameDate | null;
+}
+/** Personal terms in a negotiation. Bonuses and the loyalty bonus follow the wage. */
+export interface ContractTerms {
+  weeklyWage: number;
+  /** Seasons after the current one (a renewal or transfer runs to the end of the last). */
+  years: number;
+  role: Contract['role'];
+  releaseClause: number | null;
+  signingBonus: number;
 }
 export interface TransferOffer {
   id: Id;
-  fromClubId: Id;
-  toClubId: Id;
+  kind: 'transfer' | 'loan' | 'renewal' | 'pre-contract';
+  /** The club that wants the player (the current club for a renewal). */
+  clubId: Id;
+  /** The club holding the player's registration when the offer was made. */
+  parentClubId: Id;
   playerId: Id;
-  fee: number;
-  contract: Contract;
-  kind: 'transfer' | 'loan';
+  created: GameDate;
   expires: GameDate;
-  negotiationId: Id;
+  /** Fee agreed between the clubs: 0 for loans, renewals and pre-contracts. */
+  fee: number;
+  /** Bids made in club-to-club talks, in order. */
+  bids: number[];
+  releaseClauseTriggered: boolean;
+  loan: { wageShare: number; purchaseOption: number | null; role: Contract['role'] } | null;
+  status: 'terms' | 'agreed' | 'completed' | 'rejected' | 'declined' | 'collapsed' | 'expired';
+  negotiationId: Id | null;
 }
 export interface Loan {
   id: Id;
@@ -547,23 +622,37 @@ export interface Loan {
   destinationClubId: Id;
   start: GameDate;
   end: GameDate;
+  /** Share of the wage the destination club pays. */
   wageShare: number;
   purchaseOption: number | null;
+  /** Squad role the destination club promised. */
+  role: Contract['role'];
 }
 export interface Negotiation {
   id: Id;
   offerId: Id;
   rounds: NegotiationRound[];
-  status: 'open' | 'accepted' | 'rejected' | 'expired';
-  transferRequested: boolean;
+  status: 'open' | 'accepted' | 'collapsed' | 'declined' | 'expired';
+  /** The club's private limits. An agent's estimate is derived from them. */
+  limits: {
+    maxWage: number;
+    bestRole: Contract['role'];
+    years: [number, number];
+    minimumClause: number | null;
+    maxSigningBonus: number;
+  };
+  /** Counter-offers the club will still answer before walking away. */
+  patience: number;
+  /** The agent's read of the wage ceiling, when the player has an agent. */
+  agentEstimate: number | null;
 }
 export interface NegotiationRound {
-  actor: 'player' | 'club' | 'agent';
+  actor: 'club' | 'player';
   date: GameDate;
-  wage: number;
-  durationSeasons: number;
-  fee: number;
-  role: Contract['role'];
+  terms: ContractTerms;
+  /** The club's answer to a player round, with the reasons for it. */
+  response?: 'accept' | 'counter' | 'walk-away';
+  reasons?: string[];
 }
 export interface Relationship {
   id: Id;
@@ -893,7 +982,9 @@ export interface GameEvent {
     | 'youth-intake'
     | 'manager-change'
     | 'release'
-    | 'signing';
+    | 'signing'
+    | 'loan'
+    | 'contract';
   entityIds: Id[];
   params: Record<string, string | number>;
 }
@@ -1000,7 +1091,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 8;
+  schemaVersion: 9;
   engineVersion: string;
   slot: SlotId;
   name: string;
@@ -1064,7 +1155,7 @@ type WorkerResponse =
 
 ## Persistence and tab ownership
 
-Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; v7 adds the optional career and development version; v8 adds the optional identity version and division references. Earlier files migrate unchanged.
+Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; v7 adds the optional career and development version; v8 adds the optional identity version and division references; v9 gives each career its market record, the agent pool and club relationships. Earlier files migrate unchanged.
 
 Reads assemble and fully validate one slot. A world that fails validation rejects the save; an attached match session that is from another match-engine version, fails replay or no longer matches the world is discarded with a `match-discarded` recovery notice while the world is kept. Writes stay strict. National profiles are compared by rule fingerprint for their profile version, so corrected citations or descriptions never invalidate saves. The slot list reads metadata only and reports `ready`, `empty` or `error` per slot. Writes that leave the world graph unchanged (match checkpoints, preferences) update metadata and the session without transferring, validating or storing the world. Backups are compact JSON. File v1 → v2 adds settings/gallery/engine version/revision; v2 → v3 preserves those values and adds the world payload capability; v3 → v4 preserves each existing world and its rules without regeneration. Import checks the 128 MiB limit, format/version/timestamps/slot/settings and every implemented world entity. World validation checks bounded values, rosters, foreign keys, fixture pair/calendar coverage, tables reconstructed from results, cup progression and archive structure before a transaction. Malformed/future files never replace valid saves. Web Locks are preferred; transactional heartbeat leases provide a fallback. Revision checks prevent stale writes even after ownership loss. Cancelled generation reacquires a retained session's slot after cleanup, or reports a lock/storage error. Switching slots and unload release ownership; crashed fallback leases expire.
 
@@ -1240,3 +1331,33 @@ Generation for a national world:
 4. Feeder clubs (`feeder.ts`) use `TownPicker` with `usedTowns(world, countryId)` when `world.identityVersion === 2`, and the older fictional pool otherwise.
 
 The UI never reads identity data directly; it reads names and references from the saved world and profile. `scripts/check-identity.ts` validates a country's data during authoring.
+
+## Career market (milestone 5)
+
+`engine/career/market/` is pure and runs unchanged in the world worker and on the main thread:
+
+- `rules.ts`: transfer windows, market value, wages by role, the role a club can promise (`deservedRole`), matchday selection (`careerSelection`), standing with agents and recent form.
+- `records.ts`: record ids, the inbox, relationships with managers and fans, and the move history.
+- `agents.ts`: the seeded agent pool and `attachMarket` (also used by the schema 9 migration). It keeps a compact name list so the migration does not pull the name catalogues into the shell bundle.
+- `offers.ts`: club-to-club bids (asking price, release clause), loan, pre-contract, renewal and purchase-option offers, the club's private limits, counter-offers and expiry.
+- `moves.ts`: transfers, loans, loan returns, renewals and the club option, plus pay days and match bonuses.
+- `week.ts`: `marketWeek` (after the week's fixtures and training) and `marketRollover` (at the season change).
+- `actions.ts`: the player's decisions for the UI. `applyMarketAction(world, action)` returns a new world with structural sharing: it copies the small market records and only the clubs, player, contract and dressing rooms a move touches.
+
+How it plugs into the existing paths:
+
+1. `pendingCareerFixture` returns only fixtures the player is picked for. `simulateWeek` leaves an unpicked (or not yet registered) player out of the background XI, and passes those fixtures to `marketWeek`, which counts them.
+2. `commitCareerMatch` accrues appearance, goal and clean-sheet bonuses and counts the start. It stays the single commit path.
+3. `startNextSeason` runs `marketRollover` before `keepCareerInSimulatedLeagues`: loans end, agreed pre-contracts complete, an expired contract is extended by the club option, and open talks lapse.
+4. `updateFinances` splits a loaned player's wage between the two clubs.
+
+Offers made in the weekly step are dated from the week the player first sees them; they lapse after their last week has been simulated, and transfer and loan offers never outlive their window. The UI runs actions through `useMarketAction`, which waits while a job or match session is active, like other career edits.
+
+Validation (`persistence/marketValidation.ts`) checks every market record against the world. Notable rules:
+
+- agent clients match the hired agent;
+- at most one loan, and the registration matches it (`worldValidation` allows a loaned player's contract to belong to the parent club);
+- offers and negotiations link one to one, and every round's terms are valid;
+- inbox kinds come from a fixed list;
+- agent fees never exceed lifetime earnings;
+- a world without a career keeps every market collection empty.

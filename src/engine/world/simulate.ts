@@ -20,6 +20,8 @@ import { recordEvent as event } from './events';
 import { expectedGoals, selectStartingPlayers, teamStrength } from '../strength';
 import { careerWeek, refreshMentor } from '../career/training';
 import { pendingCareerFixture } from '../career/fixtures';
+import { benchedCareerFixtures, marketRollover, marketWeek } from '../career/market/week';
+import { postMessage, recordMove } from '../career/market/records';
 import {
   archiveAndPrune,
   fillSquads,
@@ -45,8 +47,10 @@ function poisson(rng: Rng, mean: number): number {
   return Math.min(CONFIG.world.maxGoals, count - 1);
 }
 /** The background XI: available squad members, best by ability within each line. */
-function startingPlayers(world: World, club: Club): Player[] {
-  return selectStartingPlayers(club.playerIds.map((id) => world.players[id]!));
+function startingPlayers(world: World, club: Club, benched?: string): Player[] {
+  return selectStartingPlayers(
+    club.playerIds.filter((id) => id !== benched).map((id) => world.players[id]!),
+  );
 }
 function scoreGoals(
   players: Player[],
@@ -112,14 +116,23 @@ export function commitPlayedFixture(world: World, fixtureId: string, played: Pla
         ? rankStandings(world, league.standings, league.fixtureIds)
         : sortStandings(league.standings);
 }
-function resolveFixture(world: World, fixture: Fixture, played?: PlayedFixture): void {
+function resolveFixture(
+  world: World,
+  fixture: Fixture,
+  played?: PlayedFixture,
+  benched?: string,
+): void {
   const rng = createRng(`${world.seed}:result:${fixture.id}`);
   const home = world.clubs[fixture.homeId]!;
   const away = world.clubs[fixture.awayId]!;
   const appeared = (side: Record<string, number>) =>
     Object.keys(side).map((id) => world.players[id]!);
-  const homePlayers = played ? appeared(played.minutes.home) : startingPlayers(world, home);
-  const awayPlayers = played ? appeared(played.minutes.away) : startingPlayers(world, away);
+  const homePlayers = played
+    ? appeared(played.minutes.home)
+    : startingPlayers(world, home, benched);
+  const awayPlayers = played
+    ? appeared(played.minutes.away)
+    : startingPlayers(world, away, benched);
   // Shared with the interactive match engine so played and simulated fixtures agree.
   const homeStrength = teamStrength(home.reputation, homePlayers);
   const awayStrength = teamStrength(away.reputation, awayPlayers);
@@ -312,12 +325,25 @@ function recalibrateDevelopment(world: World): void {
   world.developmentVersion = 2;
 }
 function updateFinances(world: World): void {
+  // A loaned player's wage is split: the loan club pays its share, the parent the rest.
+  const loanShare = new Map(world.loans.map((loan) => [loan.playerId, loan.wageShare]));
+  const parentShare = new Map<string, number>();
+  for (const loan of world.loans) {
+    const wage = world.contracts[world.players[loan.playerId]!.contractId!]!.weeklyWage;
+    parentShare.set(
+      loan.parentClubId,
+      (parentShare.get(loan.parentClubId) ?? 0) + wage * (1 - loan.wageShare),
+    );
+  }
   for (const club of Object.values(world.clubs)) {
     if (!isActiveClub(world, club)) continue;
-    const wages = club.playerIds.reduce(
-      (sum, id) => sum + world.contracts[world.players[id]!.contractId!]!.weeklyWage,
-      0,
-    );
+    const wages =
+      club.playerIds.reduce(
+        (sum, id) =>
+          sum +
+          world.contracts[world.players[id]!.contractId!]!.weeklyWage * (loanShare.get(id) ?? 1),
+        0,
+      ) + (parentShare.get(club.id) ?? 0);
     club.finances.balance = money(
       club.finances.balance + club.finances.weeklyIncome - club.finances.weeklyCosts - wages,
     );
@@ -554,6 +580,14 @@ function keepCareerInSimulatedLeagues(world: World): void {
     new: destination.name,
     fee: 0,
   });
+  recordMove(world, {
+    kind: 'relocation',
+    fromClubId: current.id,
+    toClubId: destination.id,
+    fee: 0,
+    weeklyWage: contract.weeklyWage,
+  });
+  postMessage(world, 'relocated', { old: current.name, club: destination.name });
 }
 export function simulateWeek(input: World, options: SimulationOptions = {}): World {
   if (input.phase === 'complete') return input;
@@ -570,7 +604,16 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
         !world.results[fixture.id],
     )
     .sort((a, b) => a.date.day - b.date.day || (a.id < b.id ? -1 : 1));
-  for (const fixture of fixtures) resolveFixture(world, fixture);
+  // Fixtures the career player is fit for but was not picked for (or not yet registered).
+  const benched = benchedCareerFixtures(world);
+  const benchedIds = new Set(benched.map((fixture) => fixture.id));
+  for (const fixture of fixtures)
+    resolveFixture(
+      world,
+      fixture,
+      undefined,
+      benchedIds.has(fixture.id) ? world.career!.playerId : undefined,
+    );
   for (const league of Object.values(world.leagues))
     league.standings =
       world.format === 'national-v1'
@@ -579,7 +622,10 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   advanceCups(world);
   if (world.format === 'national-v1') advanceNationalPyramid(world);
   developPlayers(world, rng);
-  if (world.career) careerWeek(world);
+  if (world.career) {
+    careerWeek(world);
+    marketWeek(world, benched);
+  }
   if ((CONFIG.world.transferWeeks as readonly number[]).includes(world.date.week)) {
     exchangeTransfers(world, rng);
     fillSquads(world, rng);
@@ -606,6 +652,7 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
     if (movement.fromLeagueId.startsWith('feeder:') && world.leagues[movement.toLeagueId])
       refreshReturningClub(world, world.clubs[movement.clubId]!);
   if (world.career) {
+    marketRollover(world);
     keepCareerInSimulatedLeagues(world);
     refreshMentor(world);
   }

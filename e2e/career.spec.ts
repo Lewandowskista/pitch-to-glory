@@ -183,7 +183,9 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await expect(page.getByRole('link', { name: /attribute points?/ })).toContainText(
     String(before - 1),
   );
-  await page.getByRole('button', { name: 'Continue to next matchday', exact: true }).click();
+  // The player may already have a second fixture this week.
+  if (!(await play.isVisible()))
+    await page.getByRole('button', { name: 'Continue to next matchday', exact: true }).click();
   await expect(play).toBeVisible({ timeout: 120000 });
 
   // The career autosaved to slot 1 throughout; the save card shows it, and a refresh of the

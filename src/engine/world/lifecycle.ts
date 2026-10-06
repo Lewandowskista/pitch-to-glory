@@ -5,6 +5,7 @@ import { getSeasonWeeks } from './calendar';
 import { recordEvent } from './events';
 import { generatePlayer } from './generate';
 import { playerAbility } from '../strength';
+import { isActiveClub, refreshDressingRoom } from './dressing';
 
 /**
  * Squad lifecycle for AI clubs: retirement, contract renewal or release, academy intake,
@@ -48,8 +49,7 @@ const groupTemplate = (group: Group) =>
     0,
   );
 
-export const isActiveClub = (world: World, club: Club): boolean =>
-  Boolean(world.leagues[club.leagueId]);
+export { isActiveClub, refreshDressingRoom } from './dressing';
 const ageOf = (world: World, player: Player) => world.date.season - player.birthSeason;
 const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
@@ -204,19 +204,6 @@ function addGenerated(
   club.playerIds.push(id);
   return player;
 }
-export function refreshDressingRoom(world: World, club: Club): void {
-  const dressing = world.dressingRooms[club.dressingRoomId]!;
-  dressing.leaderIds = club.playerIds
-    .map((id) => world.players[id]!)
-    .sort((a, b) => b.attributes.leadership - a.attributes.leadership || byId(a, b))
-    .slice(0, 2)
-    .map((player) => player.id);
-  dressing.cliques = dressing.cliques.map((clique) => ({
-    ...clique,
-    playerIds: clique.playerIds.filter((id) => club.playerIds.includes(id)),
-  }));
-}
-
 /** Annual review at the intake week: retirements, contracts, academy, trimming, signings. */
 export function seasonalSquadReview(world: World, rng: Rng): void {
   const season = world.date.season;

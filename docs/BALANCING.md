@@ -203,3 +203,120 @@ All constants are in `CONFIG.career`; the logic is in `src/engine/career/`.
 **Ageing for the career player.** Past a category's peak (pace 26, physical 28, technical 30, mental 34, keeper 33), attributes above the age-adjusted cap decline toward it using the AI decline rate. The player never grows automatically.
 
 **Hidden attributes.** These are revealed at 5, 15, 30, 50 and 80 appearances, in this order: professionalism, consistency, injury proneness, big-match temperament, ambition.
+
+## Career market (milestone 5)
+
+Every constant lives in `CONFIG.career.market` (`src/engine/config.ts`).
+
+**Windows.** Summer covers weeks `floor(0 × W) + 1` to `ceil(0.13 × W)`; winter covers `floor(0.47 × W) + 1` to `ceil(0.55 × W)`, where W is the season's weeks. That gives 1–8 and 29–33 nationally, and 1–5 and 16–19 in compact worlds.
+
+**Market value.** `150,000 × e^(0.07 × (ability − 80)) × age factor × contract factor`, rounded to 100 Cr.
+
+- Age factor:
+  - up to 21: `min(2.5, 1 + 0.03 × (potential − ability))`;
+  - under 28: `1 + 0.015 × gap`;
+  - 28–30: 0.85;
+  - after 30: −0.12 a year, floored at 0.2.
+- Contract factor by full seasons left after this one: 0 → 0.55, 1 → 0.8, 2+ → 1.
+- This curve tracks club budgets, which scale with reputation²: a sixth-tier player around ability 25 is worth a few thousand credits, and a top-flight player around ability 84 about 200,000.
+
+**Wages.** The generation formula `ability² × (0.12 + reputation / 1000)`, with a floor of 50, times a role factor: key 1.15, rotation 1, backup 0.85, youth 0.8. Bonuses follow the wage:
+
+- appearance: 10% of the weekly wage;
+- goal: 15%;
+- clean sheet: 12%;
+- loyalty: 4× the weekly wage.
+
+**Role a club can promise.** The player's rank among available teammates in the same line, against the line's slots (GK 1, DEF 4, MID 3, ATT 3):
+
+- inside the slots minus one: key;
+- up to one beyond the slots: rotation;
+- otherwise youth (age 20 or under) or backup.
+
+For goalkeepers, first choice is key.
+
+**Selection.** The chance of starting is:
+
+```
+role base (key 0.97, rotation 0.85, backup 0.45, youth 0.6)
++ 0.08 if inside the line's slots, else −0.05 per place outside (at most 4 places)
++ 0.003 × (form − 60)
++ 0.002 × (manager trust − 50)
+− 0.15 if fatigue is above 70
+```
+
+It is clamped to 0.05–1; a key promise is at least 0.9. The draw is seeded by fixture. The promise is broken when, after at least 10 matchdays, starts fall below 70% (key) or 40% (rotation).
+
+- In an auto-played compact season, a trial striker ranked fifth of seven attackers had a chance of about 0.62. That was before the rotation base rose from 0.8 to 0.85 and the per-place penalty fell from 0.06 to 0.05.
+
+**Scouting.**
+
+- Visibility by tier: 1.0, 0.85, 0.7, 0.55, 0.45, 0.4.
+- Performance factor: `clamp(0.3 + 0.9 × (recent average rating − 6), 0.1, 2)`, from the last six matches within twelve weeks. With no recent match, confidence falls by 4 a week.
+- A transfer candidate:
+  - is active and not a reserve team;
+  - has reputation at least the parent's minus 5;
+  - has a first-team level at most the player's projected ability plus 6;
+  - has a level at least the parent's minus 2.
+- Projected ability adds `min(10, 0.3 × (potential − ability))` up to age 21.
+- A new interest starts with chance `0.04 × performance × visibility × (1 + network/200)`, multiplied by `0.35 × (1 + network/150)` for clubs abroad. At most 10 transfer and 4 loan interests are tracked.
+- Weekly confidence growth: `performance × 10 × (1 + network/200) − 3 ± 2`.
+  - Clubs move to scouting at 35. They are ready to bid at 70 after 4 weeks, or at 50 after 2 weeks for loans.
+  - A club that no longer fits loses 10 a week.
+- Ready clubs bid with chance 0.4 a week, with at most 2 open offers. Loan offers come with chance 0.5 after a loan request, 0.15 otherwise.
+
+**Club talks.**
+
+- Asking price: `value × role factor`: key 1.5, rotation 1.2, backup 0.9, youth 1.1. It is ×0.85 after a transfer request.
+- The opening bid is 0.8 × value; the buyer's ceiling is `min(transfer budget, value × (1 + 0.005 × confidence))`.
+- A release clause at or below the asking price that the buyer can afford is paid outright.
+
+**Personal terms.**
+
+- The opening wage is 0.95 × the market wage for the role the club can promise. A renewal offers at least the current wage +5%.
+- Length by age: 4 seasons up to 21, 3 up to 26, 2 up to 30, then 1.
+- The signing-on fee is 4 weeks' wage (2 for renewals).
+- The release clause is 2.5 × value; clubs with reputation 75 or more refuse clauses.
+- The club's limits:
+  - maximum wage: `opening × (1 + 0.12 + 0.0025 × agent negotiation + 0.0025 × (confidence − 70))`;
+  - best role: one step up only with confidence 85 or more;
+  - length: ±1 season;
+  - minimum clause: 1.5 × value;
+  - maximum signing-on fee: `opening × (6 + 0.05 × agent negotiation)`.
+- Patience is 2 counter-offers, 3 with an agent of negotiation 60 or more. A wage demand above 1.3 × the ceiling ends the talks.
+- The agent's estimate of the ceiling is off by at most `(100 − negotiation) / 250`.
+
+**Agents.** There are eight. Pool position i of 8 sets:
+
+- base skill `35 + 45 × i/7` (±4);
+- minimum standing `55 × i/7`.
+
+Kind adjustments:
+
+- aggressive: +15 negotiation, 10–12% commission;
+- connected: +15 network, 7–9% commission;
+- cheap: −8 to both, 3–5% commission.
+
+Standing is `0.55 × ability + 0.45 × club reputation + min(15, fame / 25)`.
+
+- Agent pitch chance per week: `0.0025 × network`, doubled for connected agents.
+- Advice comes at most every 8 weeks. Underpaid means the market wage is 1.3× the current wage or more.
+
+**Renewals.**
+
+- In a final season, from 25% of the season, the club offers with chance 0.25 a week.
+- An outgrown contract (market wage 1.4× or more) brings improved terms with chance 0.1 a week.
+- Neither happens within 16 weeks of an earlier renewal offer.
+- Asking for a new contract works when underpaid by 15% or more, in a final season, or with a stronger role earned. Manager trust must be at least 35, and the player must wait 8 weeks between requests.
+
+**Loans.**
+
+- The loan club pays 50–100% of the wage, in steps of 5%.
+- There is an option to buy at 1.1 × value with chance 0.35. It is taken up after five or more loan matches averaging 6.8 or more.
+- Players asking for a loan, or rarely picked youth and backup players (3 or more drops, under 40% starts), attract loan clubs.
+
+**Measured behaviour** (Node, auto-play, accepting every offer):
+
+- Compact world: a 17-year-old trial striker drew interest within weeks and moved up three times in three seasons, for fees of 15,700–17,200 Cr.
+- National world: two moves in two seasons, for fees of about 5,000 Cr in non-league.
+- Choosing a bigger club where the role is backup or youth reduces starts sharply. That is the trade-off the role promise makes visible.

@@ -22,6 +22,9 @@ import {
 import { competitionName, leaguePosition, recentForm, seasonLine } from './selectors';
 import { continueToMatchday, simulateCareerSeason, startNextCareerSeason } from './actions';
 import { useUrlDialog } from './useUrlDialog';
+import { careerContract, windowState } from '../../engine/career/market';
+import { marketText as m } from '../../i18n/market';
+import { messageText, money, roleName, weekly, WindowBanner } from './marketUi';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
@@ -71,6 +74,8 @@ function HubContent({
       <ClubStanding world={world} club={club} />
       <Condition career={career} player={player} />
       <TrainingSummary career={career} />
+      <MarketSummary world={world} />
+      <InboxPreview world={world} />
     </div>
   );
 }
@@ -603,6 +608,90 @@ function TrainingSummary({ career }: { career: Career }) {
         </div>
       ) : (
         <p className={`${ui.muted} mt-4`}>{c.hub.trainingEmpty}</p>
+      )}
+    </section>
+  );
+}
+
+function MarketSummary({ world }: { world: World }) {
+  const contract = careerContract(world);
+  const waiting = world.offers.filter((offer) => offer.status === 'terms').length;
+  const following = world.scouting.length;
+  const open = windowState(world).open && world.phase !== 'complete';
+  return (
+    <section aria-labelledby="market-summary-heading" className={`${ui.panel} lg:col-span-6`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h2 id="market-summary-heading" className={ui.heading}>
+          {m.hub.market}
+        </h2>
+        <Link className="button secondary" to="/career/transfers">
+          {m.hub.seeMarket}
+        </Link>
+      </div>
+      <div className="mt-4 grid gap-3">
+        <WindowBanner world={world} />
+        <p className={`text-sm font-semibold ${waiting && open ? 'text-accent' : ''}`}>
+          {format(m.hub.marketBody, { interest: following, offers: waiting })}
+        </p>
+        <dl className="grid grid-cols-2 gap-3">
+          <div className="rounded-control bg-surface-soft p-3">
+            <dt className="text-xs font-semibold text-muted">{m.contract.wage}</dt>
+            <dd className="font-display text-2xl leading-tight">{weekly(contract.weeklyWage)}</dd>
+          </div>
+          <div className="rounded-control bg-surface-soft p-3">
+            <dt className="text-xs font-semibold text-muted">{m.contract.role}</dt>
+            <dd className="font-display text-2xl leading-tight">{roleName(contract.role)}</dd>
+          </div>
+          <div className="col-span-2 rounded-control bg-surface-soft p-3">
+            <dt className="text-xs font-semibold text-muted">{m.earnings.cash}</dt>
+            <dd className="font-display text-2xl leading-tight">
+              {money(world.career!.market.finances.cash)}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+  );
+}
+
+function InboxPreview({ world }: { world: World }) {
+  const latest = [...world.inbox].reverse().slice(0, 4);
+  return (
+    <section aria-labelledby="inbox-preview-heading" className={`${ui.panel} lg:col-span-6`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h2 id="inbox-preview-heading" className={ui.heading}>
+          {m.hub.inbox}
+        </h2>
+        <Link className="button secondary" to="/career/inbox">
+          {m.hub.seeAll}
+        </Link>
+      </div>
+      {latest.length ? (
+        <ul className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-2">
+          {latest.map((message) => (
+            <li key={message.id}>
+              <Link
+                to={`/career/inbox?message=${encodeURIComponent(message.id)}`}
+                className="flex min-h-11 items-center gap-3 rounded-control px-3 py-2 transition hover:bg-surface-soft"
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${message.read ? 'bg-line' : 'bg-accent'}`}
+                />
+                <span
+                  className={`min-w-0 flex-1 truncate text-sm ${message.read ? '' : 'font-bold'}`}
+                >
+                  {messageText(message).subject}
+                </span>
+                <span className="shrink-0 text-xs text-muted">
+                  {format(c.common.week, { week: message.date.week })}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className={`${ui.muted} mt-4`}>{m.inbox.empty}</p>
       )}
     </section>
   );

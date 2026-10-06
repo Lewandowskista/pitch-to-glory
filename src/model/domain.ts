@@ -305,6 +305,8 @@ export interface Contract {
   cleanSheetBonus: number;
   releaseClause: number | null;
   sellOnPercent: number;
+  /** The club owed `sellOnPercent` of the next fee: the club that sold the player. */
+  sellOnClubId?: Id;
   loyaltyBonus: number;
 }
 export interface PlayerStats {
@@ -465,36 +467,108 @@ export interface Career {
   /** Cumulative fame from match reports; fame systems arrive in milestone 7. */
   fame: number;
   matches: CareerMatchRecord[];
+  /** Contracts, agent, transfers and loans (milestone 5). */
+  market: CareerMarket;
+}
+export interface Payslip {
+  season: number;
+  week: number;
+  wage: number;
+  bonuses: number;
+  commission: number;
+}
+export interface CareerFinances {
+  cash: number;
+  lifetimeEarnings: number;
+  agentFees: number;
+  lastPay: Payslip | null;
+}
+export interface CareerMove {
+  date: GameDate;
+  kind:
+    'transfer' | 'loan' | 'loan-return' | 'renewal' | 'pre-contract' | 'extension' | 'relocation';
+  fromClubId: Id | null;
+  toClubId: Id;
+  fee: number;
+  weeklyWage: number;
+}
+export interface CareerMarket {
+  agentId: Id | null;
+  /** When the agent last changed, for the change cooldown. */
+  agentChanged: GameDate | null;
+  /** When an agent last gave unprompted advice. */
+  lastAdvice: GameDate | null;
+  finances: CareerFinances;
+  /** Bonuses earned since the last pay day. */
+  pendingBonuses: number;
+  transferRequest: GameDate | null;
+  loanRequest: GameDate | null;
+  /** Earliest date the player may ask for a new contract again. */
+  renewalAskAfter: GameDate | null;
+  /** Playing time this season against the squad role promise. */
+  selection: { season: number; selected: number; dropped: number; promiseBroken: boolean };
+  /** First week the player may play for their current club after a move. */
+  registeredFrom: GameDate;
+  moves: CareerMove[];
+  /** Monotonic counter for market record ids (offers, messages, interest, loans). */
+  sequence: number;
 }
 export interface Agent {
   id: Id;
   name: string;
   avatar: Avatar;
-  negotiation: number;
-  network: number;
-  commissionPercent: number;
+  /** Aggressive negotiator, well-connected, or cheap. */
   personality: 'aggressive' | 'connected' | 'economical';
+  /** 1–99: how far clubs stretch in talks, and how well the agent reads their limits. */
+  negotiation: number;
+  /** 1–99: how many clubs hear about the client, and how far abroad. */
+  network: number;
+  /** Share of the client's wages, bonuses and signing-on fees. */
+  commissionPercent: number;
+  /** Minimum career standing the agent requires before taking on a client. */
+  minimumStanding: number;
   clientIds: Id[];
 }
 export interface ScoutingInterest {
   id: Id;
   clubId: Id;
   playerId: Id;
+  kind: 'transfer' | 'loan';
   started: GameDate;
   weeksObserved: number;
+  /** 0–100. */
   confidence: number;
   stage: 'watching' | 'scouting' | 'offer';
+  /** When the club last made an offer; it waits for the next window to try again. */
+  lastOffer: GameDate | null;
+}
+/** Personal terms in a negotiation. Bonuses and the loyalty bonus follow the wage. */
+export interface ContractTerms {
+  weeklyWage: number;
+  /** Seasons after the current one (a renewal or transfer runs to the end of the last). */
+  years: number;
+  role: Contract['role'];
+  releaseClause: number | null;
+  signingBonus: number;
 }
 export interface TransferOffer {
   id: Id;
-  fromClubId: Id;
-  toClubId: Id;
+  kind: 'transfer' | 'loan' | 'renewal' | 'pre-contract';
+  /** The club that wants the player (the current club for a renewal). */
+  clubId: Id;
+  /** The club holding the player's registration when the offer was made. */
+  parentClubId: Id;
   playerId: Id;
-  fee: number;
-  contract: Contract;
-  kind: 'transfer' | 'loan';
+  created: GameDate;
   expires: GameDate;
-  negotiationId: Id;
+  /** Fee agreed between the clubs: 0 for loans, renewals and pre-contracts. */
+  fee: number;
+  /** Bids made in club-to-club talks, in order. */
+  bids: number[];
+  releaseClauseTriggered: boolean;
+  loan: { wageShare: number; purchaseOption: number | null; role: Contract['role'] } | null;
+  status: 'terms' | 'agreed' | 'completed' | 'rejected' | 'declined' | 'collapsed' | 'expired';
+  negotiationId: Id | null;
 }
 export interface Loan {
   id: Id;
@@ -503,23 +577,37 @@ export interface Loan {
   destinationClubId: Id;
   start: GameDate;
   end: GameDate;
+  /** Share of the wage the destination club pays. */
   wageShare: number;
   purchaseOption: number | null;
+  /** Squad role the destination club promised. */
+  role: Contract['role'];
 }
 export interface Negotiation {
   id: Id;
   offerId: Id;
   rounds: NegotiationRound[];
-  status: 'open' | 'accepted' | 'rejected' | 'expired';
-  transferRequested: boolean;
+  status: 'open' | 'accepted' | 'collapsed' | 'declined' | 'expired';
+  /** The club's private limits. An agent's estimate is derived from them. */
+  limits: {
+    maxWage: number;
+    bestRole: Contract['role'];
+    years: [number, number];
+    minimumClause: number | null;
+    maxSigningBonus: number;
+  };
+  /** Counter-offers the club will still answer before walking away. */
+  patience: number;
+  /** The agent's read of the wage ceiling, when the player has an agent. */
+  agentEstimate: number | null;
 }
 export interface NegotiationRound {
-  actor: 'player' | 'club' | 'agent';
+  actor: 'club' | 'player';
   date: GameDate;
-  wage: number;
-  durationSeasons: number;
-  fee: number;
-  role: Contract['role'];
+  terms: ContractTerms;
+  /** The club's answer to a player round, with the reasons for it. */
+  response?: 'accept' | 'counter' | 'walk-away';
+  reasons?: string[];
 }
 export interface Relationship {
   id: Id;
@@ -849,7 +937,9 @@ export interface GameEvent {
     | 'youth-intake'
     | 'manager-change'
     | 'release'
-    | 'signing';
+    | 'signing'
+    | 'loan'
+    | 'contract';
   entityIds: Id[];
   params: Record<string, string | number>;
 }
@@ -959,7 +1049,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 8;
+  schemaVersion: 9;
   engineVersion: string;
   slot: SlotId;
   name: string;
