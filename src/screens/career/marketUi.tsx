@@ -13,9 +13,11 @@ import { format } from '../../i18n';
 import { marketText as m } from '../../i18n/market';
 import { socialText } from '../../i18n/social';
 import { lifestyleText } from '../../i18n/lifestyle';
+import { honoursText } from '../../i18n/honours';
 
 const socialMessages = socialText.messages;
 const lifestyleMessages = lifestyleText.messages;
+const honoursMessages = honoursText.messages;
 import { ui, useEditBlock } from './shared';
 
 const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
@@ -50,11 +52,19 @@ export function useMarketAction() {
 export function messageText(message: InboxMessage): { subject: string; body: string } {
   const template = m.messages[message.subjectKey] ??
     socialMessages[message.subjectKey] ??
-    lifestyleMessages[message.subjectKey] ?? { subject: message.subjectKey, body: '' };
+    lifestyleMessages[message.subjectKey] ??
+    honoursMessages[message.subjectKey] ?? { subject: message.subjectKey, body: '' };
   const params: Record<string, string | number> = { ...message.params };
   for (const key of ['fee', 'bid', 'bonus', 'proceeds'] as const)
     if (typeof params[key] === 'number') params[key] = money(params[key]);
   if (typeof params.wage === 'number') params.wage = weekly(params.wage);
+  if (typeof params.kind === 'string' && params.kind in honoursText.awards.kinds)
+    params.kind = honoursText.awards.kinds[params.kind as keyof typeof honoursText.awards.kinds];
+  if (typeof params.level === 'string' && params.level in honoursText.levels)
+    params.level = honoursText.levels[params.level as keyof typeof honoursText.levels];
+  if (typeof params.stage === 'string' && params.stage in honoursText.national.stages)
+    params.stage =
+      honoursText.national.stages[params.stage as keyof typeof honoursText.national.stages];
   if (typeof params.role === 'string' && params.role in m.roles)
     params.role = roleName(params.role as Contract['role']);
   return { subject: format(template.subject, params), body: format(template.body, params) };

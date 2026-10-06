@@ -1,7 +1,9 @@
 import { CONFIG } from '../engine/config';
 export interface PlatformAdapter {
-  saveFile(name: string, content: string, mime: string): Promise<void>;
-  shareFile(name: string, content: string, mime: string): Promise<void>;
+  saveFile(name: string, content: string | Blob, mime: string): Promise<void>;
+  shareFile(name: string, content: string | Blob, mime: string): Promise<void>;
+  /** Share a link through the system share sheet, or copy it; reports which happened. */
+  shareLink(url: string, title: string): Promise<'shared' | 'copied' | 'failed'>;
   readFile(file: File): Promise<string>;
   requestPersistentStorage(): Promise<boolean>;
   isStoragePersistent(): Promise<boolean>;
@@ -13,7 +15,9 @@ export interface PlatformAdapter {
   writePreferences(value: unknown): boolean;
 }
 const saveFile: PlatformAdapter['saveFile'] = async (name, content, mime) => {
-  const url = URL.createObjectURL(new Blob([content], { type: mime }));
+  const url = URL.createObjectURL(
+    content instanceof Blob ? content : new Blob([content], { type: mime }),
+  );
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = name;
@@ -34,6 +38,22 @@ export const platform: PlatformAdapter = {
           await saveFile(name, content, mime);
       }
     } else await saveFile(name, content, mime);
+  },
+  async shareLink(url, title) {
+    if (navigator.share) {
+      try {
+        await navigator.share({ url, title });
+        return 'shared';
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return 'failed';
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      return 'copied';
+    } catch {
+      return 'failed';
+    }
   },
   async readFile(file) {
     if (file.size > CONFIG.saves.maxFileBytes) throw new Error('large');

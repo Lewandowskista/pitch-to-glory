@@ -16,6 +16,7 @@ import { saves } from '../../persistence/runtime';
 import type { Avatar, Club, Foot, Position, SlotId, World } from '../../model/domain';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
+import { honoursText as h } from '../../i18n/honours';
 import { CrestImage, JobProgress, ui } from './shared';
 import { POSITIONS } from './selectors';
 
@@ -39,6 +40,8 @@ interface WizardDraft {
   clubId: string | null;
   /** Slot to save the new career in; 0 keeps it in memory, null picks the first empty slot. */
   saveSlot: SlotId | 0 | null;
+  /** The retired career this player is the child of, if any (milestone 8). */
+  parentLegacyId: string | null;
 }
 const defaultDraft = (): WizardDraft => ({
   name: '',
@@ -52,6 +55,7 @@ const defaultDraft = (): WizardDraft => ({
   seed: 'pitch-to-glory',
   clubId: null,
   saveSlot: null,
+  parentLegacyId: null,
 });
 function readDraft(): WizardDraft {
   try {
@@ -94,8 +98,29 @@ export default function CareerNew() {
       return next;
     });
   const usable = world && !world.career ? world : null;
+  const parent = usable?.legacies.find(
+    (legacy) => legacy.id === draft.parentLegacyId && !legacy.childPlayerId,
+  );
+  // `?parent=` arrives from a Legacy page: inherit the surname, nationality and colouring.
+  const requestedParent = params.get('parent');
+  useEffect(() => {
+    if (!usable || !requestedParent || requestedParent === draft.parentLegacyId) return;
+    const legacy = usable.legacies.find((entry) => entry.id === requestedParent);
+    if (!legacy || legacy.childPlayerId) return;
+    const surname = legacy.name.split(' ').slice(1).join(' ') || legacy.name;
+    update({
+      parentLegacyId: legacy.id,
+      nationalityId: legacy.nationalityId,
+      clubId: null,
+      name: draft.name.trim().endsWith(surname) ? draft.name : surname,
+      avatar: { ...draft.avatar, skin: legacy.avatar.skin, hairColor: legacy.avatar.hairColor },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- applied once per requested parent
+  }, [usable, requestedParent]);
   const countries = usable
-    ? Object.values(usable.countries).map((country) => ({ id: country.id, name: country.name }))
+    ? Object.values(usable.countries)
+        .filter((country) => !parent || country.id === parent.nationalityId)
+        .map((country) => ({ id: country.id, name: country.name }))
     : REAL_COUNTRY_NAMES.map((name, index) => ({ id: `country:${index}`, name }));
   const offers = useMemo(
     () => (usable ? trialOffers(usable, draft.nationalityId, careerSeed(usable)) : []),
@@ -170,6 +195,7 @@ export default function CareerNew() {
       foot: draft.foot,
       age: draft.age,
       archetype: draft.archetype,
+      ...(parent ? { parentLegacyId: parent.id } : {}),
     };
     try {
       validateDraft(usable, careerDraft);
@@ -244,7 +270,12 @@ export default function CareerNew() {
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <form onSubmit={submit} className={`${ui.panel} flex flex-col gap-6`} noValidate>
           {step === 'identity' && (
-            <IdentityStep draft={draft} update={update} countries={countries} />
+            <IdentityStep
+              draft={draft}
+              update={update}
+              countries={countries}
+              parentName={parent?.name}
+            />
           )}
           {step === 'appearance' && <AppearanceStep draft={draft} update={update} />}
           {step === 'position' && <PositionStep draft={draft} update={update} />}
@@ -354,10 +385,26 @@ function IdentityStep({
   draft,
   update,
   countries,
-}: StepProps & { countries: { id: string; name: string }[] }) {
+  parentName,
+}: StepProps & { countries: { id: string; name: string }[]; parentName: string | undefined }) {
   return (
     <>
       <StepHeading title={c.wizard.identityTitle} body={c.wizard.identityBody} />
+      {parentName && (
+        <div className="flex flex-wrap items-center gap-3 rounded-control border border-accent bg-accent-soft p-4">
+          <div className="min-w-0 flex-1 basis-60">
+            <strong className="block">{format(h.child.banner, { name: parentName })}</strong>
+            <p className="text-sm text-muted">{h.child.body}</p>
+          </div>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => update({ parentLegacyId: null })}
+          >
+            {h.child.clear}
+          </button>
+        </div>
+      )}
       <div className="max-w-md">
         <label htmlFor="career-name" className="mb-1.5 block">
           {c.wizard.name}

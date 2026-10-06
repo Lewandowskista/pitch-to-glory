@@ -13,3 +13,11 @@ All of these are original, authored in code; no external images are used.
 - **Dressed shirt** (sleeve length, captain's armband) and the **socks and boots**: flat SVG shapes from `src/engine/assets/gear.ts`, in each club's kit colours.
 - **Celebration previews**: a pitch token in SVG.
 - **Motions**: CSS keyframes (`src/styles/celebrations.css`) and the Pixi scene (`src/screens/match/pitchScene.ts`).
+
+## Honours artwork (milestone 8)
+
+All of these are original, authored in code; no external images are used.
+
+- **Moment replay pitch**: flat SVG pitch and kit-coloured tokens in `src/screens/career/MomentPitch.tsx`.
+- **Chronicle poster**: an SVG composed in `src/screens/career/ChronicleView.tsx` from the player's procedural portrait, then drawn to a canvas in the browser and exported as PNG. The PNG is generated on the player's device and never shipped with the app.
+- **Trophy and award marks**: text glyphs (★ ✦ ◆) in the shared display styles.

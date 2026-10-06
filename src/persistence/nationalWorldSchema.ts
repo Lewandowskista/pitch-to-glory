@@ -19,9 +19,11 @@ import {
   validateEntities,
 } from './worldValidation';
 import { validateCareer } from './careerValidation';
+import { CONTINENTAL_IDS } from '../engine/world/continental';
 import { validateMarket } from './marketValidation';
 import { validateSocial } from './socialValidation';
 import { validateLifestyle } from './lifestyleValidation';
+import { validateHonours } from './honoursValidation';
 
 // Bounds apply before traversing imported graphs. Rules are frozen by profile version.
 function canonicalData(value: unknown): string {
@@ -207,8 +209,13 @@ export function validateNationalWorld(value: unknown): World {
     claimedCups.add(String(country.domesticCupId));
     requireValue(array(country.nationalTeamIds).length === 0);
   }
+  const continentalKinds = ['champions', 'continental'];
   for (const competition of Object.values(competitions)) {
     if (claimedCups.has(String(competition.id))) continue;
+    if (continentalKinds.includes(String(competition.kind))) {
+      claimedCups.add(String(competition.id));
+      continue;
+    }
     ref(competition.countryId, countries);
     const profile = object(profiles[String(competition.countryId)]);
     requireValue(
@@ -325,6 +332,7 @@ export function validateNationalWorld(value: unknown): World {
   validateMarket(w);
   validateSocial(w);
   validateLifestyle(w);
+  validateHonours(w);
   for (const club of Object.values(clubs)) {
     const identity = object(club.identity);
     requireValue(identity.counterpart === countries[String(club.countryId)]!.counterpart);
@@ -446,7 +454,65 @@ export function validateNationalWorld(value: unknown): World {
     if (tie.resolution !== null)
       options(tie.resolution, ['aggregate', 'extra-time', 'penalties', 'higher-rank']);
   }
+  // Continental cups (milestone 8): 32 clubs in eight groups of four, single-leg knockouts.
+  const continentalClubs = new Set<string>();
   for (const cup of Object.values(competitions)) {
+    if (!continentalKinds.includes(String(cup.kind))) continue;
+    text(cup.name);
+    requireValue(
+      CONTINENTAL_IDS.includes(cup.id as (typeof CONTINENTAL_IDS)[number]) &&
+        cup.format === 'groups-knockout' &&
+        cup.season === season.year &&
+        cup.countryId === undefined &&
+        (cup.kind === 'champions') === (cup.id === 'continental:champions'),
+    );
+    const stages = array(cup.stages, 5);
+    requireValue(stages.length >= 1);
+    const groupStage = object(stages[0]);
+    id(groupStage.id);
+    const groups = array(groupStage.groups, 8);
+    requireValue(groups.length === 8);
+    const entrants: string[] = [];
+    const groupKeys = ids(groupStage.fixtureIds, 96);
+    requireValue(groupKeys.length === 96);
+    for (const groupValue of groups) {
+      const group = ids(groupValue, 4);
+      requireValue(group.length === 4);
+      group.forEach((key) => {
+        ref(key, clubs);
+        requireValue(!continentalClubs.has(key));
+        continentalClubs.add(key);
+      });
+      entrants.push(...group);
+      const keys = groupKeys.filter((key) => group.includes(String(fixtures[key]?.homeId)));
+      registerFixtures(keys, String(cup.id), group);
+      roundRobin(keys, group);
+    }
+    let previous = entrants;
+    let previousKeys = groupKeys;
+    for (const stageValue of stages.slice(1)) {
+      const stage = object(stageValue);
+      id(stage.id);
+      text(stage.name);
+      requireValue(previousKeys.every((key) => Object.hasOwn(object(w.results), key)));
+      const teams = ids(array(stage.groups, 1)[0], 16);
+      requireValue(
+        [16, 8, 4, 2].includes(teams.length) && teams.every((key) => previous.includes(key)),
+      );
+      const keys = ids(stage.fixtureIds, 8);
+      requireValue(keys.length * 2 === teams.length);
+      registerFixtures(keys, String(cup.id), teams);
+      previous = teams;
+      previousKeys = keys;
+    }
+    if (cup.winnerId !== null) {
+      requireValue(previous.length === 2 && previous.includes(String(cup.winnerId)));
+      const final = object(object(w.results)[previousKeys[0]!]);
+      requireValue(final.winnerId === cup.winnerId);
+    }
+  }
+  for (const cup of Object.values(competitions)) {
+    if (continentalKinds.includes(String(cup.kind))) continue;
     text(cup.name);
     requireValue(
       cup.kind === 'domestic' && cup.format === 'knockout' && cup.season === season.year,
@@ -628,6 +694,7 @@ export function validateNationalWorld(value: unknown): World {
     }
   }
   for (const cup of Object.values(competitions)) {
+    if (continentalKinds.includes(String(cup.kind))) continue;
     const stages = cup.stages as {
       groups: string[][];
       fixtureIds: string[];
@@ -949,9 +1016,6 @@ export function validateNationalWorld(value: unknown): World {
     );
     ids(trophy.playerIds, 40).forEach((key) => ref(key, object(w.players)));
   }
-  for (const key of ['matches', 'nationalTeams'])
-    requireValue(Object.keys(object(w[key])).length === 0);
-  for (const key of ['callUps', 'awards', 'records', 'legacies', 'chronicle', 'moments'])
-    requireValue(array(w[key]).length === 0);
+  for (const key of ['matches']) requireValue(Object.keys(object(w[key])).length === 0);
   return value as World;
 }

@@ -264,6 +264,8 @@ export const marketText = {
     goRival: 'See your rival',
     goLifestyle: 'Go to Lifestyle',
     goWardrobe: 'Go to the wardrobe',
+    goTrophies: 'Open the trophy cabinet',
+    goNational: 'See the national team',
     back: 'Back to the inbox',
     from: { club: 'Club', agent: 'Agent', board: 'Your club' },
     list: 'Messages',

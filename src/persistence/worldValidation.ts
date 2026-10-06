@@ -326,7 +326,17 @@ export function validateEntities(
     number(manager.age, 25, 120, true);
     text(manager.preferredFormation, 20);
     number(manager.ability, 1, 99);
-    if (manager.formerPlayerId !== null) ref(manager.formerPlayerId, players);
+    // A former player turned manager may since have been archived.
+    if (manager.formerPlayerId !== null) {
+      id(manager.formerPlayerId);
+      requireValue(
+        Object.hasOwn(players, String(manager.formerPlayerId)) ||
+          Object.hasOwn(
+            w.archive === undefined ? {} : object(object(w.archive).players),
+            String(manager.formerPlayerId),
+          ),
+      );
+    }
   }
   if (w.archive !== undefined) {
     const archive = object(w.archive);

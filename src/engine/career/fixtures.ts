@@ -56,6 +56,11 @@ export function fixtureKind(world: World, fixture: Fixture): FixtureKind {
   }
   if (fixture.phaseId) return 'phase';
   const cup = world.competitions[fixture.competitionId];
+  if (cup && (cup.kind === 'champions' || cup.kind === 'continental')) {
+    const index = cup.stages.findIndex((s) => s.fixtureIds.includes(fixture.id));
+    if (index <= 0) return 'cup';
+    return cup.stages[index]!.groups[0]!.length === 2 ? 'final' : 'tie';
+  }
   if (cup) {
     const stage = cup.stages.find((s) => s.fixtureIds.includes(fixture.id));
     return stage && stage.groups[0]!.length === 2 ? 'final' : 'cup';

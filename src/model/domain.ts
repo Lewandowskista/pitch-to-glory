@@ -473,6 +473,19 @@ export interface Career {
   social: CareerSocial;
   /** Fame, wardrobe, celebrations, lifestyle and challenges (milestone 7). */
   style: CareerStyle;
+  /** National team, retirement and legacy (milestone 8). */
+  honours: CareerHonours;
+}
+export type NationalLevel = 'U19' | 'U21' | 'senior';
+export interface CareerHonours {
+  caps: Record<NationalLevel, number>;
+  internationalGoals: Record<NationalLevel, number>;
+  /** The level of the latest call-up, and when. */
+  lastCallUp: { level: NationalLevel; date: GameDate } | null;
+  /** Highest overall ability reached. */
+  peakAbility: number;
+  /** The legacy of the parent, for a career played as a former player's child. */
+  parentLegacyId: Id | null;
 }
 export type SleeveLength = 'short' | 'long';
 export interface CareerStyle {
@@ -808,29 +821,75 @@ export interface Challenge {
   rewardCosmeticId: Id | null;
   claimed: boolean;
 }
+/** A nation's squad for one level, as last selected. */
 export interface NationalTeam {
   id: Id;
   countryId: Id;
-  level: 'U19' | 'U21' | 'senior';
-  managerId: Id;
+  level: NationalLevel;
   playerIds: Id[];
-  kits: ClubKits;
-  fixtureIds: Id[];
 }
 export interface CallUp {
   id: Id;
   playerId: Id;
   nationalTeamId: Id;
   date: GameDate;
-  accepted: boolean;
+  /** Whether the player took the field in the window. */
+  played: boolean;
 }
+/** A national side: one of the world's countries, or a guest nation with a fixed rating. */
+export interface Nation {
+  id: Id;
+  /** The world country, for the six simulated nations. */
+  countryId: Id | null;
+  name: string;
+  rating: number;
+  colors: [Hex, Hex];
+}
+export interface InternationalMatch {
+  id: Id;
+  date: GameDate;
+  level: NationalLevel;
+  kind: 'friendly' | 'qualifier' | 'group' | 'knockout' | 'final';
+  tournamentId: Id | null;
+  homeId: Id;
+  awayId: Id;
+  score: [number, number];
+  penalties: [number, number] | null;
+  /** The career player's part, when they played. */
+  career: { rating: number; goals: number; assists: number } | null;
+}
+export interface Tournament {
+  id: Id;
+  kind: 'continental' | 'world';
+  name: string;
+  year: number;
+  /** Groups of four nation ids. */
+  groups: Id[][];
+  matchIds: Id[];
+  winnerId: Id;
+  runnerUpId: Id;
+  /** How far the career player's nation went, and whether they were in the squad. */
+  career: {
+    nationId: Id;
+    stage: 'group' | 'quarter' | 'semi' | 'final' | 'winner';
+    inSquad: boolean;
+  } | null;
+}
+export type AwardKind =
+  'month' | 'team-season' | 'golden-boot' | 'young-player' | 'mvp' | 'golden-ball';
 export interface Award {
   id: Id;
-  nameKey: string;
-  kind: 'month' | 'team-season' | 'golden-boot' | 'young-player' | 'mvp' | 'golden-ball';
+  kind: AwardKind;
   season: number;
-  winnerIds: Id[];
+  /** Month of the season (1–12) for player of the month. */
+  month: number | null;
+  /** The league the award covers; null for the Golden Ball and young player of the year. */
   competitionId: Id | null;
+  winnerIds: Id[];
+  /** Golden Ball ranking, best first. */
+  shortlist: { playerId: Id; clubId: Id; score: number }[];
+  /** The winning value: goals for the golden boot, otherwise the score. */
+  value: number;
 }
 export interface Trophy {
   id: Id;
@@ -839,33 +898,74 @@ export interface Trophy {
   clubId: Id;
   playerIds: Id[];
 }
+export type RecordKind = 'season-goals' | 'career-goals' | 'golden-balls';
 export interface RecordEntry {
   id: Id;
-  nameKey: string;
+  kind: RecordKind;
   playerId: Id;
+  playerName: string;
   value: number;
   date: GameDate;
 }
 export interface Legacy {
   id: Id;
   playerId: Id;
+  name: string;
+  avatar: Avatar;
+  nationalityId: Id;
+  position: Position;
+  startSeason: number;
   retiredAt: GameDate;
-  stats: PlayerStats;
-  chronicleIds: Id[];
+  age: number;
+  /** Clubs played for, in order. */
+  clubIds: Id[];
+  stats: {
+    appearances: number;
+    goals: number;
+    assists: number;
+    cleanSheets: number;
+    caps: number;
+    internationalGoals: number;
+  };
   trophyIds: Id[];
-  recordIds: Id[];
-  hallOfFameRank: number;
+  awardIds: Id[];
+  records: RecordKind[];
+  hallOfFame: { score: number; rank: number; of: number };
+  peakAbility: number;
+  fame: number;
+  level: number;
+  earnings: number;
+  savings: number;
+  teammateIds: Id[];
   childPlayerId: Id | null;
 }
+export type ChronicleKind =
+  | 'start'
+  | 'debut'
+  | 'first-goal'
+  | 'hat-trick'
+  | 'goal-milestone'
+  | 'apps-milestone'
+  | 'move'
+  | 'injury'
+  | 'trophy'
+  | 'award'
+  | 'call-up'
+  | 'cap'
+  | 'international-goal'
+  | 'tournament'
+  | 'rival'
+  | 'fame'
+  | 'record'
+  | 'moment'
+  | 'retirement';
 export interface ChronicleEntry {
   id: Id;
   playerId: Id;
-  eventId: Id;
   date: GameDate;
-  titleKey: string;
-  narrativeKey: string;
+  kind: ChronicleKind;
   params: Record<string, string | number>;
-  illustration: { avatar: Avatar; crest: Crest | null };
+  clubId: Id | null;
   momentId: Id | null;
 }
 export interface Point {
@@ -877,16 +977,21 @@ export interface ReplayFrame {
   ball: Point;
   players: { id: Id; point: Point; animation: string }[];
 }
+/** A memorable play, stored as a compact clip that can be replayed and shared as a link. */
 export interface Moment {
   id: Id;
-  matchId: Id;
   playerId: Id;
+  date: GameDate;
+  kind: 'winner' | 'equalizer' | 'wonder' | 'final' | 'hat-trick';
+  minute: number;
+  scorerName: string;
+  home: { name: string; color: Hex };
+  away: { name: string; color: Hex };
+  score: [number, number];
+  /** The match seed the clip was cut from. */
   seed: string;
-  engineVersion: string;
-  rng: RngState;
-  inputs: DecisionInput[];
-  frames: ReplayFrame[];
-  kind: string;
+  /** Encoded keyframes (see engine/career/honours/moments.ts). */
+  clip: string;
 }
 export interface Fixture {
   id: Id;
@@ -1081,6 +1186,24 @@ export interface World {
   history: SeasonSummary[];
   /** Retired people pruned from the live graph. Absent in worlds saved before schema 6. */
   archive?: WorldArchive;
+  /** International football (milestone 8): nations, matches and tournaments. */
+  international?: InternationalState;
+  /** Season statistics baselines for awards (milestone 8). */
+  awardState?: AwardState;
+}
+/** Lifetime appearances, goals, assists and rating total at a baseline. */
+export type StatLine = [number, number, number, number];
+export interface AwardState {
+  season: number;
+  /** Baselines at the start of the season, for players awards can consider. */
+  seasonStart: Record<Id, StatLine>;
+  month: number;
+  monthStart: Record<Id, StatLine>;
+}
+export interface InternationalState {
+  nations: Nation[];
+  matches: InternationalMatch[];
+  tournaments: Tournament[];
 }
 export interface BackgroundResult {
   fixtureId: Id;
@@ -1135,7 +1258,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 11;
+  schemaVersion: 12;
   engineVersion: string;
   slot: SlotId;
   name: string;

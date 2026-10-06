@@ -14,6 +14,7 @@ import { createRng, type Rng } from '../rng';
 import { ageCategory, careerCap, isKeeperKey, type AnyAttribute } from '../ageing';
 import { getSeasonWeeks } from '../world/calendar';
 import { attributeValue, trainableAttributes } from './progression';
+import { chronicle } from './honours/chronicle';
 
 const T = CONFIG.career.training;
 const I = CONFIG.career.injuries;
@@ -167,6 +168,8 @@ export function injure(world: World, cause: Injury['cause'], rng: Rng, kind?: st
   career.injury = injury;
   career.reinjury = null;
   player.injuryId = injury.id;
+  if (injury.weeksRemaining >= 4)
+    chronicle(world, 'injury', { kind: injury.kind, weeks: injury.weeksRemaining });
   return injury;
 }
 /** Injury chance multiplier from fatigue, injury proneness and the Iron Man skill. */

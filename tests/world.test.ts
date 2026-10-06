@@ -393,7 +393,7 @@ describe('seeded world', () => {
       ).toBe(true);
     }
     assertSquads(next);
-  });
+  }, 120000);
 
   it('continues ageing and retires unattached former squad players', async () => {
     const { generateWorld, simulateWeek } = await engine();

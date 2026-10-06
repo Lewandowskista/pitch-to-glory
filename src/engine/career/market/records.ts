@@ -47,7 +47,14 @@ export type InboxKind =
   | 'sponsor-failed'
   | 'sponsor-dropped'
   | 'asset-sold'
-  | 'fame-level';
+  | 'fame-level'
+  | 'call-up'
+  | 'tournament'
+  | 'award'
+  | 'golden-ball'
+  | 'trophy'
+  | 'record'
+  | 'retirement-due';
 
 /** Post an inbox message; old read messages are dropped beyond the limit. */
 export function postMessage(

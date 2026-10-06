@@ -483,11 +483,66 @@ export const CONFIG = {
         weeklyCosmeticChance: 0.5,
       },
     },
+    /** National team, awards, retirement, legacy, Chronicle and Moments (milestone 8). */
+    honours: {
+      international: {
+        /** International windows as fractions of the season, each with two matches. */
+        windows: [0.18, 0.42, 0.68] as const,
+        matchesPerWindow: 2,
+        squad: { GK: 3, DEF: 8, MID: 7, ATT: 5 },
+        ages: { U19: 19, U21: 21 },
+        /** Selection score: ability + form × form + min(fameCap, fame × fame). */
+        selection: { form: 0.1, fame: 0.02, fameCap: 8 },
+        starterSlots: { GK: 1, DEF: 4, MID: 3, ATT: 3 },
+        benchChance: 0.4,
+        baseGoals: 1.3,
+        strengthScale: 0.035,
+        goalShare: { GK: 0, DEF: 0.04, MID: 0.12, ATT: 0.28 },
+        assistShare: { GK: 0, DEF: 0.05, MID: 0.14, ATT: 0.12 },
+        youthRating: 10,
+        fame: { cap: 1, goal: 2, tournament: 10 },
+        xp: { cap: 25, goal: 15 },
+        matchLimit: 120,
+        tournamentLimit: 30,
+      },
+      awards: {
+        monthWeeks: 5,
+        monthMinimumApps: 2,
+        seasonMinimumApps: 10,
+        youngAge: 21,
+        /** Score: average rating × rating + goals × goal + assists × assist. */
+        score: { rating: 10, goal: 1.5, assist: 1, monthGoal: 0.6, monthAssist: 0.4 },
+        /** Golden Ball bonuses for team success. */
+        champion: 10,
+        topFour: 5,
+        continentalWinner: 10,
+        continentalFinal: 5,
+        tournamentWinner: 8,
+        shortlist: 10,
+        fame: { month: 3, season: 6, goldenBall: 25, shortlist: 5 },
+      },
+      retirement: { optionalAge: 32, forcedAge: 40 },
+      moments: { limit: 40, lateMinute: 85, wonderProbability: 0.2 },
+      /** Hall of Fame score. */
+      hallOfFame: {
+        appearance: 0.5,
+        goal: 2,
+        assist: 1,
+        cap: 1,
+        trophy: 15,
+        award: 10,
+        goldenBall: 40,
+      },
+      child: { potential: 3, fameShare: 0.1, fameCap: 30, inheritance: 0.1 },
+      /** Retired former teammates may become managers. */
+      formerTeammateManager: 0.4,
+      chronicleLimit: 600,
+    },
   },
   gallery: { clubs: 15, players: 8, ages: [17, 28, 42] as const },
   workers: { transportBatchEntries: 32, transportYieldMs: 8 },
   saves: {
-    schemaVersion: 11,
+    schemaVersion: 12,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,
@@ -514,6 +569,17 @@ export const CONFIG = {
     transferWeeks: [8, 18, 31] as const,
     managerWeeks: [12, 24] as const,
     intakeWeek: 31,
+    /** Continental cups for national worlds (milestone 8). */
+    continental: {
+      /** Places per country in the Champions Cup and the Shield, from last season's table. */
+      champions: { England: 6, Spain: 6, Italy: 6, Germany: 5, France: 5, Portugal: 4 },
+      shield: { England: 5, Spain: 5, Italy: 5, Germany: 6, France: 6, Portugal: 5 },
+      groupWeeks: [8, 12, 16, 20, 26, 30] as const,
+      knockoutWeeks: [38, 44, 49, 55] as const,
+      day: 2,
+      /** Scouting visibility bonus for a player whose club plays in a continental cup. */
+      visibility: 0.2,
+    },
     youthIntakePerClub: 2,
     /** Squad lifecycle: retirement, contracts, releases, free-agent signings and pruning. */
     lifecycle: {

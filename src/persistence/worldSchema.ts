@@ -21,6 +21,7 @@ import { validateCareer } from './careerValidation';
 import { validateMarket } from './marketValidation';
 import { validateSocial } from './socialValidation';
 import { validateLifestyle } from './lifestyleValidation';
+import { validateHonours } from './honoursValidation';
 
 // This module validates imported data; it never imports the heavy generation/simulation code.
 export function validateWorld(value: unknown): World {
@@ -132,6 +133,7 @@ export function validateWorld(value: unknown): World {
   validateMarket(w);
   validateSocial(w);
   validateLifestyle(w);
+  validateHonours(w);
   for (const cup of Object.values(competitions)) {
     text(cup.name);
     requireValue(
@@ -370,9 +372,6 @@ export function validateWorld(value: unknown): World {
     );
     ids(trophy.playerIds, 40).forEach((key) => ref(key, players));
   }
-  for (const key of ['matches', 'nationalTeams'])
-    requireValue(Object.keys(object(w[key])).length === 0);
-  for (const key of ['callUps', 'awards', 'records', 'legacies', 'chronicle', 'moments'])
-    requireValue(array(w[key]).length === 0);
+  for (const key of ['matches']) requireValue(Object.keys(object(w[key])).length === 0);
   return value as World;
 }

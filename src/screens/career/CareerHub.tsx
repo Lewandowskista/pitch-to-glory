@@ -31,6 +31,7 @@ import { mediaText } from './socialUi';
 import { challengeDone, fameProgress } from '../../engine/career/lifestyle';
 import { lifestyleText as l } from '../../i18n/lifestyle';
 import { fameName, useChallengeRefresh } from './lifestyleUi';
+import { HonoursSummary } from './honoursHub';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
@@ -82,6 +83,7 @@ function HubContent({
       <Condition career={career} player={player} />
       <TrainingSummary career={career} />
       <FameSummary world={world} />
+      <HonoursSummary world={world} />
       <PressRoom world={world} />
       <RivalWatch world={world} />
       <MarketSummary world={world} />
@@ -788,7 +790,7 @@ function FameSummary({ world }: { world: World }) {
     (challenge) => challenge.claimed || challengeDone(world, challenge),
   ).length;
   return (
-    <section aria-labelledby="fame-summary-heading" className={`${ui.panel} lg:col-span-12`}>
+    <section aria-labelledby="fame-summary-heading" className={`${ui.panel} lg:col-span-6`}>
       <div className="flex flex-wrap items-center gap-4">
         <span
           aria-hidden="true"

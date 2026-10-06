@@ -1,5 +1,7 @@
 import type { Club, Fixture, ScoutingInterest, World } from '../../../model/domain';
 import { createRng, type Rng } from '../../rng';
+import { CONFIG } from '../../config';
+import { clubContinental } from '../../world/continental';
 import { playerAbility } from '../../strength';
 import { getSeasonWeeks } from '../../world/calendar';
 import { isActiveClub } from '../../world/dressing';
@@ -90,7 +92,10 @@ function context(world: World, rng: Rng): Context {
     ability: playerAbility(player),
     projected: projectedAbility(world, player),
     ownLevel: clubLevel(world, parent),
-    visibility: S.visibility[Math.min(S.visibility.length, tier) - 1]!,
+    // Continental football puts a player in front of more scouts (AGENTS.md §8).
+    visibility:
+      S.visibility[Math.min(S.visibility.length, tier) - 1]! +
+      (clubContinental(world, club) ? CONFIG.world.continental.visibility : 0),
     network: agent?.network ?? 0,
     levels,
   };

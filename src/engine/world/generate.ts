@@ -17,6 +17,7 @@ import { generateAttributes } from '../ageing';
 import { playerAbility } from '../strength';
 import { withContrast } from '../assets/shared';
 import { IDENTITIES, TownPicker, identityProfile, type ReferencedClub } from './identities';
+import { startContinental } from './continental';
 import { CONFIG } from '../config';
 import { createRng, hashSeed, type Rng } from '../rng';
 import {
@@ -605,6 +606,8 @@ export function generateWorld(
       );
     }
   }
+  // Continental cups by reputation for a new national world (milestone 8).
+  if (national) startContinental(world, false);
   world.rng = rng.snapshot();
   return world;
 }

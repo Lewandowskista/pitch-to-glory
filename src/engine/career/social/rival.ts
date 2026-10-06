@@ -23,6 +23,7 @@ import {
   windowState,
 } from '../market/rules';
 import { ageAt, careerPlayer, S } from './rules';
+import { chronicle } from '../honours/chronicle';
 
 const R = S.rival;
 const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -254,6 +255,13 @@ export function rivalSeasonEnd(world: World, season: number): void {
     (lines.rival.goals + lines.rival.assists) +
     (lines.career.rating - lines.rival.rating) * 5;
   adjustIntensity(rivalry, R.seasonEnd);
+  if (ahead >= 0 && lines.career.appearances)
+    chronicle(world, 'rival', {
+      rival: rival.name,
+      season,
+      goals: lines.career.goals,
+      rivalGoals: lines.rival.goals,
+    });
   addTimeline(world, rivalry, 'season', {
     season,
     rival: rival.name,

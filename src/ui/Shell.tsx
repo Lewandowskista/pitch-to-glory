@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
 import { t, errorText } from '../i18n';
@@ -52,7 +52,8 @@ export function Shell() {
     }
   };
   useAutosave();
-  useEffect(() => {
+  // Before paint, so a page never shows one theme and then animates into the other.
+  useLayoutEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
     const update = () => {
       const dark = settings.theme === 'dark' || (settings.theme === 'system' && media.matches);

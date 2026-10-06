@@ -80,6 +80,11 @@ export default function WorldScreen() {
         (cup) =>
           cup.id === country.domesticCupId ||
           cup.countryId === country.id ||
+          // Continental cups are listed under every country with a club taking part.
+          ((cup.kind === 'champions' || cup.kind === 'continental') &&
+            cup.stages[0]?.groups
+              .flat()
+              .some((id) => world!.clubs[id]?.countryId === country.id)) ||
           (cup.kind === 'domestic' &&
             cup.stages.some((stage) =>
               stage.groups.flat().some((id) => world!.clubs[id]?.countryId === country.id),
@@ -572,15 +577,17 @@ export default function WorldScreen() {
                         >
                           {cup!.stages.map((stage, index) => (
                             <option value={index} key={index}>
-                              {stage.groups.flat().length === 2
-                                ? t.world.rounds[4]
-                                : stage.groups.flat().length === 4
-                                  ? t.world.rounds[3]
-                                  : stage.groups.flat().length === 8
-                                    ? t.world.rounds[2]
-                                    : format(t.world.cupRoundSize, {
-                                        clubs: stage.groups.flat().length,
-                                      })}
+                              {stage.name === 'groups'
+                                ? t.world.groupStage
+                                : stage.groups.flat().length === 2
+                                  ? t.world.rounds[4]
+                                  : stage.groups.flat().length === 4
+                                    ? t.world.rounds[3]
+                                    : stage.groups.flat().length === 8
+                                      ? t.world.rounds[2]
+                                      : format(t.world.cupRoundSize, {
+                                          clubs: stage.groups.flat().length,
+                                        })}
                             </option>
                           ))}
                         </select>

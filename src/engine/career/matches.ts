@@ -19,6 +19,7 @@ import { fixtureImportance } from './fixtures';
 import { accrueMatchBonuses } from './market/moves';
 import { socialMatch } from './social/week';
 import { celebrationFame } from './lifestyle/week';
+import { honoursMatch } from './honours/week';
 export * from './fixtures';
 
 const C = CONFIG.career;
@@ -162,6 +163,7 @@ export function commitCareerMatch(
   accrueMatchBonuses(world, record.goals, record.cleanSheet);
   socialMatch(world, record, fixture);
   const signature = celebrationFame(world, record.goals, importance);
+  honoursMatch(world, session, record, importance);
   if (career.market.selection.season === world.date.season) career.market.selection.selected++;
   if (career.matches.length > C.historyLimit)
     career.matches.splice(0, career.matches.length - C.historyLimit);

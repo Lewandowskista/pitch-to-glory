@@ -22,6 +22,8 @@ import { bonusesFor, marketWage } from './market/rules';
 import { attachMarket } from './market/agents';
 import { attachSocial, initialSocial } from './social/week';
 import { attachLifestyle } from './lifestyle/week';
+import { attachHonours, initialHonours } from './honours/week';
+import { chronicle } from './honours/chronicle';
 import { initialStyle } from './lifestyle/wardrobe';
 
 const S = CONFIG.career.start;
@@ -34,6 +36,8 @@ export interface CareerDraft {
   foot: Foot;
   age: number;
   archetype: string;
+  /** Play as the child of a retired career player (milestone 8). */
+  parentLegacyId?: string;
 }
 
 /**
@@ -77,6 +81,11 @@ export function validateDraft(world: World, draft: CareerDraft): void {
     Object.values(draft.avatar).some((part) => !Number.isInteger(part) || part < 0 || part > 7)
   )
     throw new Error('Invalid career draft');
+  if (draft.parentLegacyId !== undefined) {
+    const parent = world.legacies.find((legacy) => legacy.id === draft.parentLegacyId);
+    if (!parent || parent.childPlayerId || parent.nationalityId !== draft.nationalityId)
+      throw new Error('Invalid career draft');
+  }
 }
 
 /** Create the career player at a trial club and attach the career to a copy of the world. */
@@ -155,11 +164,31 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
     market: initialMarket(world),
     social: initialSocial(),
     style: initialStyle(player),
+    honours: initialHonours(playerAbility(player), draft.parentLegacyId ?? null),
   };
   grantStartingSkill(career, player, archetype.startingSkill);
   world.career = career;
   attachMarket(world);
   attachSocial(world);
   attachLifestyle(world);
+  attachHonours(world);
+  // A former player's child: a famous surname, a little more talent, fame and money.
+  const parent = draft.parentLegacyId
+    ? world.legacies.find((legacy) => legacy.id === draft.parentLegacyId)
+    : undefined;
+  if (parent) {
+    const K = CONFIG.career.honours.child;
+    player.potential = Math.min(99, player.potential + K.potential);
+    career.fame = Math.min(K.fameCap, Math.round(parent.fame * K.fameShare));
+    const inheritance = Math.round(parent.savings * K.inheritance);
+    career.market.finances.cash += inheritance;
+    career.market.finances.lifetimeEarnings += inheritance;
+    parent.childPlayerId = player.id;
+  }
+  chronicle(world, 'start', {
+    club: club.name,
+    age: draft.age,
+    ...(parent ? { parent: parent.name } : {}),
+  });
   return world;
 }

@@ -20,12 +20,7 @@ export const IDENTITIES: readonly CountryIdentity[] = [
   PORTUGAL,
 ];
 
-/** Fictional competition names for the continental cups (milestone 8). */
-export const CONTINENTAL = {
-  champions: { name: 'European Champions Cup', reference: 'UEFA Champions League' },
-  second: { name: 'European Shield', reference: 'UEFA Europa League' },
-  third: { name: 'European Conference Trophy', reference: 'UEFA Conference League' },
-} as const;
+export { CONTINENTAL } from './continental';
 
 /**
  * A copy of the profile carrying the identity's display names and real-competition

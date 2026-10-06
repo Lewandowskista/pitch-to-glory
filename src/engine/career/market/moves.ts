@@ -4,6 +4,7 @@ import { recordEvent } from '../../world/events';
 import { refreshDressingRoom } from '../../world/dressing';
 import { refreshMentor } from '../training';
 import { ensureTeammates, syncCliques } from '../social/dressing';
+import { chronicle } from '../honours/chronicle';
 import {
   addWeeks,
   ageOf,
@@ -183,6 +184,12 @@ export function executeTransfer(world: World, offer: TransferOffer, terms: Contr
     fee: amount,
     weeklyWage: terms.weeklyWage,
   });
+  chronicle(
+    world,
+    'move',
+    { kind: offer.kind === 'pre-contract' ? 'free' : 'transfer', club: buyer.name, fee: amount },
+    { clubId: buyer.id },
+  );
   recordEvent(world, 'transfer', [player.id, seller.id, buyer.id], {
     name: player.name,
     old: seller.name,
@@ -225,6 +232,12 @@ export function startLoan(world: World, offer: TransferOffer): void {
     fee: 0,
     weeklyWage: careerContract(world).weeklyWage,
   });
+  chronicle(
+    world,
+    'move',
+    { kind: 'loan', club: destination.name, fee: 0 },
+    { clubId: destination.id },
+  );
   recordEvent(world, 'loan', [player.id, parentId, destination.id], {
     name: player.name,
     old: world.clubs[parentId]!.name,

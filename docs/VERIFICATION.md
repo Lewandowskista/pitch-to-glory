@@ -364,3 +364,53 @@ Desktop captures go to `artifacts/career-lifestyle.png` and `artifacts/career-wa
 - Lighthouse still audits empty-state career routes only.
 - The pitch celebration has no automated visual check. Its motions are deterministic, it is skipped under reduced motion, and the commentary line is covered by type checks.
 - Physical-device and Safari release checks remain outstanding.
+
+## Milestone 8 verification
+
+Verified on 7 October 2026:
+
+| Check                               | Result                                                                                                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Strict TypeScript, ESLint, Prettier | Passed                                                                                                                                                          |
+| Vitest                              | 224 tests across 28 files passed (19 new honours tests)                                                                                                         |
+| Production build                    | Passed; all twenty-five routes 212.0–263.2 KB gzip (budget 300 KB); the public `/moment` replay 214.1 KB                                                        |
+| Playwright                          | 78 tests passed, 26 each in Chromium, Firefox and WebKit                                                                                                        |
+| axe-core                            | No serious or critical violations on Trophies, the ceremony, Chronicle, Moments, National team, hub, Legacy, the empty-career hub and `/moment`, light and dark |
+| National career season (Node)       | 60 weeks in 16.5 s, median 274 ms per week with an auto-played match (284 ms after milestone 5); rollover 392 ms                                                |
+
+**Unit coverage:**
+
+- **Continental cups:** the draw (eight groups of four, countries apart, 64 different clubs), 96 group fixtures, progression through the round of 16 to the final, qualification from the final tables at rollover, and rejection of a forged group.
+- **Moments:** clip round trip within quantisation, link round trip, rejection of truncated links, bad colours, impossible minutes and bad scorer indexes.
+- **Chronicle:** written from the start; unique ids; trimmed to the limit with routine entries first, and the start kept even when only landmarks remain.
+- **International football:** squads of 23 in every window, eligible by nationality and age; 16-nation tournaments in even years only, continental and world alternating, deterministic.
+- **Awards:** monthly awards, the Golden Ball shortlist (ten, ranked, winner first), Golden Boot, MVP, Team of the Season (eleven) and Young Player (age limit), world records.
+- **Retirement and legacy:** states by age and season phase; refusal before 32 or mid-season; the legacy's numbers, Hall of Fame score and rank; the kept retired player; validation, save round trip and a season rollover without a career.
+- **Child career:** inheritance, the parent link, the Chronicle start, one child per legacy and the nationality rule.
+- **Former teammates as managers:** retired and old enough only, and not when already employed.
+- **Saves:** forgery rejection and the schema 11 migration. Determinism over ten weeks.
+
+**The honours browser journey:** an engine-built save after a full season with the player at 34, imported through Saves.
+
+- The hub offers retirement.
+- The Golden Ball ceremony opens through the URL: nine places are shown, the winner is revealed, and back closes it.
+- The Chronicle reads as a biography and exports a PNG (downloaded, because the system share sheet is disabled in tests).
+- A moment replays, and its link is copied. The link replays in a fresh tab without the save; a damaged link shows an error.
+- Retirement through the confirmation dialog lands on the legacy, which survives autosave and a refresh.
+- "Play as Robin Vale's child" opens the wizard with the surname and the parent's nationality as the only choice.
+- axe in both themes; 390 px overflow checks on Legacy, the empty-career hub and `/moment`.
+
+Desktop captures go to `artifacts/career-trophies.png`, `career-chronicle.png`, `career-moments.png`, `career-national.png` and `career-legacy.png`.
+
+**Found and fixed during verification:**
+
+- Dark-mode pages painted the light theme first and animated into dark, because the theme was applied in an effect after paint. This was caught by axe sampling mid-transition. The dark tokens now apply under `prefers-color-scheme: dark` before the setting is known, and the theme is set in a layout effect. In a 25-load loop, failures went from 9 to 0.
+- The Chronicle could exceed its limit when no routine entries were left to drop.
+- A pre-existing world test ran close to the default 5 s timeout under the heavier parallel load (3.3 s alone) and now has the 120 s timeout its neighbours use.
+- One run showed a WebKit timing flake in the career wizard spec (a click right after browser forward). It passed 3 of 3 in isolation and in the final full run.
+
+**Not done:**
+
+- Lighthouse still audits empty-state career routes only.
+- The exported poster is checked for its download, not pixel by pixel.
+- Physical-device and Safari release checks remain outstanding.

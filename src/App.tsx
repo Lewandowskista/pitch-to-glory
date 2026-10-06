@@ -22,6 +22,12 @@ const CareerMedia = lazy(() => import('./screens/career/CareerMedia'));
 const CareerRival = lazy(() => import('./screens/career/CareerRival'));
 const CareerLifestyle = lazy(() => import('./screens/career/CareerLifestyle'));
 const CareerWardrobe = lazy(() => import('./screens/career/CareerWardrobe'));
+const CareerNational = lazy(() => import('./screens/career/CareerNational'));
+const CareerTrophies = lazy(() => import('./screens/career/CareerTrophies'));
+const CareerChronicle = lazy(() => import('./screens/career/CareerChronicle'));
+const CareerMoments = lazy(() => import('./screens/career/CareerMoments'));
+const CareerLegacy = lazy(() => import('./screens/career/CareerLegacy'));
+const MomentViewer = lazy(() => import('./screens/MomentViewer'));
 export default function App() {
   return (
     <ErrorBoundary>
@@ -54,6 +60,12 @@ export default function App() {
               <Route path="career/rival" element={<CareerRival />} />
               <Route path="career/lifestyle" element={<CareerLifestyle />} />
               <Route path="career/wardrobe" element={<CareerWardrobe />} />
+              <Route path="career/national" element={<CareerNational />} />
+              <Route path="career/trophies" element={<CareerTrophies />} />
+              <Route path="career/chronicle" element={<CareerChronicle />} />
+              <Route path="career/moments" element={<CareerMoments />} />
+              <Route path="career/legacy" element={<CareerLegacy />} />
+              <Route path="moment" element={<MomentViewer />} />
               <Route
                 path="*"
                 element={

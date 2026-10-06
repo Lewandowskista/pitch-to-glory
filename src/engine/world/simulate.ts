@@ -16,6 +16,12 @@ import { resolvePostseasonTie } from './postseason';
 import { getSeasonWeeks } from './calendar';
 import { rankStandings } from './ranking';
 import { resetNationalSeason } from './movement';
+import {
+  advanceContinental,
+  isContinental,
+  isKnockoutFixture,
+  startContinental,
+} from './continental';
 import { recordEvent as event } from './events';
 import { expectedGoals, selectStartingPlayers, teamStrength } from '../strength';
 import { careerWeek, refreshMentor } from '../career/training';
@@ -24,6 +30,14 @@ import { benchedCareerFixtures, marketRollover, marketWeek } from '../career/mar
 import { postMessage, recordMove } from '../career/market/records';
 import { socialRollover, socialWeek } from '../career/social/week';
 import { lifestyleRollover, lifestyleWeek } from '../career/lifestyle/week';
+import {
+  honoursRollover,
+  honoursSeasonEnd,
+  honoursWeek,
+  startAwardSeason,
+} from '../career/honours/week';
+import { chronicle } from '../career/honours/chronicle';
+import { formerTeammates } from '../career/honours/retirement';
 import {
   archiveAndPrune,
   fillSquads,
@@ -110,7 +124,10 @@ export function commitPlayedFixture(world: World, fixtureId: string, played: Pla
   // committed world is consistent before the rest of the week is simulated.
   const tie = fixture.tieId ? world.pyramid?.ties[fixture.tieId] : undefined;
   if (tie) resolvePostseasonTie(world, tie);
-  if (world.competitions[fixture.competitionId]) advanceCups(world);
+  if (world.competitions[fixture.competitionId]) {
+    advanceCups(world);
+    advanceContinental(world);
+  }
   const league = world.leagues[fixture.competitionId];
   if (league)
     league.standings =
@@ -188,7 +205,7 @@ function resolveFixture(
       } else winnerId = score[0] === score[1] ? null : score[0] > score[1] ? home.id : away.id;
     }
   }
-  if (!winnerId && world.competitions[fixture.competitionId]?.format === 'knockout') {
+  if (!winnerId && isKnockoutFixture(world, fixture)) {
     const homeWins = rng.next() < BACKGROUND.penaltyWinnerChance;
     const loserScore = rng.int(...BACKGROUND.penaltyLoserGoals);
     penalties = homeWins ? [loserScore + 1, loserScore] : [loserScore, loserScore + 1];
@@ -443,6 +460,15 @@ function managerChanges(world: World, rng: Rng): void {
       rng,
       world.format === 'national-v1' ? Number(club.countryId.split(':')[1]) : undefined,
     );
+    // A retired teammate of a past career may return as a manager (AGENTS.md §9.2).
+    const former = formerTeammates(world);
+    if (former.length && rng.next() < CONFIG.career.honours.formerTeammateManager) {
+      const person = former[0]!;
+      manager.name = person.name;
+      manager.avatar = { ...person.avatar };
+      manager.formerPlayerId = person.id;
+      manager.age = Math.max(35, world.date.season - person.birthSeason);
+    }
     world.managers[id] = manager;
     club.managerId = id;
     event(world, 'manager-change', [club.id, old.id, id], {
@@ -454,7 +480,8 @@ function managerChanges(world: World, rng: Rng): void {
 }
 function advanceCups(world: World): void {
   for (const cup of Object.values(world.competitions)) {
-    if (cup.winnerId) continue;
+    // Continental cups have groups before their knockouts; advanceContinental runs them.
+    if (cup.winnerId || isContinental(cup)) continue;
     const stage = cup.stages.at(-1)!;
     if (!stage.fixtureIds.every((id) => world.results[id])) continue;
     const winners = [
@@ -592,6 +619,12 @@ function keepCareerInSimulatedLeagues(world: World): void {
     weeklyWage: contract.weeklyWage,
   });
   postMessage(world, 'relocated', { old: current.name, club: destination.name });
+  chronicle(
+    world,
+    'move',
+    { kind: 'relocation', club: destination.name, fee: 0 },
+    { clubId: destination.id },
+  );
 }
 export function simulateWeek(input: World, options: SimulationOptions = {}): World {
   if (input.phase === 'complete') return input;
@@ -624,6 +657,7 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
         ? rankStandings(world, league.standings, league.fixtureIds)
         : sortStandings(league.standings);
   advanceCups(world);
+  advanceContinental(world);
   if (world.format === 'national-v1') advanceNationalPyramid(world);
   developPlayers(world, rng);
   if (world.career) {
@@ -631,6 +665,7 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
     marketWeek(world, benched);
     socialWeek(world);
     lifestyleWeek(world);
+    honoursWeek(world);
   }
   if ((CONFIG.world.transferWeeks as readonly number[]).includes(world.date.week)) {
     exchangeTransfers(world, rng);
@@ -640,7 +675,10 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
     managerChanges(world, rng);
   if (world.date.week === CONFIG.world.intakeWeek) seasonalSquadReview(world, rng);
   updateFinances(world);
-  if (world.date.week === getSeasonWeeks(world)) archiveSeason(world);
+  if (world.date.week === getSeasonWeeks(world)) {
+    archiveSeason(world);
+    if (world.career) honoursSeasonEnd(world);
+  }
   world.date.week++;
   world.rng = rng.snapshot();
   return world;
@@ -663,6 +701,8 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
     keepCareerInSimulatedLeagues(world);
     refreshMentor(world);
     socialRollover(world);
+    // Last: a summer tournament, and retirement at the forced age.
+    honoursRollover(world);
   }
   world.phase = 'active';
   world.fixtures = {};
@@ -691,6 +731,7 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
     for (const fixture of fixtures) world.fixtures[fixture.id] = fixture;
   }
   for (const cup of Object.values(world.competitions)) {
+    if (isContinental(cup)) continue;
     cup.season = world.date.season;
     cup.stages = [];
     cup.winnerId = null;
@@ -705,6 +746,13 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
         .flatMap((id) => world.leagues[id]!.clubIds),
     );
   }
-  if (world.format === 'national-v1') resetNationalSeason(world);
+  if (world.format === 'national-v1') {
+    resetNationalSeason(world);
+    // Last season's tables decide this season's continental places. Worlds saved before
+    // milestone 8 gain their continental cups here, at their next season.
+    startContinental(world, true);
+  }
+  // Award baselines once this season's league memberships are set.
+  if (world.career) startAwardSeason(world);
   return world;
 }

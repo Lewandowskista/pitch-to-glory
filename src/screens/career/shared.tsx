@@ -17,6 +17,7 @@ import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
 import { socialText } from '../../i18n/social';
 import { lifestyleText } from '../../i18n/lifestyle';
+import { honoursText } from '../../i18n/honours';
 
 /** Shared Tailwind class strings, so every career card reads as one family. */
 export const ui = {
@@ -85,63 +86,110 @@ export interface CareerContext {
   age: number;
 }
 
-const sections = [
-  { to: '/career', label: c.sectionNames.hub, end: true },
-  { to: '/career/profile', label: c.sectionNames.profile, end: false },
-  { to: '/career/skills', label: c.sectionNames.skills, end: false },
-  { to: '/career/training', label: c.sectionNames.training, end: false },
-  { to: '/career/club', label: socialText.sectionNames.club, end: false },
-  { to: '/career/media', label: socialText.sectionNames.media, end: false },
-  { to: '/career/rival', label: socialText.sectionNames.rival, end: false },
-  { to: '/career/transfers', label: m.sectionNames.transfers, end: false },
-  { to: '/career/agent', label: m.sectionNames.agent, end: false },
-  { to: '/career/lifestyle', label: lifestyleText.sectionNames.lifestyle, end: false },
-  { to: '/career/wardrobe', label: lifestyleText.sectionNames.wardrobe, end: false },
-  { to: '/career/inbox', label: m.sectionNames.inbox, end: false },
+type Section = { to: string; label: string; end: boolean };
+const groups: { label: string; sections: Section[] }[] = [
+  {
+    label: honoursText.groups.career,
+    sections: [
+      { to: '/career', label: c.sectionNames.hub, end: true },
+      { to: '/career/inbox', label: m.sectionNames.inbox, end: false },
+      { to: '/career/profile', label: c.sectionNames.profile, end: false },
+      { to: '/career/skills', label: c.sectionNames.skills, end: false },
+      { to: '/career/training', label: c.sectionNames.training, end: false },
+    ],
+  },
+  {
+    label: honoursText.groups.club,
+    sections: [
+      { to: '/career/club', label: socialText.sectionNames.club, end: false },
+      { to: '/career/transfers', label: m.sectionNames.transfers, end: false },
+      { to: '/career/agent', label: m.sectionNames.agent, end: false },
+      { to: '/career/rival', label: socialText.sectionNames.rival, end: false },
+    ],
+  },
+  {
+    label: honoursText.groups.life,
+    sections: [
+      { to: '/career/media', label: socialText.sectionNames.media, end: false },
+      { to: '/career/lifestyle', label: lifestyleText.sectionNames.lifestyle, end: false },
+      { to: '/career/wardrobe', label: lifestyleText.sectionNames.wardrobe, end: false },
+    ],
+  },
+  {
+    label: honoursText.groups.honours,
+    sections: [
+      { to: '/career/national', label: honoursText.sectionNames.national, end: false },
+      { to: '/career/trophies', label: honoursText.sectionNames.trophies, end: false },
+      { to: '/career/chronicle', label: honoursText.sectionNames.chronicle, end: false },
+      { to: '/career/moments', label: honoursText.sectionNames.moments, end: false },
+      { to: '/career/legacy', label: honoursText.sectionNames.legacy, end: false },
+    ],
+  },
 ];
+/**
+ * Career sections in four labelled groups. Groups wrap on wide screens and scroll as one row
+ * on narrow ones; arrow keys move across every link.
+ */
 export function CareerNav() {
   const [params] = useSearchParams();
   const save = params.get('save');
   const unread = useAppStore((s) => s.world?.inbox.filter((message) => !message.read).length ?? 0);
   return (
-    <nav aria-label={c.sections} className="mb-6 overflow-x-auto">
-      <ul className="flex min-w-max gap-2 rounded-control border border-line bg-surface p-1.5 shadow-surface">
-        {sections.map((section) => (
-          <li key={section.to}>
-            <NavLink
-              to={save ? `${section.to}?save=${save}` : section.to}
-              end={section.end}
-              onKeyDown={(event) => {
-                if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-                event.preventDefault();
-                const links = Array.from(
-                  event.currentTarget.closest('ul')?.querySelectorAll<HTMLAnchorElement>('a') ?? [],
-                );
-                const index = links.indexOf(event.currentTarget);
-                const step = event.key === 'ArrowRight' ? 1 : links.length - 1;
-                links[(index + step) % links.length]?.focus();
-              }}
-              className={({ isActive }) =>
-                `relative flex min-h-11 items-center rounded-[0.6rem] px-4 text-sm font-semibold transition-colors ${
-                  isActive
-                    ? 'bg-accent text-on-accent'
-                    : 'text-muted hover:bg-surface-soft hover:text-ink'
-                }`
-              }
+    <nav aria-label={c.sections} className="mb-6 overflow-x-auto lg:overflow-visible">
+      <ul className="flex min-w-max gap-2 rounded-control border border-line bg-surface p-1.5 shadow-surface lg:min-w-0 lg:flex-wrap">
+        {groups.map((group) => (
+          <li key={group.label} className="flex items-center gap-1">
+            <span
+              aria-hidden="true"
+              className="px-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-muted"
             >
-              {section.label}
-              {section.to === '/career/inbox' && unread > 0 && (
-                <>
-                  <span
-                    aria-hidden="true"
-                    className="ml-2 grid min-w-6 place-items-center rounded-full bg-gold px-1.5 text-xs font-bold text-[#1d3127]"
+              {group.label}
+            </span>
+            <ul aria-label={group.label} className="flex gap-1">
+              {group.sections.map((section) => (
+                <li key={section.to}>
+                  <NavLink
+                    to={save ? `${section.to}?save=${save}` : section.to}
+                    end={section.end}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+                      event.preventDefault();
+                      const links = Array.from(
+                        event.currentTarget
+                          .closest('nav')
+                          ?.querySelectorAll<HTMLAnchorElement>('a') ?? [],
+                      );
+                      const index = links.indexOf(event.currentTarget);
+                      const step = event.key === 'ArrowRight' ? 1 : links.length - 1;
+                      links[(index + step) % links.length]?.focus();
+                    }}
+                    className={({ isActive }) =>
+                      `relative flex min-h-11 items-center rounded-[0.6rem] px-4 text-sm font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-accent text-on-accent'
+                          : 'text-muted hover:bg-surface-soft hover:text-ink'
+                      }`
+                    }
                   >
-                    {unread}
-                  </span>
-                  <span className="sr-only"> · {format(m.inbox.unread, { count: unread })}</span>
-                </>
-              )}
-            </NavLink>
+                    {section.label}
+                    {section.to === '/career/inbox' && unread > 0 && (
+                      <>
+                        <span
+                          aria-hidden="true"
+                          className="ml-2 grid min-w-6 place-items-center rounded-full bg-gold px-1.5 text-xs font-bold text-[#1d3127]"
+                        >
+                          {unread}
+                        </span>
+                        <span className="sr-only">
+                          {' '}
+                          · {format(m.inbox.unread, { count: unread })}
+                        </span>
+                      </>
+                    )}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
           </li>
         ))}
       </ul>
@@ -308,6 +356,39 @@ export function CareerEmpty() {
 }
 
 function NoCareerInWorld() {
+  const legacy = useAppStore((s) => s.world?.legacies.at(-1));
+  if (legacy)
+    return (
+      <section className={`${ui.panel} flex flex-col gap-4 bg-art-green`}>
+        <p className={ui.eyebrow}>{honoursText.legacy.yourLegacy}</p>
+        <h2 className="font-display text-[2.2rem] leading-none">{legacy.name}</h2>
+        <p className="max-w-prose text-muted">
+          {format(honoursText.legacy.retired, { age: legacy.age, season: legacy.retiredAt.season })}{' '}
+          ·{' '}
+          {format(honoursText.legacy.hallLine, {
+            rank: legacy.hallOfFame.rank,
+            of: legacy.hallOfFame.of,
+          })}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Link className="button" to="/career/legacy">
+            {honoursText.titles.legacy}
+            <Icon name="arrow" />
+          </Link>
+          {!legacy.childPlayerId && (
+            <Link
+              className="button secondary"
+              to={`/career/new?parent=${encodeURIComponent(legacy.id)}`}
+            >
+              {format(honoursText.legacy.child, { name: legacy.name })}
+            </Link>
+          )}
+          <Link className="button secondary" to="/career/new">
+            {honoursText.legacy.newCareer}
+          </Link>
+        </div>
+      </section>
+    );
   return (
     <section className={`${ui.panel} flex flex-col gap-4 bg-art-green`}>
       <h2 className="font-display text-[2.2rem] leading-none">{c.empty.noWorldCareer}</h2>

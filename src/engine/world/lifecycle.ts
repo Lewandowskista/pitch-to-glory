@@ -388,8 +388,10 @@ export function refreshReturningClub(world: World, club: Club): void {
  */
 export function archiveAndPrune(world: World, completedSeason: number): void {
   const archive = (world.archive ??= { players: {} });
+  // Retired career players stay in the live graph for their legacy.
+  const kept = new Set(world.legacies.map((legacy) => legacy.playerId));
   for (const player of Object.values(world.players)) {
-    if (!player.retired) continue;
+    if (!player.retired || kept.has(player.id)) continue;
     const record: ArchivedPlayer = {
       id: player.id,
       name: player.name,

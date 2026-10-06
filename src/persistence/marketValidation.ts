@@ -57,6 +57,13 @@ const INBOX_KINDS = [
   'sponsor-dropped',
   'asset-sold',
   'fame-level',
+  'call-up',
+  'tournament',
+  'award',
+  'golden-ball',
+  'trophy',
+  'record',
+  'retirement-due',
 ];
 
 const nullableDate = (value: unknown) => {

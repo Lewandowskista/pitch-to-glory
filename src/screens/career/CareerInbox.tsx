@@ -36,6 +36,16 @@ export function messageLink(
     return { to: join('/career/media'), label: m.inbox.goMedia };
   if (message.subjectKey.startsWith('sponsor-') || message.subjectKey === 'asset-sold')
     return { to: join('/career/lifestyle'), label: m.inbox.goLifestyle };
+  if (['award', 'golden-ball', 'trophy', 'record'].includes(message.subjectKey))
+    return {
+      to: join(
+        '/career/trophies',
+        message.subjectKey === 'golden-ball' ? `ceremony=${message.params.season}` : '',
+      ),
+      label: m.inbox.goTrophies,
+    };
+  if (message.subjectKey === 'call-up' || message.subjectKey === 'tournament')
+    return { to: join('/career/national'), label: m.inbox.goNational };
   if (message.subjectKey === 'fame-level')
     return { to: join('/career/wardrobe'), label: m.inbox.goWardrobe };
   if (message.subjectKey === 'rival-transfer')

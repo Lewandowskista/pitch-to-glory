@@ -476,3 +476,49 @@ Returns are seeded by world, week and asset. Stakes come in fixed amounts: 1,000
 
 - A compact career reached fame level 3 in its first season and 4 in its second; it signed one deal, which failed at 4 of 5 starts.
 - A national career week costs about 299 ms with auto-play, against 267 ms for a plain week.
+
+## Honours (milestone 8)
+
+Constants live in `CONFIG.world.continental` and `CONFIG.career.honours`.
+
+**Continental cups.**
+
+| Country  | Champions Cup places | Shield places |
+| -------- | -------------------- | ------------- |
+| England  | 6                    | 5             |
+| Spain    | 6                    | 5             |
+| Italy    | 6                    | 5             |
+| Germany  | 5                    | 6             |
+| France   | 5                    | 6             |
+| Portugal | 4                    | 5             |
+
+- Each cup has 32 clubs: eight groups of four, from four pots by reputation.
+- Group matchdays fall in weeks 8, 12, 16, 20, 26 and 30. The round of 16, quarter-finals, semi-finals and final fall in weeks 38, 44, 49 and 55, all on day 2.
+- A club in a continental cup adds 0.2 to the player's scouting visibility.
+
+**International football.**
+
+- Windows at 18%, 42% and 68% of the season, with two matches each. Squads are 3 goalkeepers, 8 defenders, 7 midfielders and 5 attackers. Age limits: Under-19 up to 19, Under-21 up to 21.
+- Selection score: `ability + 0.1 × form + min(8, 0.02 × fame)`.
+- Nation rating: the mean ability of the first eleven (1 GK, 4 DEF, 3 MID, 3 ATT). A guest nation has a fixed rating, 10 lower at youth level.
+- Goals: Poisson with mean `max(0.2, 1.3 ± (home − away) × 0.035 / 2)`. In window matches, the player's nation gets +1 rating at home. Knockout draws go to penalties, 50/50.
+- The player plays if they would start (rank in their line within the starter slots), or otherwise with chance 0.4. Each of their side's goals is theirs with the line's goal share (GK 0, DEF 0.04, MID 0.12, ATT 0.28), or their assist with the assist share (0, 0.05, 0.14, 0.12).
+- Match rating: `6.2 + result (+0.5 win, −0.4 loss) + 0.8 × goals + 0.4 × assists ± 0.4`, within 3–10.
+- Reward per cap: +1 fame (senior) and 25 XP. Per goal: +2 fame (senior, +1 at youth level) and 15 XP. Winning a tournament while in the squad: +10 fame.
+- Kept: the last 120 international matches and 30 tournaments.
+
+**Awards.**
+
+- Award score: `10 × average rating + 1.5 × goals + 1 × assists`. For the month: `10 × average rating + 0.6 × goals + 0.4 × assists`.
+- Minimum appearances: 2 for a month, 10 for a season. A month is five weeks. Young player: 21 or under.
+- Golden Ball bonuses: league champion +10, top four +5 (top division only); continental winner +10 or finalist +5 (half for the Shield); international tournament winner +8.
+- Fame: player of the month +3; season awards +6; Golden Ball +25; Golden Ball shortlist without winning +5.
+
+**Retirement and legacy.**
+
+- Retirement is optional from 32 once the season is complete, and forced at 40.
+- Hall of Fame score: `0.5 × appearances + 2 × goals + 1 × assists + 1 × caps + 15 × trophies + 10 × awards + 40 × Golden Balls`. Players without a legacy are scored on their club numbers. Rank is among all active, retired and archived players.
+- A child gets +3 potential, `min(30, round(0.1 × parent fame))` fame and 10% of the parent's savings.
+- A retired former teammate aged 34 or over takes a vacant manager's job with chance 0.4.
+
+**Moments and Chronicle.** Late means the 85th minute on; "wonder" means a goal from a choice of 20% probability or less. Each player keeps 40 moments and 600 Chronicle entries.

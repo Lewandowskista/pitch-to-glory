@@ -7,9 +7,9 @@ Prepared on **6 October 2026** and updated the same day after the post-milestone
 1. Read [AGENTS.md](../AGENTS.md) in full before changing anything.
 2. Read this handoff, then [README.md](../README.md), [DECISIONS.md](DECISIONS.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 3. Read [REALISM.md](REALISM.md) before touching world generation, league sizes, schedules or sporting movement.
-4. Read the **Milestone 7 verification** section of [VERIFICATION.md](VERIFICATION.md), [MILESTONE-7.md](MILESTONE-7.md), [MILESTONE-6.md](MILESTONE-6.md), [MILESTONE-5.md](MILESTONE-5.md) and [MILESTONE-4.md](MILESTONE-4.md), and the later sections of [DECISIONS.md](DECISIONS.md) (hardening, milestone 4, real identities, milestones 5–7). Earlier verification sections are historical.
+4. Read the **Milestone 8 verification** section of [VERIFICATION.md](VERIFICATION.md), [MILESTONE-8.md](MILESTONE-8.md), [MILESTONE-7.md](MILESTONE-7.md), [MILESTONE-6.md](MILESTONE-6.md), [MILESTONE-5.md](MILESTONE-5.md) and [MILESTONE-4.md](MILESTONE-4.md), and the later sections of [DECISIONS.md](DECISIONS.md) (hardening, milestone 4, real identities, milestones 5–8). Earlier verification sections are historical.
 5. Inspect `git status`, the latest commits and the actual implementation. Documented test results are a recorded baseline, not proof that a later checkout still passes.
-6. Follow the user's current requested scope. The next product milestone is **Milestone 4**, but this handoff itself does not authorize starting it. Work one milestone at a time and stop with a summary before advancing.
+6. Follow the user's current requested scope. The next product milestone is **Milestone 9**, but this handoff itself does not authorize starting it. Work one milestone at a time and stop with a summary before advancing.
 
 ## Complete document index
 
@@ -18,9 +18,9 @@ Paths below are relative to this document. All documents under `docs/` at handof
 | Document                                 | Purpose and when to read it                                                                                                                                                       | Status at handoff                                                                                                                                                                          |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [AGENTS.md](../AGENTS.md)                | Full product specification: mandatory stack, art direction, browser requirements, simulation systems, quality bar and milestones.                                                 | Authority for requirements; supplied by the user, not an implementation substitute.                                                                                                        |
-| [README.md](../README.md)                | Installation, development commands, implemented screen usage, save behavior, hosting/CI setup and next milestone.                                                                 | Updated through milestones 1–3.                                                                                                                                                            |
+| [README.md](../README.md)                | Installation, development commands, implemented screen usage, save behavior, hosting/CI setup and next milestone.                                                                 | Updated through milestone 8.                                                                                                                                                               |
 | [ASSETS.md](../ASSETS.md)                | Original SVG provenance, self-hosted font licenses, audio scope and installation-icon limitations.                                                                                | Current provenance; audio remains a later milestone.                                                                                                                                       |
-| [ARCHITECTURE.md](ARCHITECTURE.md)       | Folder boundaries, full TypeScript domain model, engine/store/UI/worker interactions, platform adapter, persistence and interactive match session contracts.                      | Updated through milestone 3; compare types with `src/model/domain.ts` and `src/engine/match/types.ts` when editing.                                                                        |
+| [ARCHITECTURE.md](ARCHITECTURE.md)       | Folder boundaries, full TypeScript domain model, engine/store/UI/worker interactions, platform adapter, persistence and interactive match session contracts.                      | Updated through milestone 8; domain types synced with `src/model/domain.ts`; compare with `src/engine/match/types.ts` too.                                                                 |
 | [DECISIONS.md](DECISIONS.md)             | Ambiguities, adaptations and implementation choices: legacy compatibility, national profiles, worker transport/persistence, PWA update safety and friendly match scope.           | Append-only decision history; later national/match sections supersede earlier compact-world assumptions.                                                                                   |
 | [PLAN.md](PLAN.md)                       | Completed milestone-1 implementation checklist for the foundation, SVG assets, shell and saves.                                                                                   | Historical completed plan.                                                                                                                                                                 |
 | [MILESTONE-2.md](MILESTONE-2.md)         | Original world-engine design, worker checkpoint flow, UI/save integration and completed implementation checklist.                                                                 | Historical compact-world plan; uniform eight-club rules and older schema/limits are preserved for legacy worlds, not new generation.                                                       |
@@ -32,6 +32,7 @@ Paths below are relative to this document. All documents under `docs/` at handof
 | [MILESTONE-5.md](MILESTONE-5.md)         | Career market design: contracts, selection by role promise, scouting, windows, negotiation, loans, agents, inbox and known limits.                                                | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
 | [MILESTONE-6.md](MILESTONE-6.md)         | Social design: morale and form, dressing room, teammates, culture fit, rival, media, and known limits.                                                                            | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
 | [MILESTONE-7.md](MILESTONE-7.md)         | Lifestyle design: fame levels, sponsorships, lifestyle items, wardrobe, celebrations, challenges, and known limits.                                                               | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
+| [MILESTONE-8.md](MILESTONE-8.md)         | Honours design: continental cups, national team, awards, retirement, legacy, Chronicle, Moments, and known limits.                                                                | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
 | [MATCH-BALANCING.md](MATCH-BALANCING.md) | Interactive scoring/probability/fatigue/report formulas and exact 10,000-match calibration results and cohort limits.                                                             | Current friendly-engine calibration.                                                                                                                                                       |
 | [VERIFICATION.md](VERIFICATION.md)       | Required checks, browser flows, performance/storage measurements, screenshot locations and unresolved release/device checks.                                                      | Milestone-2 history followed by the current milestone-3 evidence.                                                                                                                          |
 | [HANDOFF.md](HANDOFF.md)                 | This document: reading order, full index, current state, integration risks and a reusable continuation prompt.                                                                    | Handoff snapshot; update it when implementation or verification changes.                                                                                                                   |
@@ -40,13 +41,13 @@ When a historical plan differs from the current state, use AGENTS.md for require
 
 ## Implemented state
 
-**Milestones 1–7 are implemented (with the post-milestone-3 hardening pass and the real-identity rework); milestone 8 has not started.** Release acceptance still has the explicit gaps listed below.
+**Milestones 1–8 are implemented (with the post-milestone-3 hardening pass and the real-identity rework); milestone 9 has not started.** Release acceptance still has the explicit gaps listed below.
 
 - Foundation: Vite, React 18, strict TypeScript, route splitting, Zustand slices, Tailwind/design tokens, Framer Motion, Dexie, Vitest, Playwright, lint/format tooling, PWA/update handling, web platform adapter and CI/static-host configuration.
 - Art and shell: seeded SVG crests, home/away/third kits and ageing avatars; asset gallery; title/menu, settings and three save slots; responsive sidebar/bottom navigation; light/dark themes, font scaling and reduced motion.
 - World: new generation uses the six real countries with fictional, referenced clubs and competitions (identity version 2), **52 league groups, 959 initial clubs, 21,098 initial players and seven domestic cups**. Counters can change over subsequent seasons. Weekly/full-season simulation, competitions, regional groups, playoffs, squads, history and rollover run through the worker architecture.
 - Matches: pre-match teams/footballer/tactics, keeper and outfield moments, transparent probabilities, lazy PixiJS pitch with SVG fallback, commentary, live statistics, speed/skip controls, keyboard support, visibility pause, half-time/captain/substitution responses and rating/objective/heat/pass/shot reports. Simulation-only mode avoids constructing the renderer.
-- Persistence: three slots, export/import (compact JSON), revision/ownership checks, tab locks, migration, weekly/match autosave and saved-session restoration. Current file schema is **8** and the IndexedDB layout is **v6**: each slot is split into a metadata record, the world graph and the match session. Existing v1–v7 saves migrate without replacing world identities or sporting rules.
+- Persistence: three slots, export/import (compact JSON), revision/ownership checks, tab locks, migration, weekly/match autosave and saved-session restoration. Current file schema is **12** and the IndexedDB layout is **v6**: each slot is split into a metadata record, the world graph and the match session. Existing v1–v11 saves migrate without replacing world identities or sporting rules.
 - Hardening pass, after milestone 3:
   - A save survives code changes. A stale match session is discarded and the world kept; country profiles are frozen by rule fingerprint and version.
   - Each slot is listed and loaded independently.
@@ -58,7 +59,7 @@ When a historical plan differs from the current state, use AGENTS.md for require
   - CI hardening.
   - Tailwind hybrid styling rule.
 
-Implemented routes are `/`, `/gallery`, `/saves`, `/settings`, `/world`, `/match`, `/career`, `/career/new`, `/career/profile`, `/career/skills`, `/career/training`, `/career/transfers`, `/career/agent`, `/career/inbox`, `/career/club`, `/career/media`, `/career/rival`, `/career/lifestyle` and `/career/wardrobe`. No future screen placeholders should be added.
+Implemented routes are `/`, `/gallery`, `/saves`, `/settings`, `/world`, `/match`, `/career`, `/career/new`, `/career/profile`, `/career/skills`, `/career/training`, `/career/transfers`, `/career/agent`, `/career/inbox`, `/career/club`, `/career/media`, `/career/rival`, `/career/lifestyle`, `/career/wardrobe`, `/career/national`, `/career/trophies`, `/career/chronicle`, `/career/moments`, `/career/legacy` and the public `/moment` replay. No future screen placeholders should be added.
 
 ### User-confirmed realism requirement
 
@@ -120,8 +121,14 @@ England extends through tier six, including National League North/South. Referen
   - the wardrobe and cosmetic unlocks;
   - celebrations, drawn by the match screen with fame added on the commit path;
   - real-calendar challenges paying cosmetic-only style tokens.
-- Milestone 8 awards should compare the player with the rival (`world.rivalries`), and retirement must keep the career's records.
-- Bump `MATCH_ENGINE_VERSION` (currently `match-6`) whenever match logic changes. File schema is 11.
+- Milestone 8 added `src/engine/career/honours/` and `src/engine/world/continental.ts` (see MILESTONE-8.md):
+  - continental cups (Champions Cup and Shield) in national worlds only;
+  - national squads, simulated internationals and biennial tournaments;
+  - monthly, season and Golden Ball awards, with the rival in the Golden Ball pool and records;
+  - retirement into a legacy with a Hall of Fame rank; new careers and child careers in the same world; former teammates as managers;
+  - the Chronicle (with PNG export) and Moments (with self-contained replay links).
+- `world.career` can now be absent in a world with legacies. Career pages show the legacy and ways to continue; the Legacy page works without a career.
+- Bump `MATCH_ENGINE_VERSION` (currently `match-6`) whenever match logic changes. File schema is 12.
 
 ### Legacy saves and storage
 
@@ -131,21 +138,21 @@ The national calendar changes yearly finance/development/recovery totals relativ
 
 Ability drift is fixed by development version 2: tier means now stay within about 3 points over many seasons (see BALANCING.md).
 
-Detailed current fixtures and results are replaced on rollover. Retired players move to the compact `World.archive`, and events older than the previous season are pruned. Over ten seasons a world holds at 59–67 MiB of compact JSON, against the **128 MiB** import limit, growing about 1.3 MiB per season (mostly archive records). The career player is excluded from the lifecycle's release, retirement and trimming. Their family (milestone 8) must also never be pruned.
+Detailed current fixtures and results are replaced on rollover. Retired players move to the compact `World.archive`, and events older than the previous season are pruned. Over ten seasons a world holds at 59–67 MiB of compact JSON, against the **128 MiB** import limit, growing about 1.3 MiB per season (mostly archive records). The career player is excluded from the lifecycle's release, retirement and trimming. Legacy players and their children are never pruned (`keptPlayerIds`).
 
 ## Verification baseline and remaining gaps
 
-Recorded on 6 October 2026 after milestone 7; see VERIFICATION.md for full evidence:
+Recorded on 7 October 2026 after milestone 8; see VERIFICATION.md for full evidence:
 
 | Check                                            | Recorded result                                                                                                        |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | Typecheck, lint, formatting and production build | Passed                                                                                                                 |
-| Vitest                                           | 205 tests across 27 files passed                                                                                       |
-| Playwright full suite                            | 75 passed, 25 each in Chromium, Firefox and WebKit; no skips; axe checks on populated career pages                     |
-| 10,000-match benchmark                           | 2.758 goals per match; home advantage; away upsets 26.1% at a 15-point and 17.7% at a 45-point gap                     |
-| Initial-route JavaScript                         | 206.5–254.0 KB gzip; all nineteen routes below 300 KB; PixiJS deferred                                                 |
+| Vitest                                           | 224 tests across 28 files passed                                                                                       |
+| Playwright full suite                            | 78 passed, 26 each in Chromium, Firefox and WebKit; no skips; axe checks on populated career pages                     |
+| 10,000-match benchmark                           | 2.744 goals per match; home advantage; away upsets 26.2% at a 15-point and 17.7% at a 45-point gap                     |
+| Initial-route JavaScript                         | 212.0–263.2 KB gzip; all twenty-five routes below 300 KB; PixiJS deferred                                              |
 | Lighthouse (milestone 4 run)                     | Mobile performance 88–93, desktop 100, accessibility 100 on all nine configurations; cold mobile interactive 2.9–3.4 s |
-| Simulated national week (Node)                   | About 80–100 ms; a fully auto-played career season is about 15 s                                                       |
+| Simulated national week (Node)                   | About 80–100 ms; a fully auto-played national career season is 16.5 s (274 ms median week)                             |
 
 Remaining checks and scope limits:
 
@@ -161,7 +168,7 @@ Remaining checks and scope limits:
   - large screen components (World, Match);
   - no touch long-press equivalent for hover tooltips;
   - the engine lint scope still allows browser globals.
-- No site has been deployed; CI has not run remotely. Continental competitions, career systems, tutorial, audio and later off-pitch/release features retain their milestone scope.
+- No site has been deployed; CI has not run remotely. Edit mode, the tutorial, audio and release features retain their milestone scope.
 - `artifacts/` contains local screenshots, Lighthouse reports and generated test saves, but is Git-ignored. A new checkout may not have those files; regenerate evidence with the scripts rather than assuming it travelled with the source.
 
 ## Run and verify
@@ -193,7 +200,7 @@ Optional inspection scripts are `scripts/capture.mjs` (screen captures) and `scr
 ## Git and delivery state
 
 - Repository root on the original machine: `C:\Users\Stefan\Game Mod`.
-- Git was initialized after milestones 1–3. Branch: **main**. Initial implementation commit: **`d1c1be7` — Build Pitch to Glory through milestone 3**. The hardening pass is commit **`2f71752`**, milestone 4 is **`dfc06a0`** and the real-identity rework is **`d1b8358`**. Milestone 5 is **`c14601f`** and milestone 6 is **`5fe762b`**; milestone 7 follows. Check `git log` for later commits.
+- Git was initialized after milestones 1–3. Branch: **main**. Initial implementation commit: **`d1c1be7` — Build Pitch to Glory through milestone 3**. The hardening pass is commit **`2f71752`**, milestone 4 is **`dfc06a0`** and the real-identity rework is **`d1b8358`**. Milestone 5 is **`c14601f`**, milestone 6 is **`5fe762b`** and milestone 7 is **`56eab5f`**; milestone 8 follows. Check `git log` for later commits.
 - No remote or hosting deployment is configured at this snapshot. Do not infer that the local commit exists on GitHub. The new handoff document is subsequent work; inspect `git status` and newer commits when continuing.
 - `.gitignore` excludes dependencies, builds, local test reports/artifacts, logs and environment files. Never stage generated large backup fixtures or credentials.
 - `netlify.toml` supplies the static-host configuration. `.github/workflows/ci.yml` contains checks and optional deployment; publishing requires the configured Netlify production secrets and explicit deployment scope.
@@ -202,13 +209,14 @@ Historical plans stating that there is no repository are time-specific records. 
 
 ## Next milestone and continuation prompt
 
-The next milestone is **8: national team, continental cups, awards, retirement, legacy, Chronicle and Moments sharing**. It should:
+The next milestone is **9: edit mode, accessibility pass, tutorial, audio and a polish pass on every screen**. It should:
 
-- implement the continental cups whose names are already reserved (`CONTINENTAL` in `identities/index.ts`);
-- compare awards with the rival;
-- keep the career's records (matches, moves, media, lifestyle) through retirement into the legacy and Chronicle.
+- build edit mode (rename clubs, leagues and players, colours, crest regeneration, JSON export/import of edits through the platform adapter);
+- run the accessibility pass (font scaling, colour-blind-safe kit clash detection, reduced motion, keyboard operability, screen-reader labels) across every screen, including the milestone 8 pages;
+- add the first-match and first-week tutorial, and Howler.js audio after the first interaction (CC0 or procedural sources in ASSETS.md);
+- polish every screen without changing saved worlds' rules.
 
-Do not begin edit mode, the tutorial or audio (milestone 9) at the same time.
+Do not begin the web release work (milestone 10) at the same time.
 
 ```text
 You are continuing Pitch to Glory in this repository.
@@ -217,26 +225,23 @@ Read AGENTS.md in full before doing anything, then read docs/HANDOFF.md
 and follow its reading order. AGENTS.md is the product source of truth.
 Inspect git status and the current code before modifying files.
 
-Milestones 1–7 are implemented. Implement Milestone 8 only, following
+Milestones 1–8 are implemented. Implement Milestone 9 only, following
 the mandatory stack, SVG art direction, accessibility, save compatibility
 and quality requirements. New UI uses Tailwind utilities with the shared
-tokens. Do not start Milestone 9 or add future UI stubs.
+tokens. Do not start Milestone 10 or add future UI stubs.
 
 Preserve the source-documented national pyramids and legacy world rules.
-Current saves are schema 11; bump MATCH_ENGINE_VERSION when match logic
+Current saves are schema 12; bump MATCH_ENGINE_VERSION when match logic
 changes. Career fixtures are committed once through commitPlayedFixture;
-keep that single path. The career player is excluded from the AI squad
-lifecycle; the career market (src/engine/career/market) owns their
-contract and moves; the career social module (src/engine/career/social)
-owns morale, relationships, the dressing room, the rival and the media.
-the career lifestyle module (src/engine/career/lifestyle) owns fame
-levels, sponsors, lifestyle, wardrobe, celebrations and challenges.
-Route new messages through the inbox and media feed, and compare
-awards with the rival.
+keep that single path. The career modules own their records: market
+(contracts and moves), social (morale, relationships, rival, media),
+lifestyle (fame, sponsors, wardrobe, challenges) and honours (national
+team, awards, retirement, legacy, Chronicle, Moments). A world may hold
+legacies without a career. Edits must keep every validator passing.
 
 Make reasonable decisions for ambiguities, record them in docs/DECISIONS.md,
 and continue. Update architecture, balancing, verification, README and the
 handoff as appropriate. Run typecheck, lint, formatting, unit tests, build
 and critical flows in Chromium, Firefox and WebKit before finishing.
-Report measured limitations candidly and stop with a Milestone 8 summary.
+Report measured limitations candidly and stop with a Milestone 9 summary.
 ```

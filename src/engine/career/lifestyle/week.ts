@@ -1,6 +1,7 @@
 import type { World } from '../../../model/domain';
 import { createRng } from '../../rng';
 import { postMessage } from '../market/records';
+import { chronicle } from '../honours/chronicle';
 import { assetWeek, sponsorRollover, sponsorWeek } from './lifestyle';
 import { careerFameLevel, initialStyle, L } from './wardrobe';
 
@@ -12,7 +13,10 @@ export function lifestyleWeek(world: World): void {
   const career = world.career!;
   const rng = createRng(`${world.seed}:lifestyle:${world.date.season}:${world.date.week}`);
   const level = careerFameLevel(world);
-  if (level > career.style.fameLevel) postMessage(world, 'fame-level', { level });
+  if (level > career.style.fameLevel) {
+    postMessage(world, 'fame-level', { level });
+    if (level >= 5) chronicle(world, 'fame', { level });
+  }
   career.style.fameLevel = level;
   sponsorWeek(world, rng);
   assetWeek(world);

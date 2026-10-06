@@ -10,11 +10,13 @@ src/
     assets/           Crest, kit and avatar recipes and geometry
     world/            Generation, schedules, background scores, squad lifecycle and seasons
       identities/     Real countries and towns; fictional clubs and competitions with real references
+      continental.ts  Champions Cup and Shield: qualification, draw, groups and knockouts
     match/            Deterministic command engine, session types and replay validation
     career/           Career creation, progression, skills, training, injuries, fixtures and commit
       market/         Contracts, agents, scouting, offers, negotiation, loans and the weekly market
       social/         Morale, dressing room, teammates, culture fit, rival and media
       lifestyle/      Fame levels, sponsors, lifestyle items, wardrobe, celebrations and challenges
+      honours/        National team, awards, retirement and legacy, Chronicle and Moments
     ageing.ts         Age curves, attribute targets and AI development
     strength.ts       Team strength model shared by background and interactive matches
     config.ts         Tunable constants; no browser dependencies
@@ -520,6 +522,19 @@ export interface Career {
   social: CareerSocial;
   /** Fame, wardrobe, celebrations, lifestyle and challenges (milestone 7). */
   style: CareerStyle;
+  /** National team, retirement and legacy (milestone 8). */
+  honours: CareerHonours;
+}
+export type NationalLevel = 'U19' | 'U21' | 'senior';
+export interface CareerHonours {
+  caps: Record<NationalLevel, number>;
+  internationalGoals: Record<NationalLevel, number>;
+  /** The level of the latest call-up, and when. */
+  lastCallUp: { level: NationalLevel; date: GameDate } | null;
+  /** Highest overall ability reached. */
+  peakAbility: number;
+  /** The legacy of the parent, for a career played as a former player's child. */
+  parentLegacyId: Id | null;
 }
 export type SleeveLength = 'short' | 'long';
 export interface CareerStyle {
@@ -855,29 +870,75 @@ export interface Challenge {
   rewardCosmeticId: Id | null;
   claimed: boolean;
 }
+/** A nation's squad for one level, as last selected. */
 export interface NationalTeam {
   id: Id;
   countryId: Id;
-  level: 'U19' | 'U21' | 'senior';
-  managerId: Id;
+  level: NationalLevel;
   playerIds: Id[];
-  kits: ClubKits;
-  fixtureIds: Id[];
 }
 export interface CallUp {
   id: Id;
   playerId: Id;
   nationalTeamId: Id;
   date: GameDate;
-  accepted: boolean;
+  /** Whether the player took the field in the window. */
+  played: boolean;
 }
+/** A national side: one of the world's countries, or a guest nation with a fixed rating. */
+export interface Nation {
+  id: Id;
+  /** The world country, for the six simulated nations. */
+  countryId: Id | null;
+  name: string;
+  rating: number;
+  colors: [Hex, Hex];
+}
+export interface InternationalMatch {
+  id: Id;
+  date: GameDate;
+  level: NationalLevel;
+  kind: 'friendly' | 'qualifier' | 'group' | 'knockout' | 'final';
+  tournamentId: Id | null;
+  homeId: Id;
+  awayId: Id;
+  score: [number, number];
+  penalties: [number, number] | null;
+  /** The career player's part, when they played. */
+  career: { rating: number; goals: number; assists: number } | null;
+}
+export interface Tournament {
+  id: Id;
+  kind: 'continental' | 'world';
+  name: string;
+  year: number;
+  /** Groups of four nation ids. */
+  groups: Id[][];
+  matchIds: Id[];
+  winnerId: Id;
+  runnerUpId: Id;
+  /** How far the career player's nation went, and whether they were in the squad. */
+  career: {
+    nationId: Id;
+    stage: 'group' | 'quarter' | 'semi' | 'final' | 'winner';
+    inSquad: boolean;
+  } | null;
+}
+export type AwardKind =
+  'month' | 'team-season' | 'golden-boot' | 'young-player' | 'mvp' | 'golden-ball';
 export interface Award {
   id: Id;
-  nameKey: string;
-  kind: 'month' | 'team-season' | 'golden-boot' | 'young-player' | 'mvp' | 'golden-ball';
+  kind: AwardKind;
   season: number;
-  winnerIds: Id[];
+  /** Month of the season (1–12) for player of the month. */
+  month: number | null;
+  /** The league the award covers; null for the Golden Ball and young player of the year. */
   competitionId: Id | null;
+  winnerIds: Id[];
+  /** Golden Ball ranking, best first. */
+  shortlist: { playerId: Id; clubId: Id; score: number }[];
+  /** The winning value: goals for the golden boot, otherwise the score. */
+  value: number;
 }
 export interface Trophy {
   id: Id;
@@ -886,33 +947,74 @@ export interface Trophy {
   clubId: Id;
   playerIds: Id[];
 }
+export type RecordKind = 'season-goals' | 'career-goals' | 'golden-balls';
 export interface RecordEntry {
   id: Id;
-  nameKey: string;
+  kind: RecordKind;
   playerId: Id;
+  playerName: string;
   value: number;
   date: GameDate;
 }
 export interface Legacy {
   id: Id;
   playerId: Id;
+  name: string;
+  avatar: Avatar;
+  nationalityId: Id;
+  position: Position;
+  startSeason: number;
   retiredAt: GameDate;
-  stats: PlayerStats;
-  chronicleIds: Id[];
+  age: number;
+  /** Clubs played for, in order. */
+  clubIds: Id[];
+  stats: {
+    appearances: number;
+    goals: number;
+    assists: number;
+    cleanSheets: number;
+    caps: number;
+    internationalGoals: number;
+  };
   trophyIds: Id[];
-  recordIds: Id[];
-  hallOfFameRank: number;
+  awardIds: Id[];
+  records: RecordKind[];
+  hallOfFame: { score: number; rank: number; of: number };
+  peakAbility: number;
+  fame: number;
+  level: number;
+  earnings: number;
+  savings: number;
+  teammateIds: Id[];
   childPlayerId: Id | null;
 }
+export type ChronicleKind =
+  | 'start'
+  | 'debut'
+  | 'first-goal'
+  | 'hat-trick'
+  | 'goal-milestone'
+  | 'apps-milestone'
+  | 'move'
+  | 'injury'
+  | 'trophy'
+  | 'award'
+  | 'call-up'
+  | 'cap'
+  | 'international-goal'
+  | 'tournament'
+  | 'rival'
+  | 'fame'
+  | 'record'
+  | 'moment'
+  | 'retirement';
 export interface ChronicleEntry {
   id: Id;
   playerId: Id;
-  eventId: Id;
   date: GameDate;
-  titleKey: string;
-  narrativeKey: string;
+  kind: ChronicleKind;
   params: Record<string, string | number>;
-  illustration: { avatar: Avatar; crest: Crest | null };
+  clubId: Id | null;
   momentId: Id | null;
 }
 export interface Point {
@@ -924,16 +1026,21 @@ export interface ReplayFrame {
   ball: Point;
   players: { id: Id; point: Point; animation: string }[];
 }
+/** A memorable play, stored as a compact clip that can be replayed and shared as a link. */
 export interface Moment {
   id: Id;
-  matchId: Id;
   playerId: Id;
+  date: GameDate;
+  kind: 'winner' | 'equalizer' | 'wonder' | 'final' | 'hat-trick';
+  minute: number;
+  scorerName: string;
+  home: { name: string; color: Hex };
+  away: { name: string; color: Hex };
+  score: [number, number];
+  /** The match seed the clip was cut from. */
   seed: string;
-  engineVersion: string;
-  rng: RngState;
-  inputs: DecisionInput[];
-  frames: ReplayFrame[];
-  kind: string;
+  /** Encoded keyframes (see engine/career/honours/moments.ts). */
+  clip: string;
 }
 export interface Fixture {
   id: Id;
@@ -1080,7 +1187,10 @@ export interface World {
   format?: 'legacy' | 'national-v1';
   /** 2: potential is peak overall ability and development follows age curves. */
   developmentVersion?: 2;
-  /** 2: real countries and towns, fictional clubs/competitions referencing real ones. */
+  /**
+   * 2: real countries and towns, with fictional clubs and competitions referencing real ones.
+   * Absent for worlds generated with fictional countries, which keep their identities.
+   */
   identityVersion?: 2;
   /** The player's career, when this world hosts one (milestone 4). */
   career?: Career;
@@ -1125,6 +1235,24 @@ export interface World {
   history: SeasonSummary[];
   /** Retired people pruned from the live graph. Absent in worlds saved before schema 6. */
   archive?: WorldArchive;
+  /** International football (milestone 8): nations, matches and tournaments. */
+  international?: InternationalState;
+  /** Season statistics baselines for awards (milestone 8). */
+  awardState?: AwardState;
+}
+/** Lifetime appearances, goals, assists and rating total at a baseline. */
+export type StatLine = [number, number, number, number];
+export interface AwardState {
+  season: number;
+  /** Baselines at the start of the season, for players awards can consider. */
+  seasonStart: Record<Id, StatLine>;
+  month: number;
+  monthStart: Record<Id, StatLine>;
+}
+export interface InternationalState {
+  nations: Nation[];
+  matches: InternationalMatch[];
+  tournaments: Tournament[];
 }
 export interface BackgroundResult {
   fixtureId: Id;
@@ -1179,7 +1307,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 11;
+  schemaVersion: 12;
   engineVersion: string;
   slot: SlotId;
   name: string;
@@ -1255,8 +1383,10 @@ Only three slot IDs are accepted at every repository boundary. Export uses JSON 
 interface PlatformAdapter {
   readPreferences(): unknown;
   writePreferences(value: unknown): boolean;
-  saveFile(name: string, content: string, mime: string): Promise<void>;
-  shareFile(name: string, content: string, mime: string): Promise<void>;
+  saveFile(name: string, content: string | Blob, mime: string): Promise<void>;
+  shareFile(name: string, content: string | Blob, mime: string): Promise<void>;
+  /** Share a link through the system share sheet, or copy it; reports which happened. */
+  shareLink(url: string, title: string): Promise<'shared' | 'copied' | 'failed'>;
   readFile(file: File): Promise<string>;
   requestPersistentStorage(): Promise<boolean>;
   isStoragePersistent(): Promise<boolean>;
@@ -1496,3 +1626,35 @@ The challenge calendar is an input: the UI passes the local date (`useChallengeR
 - The Pixi scene animates the token's inner body (`celebrate(motion)`), and the SVG fallback uses CSS keyframes (`styles/celebrations.css`).
 
 `engine/assets/gear.ts` renders the dressed shirt and the socks and boots. `persistence/lifestyleValidation.ts` validates the records.
+
+## Honours and legacy (milestone 8)
+
+`engine/world/continental.ts` runs the continental cups of national worlds:
+
+- `continentalQualifiers` and `startContinental` pick the 32 clubs of each cup from the last tables (or reputation in a new world) and draw the groups.
+- `advanceContinental` runs each week and on the commit path. It builds the round of 16, quarter-finals, semi-finals and final from finished stages. `groupTable` derives group standings from results.
+- `isKnockoutFixture` tells the shared resolver which fixtures need a winner.
+
+`engine/career/honours/` is pure:
+
+- `chronicle.ts`: `chronicle(world, kind, params, options)` appends a dated entry for the career player and trims to the limit.
+- `clip.ts`: the clip codec and the share-link payload (`encodeClip`, `decodeClip`, `momentLink`, `parseMomentLink`). It has no engine dependencies, so the public replay page and the validator stay light.
+- `moments.ts`: `captureMoments` cuts keyframes from a committed session.
+- `international.ts`: nations, squad selection, international windows, matches and biennial tournaments.
+- `awards.ts`: award baselines, player of the month, season awards, the Golden Ball and world records.
+- `retirement.ts`: retirement state, the Hall of Fame, `retireCareer`, `formerTeammates` and `keptPlayerIds`.
+- `week.ts`: `attachHonours`, `honoursMatch`, `honoursWeek`, `honoursSeasonEnd` and `honoursRollover`.
+- `actions.ts`: `applyHonoursAction` (retire), with the shared structural-sharing draft.
+
+How it plugs into the existing paths:
+
+1. `simulateWeek` runs `honoursWeek` after `lifestyleWeek`, and `honoursSeasonEnd` after the season's tables are archived.
+2. `startNextSeason` runs `honoursRollover` after the social rollover: the tournament, then forced retirement, which may remove `world.career`. After the leagues are rebuilt, it starts the continental cups and the award season.
+3. `commitCareerMatch` calls `honoursMatch` (moments, debut, first goal, hat-tricks, milestones).
+4. Moves, long injuries, fame levels and the rival comparison write Chronicle entries where they happen.
+5. `managerChanges` may appoint a retired former teammate (`formerTeammates`).
+6. `archiveAndPrune` keeps legacy players and their children (`keptPlayerIds`).
+
+`createCareer` accepts `draft.parentLegacyId` for a child career. `persistence/honoursValidation.ts` validates every honours record, and allows a world with legacies but no career. `nationalWorldSchema.ts` validates the continental cups.
+
+UI: `CareerNational`, `CareerTrophies` (ceremony in `?ceremony=`), `CareerChronicle` (with the shared `ChronicleView`, also used by Legacy), `CareerMoments`, `CareerLegacy` (works without a career) and the public `MomentViewer` at `/moment`, which reads the URL hash only. `MomentPitch` replays a clip on an SVG pitch. The platform adapter's `shareFile` accepts a `Blob`, and `shareLink` shares or copies a link.

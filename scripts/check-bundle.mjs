@@ -22,6 +22,12 @@ for (const route of [
   'career/CareerRival',
   'career/CareerLifestyle',
   'career/CareerWardrobe',
+  'career/CareerNational',
+  'career/CareerTrophies',
+  'career/CareerChronicle',
+  'career/CareerMoments',
+  'career/CareerLegacy',
+  'MomentViewer',
 ]) {
   const visited = new Set();
   let bytes = 0;
