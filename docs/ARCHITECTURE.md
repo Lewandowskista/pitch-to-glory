@@ -14,6 +14,7 @@ src/
     career/           Career creation, progression, skills, training, injuries, fixtures and commit
       market/         Contracts, agents, scouting, offers, negotiation, loans and the weekly market
       social/         Morale, dressing room, teammates, culture fit, rival and media
+      lifestyle/      Fame levels, sponsors, lifestyle items, wardrobe, celebrations and challenges
     ageing.ts         Age curves, attribute targets and AI development
     strength.ts       Team strength model shared by background and interactive matches
     config.ts         Tunable constants; no browser dependencies
@@ -517,6 +518,37 @@ export interface Career {
   market: CareerMarket;
   /** Morale, form and media (milestone 6). */
   social: CareerSocial;
+  /** Fame, wardrobe, celebrations, lifestyle and challenges (milestone 7). */
+  style: CareerStyle;
+}
+export type SleeveLength = 'short' | 'long';
+export interface CareerStyle {
+  /** Cosmetic currency from challenges: it never buys a sporting advantage. */
+  tokens: number;
+  /** Cosmetics bought with tokens, won from challenges or chosen at creation. */
+  owned: Id[];
+  equipped: {
+    boots: Id;
+    socks: Id;
+    armband: Id;
+    sleeves: SleeveLength;
+    celebration: Id | null;
+  };
+  /** The fame level last announced, for level-up messages. */
+  fameLevel: number;
+  /** Goals celebrated with the signature celebration in big matches. */
+  signatureUses: number;
+  assets: LifestyleAsset[];
+}
+export interface LifestyleAsset {
+  id: Id;
+  /** Catalogue item: a car, a home or an investment product. */
+  itemId: Id;
+  kind: 'car' | 'house' | 'investment';
+  bought: GameDate;
+  cost: number;
+  /** Current resale value (an investment's balance). */
+  value: number;
 }
 export interface WellbeingPoint {
   season: number;
@@ -533,6 +565,7 @@ export type MoralePart =
   | 'cultureFit'
   | 'fans'
   | 'media'
+  | 'lifestyle'
   | 'situation';
 export interface CareerSocial {
   /** Weekly morale and form, newest last. */
@@ -784,65 +817,43 @@ export interface InboxMessage {
   read: boolean;
   actionId: Id | null;
 }
-export interface PersonalFinances {
-  cash: number;
-  lifetimeEarnings: number;
-  weeklyExpenses: number;
-  purchaseIds: Id[];
+export type SponsorCategory = 'boots' | 'apparel' | 'drinks' | 'watches' | 'cars' | 'tech';
+export interface SponsorObligation {
+  kind: 'starts' | 'goals' | 'clean-sheets' | 'press' | 'rating' | 'boots' | 'image';
+  /** A count, an average rating, or a minimum fan affection for 'image'. */
+  target: number;
 }
 export interface Sponsorship {
   id: Id;
-  brand: string;
-  playerId: Id;
-  fameRequired: number;
-  payment: number;
-  start: GameDate;
-  end: GameDate;
+  brandId: Id;
+  category: SponsorCategory;
+  status: 'offered' | 'active' | 'completed' | 'ended' | 'declined' | 'expired';
+  offered: GameDate;
+  expires: GameDate;
+  start: GameDate | null;
+  /** The deal runs to the end of this season. */
+  endSeason: number;
+  weeklyFee: number;
+  /** Paid when every obligation is met at the end. */
+  bonus: number;
   obligations: SponsorObligation[];
+  /** Career counters when the deal started, to measure obligations. */
+  baseline: { matches: number; answered: number } | null;
 }
-export interface SponsorObligation {
-  id: Id;
-  kind: 'appearance' | 'performance' | 'equipment';
-  target: number;
-  progress: number;
-  deadline: GameDate;
-}
-export interface LifestylePurchase {
-  id: Id;
-  kind: 'car' | 'house' | 'investment';
-  nameKey: string;
-  cost: number;
-  weeklyCost: number;
-  moraleBonus: number;
-  value: number;
-}
-export interface Cosmetic {
-  id: Id;
-  kind: 'boots' | 'hair' | 'sleeves' | 'socks' | 'armband';
-  nameKey: string;
-  recipe: Record<string, string | number>;
-  fameRequired: number;
-}
-export interface Wardrobe {
-  ownedIds: Id[];
-  equipped: Partial<Record<Cosmetic['kind'], Id>>;
-}
-export interface Celebration {
-  id: Id;
-  nameKey: string;
-  animation: ReplayFrame[];
-  fameRequired: number;
-  signature: boolean;
-  commentaryKey: string;
-}
+export type ChallengeKind =
+  'play' | 'goals' | 'assists' | 'wins' | 'rating' | 'clean-sheets' | 'press' | 'weeks' | 'xp';
 export interface Challenge {
   id: Id;
   cadence: 'daily' | 'weekly';
-  starts: string;
-  expires: string;
-  objective: Objective;
-  cosmeticRewardId: Id;
-  completed: boolean;
+  /** The real-world day (YYYY-MM-DD) or ISO week (YYYY-Www) it belongs to. */
+  period: string;
+  kind: ChallengeKind;
+  target: number;
+  /** The career counter when the challenge was issued. */
+  baseline: number;
+  rewardTokens: number;
+  rewardCosmeticId: Id | null;
+  claimed: boolean;
 }
 export interface NationalTeam {
   id: Id;
@@ -1168,7 +1179,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 10;
+  schemaVersion: 11;
   engineVersion: string;
   slot: SlotId;
   name: string;
@@ -1232,7 +1243,7 @@ type WorkerResponse =
 
 ## Persistence and tab ownership
 
-Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; v7 adds the optional career and development version; v8 adds the optional identity version and division references; v9 gives each career its market record, the agent pool and club relationships; v10 adds the social records (rival, cliques, teammates, media, morale history). Earlier files migrate unchanged.
+Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; v7 adds the optional career and development version; v8 adds the optional identity version and division references; v9 gives each career its market record, the agent pool and club relationships; v10 adds the social records (rival, cliques, teammates, media, morale history); v11 adds the career style record, sponsorships and challenges. Earlier files migrate unchanged.
 
 Reads assemble and fully validate one slot. A world that fails validation rejects the save; an attached match session that is from another match-engine version, fails replay or no longer matches the world is discarded with a `match-discarded` recovery notice while the world is kept. Writes stay strict. National profiles are compared by rule fingerprint for their profile version, so corrected citations or descriptions never invalidate saves. The slot list reads metadata only and reports `ready`, `empty` or `error` per slot. Writes that leave the world graph unchanged (match checkpoints, preferences) update metadata and the session without transferring, validating or storing the world. Backups are compact JSON. File v1 → v2 adds settings/gallery/engine version/revision; v2 → v3 preserves those values and adds the world payload capability; v3 → v4 preserves each existing world and its rules without regeneration. Import checks the 128 MiB limit, format/version/timestamps/slot/settings and every implemented world entity. World validation checks bounded values, rosters, foreign keys, fixture pair/calendar coverage, tables reconstructed from results, cup progression and archive structure before a transaction. Malformed/future files never replace valid saves. Web Locks are preferred; transactional heartbeat leases provide a fallback. Revision checks prevent stale writes even after ownership loss. Cancelled generation reacquires a retained session's slot after cleanup, or reports a lock/storage error. Switching slots and unload release ownership; crashed fallback leases expire.
 
@@ -1460,3 +1471,28 @@ How it plugs into the existing paths:
 6. `buildChoices` adds a morale factor (`moraleMultiplier`), so the session format is `match-6`.
 
 `world/dressing.ts` keeps clique members and leaders valid whenever a roster changes. `persistence/socialValidation.ts` validates every social record.
+
+## Career lifestyle (milestone 7)
+
+`engine/career/lifestyle/` is pure:
+
+- `catalogue.ts`: cosmetics, celebrations, brands and lifestyle items.
+- `wardrobe.ts`: fame levels, availability (owned, fame, sponsor, tokens or locked), equipping and buying.
+- `lifestyle.ts`: sponsor offers, deals and obligations; assets, upkeep and returns; lifestyle morale.
+- `challenges.ts`: real-calendar periods, seeded sets, progress and claims.
+- `week.ts`: `lifestyleWeek`, `lifestyleRollover`, `celebrationFame` and `attachLifestyle`.
+- `actions.ts`: `applyLifestyleAction`, with the shared structural-sharing draft.
+
+How it plugs into the existing paths:
+
+1. `simulateWeek` runs `lifestyleWeek` after `socialWeek`.
+2. `startNextSeason` runs `lifestyleRollover` after the market rollover.
+3. `commitCareerMatch` calls `celebrationFame` and reports it in `CareerMatchOutcome.celebrationFame`.
+4. `moraleParts` adds the `lifestyle` part.
+
+The challenge calendar is an input: the UI passes the local date (`useChallengeRefresh`), so the engine stays free of wall-clock time. The celebration is presentation only:
+
+- `Match.tsx` passes the latest goal by the selected player to `Pitch`.
+- The Pixi scene animates the token's inner body (`celebrate(motion)`), and the SVG fallback uses CSS keyframes (`styles/celebrations.css`).
+
+`engine/assets/gear.ts` renders the dressed shirt and the socks and boots. `persistence/lifestyleValidation.ts` validates the records.

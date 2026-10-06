@@ -668,3 +668,9 @@
     gap: 1rem;
   }
 }
+/* The signature celebration line under a goal, and its fame on the report (milestone 7). */
+.match-celebration {
+  margin-top: 0.25rem;
+  font-weight: 700;
+  color: var(--accent);
+}

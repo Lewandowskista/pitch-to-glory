@@ -12,9 +12,11 @@ export interface PitchProps {
   playing: boolean;
   reducedMotion: boolean;
   onUnavailable?: () => void;
+  /** The selected player's latest goal celebration: replayed when its key changes. */
+  celebration?: { key: string; motion: string } | null;
 }
 
-function SvgPitch({ frame, home, away, selectedPlayerId }: PitchProps) {
+function SvgPitch({ frame, home, away, selectedPlayerId, celebration }: PitchProps) {
   const kits = kitAppearance(home, away);
   const x = (value: number) => 8 + Math.max(0, Math.min(100, value));
   const y = (value: number) => 8 + Math.max(0, Math.min(100, value)) * 0.64;
@@ -41,39 +43,48 @@ function SvgPitch({ frame, home, away, selectedPlayerId }: PitchProps) {
         const isHome = home.playerIds.includes(player.id);
         return (
           <g key={player.id} transform={`translate(${x(player.point.x)} ${y(player.point.y)})`}>
-            {player.id === selectedPlayerId && (
-              <>
-                <circle r="2.7" stroke="#ffda70" strokeWidth=".35" fill="none" />
-                <circle r="2.3" stroke="#ffda70" strokeWidth=".2" fill="none" />
-              </>
-            )}
-            {!isHome && (
-              <circle
-                r="2.05"
-                fill="none"
-                stroke="#ffffff"
-                strokeWidth=".2"
-                strokeDasharray=".7 .7"
-              />
-            )}
-            <circle
-              r="1.7"
-              fill={isHome ? kits.home : kits.away}
-              stroke={isHome ? '#111e2c' : '#ffffff'}
-              strokeWidth=".3"
-            />
-            <text
-              textAnchor="middle"
-              dominantBaseline="central"
-              fill="white"
-              stroke="#17221c"
-              strokeWidth=".2"
-              paintOrder="stroke"
-              fontSize="1.5"
-              fontWeight="700"
+            <g
+              key={player.id === selectedPlayerId ? (celebration?.key ?? 'still') : 'still'}
+              className={
+                player.id === selectedPlayerId && celebration
+                  ? `celebrate celebrate-${celebration.motion}`
+                  : undefined
+              }
             >
-              {(index % 11) + 1}
-            </text>
+              {player.id === selectedPlayerId && (
+                <>
+                  <circle r="2.7" stroke="#ffda70" strokeWidth=".35" fill="none" />
+                  <circle r="2.3" stroke="#ffda70" strokeWidth=".2" fill="none" />
+                </>
+              )}
+              {!isHome && (
+                <circle
+                  r="2.05"
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth=".2"
+                  strokeDasharray=".7 .7"
+                />
+              )}
+              <circle
+                r="1.7"
+                fill={isHome ? kits.home : kits.away}
+                stroke={isHome ? '#111e2c' : '#ffffff'}
+                strokeWidth=".3"
+              />
+              <text
+                textAnchor="middle"
+                dominantBaseline="central"
+                fill="white"
+                stroke="#17221c"
+                strokeWidth=".2"
+                paintOrder="stroke"
+                fontSize="1.5"
+                fontWeight="700"
+              >
+                {(index % 11) + 1}
+              </text>
+            </g>
           </g>
         );
       })}
@@ -154,6 +165,11 @@ export default function Pitch(props: PitchProps) {
   useEffect(() => {
     scene.current?.update(props.frame, props.playing, props.reducedMotion);
   }, [props.frame, props.playing, props.reducedMotion]);
+  const celebrationKey = props.celebration?.key;
+  useEffect(() => {
+    if (celebrationKey && latest.current.celebration)
+      scene.current?.celebrate(latest.current.celebration.motion);
+  }, [celebrationKey, ready]);
   return (
     <figure style={{ margin: 0 }}>
       <div

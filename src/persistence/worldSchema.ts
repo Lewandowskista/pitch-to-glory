@@ -20,6 +20,7 @@ import { validateNationalWorld } from './nationalWorldSchema';
 import { validateCareer } from './careerValidation';
 import { validateMarket } from './marketValidation';
 import { validateSocial } from './socialValidation';
+import { validateLifestyle } from './lifestyleValidation';
 
 // This module validates imported data; it never imports the heavy generation/simulation code.
 export function validateWorld(value: unknown): World {
@@ -130,6 +131,7 @@ export function validateWorld(value: unknown): World {
   validateCareer(w);
   validateMarket(w);
   validateSocial(w);
+  validateLifestyle(w);
   for (const cup of Object.values(competitions)) {
     text(cup.name);
     requireValue(
@@ -370,16 +372,7 @@ export function validateWorld(value: unknown): World {
   }
   for (const key of ['matches', 'nationalTeams'])
     requireValue(Object.keys(object(w[key])).length === 0);
-  for (const key of [
-    'sponsorships',
-    'challenges',
-    'callUps',
-    'awards',
-    'records',
-    'legacies',
-    'chronicle',
-    'moments',
-  ])
+  for (const key of ['callUps', 'awards', 'records', 'legacies', 'chronicle', 'moments'])
     requireValue(array(w[key]).length === 0);
   return value as World;
 }

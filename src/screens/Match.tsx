@@ -23,6 +23,8 @@ import { pendingCareerFixture } from '../engine/career/fixtures';
 import { careerMatchSetup, defaultTactics } from '../engine/career/matches';
 import { startWorldJob } from '../workers/client';
 import { competitionName } from './career/selectors';
+import { COSMETIC_BY_ID } from '../engine/career/lifestyle/catalogue';
+import { lifestyleText as l } from '../i18n/lifestyle';
 import '../styles/match.css';
 
 const Pitch = lazy(() => import('./match/Pitch'));
@@ -324,6 +326,19 @@ export default function MatchScreen() {
     if (status === 'finished' && was && was !== 'finished' && careerFixture) recordResult();
   }, [status, careerFixture, recordResult]);
   const outcome = state?.match.events.find((event) => event.id === outcomeId)?.outcome;
+  // The career player's signature celebration after their goals (milestone 7).
+  const celebrationItem =
+    world?.career?.style?.equipped.celebration &&
+    session?.setup.selectedPlayerId === world.career.playerId
+      ? COSMETIC_BY_ID[world.career.style.equipped.celebration]
+      : undefined;
+  const lastEvent = state?.match.events.at(-1);
+  const celebration =
+    celebrationItem?.motion &&
+    lastEvent?.kind === 'goal' &&
+    lastEvent.playerId === session?.setup.selectedPlayerId
+      ? { key: lastEvent.id, motion: celebrationItem.motion }
+      : null;
   const canPlay =
     status === 'live' &&
     !state?.captainDecisionPending &&
@@ -568,6 +583,7 @@ export default function MatchScreen() {
                           selectedPlayerId={session.setup.selectedPlayerId}
                           playing={playing}
                           reducedMotion={settings.reducedMotion || !!systemReduced}
+                          celebration={celebration}
                         />
                       </Suspense>
                     )}
@@ -779,6 +795,16 @@ export default function MatchScreen() {
                           <time>{matchFormat(m.minute, { minute: event.minute })}</time>
                           <div>
                             <p>{commentaryText(event)}</p>
+                            {celebrationItem &&
+                              event.kind === 'goal' &&
+                              event.playerId === session.setup.selectedPlayerId && (
+                                <p className="match-celebration">
+                                  {matchFormat(l.celebrations.commentary, {
+                                    player: session.setup.players[event.playerId]?.name ?? '',
+                                    name: l.celebrations.names[celebrationItem.id] ?? '',
+                                  })}
+                                </p>
+                              )}
                             <small>
                               {event.playerId
                                 ? session.setup.players[event.playerId]?.name

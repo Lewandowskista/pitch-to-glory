@@ -327,3 +327,40 @@ The analytic match test now pins neutral morale, as its reference conditions int
 - axe in both themes, and 390 px overflow checks.
 
 **Not done:** Lighthouse still audits empty-state career routes only. Physical-device and Safari release checks remain outstanding.
+
+## Milestone 7 verification
+
+Verified on 6 October 2026:
+
+| Check                               | Result                                                                           |
+| ----------------------------------- | -------------------------------------------------------------------------------- |
+| Strict TypeScript, ESLint, Prettier | Passed                                                                           |
+| Vitest                              | 205 tests across 27 files passed (15 new lifestyle tests)                        |
+| Production build                    | Passed; all nineteen routes 206.5–254.0 KB gzip (budget 300 KB)                  |
+| Playwright                          | 75 tests passed, 25 each in Chromium, Firefox and WebKit                         |
+| axe-core                            | No serious or critical violations on Lifestyle, Wardrobe and hub, light and dark |
+
+**Unit coverage:**
+
+- **Fame:** levels and progress; signature-celebration fame only in big matches.
+- **Wardrobe:** the starting look kept; fame and token gating; sponsor boots and breaking a deal by taking them off.
+- **Sponsors:** position-based obligations, weekly fees, judging at season end, deal limits.
+- **Lifestyle:** purchases within fame and savings; upkeep sales; deterministic investments and resale; the lifestyle morale part.
+- **Challenges:** ISO weeks; seeded sets and per-period replacement; progress from issue; claims once only; clean sheets for keepers.
+- **Saves:** round trip, forgery rejection, the schema 10 migration, and a full season rollover.
+
+**The lifestyle browser journey:** an engine-built save at fame level 4, imported through Saves.
+
+- Signing the sponsor and buying, then selling, a car.
+- Today's challenges arriving.
+- A free hairstyle, long sleeves and the knee slide as signature, with a preview.
+- Autosave and refresh.
+- axe in both themes; 390 px overflow checks.
+
+Desktop captures go to `artifacts/career-lifestyle.png` and `artifacts/career-wardrobe.png`.
+
+**Not done:**
+
+- Lighthouse still audits empty-state career routes only.
+- The pitch celebration has no automated visual check. Its motions are deterministic, it is skipped under reduced motion, and the commentary line is covered by type checks.
+- Physical-device and Safari release checks remain outstanding.

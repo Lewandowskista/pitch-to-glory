@@ -21,6 +21,8 @@ import { initialMarket } from './market/records';
 import { bonusesFor, marketWage } from './market/rules';
 import { attachMarket } from './market/agents';
 import { attachSocial, initialSocial } from './social/week';
+import { attachLifestyle } from './lifestyle/week';
+import { initialStyle } from './lifestyle/wardrobe';
 
 const S = CONFIG.career.start;
 
@@ -152,10 +154,12 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
     matches: [],
     market: initialMarket(world),
     social: initialSocial(),
+    style: initialStyle(player),
   };
   grantStartingSkill(career, player, archetype.startingSkill);
   world.career = career;
   attachMarket(world);
   attachSocial(world);
+  attachLifestyle(world);
   return world;
 }

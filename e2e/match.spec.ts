@@ -143,7 +143,7 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   const download = page.waitForEvent('download');
   await page.locator('.slot-card').first().getByRole('button', { name: 'Export backup' }).click();
   const saved = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
-  expect(saved.schemaVersion).toBe(10);
+  expect(saved.schemaVersion).toBe(11);
   expect(saved.payload.matchSession.state.match.status).toBe('finished');
   expect(
     saved.payload.matchSession.commands.some(

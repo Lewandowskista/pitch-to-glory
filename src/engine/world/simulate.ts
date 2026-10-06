@@ -23,6 +23,7 @@ import { pendingCareerFixture } from '../career/fixtures';
 import { benchedCareerFixtures, marketRollover, marketWeek } from '../career/market/week';
 import { postMessage, recordMove } from '../career/market/records';
 import { socialRollover, socialWeek } from '../career/social/week';
+import { lifestyleRollover, lifestyleWeek } from '../career/lifestyle/week';
 import {
   archiveAndPrune,
   fillSquads,
@@ -629,6 +630,7 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
     careerWeek(world);
     marketWeek(world, benched);
     socialWeek(world);
+    lifestyleWeek(world);
   }
   if ((CONFIG.world.transferWeeks as readonly number[]).includes(world.date.week)) {
     exchangeTransfers(world, rng);
@@ -657,6 +659,7 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
       refreshReturningClub(world, world.clubs[movement.clubId]!);
   if (world.career) {
     marketRollover(world);
+    lifestyleRollover(world);
     keepCareerInSimulatedLeagues(world);
     refreshMentor(world);
     socialRollover(world);

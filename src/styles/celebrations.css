@@ -1,0 +1,83 @@
+/* Goal celebrations (milestone 7): the SVG pitch fallback and wardrobe previews. The Pixi
+   pitch animates the same motions in pitchScene.ts. Reduced motion stops them globally. */
+.celebrate {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-duration: 1.6s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: 1;
+}
+.celebration-preview .celebrate {
+  animation-iteration-count: infinite;
+  animation-delay: 0.3s;
+}
+.celebrate-pose {
+  animation-name: celebrate-pose;
+}
+.celebrate-wave {
+  animation-name: celebrate-wave;
+}
+.celebrate-slide {
+  animation-name: celebrate-slide;
+}
+.celebrate-dance {
+  animation-name: celebrate-dance;
+}
+.celebrate-sprint {
+  animation-name: celebrate-sprint;
+}
+.celebrate-spin {
+  animation-name: celebrate-spin;
+}
+.celebrate-flip {
+  animation-name: celebrate-flip;
+}
+@keyframes celebrate-pose {
+  50% {
+    transform: scale(1.5);
+  }
+}
+@keyframes celebrate-wave {
+  25% {
+    transform: rotate(-24deg) scale(1.25);
+  }
+  75% {
+    transform: rotate(24deg) scale(1.25);
+  }
+}
+@keyframes celebrate-slide {
+  50% {
+    transform: translateX(60%) scale(1.15);
+  }
+}
+@keyframes celebrate-dance {
+  20%,
+  60% {
+    transform: translate(-25%, -20%) scale(1.2);
+  }
+  40%,
+  80% {
+    transform: translate(25%, -20%) scale(1.2);
+  }
+}
+@keyframes celebrate-sprint {
+  25% {
+    transform: translate(60%, 30%);
+  }
+  50% {
+    transform: translate(0, 60%);
+  }
+  75% {
+    transform: translate(-60%, 30%);
+  }
+}
+@keyframes celebrate-spin {
+  to {
+    transform: rotate(720deg);
+  }
+}
+@keyframes celebrate-flip {
+  50% {
+    transform: translateY(-60%) scaleY(-1) scale(1.2);
+  }
+}

@@ -28,11 +28,15 @@ import { messageText, money, roleName, weekly, WindowBanner } from './marketUi';
 import { rivalOf, seasonLines } from '../../engine/career/social';
 import { socialText as s } from '../../i18n/social';
 import { mediaText } from './socialUi';
+import { challengeDone, fameProgress } from '../../engine/career/lifestyle';
+import { lifestyleText as l } from '../../i18n/lifestyle';
+import { fameName, useChallengeRefresh } from './lifestyleUi';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
 
 export default function CareerHub() {
+  useChallengeRefresh();
   return (
     <CareerPage eyebrow={c.hub.eyebrow} title={c.titles.hub}>
       {({ world, career, player, club, age }) => (
@@ -77,6 +81,7 @@ function HubContent({
       <ClubStanding world={world} club={club} />
       <Condition career={career} player={player} />
       <TrainingSummary career={career} />
+      <FameSummary world={world} />
       <PressRoom world={world} />
       <RivalWatch world={world} />
       <MarketSummary world={world} />
@@ -772,6 +777,49 @@ function RivalWatch({ world }: { world: World }) {
       <Link className="text-button mt-2 -ml-3 inline-flex" to="/career/club">
         {s.hub.seeClub}
       </Link>
+    </section>
+  );
+}
+
+function FameSummary({ world }: { world: World }) {
+  const career = world.career!;
+  const progress = fameProgress(career.fame);
+  const ready = world.challenges.filter(
+    (challenge) => challenge.claimed || challengeDone(world, challenge),
+  ).length;
+  return (
+    <section aria-labelledby="fame-summary-heading" className={`${ui.panel} lg:col-span-12`}>
+      <div className="flex flex-wrap items-center gap-4">
+        <span
+          aria-hidden="true"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gold font-display text-3xl text-[#1d3127]"
+        >
+          {progress.level}
+        </span>
+        <div className="min-w-0 flex-1 basis-56">
+          <h2 id="fame-summary-heading" className={ui.heading}>
+            {l.hub.title}
+          </h2>
+          <p className="text-sm text-muted">
+            {format(l.fame.level, { level: progress.level })} · {fameName(progress.level)} ·{' '}
+            {progress.needed
+              ? format(l.fame.progress, { into: progress.into, needed: progress.needed })
+              : l.fame.max}
+          </p>
+          <p className="text-sm">
+            {format(l.hub.challenges, { done: ready, total: world.challenges.length })} ·{' '}
+            {format(l.wardrobe.tokens, { count: career.style.tokens })}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link className="button secondary" to="/career/wardrobe">
+            {l.hub.open}
+          </Link>
+          <Link className="button secondary" to="/career/lifestyle">
+            {l.hub.lifestyle}
+          </Link>
+        </div>
+      </div>
     </section>
   );
 }

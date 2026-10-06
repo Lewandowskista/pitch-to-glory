@@ -18,6 +18,7 @@ import { injure, injuryFactor, revealHidden } from './training';
 import { fixtureImportance } from './fixtures';
 import { accrueMatchBonuses } from './market/moves';
 import { socialMatch } from './social/week';
+import { celebrationFame } from './lifestyle/week';
 export * from './fixtures';
 
 const C = CONFIG.career;
@@ -50,6 +51,8 @@ export interface CareerMatchOutcome {
   previousLevel: number;
   levelsGained: number;
   injury: Injury | null;
+  /** Fame from the signature celebration in a big match. */
+  celebrationFame: number;
 }
 
 /**
@@ -158,6 +161,7 @@ export function commitCareerMatch(
   career.matches.push(record);
   accrueMatchBonuses(world, record.goals, record.cleanSheet);
   socialMatch(world, record, fixture);
+  const signature = celebrationFame(world, record.goals, importance);
   if (career.market.selection.season === world.date.season) career.market.selection.selected++;
   if (career.matches.length > C.historyLimit)
     career.matches.splice(0, career.matches.length - C.historyLimit);
@@ -169,7 +173,7 @@ export function commitCareerMatch(
   else if (rng.next() < CONFIG.career.injuries.matchChance * injuryFactor(career, player))
     injury = injure(world, 'match', rng);
   revealHidden(player);
-  return { record, previousLevel, levelsGained, injury };
+  return { record, previousLevel, levelsGained, injury, celebrationFame: signature };
 }
 
 /** Headless decision policy for simulated career matches: best expected goal difference. */

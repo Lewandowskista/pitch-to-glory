@@ -7,7 +7,7 @@ Prepared on **6 October 2026** and updated the same day after the post-milestone
 1. Read [AGENTS.md](../AGENTS.md) in full before changing anything.
 2. Read this handoff, then [README.md](../README.md), [DECISIONS.md](DECISIONS.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 3. Read [REALISM.md](REALISM.md) before touching world generation, league sizes, schedules or sporting movement.
-4. Read the **Milestone 6 verification** section of [VERIFICATION.md](VERIFICATION.md), [MILESTONE-6.md](MILESTONE-6.md), [MILESTONE-5.md](MILESTONE-5.md) and [MILESTONE-4.md](MILESTONE-4.md), and the later sections of [DECISIONS.md](DECISIONS.md) (hardening, milestone 4, real identities, milestones 5 and 6). Earlier verification sections are historical.
+4. Read the **Milestone 7 verification** section of [VERIFICATION.md](VERIFICATION.md), [MILESTONE-7.md](MILESTONE-7.md), [MILESTONE-6.md](MILESTONE-6.md), [MILESTONE-5.md](MILESTONE-5.md) and [MILESTONE-4.md](MILESTONE-4.md), and the later sections of [DECISIONS.md](DECISIONS.md) (hardening, milestone 4, real identities, milestones 5–7). Earlier verification sections are historical.
 5. Inspect `git status`, the latest commits and the actual implementation. Documented test results are a recorded baseline, not proof that a later checkout still passes.
 6. Follow the user's current requested scope. The next product milestone is **Milestone 4**, but this handoff itself does not authorize starting it. Work one milestone at a time and stop with a summary before advancing.
 
@@ -31,6 +31,7 @@ Paths below are relative to this document. All documents under `docs/` at handof
 | [MILESTONE-4.md](MILESTONE-4.md)         | Career player design: creation, XP, soft caps, training, skills, injuries, ageing and the single commit path.                                                                     | Implemented.                                                                                                                                                                               |
 | [MILESTONE-5.md](MILESTONE-5.md)         | Career market design: contracts, selection by role promise, scouting, windows, negotiation, loans, agents, inbox and known limits.                                                | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
 | [MILESTONE-6.md](MILESTONE-6.md)         | Social design: morale and form, dressing room, teammates, culture fit, rival, media, and known limits.                                                                            | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
+| [MILESTONE-7.md](MILESTONE-7.md)         | Lifestyle design: fame levels, sponsorships, lifestyle items, wardrobe, celebrations, challenges, and known limits.                                                               | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
 | [MATCH-BALANCING.md](MATCH-BALANCING.md) | Interactive scoring/probability/fatigue/report formulas and exact 10,000-match calibration results and cohort limits.                                                             | Current friendly-engine calibration.                                                                                                                                                       |
 | [VERIFICATION.md](VERIFICATION.md)       | Required checks, browser flows, performance/storage measurements, screenshot locations and unresolved release/device checks.                                                      | Milestone-2 history followed by the current milestone-3 evidence.                                                                                                                          |
 | [HANDOFF.md](HANDOFF.md)                 | This document: reading order, full index, current state, integration risks and a reusable continuation prompt.                                                                    | Handoff snapshot; update it when implementation or verification changes.                                                                                                                   |
@@ -39,7 +40,7 @@ When a historical plan differs from the current state, use AGENTS.md for require
 
 ## Implemented state
 
-**Milestones 1–6 are implemented (with the post-milestone-3 hardening pass and the real-identity rework); milestone 7 has not started.** Release acceptance still has the explicit gaps listed below.
+**Milestones 1–7 are implemented (with the post-milestone-3 hardening pass and the real-identity rework); milestone 8 has not started.** Release acceptance still has the explicit gaps listed below.
 
 - Foundation: Vite, React 18, strict TypeScript, route splitting, Zustand slices, Tailwind/design tokens, Framer Motion, Dexie, Vitest, Playwright, lint/format tooling, PWA/update handling, web platform adapter and CI/static-host configuration.
 - Art and shell: seeded SVG crests, home/away/third kits and ageing avatars; asset gallery; title/menu, settings and three save slots; responsive sidebar/bottom navigation; light/dark themes, font scaling and reduced motion.
@@ -57,7 +58,7 @@ When a historical plan differs from the current state, use AGENTS.md for require
   - CI hardening.
   - Tailwind hybrid styling rule.
 
-Implemented routes are `/`, `/gallery`, `/saves`, `/settings`, `/world`, `/match`, `/career`, `/career/new`, `/career/profile`, `/career/skills`, `/career/training`, `/career/transfers`, `/career/agent`, `/career/inbox`, `/career/club`, `/career/media` and `/career/rival`. No future screen placeholders should be added.
+Implemented routes are `/`, `/gallery`, `/saves`, `/settings`, `/world`, `/match`, `/career`, `/career/new`, `/career/profile`, `/career/skills`, `/career/training`, `/career/transfers`, `/career/agent`, `/career/inbox`, `/career/club`, `/career/media`, `/career/rival`, `/career/lifestyle` and `/career/wardrobe`. No future screen placeholders should be added.
 
 ### User-confirmed realism requirement
 
@@ -111,8 +112,16 @@ England extends through tier six, including National League North/South. Referen
   - culture fit;
   - a protected rival chosen from existing players;
   - press, social feed and headlines.
-- Fame now changes through media too. Milestone 7 builds fame levels on `career.fame`; keep the media effects.
-- Bump `MATCH_ENGINE_VERSION` (currently `match-6`) whenever match logic changes. File schema is 10.
+- Fame now changes through media too.
+- Milestone 7 added `src/engine/career/lifestyle/` (see MILESTONE-7.md):
+  - fame levels on `career.fame`;
+  - sponsorships with obligations;
+  - cars, homes and investments, with a lifestyle morale part;
+  - the wardrobe and cosmetic unlocks;
+  - celebrations, drawn by the match screen with fame added on the commit path;
+  - real-calendar challenges paying cosmetic-only style tokens.
+- Milestone 8 awards should compare the player with the rival (`world.rivalries`), and retirement must keep the career's records.
+- Bump `MATCH_ENGINE_VERSION` (currently `match-6`) whenever match logic changes. File schema is 11.
 
 ### Legacy saves and storage
 
@@ -126,15 +135,15 @@ Detailed current fixtures and results are replaced on rollover. Retired players 
 
 ## Verification baseline and remaining gaps
 
-Recorded on 6 October 2026 after milestone 6; see VERIFICATION.md for full evidence:
+Recorded on 6 October 2026 after milestone 7; see VERIFICATION.md for full evidence:
 
 | Check                                            | Recorded result                                                                                                        |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | Typecheck, lint, formatting and production build | Passed                                                                                                                 |
-| Vitest                                           | 190 tests across 26 files passed                                                                                       |
-| Playwright full suite                            | 72 passed, 24 each in Chromium, Firefox and WebKit; no skips; axe checks on populated career pages                     |
+| Vitest                                           | 205 tests across 27 files passed                                                                                       |
+| Playwright full suite                            | 75 passed, 25 each in Chromium, Firefox and WebKit; no skips; axe checks on populated career pages                     |
 | 10,000-match benchmark                           | 2.758 goals per match; home advantage; away upsets 26.1% at a 15-point and 17.7% at a 45-point gap                     |
-| Initial-route JavaScript                         | 203.3–248.1 KB gzip; all seventeen routes below 300 KB; PixiJS deferred                                                |
+| Initial-route JavaScript                         | 206.5–254.0 KB gzip; all nineteen routes below 300 KB; PixiJS deferred                                                 |
 | Lighthouse (milestone 4 run)                     | Mobile performance 88–93, desktop 100, accessibility 100 on all nine configurations; cold mobile interactive 2.9–3.4 s |
 | Simulated national week (Node)                   | About 80–100 ms; a fully auto-played career season is about 15 s                                                       |
 
@@ -184,7 +193,7 @@ Optional inspection scripts are `scripts/capture.mjs` (screen captures) and `scr
 ## Git and delivery state
 
 - Repository root on the original machine: `C:\Users\Stefan\Game Mod`.
-- Git was initialized after milestones 1–3. Branch: **main**. Initial implementation commit: **`d1c1be7` — Build Pitch to Glory through milestone 3**. The hardening pass is commit **`2f71752`**, milestone 4 is **`dfc06a0`** and the real-identity rework is **`d1b8358`**. Milestone 5 is **`c14601f`**; milestone 6 follows. Check `git log` for later commits.
+- Git was initialized after milestones 1–3. Branch: **main**. Initial implementation commit: **`d1c1be7` — Build Pitch to Glory through milestone 3**. The hardening pass is commit **`2f71752`**, milestone 4 is **`dfc06a0`** and the real-identity rework is **`d1b8358`**. Milestone 5 is **`c14601f`** and milestone 6 is **`5fe762b`**; milestone 7 follows. Check `git log` for later commits.
 - No remote or hosting deployment is configured at this snapshot. Do not infer that the local commit exists on GitHub. The new handoff document is subsequent work; inspect `git status` and newer commits when continuing.
 - `.gitignore` excludes dependencies, builds, local test reports/artifacts, logs and environment files. Never stage generated large backup fixtures or credentials.
 - `netlify.toml` supplies the static-host configuration. `.github/workflows/ci.yml` contains checks and optional deployment; publishing requires the configured Netlify production secrets and explicit deployment scope.
@@ -193,13 +202,13 @@ Historical plans stating that there is no repository are time-specific records. 
 
 ## Next milestone and continuation prompt
 
-The next milestone is **7: fame, sponsorships, lifestyle, wardrobe, celebrations and challenges**. It should:
+The next milestone is **8: national team, continental cups, awards, retirement, legacy, Chronicle and Moments sharing**. It should:
 
-- build fame levels on `career.fame`, which media and matches already move;
-- use the player's savings (`career.market.finances`) for lifestyle purchases;
-- perform celebrations in the match view through the existing renderer and commentary.
+- implement the continental cups whose names are already reserved (`CONTINENTAL` in `identities/index.ts`);
+- compare awards with the rival;
+- keep the career's records (matches, moves, media, lifestyle) through retirement into the legacy and Chronicle.
 
-Do not begin national teams, awards or other milestone-8 work at the same time.
+Do not begin edit mode, the tutorial or audio (milestone 9) at the same time.
 
 ```text
 You are continuing Pitch to Glory in this repository.
@@ -208,24 +217,26 @@ Read AGENTS.md in full before doing anything, then read docs/HANDOFF.md
 and follow its reading order. AGENTS.md is the product source of truth.
 Inspect git status and the current code before modifying files.
 
-Milestones 1–6 are implemented. Implement Milestone 7 only, following
+Milestones 1–7 are implemented. Implement Milestone 8 only, following
 the mandatory stack, SVG art direction, accessibility, save compatibility
 and quality requirements. New UI uses Tailwind utilities with the shared
-tokens. Do not start Milestone 8 or add future UI stubs.
+tokens. Do not start Milestone 9 or add future UI stubs.
 
 Preserve the source-documented national pyramids and legacy world rules.
-Current saves are schema 10; bump MATCH_ENGINE_VERSION when match logic
+Current saves are schema 11; bump MATCH_ENGINE_VERSION when match logic
 changes. Career fixtures are committed once through commitPlayedFixture;
 keep that single path. The career player is excluded from the AI squad
 lifecycle; the career market (src/engine/career/market) owns their
 contract and moves; the career social module (src/engine/career/social)
 owns morale, relationships, the dressing room, the rival and the media.
-Build milestone 7's fame on career.fame and route new messages through
-the inbox and media feed.
+the career lifestyle module (src/engine/career/lifestyle) owns fame
+levels, sponsors, lifestyle, wardrobe, celebrations and challenges.
+Route new messages through the inbox and media feed, and compare
+awards with the rival.
 
 Make reasonable decisions for ambiguities, record them in docs/DECISIONS.md,
 and continue. Update architecture, balancing, verification, README and the
 handoff as appropriate. Run typecheck, lint, formatting, unit tests, build
 and critical flows in Chromium, Firefox and WebKit before finishing.
-Report measured limitations candidly and stop with a Milestone 7 summary.
+Report measured limitations candidly and stop with a Milestone 8 summary.
 ```

@@ -40,7 +40,14 @@ export type InboxKind =
   | 'relocated'
   | 'new-manager'
   | 'press-request'
-  | 'rival-transfer';
+  | 'rival-transfer'
+  | 'sponsor-offer'
+  | 'sponsor-signed'
+  | 'sponsor-completed'
+  | 'sponsor-failed'
+  | 'sponsor-dropped'
+  | 'asset-sold'
+  | 'fame-level';
 
 /** Post an inbox message; old read messages are dropped beyond the limit. */
 export function postMessage(

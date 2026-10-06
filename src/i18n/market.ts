@@ -262,6 +262,8 @@ export const marketText = {
     goTransfers: 'See transfers',
     goMedia: 'Go to the media room',
     goRival: 'See your rival',
+    goLifestyle: 'Go to Lifestyle',
+    goWardrobe: 'Go to the wardrobe',
     back: 'Back to the inbox',
     from: { club: 'Club', agent: 'Agent', board: 'Your club' },
     list: 'Messages',

@@ -22,6 +22,8 @@ export const en = {
       '/career/club': 'Club life',
       '/career/media': 'Media',
       '/career/rival': 'Rival',
+      '/career/lifestyle': 'Lifestyle',
+      '/career/wardrobe': 'Wardrobe and celebrations',
     } as Record<string, string>,
     short: {
       '/': 'Club',

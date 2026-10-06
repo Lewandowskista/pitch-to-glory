@@ -21,6 +21,7 @@ import {
 import { validateCareer } from './careerValidation';
 import { validateMarket } from './marketValidation';
 import { validateSocial } from './socialValidation';
+import { validateLifestyle } from './lifestyleValidation';
 
 // Bounds apply before traversing imported graphs. Rules are frozen by profile version.
 function canonicalData(value: unknown): string {
@@ -323,6 +324,7 @@ export function validateNationalWorld(value: unknown): World {
   validateCareer(w);
   validateMarket(w);
   validateSocial(w);
+  validateLifestyle(w);
   for (const club of Object.values(clubs)) {
     const identity = object(club.identity);
     requireValue(identity.counterpart === countries[String(club.countryId)]!.counterpart);
@@ -949,16 +951,7 @@ export function validateNationalWorld(value: unknown): World {
   }
   for (const key of ['matches', 'nationalTeams'])
     requireValue(Object.keys(object(w[key])).length === 0);
-  for (const key of [
-    'sponsorships',
-    'challenges',
-    'callUps',
-    'awards',
-    'records',
-    'legacies',
-    'chronicle',
-    'moments',
-  ])
+  for (const key of ['callUps', 'awards', 'records', 'legacies', 'chronicle', 'moments'])
     requireValue(array(w[key]).length === 0);
   return value as World;
 }

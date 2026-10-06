@@ -471,6 +471,37 @@ export interface Career {
   market: CareerMarket;
   /** Morale, form and media (milestone 6). */
   social: CareerSocial;
+  /** Fame, wardrobe, celebrations, lifestyle and challenges (milestone 7). */
+  style: CareerStyle;
+}
+export type SleeveLength = 'short' | 'long';
+export interface CareerStyle {
+  /** Cosmetic currency from challenges: it never buys a sporting advantage. */
+  tokens: number;
+  /** Cosmetics bought with tokens, won from challenges or chosen at creation. */
+  owned: Id[];
+  equipped: {
+    boots: Id;
+    socks: Id;
+    armband: Id;
+    sleeves: SleeveLength;
+    celebration: Id | null;
+  };
+  /** The fame level last announced, for level-up messages. */
+  fameLevel: number;
+  /** Goals celebrated with the signature celebration in big matches. */
+  signatureUses: number;
+  assets: LifestyleAsset[];
+}
+export interface LifestyleAsset {
+  id: Id;
+  /** Catalogue item: a car, a home or an investment product. */
+  itemId: Id;
+  kind: 'car' | 'house' | 'investment';
+  bought: GameDate;
+  cost: number;
+  /** Current resale value (an investment's balance). */
+  value: number;
 }
 export interface WellbeingPoint {
   season: number;
@@ -487,6 +518,7 @@ export type MoralePart =
   | 'cultureFit'
   | 'fans'
   | 'media'
+  | 'lifestyle'
   | 'situation';
 export interface CareerSocial {
   /** Weekly morale and form, newest last. */
@@ -738,65 +770,43 @@ export interface InboxMessage {
   read: boolean;
   actionId: Id | null;
 }
-export interface PersonalFinances {
-  cash: number;
-  lifetimeEarnings: number;
-  weeklyExpenses: number;
-  purchaseIds: Id[];
+export type SponsorCategory = 'boots' | 'apparel' | 'drinks' | 'watches' | 'cars' | 'tech';
+export interface SponsorObligation {
+  kind: 'starts' | 'goals' | 'clean-sheets' | 'press' | 'rating' | 'boots' | 'image';
+  /** A count, an average rating, or a minimum fan affection for 'image'. */
+  target: number;
 }
 export interface Sponsorship {
   id: Id;
-  brand: string;
-  playerId: Id;
-  fameRequired: number;
-  payment: number;
-  start: GameDate;
-  end: GameDate;
+  brandId: Id;
+  category: SponsorCategory;
+  status: 'offered' | 'active' | 'completed' | 'ended' | 'declined' | 'expired';
+  offered: GameDate;
+  expires: GameDate;
+  start: GameDate | null;
+  /** The deal runs to the end of this season. */
+  endSeason: number;
+  weeklyFee: number;
+  /** Paid when every obligation is met at the end. */
+  bonus: number;
   obligations: SponsorObligation[];
+  /** Career counters when the deal started, to measure obligations. */
+  baseline: { matches: number; answered: number } | null;
 }
-export interface SponsorObligation {
-  id: Id;
-  kind: 'appearance' | 'performance' | 'equipment';
-  target: number;
-  progress: number;
-  deadline: GameDate;
-}
-export interface LifestylePurchase {
-  id: Id;
-  kind: 'car' | 'house' | 'investment';
-  nameKey: string;
-  cost: number;
-  weeklyCost: number;
-  moraleBonus: number;
-  value: number;
-}
-export interface Cosmetic {
-  id: Id;
-  kind: 'boots' | 'hair' | 'sleeves' | 'socks' | 'armband';
-  nameKey: string;
-  recipe: Record<string, string | number>;
-  fameRequired: number;
-}
-export interface Wardrobe {
-  ownedIds: Id[];
-  equipped: Partial<Record<Cosmetic['kind'], Id>>;
-}
-export interface Celebration {
-  id: Id;
-  nameKey: string;
-  animation: ReplayFrame[];
-  fameRequired: number;
-  signature: boolean;
-  commentaryKey: string;
-}
+export type ChallengeKind =
+  'play' | 'goals' | 'assists' | 'wins' | 'rating' | 'clean-sheets' | 'press' | 'weeks' | 'xp';
 export interface Challenge {
   id: Id;
   cadence: 'daily' | 'weekly';
-  starts: string;
-  expires: string;
-  objective: Objective;
-  cosmeticRewardId: Id;
-  completed: boolean;
+  /** The real-world day (YYYY-MM-DD) or ISO week (YYYY-Www) it belongs to. */
+  period: string;
+  kind: ChallengeKind;
+  target: number;
+  /** The career counter when the challenge was issued. */
+  baseline: number;
+  rewardTokens: number;
+  rewardCosmeticId: Id | null;
+  claimed: boolean;
 }
 export interface NationalTeam {
   id: Id;
@@ -1125,7 +1135,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 10;
+  schemaVersion: 11;
   engineVersion: string;
   slot: SlotId;
   name: string;

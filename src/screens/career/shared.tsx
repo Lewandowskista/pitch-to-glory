@@ -16,6 +16,7 @@ import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
 import { socialText } from '../../i18n/social';
+import { lifestyleText } from '../../i18n/lifestyle';
 
 /** Shared Tailwind class strings, so every career card reads as one family. */
 export const ui = {
@@ -94,6 +95,8 @@ const sections = [
   { to: '/career/rival', label: socialText.sectionNames.rival, end: false },
   { to: '/career/transfers', label: m.sectionNames.transfers, end: false },
   { to: '/career/agent', label: m.sectionNames.agent, end: false },
+  { to: '/career/lifestyle', label: lifestyleText.sectionNames.lifestyle, end: false },
+  { to: '/career/wardrobe', label: lifestyleText.sectionNames.wardrobe, end: false },
   { to: '/career/inbox', label: m.sectionNames.inbox, end: false },
 ];
 export function CareerNav() {

@@ -9,11 +9,66 @@ export const pitchPoint = (point: Point) => ({
 
 interface Token {
   view: Container;
+  /** The token's shapes, transformed by a celebration while the view keeps its position. */
+  body: Container;
   target: Point;
 }
 export interface PitchScene {
   update(frame: ReplayFrame, playing: boolean, reducedMotion: boolean): void;
+  /** Play the selected player's goal celebration (milestone 7). */
+  celebrate(motion: string): void;
   destroy(): void;
+}
+const CELEBRATION_MS = 1600;
+/** Body transform at progress t (0–1) of a celebration. */
+function celebrationPose(motion: string, t: number) {
+  const pulse = Math.sin(Math.PI * t);
+  switch (motion) {
+    case 'wave':
+      return {
+        x: 0,
+        y: 0,
+        rotation: 0.45 * Math.sin(4 * Math.PI * t) * (1 - t),
+        scale: 1 + 0.3 * pulse,
+        flip: 1,
+      };
+    case 'slide':
+      return { x: 6 * pulse, y: 0, rotation: 0, scale: 1 + 0.15 * pulse, flip: 1 };
+    case 'dance':
+      return {
+        x: 1.2 * Math.sin(6 * Math.PI * t),
+        y: -0.8 * Math.abs(Math.sin(6 * Math.PI * t)),
+        rotation: 0,
+        scale: 1.2,
+        flip: 1,
+      };
+    case 'sprint':
+      return {
+        x: 3 * Math.sin(2 * Math.PI * t),
+        y: 1.5 * (1 - Math.cos(2 * Math.PI * t)),
+        rotation: 0.3 * Math.sin(2 * Math.PI * t),
+        scale: 1.15,
+        flip: 1,
+      };
+    case 'spin':
+      return {
+        x: 0,
+        y: 0,
+        rotation: 4 * Math.PI * (t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)),
+        scale: 1 + 0.25 * pulse,
+        flip: 1,
+      };
+    case 'flip':
+      return {
+        x: 0,
+        y: -3 * pulse,
+        rotation: 0,
+        scale: 1 + 0.2 * pulse,
+        flip: Math.cos(2 * Math.PI * t),
+      };
+    default:
+      return { x: 0, y: 0, rotation: 0, scale: 1 + 0.5 * pulse, flip: 1 };
+  }
 }
 
 export async function createPitchScene(
@@ -76,9 +131,11 @@ export async function createPitchScene(
   let playing = false,
     reducedMotion = false;
   let highlightRemainingMs = 0;
+  let celebration: { motion: string; elapsed: number } | null = null;
   const addToken = (id: string, point: Point, index: number) => {
     const isHome = home.playerIds.includes(id);
     const view = new Container();
+    const body = new Container();
     const shape = new Graphics().circle(0.15, 0.35, 1.75).fill({ color: '#06281b', alpha: 0.4 });
     if (id === selectedPlayerId)
       shape
@@ -98,7 +155,7 @@ export async function createPitchScene(
           .arc(0, 0, 2.05, angle, angle + 0.35)
           .stroke({ color: '#ffffff', width: 0.2 });
       }
-    view.addChild(shape);
+    body.addChild(shape);
     const number = new Text({
       text: String((index % 11) + 1),
       style: {
@@ -111,11 +168,12 @@ export async function createPitchScene(
       resolution: 4,
     });
     number.anchor.set(0.5);
-    view.addChild(number);
+    body.addChild(number);
+    view.addChild(body);
     const target = pitchPoint(point);
     view.position.set(target.x, target.y);
     world.addChild(view);
-    tokens.set(id, { view, target });
+    tokens.set(id, { view, body, target });
   };
   const ball = new Graphics()
     .circle(0.1, 0.25, 0.7)
@@ -156,6 +214,21 @@ export async function createPitchScene(
   app.ticker.add((ticker) => {
     if ((!playing && highlightRemainingMs <= 0) || reducedMotion) return;
     highlightRemainingMs = Math.max(0, highlightRemainingMs - ticker.deltaMS);
+    const celebrating = celebration && tokens.get(selectedPlayerId);
+    if (celebration && celebrating) {
+      celebration.elapsed += ticker.deltaMS;
+      const t = Math.min(1, celebration.elapsed / CELEBRATION_MS);
+      const pose = celebrationPose(celebration.motion, t);
+      celebrating.body.position.set(pose.x, pose.y);
+      celebrating.body.rotation = pose.rotation;
+      celebrating.body.scale.set(pose.scale, pose.scale * pose.flip);
+      if (t >= 1) {
+        celebrating.body.position.set(0, 0);
+        celebrating.body.rotation = 0;
+        celebrating.body.scale.set(1);
+        celebration = null;
+      }
+    }
     const mix = 1 - Math.exp(-Math.min(ticker.deltaMS, 80) / 130);
     for (const { view, target } of tokens.values()) {
       view.x += (target.x - view.x) * mix;
@@ -198,6 +271,14 @@ export async function createPitchScene(
         app.stop();
         app.render();
       }
+    },
+    celebrate(motion) {
+      if (destroyed || reducedMotion) return;
+      celebration = { motion, elapsed: 0 };
+      highlightRemainingMs = Math.max(highlightRemainingMs, CELEBRATION_MS);
+      const selected = tokens.get(selectedPlayerId);
+      if (selected) world.setChildIndex(selected.view, world.children.length - 1);
+      app.start();
     },
     destroy() {
       if (destroyed) return;

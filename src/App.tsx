@@ -20,6 +20,8 @@ const CareerInbox = lazy(() => import('./screens/career/CareerInbox'));
 const CareerClub = lazy(() => import('./screens/career/CareerClub'));
 const CareerMedia = lazy(() => import('./screens/career/CareerMedia'));
 const CareerRival = lazy(() => import('./screens/career/CareerRival'));
+const CareerLifestyle = lazy(() => import('./screens/career/CareerLifestyle'));
+const CareerWardrobe = lazy(() => import('./screens/career/CareerWardrobe'));
 export default function App() {
   return (
     <ErrorBoundary>
@@ -50,6 +52,8 @@ export default function App() {
               <Route path="career/club" element={<CareerClub />} />
               <Route path="career/media" element={<CareerMedia />} />
               <Route path="career/rival" element={<CareerRival />} />
+              <Route path="career/lifestyle" element={<CareerLifestyle />} />
+              <Route path="career/wardrobe" element={<CareerWardrobe />} />
               <Route
                 path="*"
                 element={

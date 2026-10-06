@@ -436,11 +436,58 @@ export const CONFIG = {
         likesPerFame: 0.5,
       },
     },
+    /** Fame, sponsorships, lifestyle, wardrobe, celebrations and challenges (milestone 7). */
+    lifestyle: {
+      /** Fame needed for levels 1–10. */
+      fameLevels: [0, 20, 50, 100, 170, 260, 380, 530, 720, 950] as const,
+      /** Active sponsorship deals allowed at each fame level. */
+      maxDeals: [0, 1, 1, 2, 2, 2, 3, 3, 3, 4] as const,
+      sponsor: {
+        offerChance: 0.15,
+        offerWeeks: 3,
+        /** Weekly fee: feeBase × feeGrowth^(level − 1) × brand scale. */
+        feeBase: 30,
+        feeGrowth: 1.6,
+        bonusWeeks: 8,
+        completedFame: 3,
+        failedFame: -3,
+        bootsBreachFame: -2,
+        /** Obligation targets per remaining season fraction. */
+        starts: 0.45,
+        goals: 0.25,
+        cleanSheets: 0.2,
+        press: 0.08,
+        rating: 6.6,
+        image: 45,
+      },
+      /** Signature celebration: fame per goal in a match of at least this importance. */
+      signatureFame: 2,
+      bigMatchImportance: 1.15,
+      moraleLimit: 8,
+      /** Upkeep above this share of the weekly wage weighs on morale. */
+      overspendShare: 0.5,
+      overspendMorale: -3,
+      resale: 0.6,
+      /** Weekly investment returns: mean ± spread. */
+      investments: {
+        bond: { mean: 0.001, spread: 0 },
+        fund: { mean: 0.0025, spread: 0.004 },
+        startup: { mean: 0.004, spread: 0.03 },
+      },
+      investmentAmounts: [1_000, 5_000, 10_000, 25_000, 50_000, 100_000] as const,
+      challenges: {
+        daily: 3,
+        weekly: 3,
+        dailyTokens: 10,
+        weeklyTokens: 40,
+        weeklyCosmeticChance: 0.5,
+      },
+    },
   },
   gallery: { clubs: 15, players: 8, ages: [17, 28, 42] as const },
   workers: { transportBatchEntries: 32, transportYieldMs: 8 },
   saves: {
-    schemaVersion: 10,
+    schemaVersion: 11,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,

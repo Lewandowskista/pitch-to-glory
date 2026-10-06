@@ -148,6 +148,7 @@ export const MORALE_PARTS: readonly MoralePart[] = [
   'cultureFit',
   'fans',
   'media',
+  'lifestyle',
   'situation',
 ];
 export const boundPart = (value: number, limit: number = S.morale.partLimit) =>

@@ -401,3 +401,78 @@ Each goal adds 1 fan affection.
 - final morale of 50–57 and chemistry of about 63.
 
 A national career week costs about 330 ms with auto-play, against 251 ms for a plain week.
+
+## Lifestyle (milestone 7)
+
+Constants live in `CONFIG.career.lifestyle`; items live in `engine/career/lifestyle/catalogue.ts`.
+
+**Fame levels.**
+
+- Fame thresholds for levels 1–10: 0, 20, 50, 100, 170, 260, 380, 530, 720, 950.
+- Deals allowed at each level: 0, 1, 1, 2, 2, 2, 3, 3, 3, 4.
+
+**Sponsors.**
+
+- From level 2, with no open offer and a free deal slot: an offer with chance 0.15 a week, only when the club has at least 10 fixtures left. The offer lapses after 3 weeks.
+- Weekly fee: `30 × 1.6^(level − 1) × brand scale`, where brand scale is 0.8–1.8. Bonus: 8 × the fee.
+- Obligations are scaled to the fixtures left (R):
+
+| Obligation                           | Target |
+| ------------------------------------ | ------ |
+| Starts                               | 0.45R  |
+| Goals (attackers)                    | 0.25R  |
+| Clean sheets (keepers and defenders) | 0.2R   |
+| Average rating (midfielders)         | 6.6    |
+| Press answers (drinks, apparel)      | 0.08R  |
+| Fan affection (watches, cars, tech)  | 45     |
+| Boots (boots brands)                 | worn   |
+
+- Fame: +3 for a completed deal, −3 for a failed one, −2 for breaking the boots obligation.
+
+**Celebrations.** +2 fame per goal with the signature celebration in fixtures of importance 1.15 or more (cup, tie, final).
+
+**Lifestyle items.**
+
+| Item           | Fame level | Cost    | Upkeep a week | Morale |
+| -------------- | ---------- | ------- | ------------- | ------ |
+| City hatchback | 1          | 2,500   | 20            | +1     |
+| Sports coupé   | 3          | 18,000  | 120           | +2     |
+| Grand tourer   | 5          | 60,000  | 320           | +3     |
+| Hypercar       | 8          | 180,000 | 800           | +4     |
+| Town flat      | 1          | 6,000   | 50            | +1     |
+| Townhouse      | 3          | 40,000  | 220           | +2     |
+| Family home    | 5          | 110,000 | 450           | +3     |
+| Villa          | 8          | 320,000 | 1,200         | +5     |
+
+- The morale part is the best car plus the best home, within ±8. It is −3 more when upkeep exceeds half the weekly wage.
+- Resale: 60% for cars and homes.
+
+**Investments.**
+
+| Product  | Weekly return | Fame level | Minimum |
+| -------- | ------------- | ---------- | ------- |
+| Bond     | 0.1%          | 1          | 1,000   |
+| Fund     | 0.25% ± 0.4%  | 3          | 5,000   |
+| Start-up | 0.4% ± 3%     | 5          | 10,000  |
+
+Returns are seeded by world, week and asset. Stakes come in fixed amounts: 1,000, 5,000, 10,000, 25,000, 50,000 or 100,000.
+
+**Cosmetics.** Unlocked by fame level, or earlier with tokens:
+
+- hairstyles and accessories: 20–80 tokens;
+- boots: 30–200;
+- socks: 20–60;
+- armbands: 30–150;
+- celebrations: 20–150.
+
+**Challenges.**
+
+- Daily targets: play 1, weeks 2, press 1, goal 1, assist 1, 7.0+ rating 1.
+- Weekly targets: play 5, wins 3, goals 4, 7.0+ ratings 3, weeks 8, press 3, XP 600.
+- Defenders' goal and assist challenges become clean sheets at half the target.
+- Rewards: 10 tokens daily, 40 weekly, plus a locked cosmetic on weekly challenges with chance 0.5.
+
+**Measured (Node):**
+
+- A compact career reached fame level 3 in its first season and 4 in its second; it signed one deal, which failed at 4 of 5 starts.
+- A national career week costs about 299 ms with auto-play, against 267 ms for a plain week.

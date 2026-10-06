@@ -5,6 +5,7 @@ import type { CareerMatchOutcome } from '../../engine/career/matches';
 import { CONFIG } from '../../engine/config';
 import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
 import { careerText as c } from '../../i18n/career';
+import { lifestyleText } from '../../i18n/lifestyle';
 import { format } from '../../i18n';
 import { Footballer } from './Shared';
 import MatchMaps from './Maps';
@@ -126,6 +127,11 @@ export function Report({
               })}
             </p>
             <p className="muted">{c.report.careerRewards}</p>
+            {outcome.celebrationFame > 0 && (
+              <p className="match-celebration" data-testid="celebration-fame">
+                {format(lifestyleText.celebrations.fame, { fame: outcome.celebrationFame })}
+              </p>
+            )}
             {outcome.levelsGained > 0 && <LevelUp outcome={outcome} reduced={reduced} />}
             {outcome.injury && (
               <div className="mt-4 rounded-control bg-danger-soft p-4 text-danger" role="alert">

@@ -20,6 +20,8 @@ for (const route of [
   'career/CareerClub',
   'career/CareerMedia',
   'career/CareerRival',
+  'career/CareerLifestyle',
+  'career/CareerWardrobe',
 ]) {
   const visited = new Set();
   let bytes = 0;

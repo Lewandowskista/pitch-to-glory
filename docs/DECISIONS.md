@@ -197,3 +197,14 @@ Implementation decisions:
 - **Press design.** At most one open question; a fixed catalogue of topics, each with three answers whose effects are shown before choosing; a six-week topic cooldown. Number keys 1–3 answer, matching key moments.
 - **Size and cost.** The shell grew about 5 KB gzip (migration and validator); the new routes are 226–232 KB. A national career week costs about 330 ms in the worker, against 284 ms after milestone 5.
 - **Versions.** File schema 10, match engine `match-6`.
+
+## Milestone 7: fame, sponsorships, lifestyle, wardrobe, celebrations and challenges
+
+- **Fame levels on existing fame.** The ten levels read `career.fame`, which matches, the press, sponsors and celebrations move, so there is no second fame number.
+- **No pay-to-win.** Style tokens come only from challenges and buy only cosmetics. Lifestyle purchases affect morale and finances, as AGENTS.md §8 specifies, but are bought with in-game savings, never with tokens or real money.
+- **Real-calendar challenges.** "Daily and weekly" is read as the player's real calendar (local day, ISO week), which is what makes such challenges meaningful. The UI passes the date in, so the engine stays deterministic and testable.
+- **Celebrations live in the presentation layer.** The animation and commentary line are drawn by the match screen, and the fame is added on the single commit path. The match engine and its session format are unchanged (`match-6`), so no saved match is discarded.
+- **Sponsor boots.** Wearing their boots is a hard obligation: taking them off ends the deal at the next weekly check. Validation keeps sponsor boots unwearable without the sponsor.
+- **Upkeep never makes savings negative.** If savings cannot cover upkeep, the most valuable item is sold first, so the player always sees a clear cause.
+- **Size and cost.** The shell grew about 3 KB gzip (migration and validator); the new routes are 236–239 KB. The weekly cost is unchanged within noise.
+- **Versions.** File schema 11; match engine unchanged (`match-6`).

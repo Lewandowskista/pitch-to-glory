@@ -23,6 +23,7 @@ export const socialText = {
       cultureFit: 'Club culture fit',
       fans: 'Fan affection',
       media: 'Media coverage',
+      lifestyle: 'Home and car',
       situation: 'Injury or transfer request',
     },
     matchEffect: 'Key-moment odds from morale: {effect}',

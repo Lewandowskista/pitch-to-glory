@@ -64,6 +64,8 @@ export function draftWorld(world: World, touch: Touch = {}): World {
     inbox: structuredClone(world.inbox),
     media: structuredClone(world.media),
     rivalries: structuredClone(world.rivalries),
+    sponsorships: structuredClone(world.sponsorships),
+    challenges: structuredClone(world.challenges),
     events: [...world.events],
   };
   for (const key of ['clubs', 'players', 'contracts', 'dressingRooms'] as EntityKey[]) {

@@ -17,6 +17,7 @@ import {
   syncCliques,
 } from './dressing';
 import { mediaWeek } from './media';
+import { lifestyleMorale } from '../lifestyle/lifestyle';
 import { recordHeadToHead, rivalOf, rivalSeasonEnd, rivalTransfer, startRivalry } from './rival';
 import {
   boundPart,
@@ -64,6 +65,7 @@ export function moraleParts(world: World): Record<MoralePart, number> {
     cultureFit: boundPart((cultureFit(world, player, club).value - 50) * M.cultureFit),
     fans: boundPart((relationshipValue(world, 'fans', club.id) - 50) * M.fans),
     media: boundPart(career.social.coverage * M.media),
+    lifestyle: career.style ? boundPart(lifestyleMorale(world)) : 0,
     situation: boundPart(situation),
   };
   return parts;

@@ -5,3 +5,11 @@
 - Bebas Neue: locally bundled Latin regular from `@fontsource/bebas-neue`. SIL Open Font License 1.1; upstream https://github.com/dharmatype/Bebas-Neue. License: `node_modules/@fontsource/bebas-neue/LICENSE`.
 - No audio assets are included in Milestone 1. Procedural audio and Howler integration belong to Milestone 9. No autoplay or network media requests occur.
 - All PWA visual sources remain SVG as required. SVG manifest support varies by installation platform; additional raster icon derivatives for platform compatibility require a documented spec exception during release work.
+
+## Wardrobe and celebration artwork (milestone 7)
+
+All of these are original, authored in code; no external images are used.
+
+- **Dressed shirt** (sleeve length, captain's armband) and the **socks and boots**: flat SVG shapes from `src/engine/assets/gear.ts`, in each club's kit colours.
+- **Celebration previews**: a pitch token in SVG.
+- **Motions**: CSS keyframes (`src/styles/celebrations.css`) and the Pixi scene (`src/screens/match/pitchScene.ts`).

@@ -34,6 +34,10 @@ export function messageLink(
   }
   if (message.subjectKey === 'press-request')
     return { to: join('/career/media'), label: m.inbox.goMedia };
+  if (message.subjectKey.startsWith('sponsor-') || message.subjectKey === 'asset-sold')
+    return { to: join('/career/lifestyle'), label: m.inbox.goLifestyle };
+  if (message.subjectKey === 'fame-level')
+    return { to: join('/career/wardrobe'), label: m.inbox.goWardrobe };
   if (message.subjectKey === 'rival-transfer')
     return { to: join('/career/rival'), label: m.inbox.goRival };
   if (message.subjectKey.startsWith('agent-'))

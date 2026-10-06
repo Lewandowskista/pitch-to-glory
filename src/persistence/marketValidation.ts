@@ -50,6 +50,13 @@ const INBOX_KINDS = [
   'new-manager',
   'press-request',
   'rival-transfer',
+  'sponsor-offer',
+  'sponsor-signed',
+  'sponsor-completed',
+  'sponsor-failed',
+  'sponsor-dropped',
+  'asset-sold',
+  'fame-level',
 ];
 
 const nullableDate = (value: unknown) => {
