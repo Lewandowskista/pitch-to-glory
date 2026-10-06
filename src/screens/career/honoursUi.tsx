@@ -7,6 +7,7 @@ import { honoursText as h } from '../../i18n/honours';
 import { careerText as c } from '../../i18n/career';
 import { money } from './marketUi';
 import { useEditBlock } from './shared';
+import { audio } from '../../audio';
 
 export function useHonoursAction() {
   const block = useEditBlock();
@@ -19,6 +20,7 @@ export function useHonoursAction() {
       setError('');
       return true;
     } catch (cause) {
+      audio.play('error');
       setError(cause instanceof Error ? cause.message : '');
       return false;
     }

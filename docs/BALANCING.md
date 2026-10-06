@@ -522,3 +522,9 @@ Constants live in `CONFIG.world.continental` and `CONFIG.career.honours`.
 - A retired former teammate aged 34 or over takes a vacant manager's job with chance 0.4.
 
 **Moments and Chronicle.** Late means the 85th minute on; "wonder" means a goal from a choice of 20% probability or less. Each player keeps 40 moments and 600 Chronicle entries.
+
+## Accessibility and audio (milestone 9)
+
+**Kit clash.** `CONFIG.accessibility.kitClash = 22`: the smallest CIE76 difference between two shirt colours across typical vision, protanopia, deuteranopia and tritanopia (Machado et al. 2009, full severity). For reference: red and green measure 8.9 for protanopia (a clash); blue and teal 8.8 for tritanopia (a clash); navy and purple 5.2 (a clash); maroon and red 26.8 (distinct); red and white 57.7 (distinct). Fewer than 5% of generated clubs have a home kit that clashes with both their away and third kits.
+
+**Audio levels** (`src/audio/`). Default volumes: master 0.8, effects 0.8, crowd 0.6. Peaks at render: tap and toggle 0.35; confirm, moment and error 0.45–0.5; reward 0.55; level-up 0.6; whistles 0.5; roar 0.85; groan 0.75; crowd loop 0.6. The crowd bed plays at `crowd volume × (0.25 + 0.75 × level)`, where the level is 0.1 before kick-off, 0.2 while paused, `0.3 + 0.5 × |momentum − 50| / 50` while playing, 0.55 at a key moment and 0.15 at half-time; changes fade over 0.7 s. Sounds render at 22,050 Hz, mono, 16-bit.

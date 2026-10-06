@@ -542,14 +542,19 @@ export const CONFIG = {
   gallery: { clubs: 15, players: 8, ages: [17, 28, 42] as const },
   workers: { transportBatchEntries: 32, transportYieldMs: 8 },
   saves: {
-    schemaVersion: 12,
+    schemaVersion: 13,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,
     leaseDurationMs: 30000,
     heartbeatMs: 5000,
   },
-  accessibility: { minFontScale: 0.85, maxFontScale: 1.3 },
+  accessibility: {
+    minFontScale: 0.85,
+    maxFontScale: 1.3,
+    /** Smallest CIELAB difference (CIE76) between shirt colours for every kind of vision. */
+    kitClash: 22,
+  },
   world: {
     nationalWeeksPerSeason: 60,
     nationalCupWeeks: [5, 11, 17, 23, 29, 35, 41, 47, 53] as const,

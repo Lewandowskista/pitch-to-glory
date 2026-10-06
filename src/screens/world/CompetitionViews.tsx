@@ -12,6 +12,7 @@ import type {
 import { useState } from 'react';
 import { t, format } from '../../i18n';
 import { Artwork } from '../../ui/Artwork';
+import { Tooltip } from '../../ui/Tooltip';
 import { renderCrest } from '../../engine/assets/crest';
 
 type SelectClub = (id: string) => void;
@@ -148,9 +149,10 @@ export function LeagueTable({
                     ['won', 'drawn', 'lost', 'gf', 'ga'].includes(key) ? 'table-detail' : ''
                   }
                   aria-label={t.world[key]}
-                  title={t.world[key]}
                 >
-                  {t.world.short[key]}
+                  <Tooltip label={t.world[key]}>
+                    <abbr className="no-underline">{t.world.short[key]}</abbr>
+                  </Tooltip>
                 </th>
               ))}
               {hasBonus && (
@@ -172,7 +174,6 @@ export function LeagueTable({
                   <td>
                     <span
                       className="rank"
-                      title={zone?.label}
                       aria-label={
                         zone
                           ? format(t.world.rankLabel, { rank: index + 1, zone: zone.label })

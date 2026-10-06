@@ -81,7 +81,7 @@ export function Preview({
           ))}
         </ul>
       </section>
-      <section className="match-panel">
+      <section className="match-panel" data-tour="tactics">
         <h2>{m.tactics}</h2>
         <div className="match-tactics">
           <label>
@@ -131,7 +131,7 @@ export function Preview({
             </select>
           </label>
         </div>
-        <button className="button match-kickoff" onClick={onKickoff}>
+        <button className="button match-kickoff" data-tour="kickoff" onClick={onKickoff}>
           {m.kickoff}
         </button>
         <p className="muted">{note ?? m.friendlyBody}</p>

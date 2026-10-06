@@ -135,7 +135,11 @@ export function CareerNav() {
   const save = params.get('save');
   const unread = useAppStore((s) => s.world?.inbox.filter((message) => !message.read).length ?? 0);
   return (
-    <nav aria-label={c.sections} className="mb-6 overflow-x-auto lg:overflow-visible">
+    <nav
+      aria-label={c.sections}
+      data-tour="career-nav"
+      className="mb-6 overflow-x-auto lg:overflow-visible"
+    >
       <ul className="flex min-w-max gap-2 rounded-control border border-line bg-surface p-1.5 shadow-surface lg:min-w-0 lg:flex-wrap">
         {groups.map((group) => (
           <li key={group.label} className="flex items-center gap-1">

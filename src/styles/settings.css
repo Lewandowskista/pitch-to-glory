@@ -156,3 +156,12 @@ input[type='range'] {
   color: var(--muted);
   padding: 0 1.6rem;
 }
+.volume-setting + .volume-setting {
+  margin-top: 1rem;
+}
+.sound-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}

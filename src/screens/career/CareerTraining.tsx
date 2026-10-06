@@ -452,26 +452,26 @@ function TrainingReport({
                   </dd>
                 </div>
               )}
-              <div className="flex flex-wrap gap-x-8 gap-y-3">
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-                    {c.training.fatigueChange}
-                  </dt>
-                  <dd className="font-display text-2xl leading-tight">
-                    {report.fatigue > 0 ? '+' : ''}
-                    {report.fatigue}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-                    {c.training.injury}
-                  </dt>
-                  <dd className={`font-semibold ${report.injuryId ? 'text-danger' : ''}`}>
-                    {report.injuryId
-                      ? (c.injuries[career.injury?.kind ?? ''] ?? c.hub.trainingInjury)
-                      : c.training.none}
-                  </dd>
-                </div>
+            </dl>
+            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-sm">
+              <div>
+                <dt className="text-xs font-bold uppercase tracking-wider text-muted">
+                  {c.training.fatigueChange}
+                </dt>
+                <dd className="font-display text-2xl leading-tight">
+                  {report.fatigue > 0 ? '+' : ''}
+                  {report.fatigue}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold uppercase tracking-wider text-muted">
+                  {c.training.injury}
+                </dt>
+                <dd className={`font-semibold ${report.injuryId ? 'text-danger' : ''}`}>
+                  {report.injuryId
+                    ? (c.injuries[career.injury?.kind ?? ''] ?? c.hub.trainingInjury)
+                    : c.training.none}
+                </dd>
               </div>
             </dl>
           </>

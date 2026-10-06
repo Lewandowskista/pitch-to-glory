@@ -21,3 +21,7 @@ All of these are original, authored in code; no external images are used.
 - **Moment replay pitch**: flat SVG pitch and kit-coloured tokens in `src/screens/career/MomentPitch.tsx`.
 - **Chronicle poster**: an SVG composed in `src/screens/career/ChronicleView.tsx` from the player's procedural portrait, then drawn to a canvas in the browser and exported as PNG. The PNG is generated on the player's device and never shipped with the app.
 - **Trophy and award marks**: text glyphs (★ ✦ ◆) in the shared display styles.
+
+## Audio (milestone 9)
+
+No audio files are included. Every sound is synthesised on the player's device by original code in `src/audio/synth.ts` (oscillators, seeded noise and filters) and played with Howler.js (MIT licence, `node_modules/howler/LICENSE.md`). The sounds are interface taps, toggles, confirmations and errors; reward chimes and a level-up fanfare; a pea whistle, kick, net, goal roar, groan and a looping crowd. Nothing is downloaded or recorded, and nothing needs attribution.

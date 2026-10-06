@@ -325,7 +325,10 @@ export default function Saves() {
                       {t.saves.export}
                     </button>
                   )}
-                  <label className={blocked ? 'file-button disabled' : 'file-button'}>
+                  <label
+                    className={blocked ? 'file-button disabled' : 'file-button'}
+                    aria-disabled={blocked || undefined}
+                  >
                     <Icon name="upload" />
                     {t.saves.import}
                     <input

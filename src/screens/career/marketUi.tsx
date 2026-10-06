@@ -19,6 +19,7 @@ const socialMessages = socialText.messages;
 const lifestyleMessages = lifestyleText.messages;
 const honoursMessages = honoursText.messages;
 import { ui, useEditBlock } from './shared';
+import { audio } from '../../audio';
 
 const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
 export const money = (value: number) => format(m.money, { amount: integer.format(value) });
@@ -41,6 +42,7 @@ export function useMarketAction() {
       setError('');
       return result;
     } catch (cause) {
+      audio.play('error');
       setError(format(m.errors.action, { reason: cause instanceof Error ? cause.message : '' }));
       return null;
     }

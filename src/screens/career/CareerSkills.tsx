@@ -19,6 +19,7 @@ import { matchLabel } from '../../i18n/match';
 import { careerText as c } from '../../i18n/career';
 import { CareerPage, plural, ui, useEditBlock } from './shared';
 import { useUrlDialog } from './useUrlDialog';
+import { audio } from '../../audio';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
@@ -56,7 +57,7 @@ const stateStyles: Record<SkillState, string> = {
   unlocked: 'border-accent bg-accent text-on-accent',
   available: 'border-gold bg-art-gold text-ink ring-2 ring-gold/60',
   locked: 'border-line bg-surface-soft text-muted',
-  unavailable: 'border-dashed border-line bg-transparent text-muted opacity-60',
+  unavailable: 'border-dashed border-line bg-transparent text-muted',
 };
 const stateMark: Record<SkillState, string> = {
   unlocked: '✓',
@@ -133,6 +134,7 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
       return;
     }
     useAppStore.getState().setWorld(unlockSkill(current, unlocking.id));
+    audio.play('reward');
     setAnnouncement(format(c.skills.unlocked, { name: skillName(unlocking.id) }));
     setCelebrate(unlocking.id);
     dialog.close();
@@ -219,7 +221,7 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
                           {stateMark[state]}
                         </span>
                         <span className="min-w-0 flex-1 leading-tight">{skillName(skill.id)}</span>
-                        <span aria-hidden="true" className="shrink-0 text-xs opacity-80">
+                        <span aria-hidden="true" className="shrink-0 text-xs">
                           {format(c.skills.cost, { cost: skill.pointCost })}
                         </span>
                       </motion.button>
@@ -366,15 +368,15 @@ function SkillDetail({
             )}
           </dd>
         </div>
-        <div className="flex flex-wrap gap-x-6 gap-y-1">
-          <span>
-            {skill.pointCost === 1
-              ? c.skills.costLongOne
-              : format(c.skills.costLong, { cost: skill.pointCost })}
-          </span>
-          <span>{format(c.skills.minimumLevel, { level: skill.minimumLevel })}</span>
-        </div>
       </dl>
+      <p className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+        <span>
+          {skill.pointCost === 1
+            ? c.skills.costLongOne
+            : format(c.skills.costLong, { cost: skill.pointCost })}
+        </span>
+        <span>{format(c.skills.minimumLevel, { level: skill.minimumLevel })}</span>
+      </p>
       {reasons.length > 0 && (
         <ul className="mt-4 grid gap-1 rounded-control bg-surface-soft p-3 text-sm">
           {reasons.map((reason) => (

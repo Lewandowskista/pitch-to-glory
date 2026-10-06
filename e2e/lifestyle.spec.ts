@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { skipTutorial } from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
@@ -10,6 +11,7 @@ import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
 
 test.beforeEach(async ({ page }) => {
+  await skipTutorial(page);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (entry) => {

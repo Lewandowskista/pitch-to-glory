@@ -8,6 +8,7 @@ for (const route of [
   'Saves',
   'Settings',
   'World',
+  'EditMode',
   'Match',
   'career/CareerNew',
   'career/CareerHub',

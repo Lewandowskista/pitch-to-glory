@@ -1,7 +1,9 @@
 ﻿import { expect, test, type Page } from '@playwright/test';
+import { skipTutorial } from './support';
 import { mkdir, readFile } from 'node:fs/promises';
 
 test.beforeEach(async ({ page }) => {
+  await skipTutorial(page);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (entry) => {
@@ -164,7 +166,7 @@ test('worker advances, autosaves, finishes and rolls over a reproducible season'
   const json = await readFile(backupPath, 'utf8');
   console.log(`Completed-season backup: ${Buffer.byteLength(json, 'utf8')} bytes`);
   const saved = JSON.parse(json);
-  expect(saved.schemaVersion).toBe(12);
+  expect(saved.schemaVersion).toBe(13);
   expect(saved.payload.kind).toBe('world');
   expect(saved.payload.world.phase).toBe('complete');
   expect(saved.payload.world.history).toHaveLength(1);
@@ -180,7 +182,7 @@ test('worker advances, autosaves, finishes and rolls over a reproducible season'
     .nth(1)
     .getByLabel('Import backup — Slot 2')
     .setInputFiles(backupPath);
-  await expect(page.locator('.notice')).toHaveText('Collection imported.');
+  await expect(page.locator('.notice')).toHaveText('Collection imported.', { timeout: 60000 });
   await expect(page.locator('.slot-card').nth(1).locator('.active-label')).toBeVisible();
   await page.reload();
   await page

@@ -8,6 +8,7 @@ export const en = {
     menu: 'Clubhouse',
     gallery: 'Asset gallery',
     world: 'World',
+    edit: 'Edit mode',
     match: 'Matchday',
     career: 'Career',
     careerPages: {
@@ -35,6 +36,7 @@ export const en = {
       '/': 'Club',
       '/career': 'Career',
       '/world': 'World',
+      '/edit': 'Edit',
       '/match': 'Match',
       '/gallery': 'Gallery',
       '/saves': 'Saves',
@@ -221,6 +223,27 @@ export const en = {
     reset: 'Restore defaults',
     resetDone: 'Default preferences restored.',
     saved: 'Preferences save automatically on this device.',
+    sound: 'Sound',
+    soundBody:
+      'Whistles, kicks, a crowd that reacts to the match, and soft interface sounds. Every sound is generated on your device. Audio starts after your first click or key press.',
+    mute: 'Mute all sound',
+    muteBody: 'Silence the game without losing your volume settings.',
+    master: 'Master volume',
+    effects: 'Effects and interface',
+    crowd: 'Crowd',
+    volumeValue: '{percent}%',
+    previewSounds: 'Try the sounds',
+    previews: {
+      tap: 'Interface',
+      whistle: 'Whistle',
+      roar: 'Goal roar',
+      crowd: 'Crowd',
+    },
+    tutorial: 'Tutorial',
+    tutorialBody:
+      'A short guided tour runs during your first week and your first match. Show it again on your next career week and match.',
+    tutorialReset: 'Show the tutorial again',
+    tutorialDone: 'The tutorial will show again.',
   },
   errors: {
     invalid: 'This backup is incomplete or invalid. Choose a valid Pitch to Glory file.',

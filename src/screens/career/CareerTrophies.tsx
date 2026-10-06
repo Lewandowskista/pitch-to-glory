@@ -7,6 +7,7 @@ import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
 import { CareerPage, CrestImage, ui } from './shared';
 import { useUrlDialog } from './useUrlDialog';
+import { audio } from '../../audio';
 
 export default function CareerTrophies() {
   return (
@@ -133,7 +134,13 @@ function Ceremony({
         })}
       </ol>
       {!revealed ? (
-        <button className="button mt-5" onClick={() => setRevealed(true)}>
+        <button
+          className="button mt-5"
+          onClick={() => {
+            setRevealed(true);
+            audio.play('levelUp');
+          }}
+        >
           {h.awards.reveal}
         </button>
       ) : (
@@ -266,7 +273,7 @@ function SeasonAwards({ world, player }: { world: World; player: Player }) {
       </h2>
       {awards.length ? (
         <div
-          className="mt-4 overflow-x-auto"
+          className="relative mt-4 overflow-x-auto"
           tabIndex={0}
           role="region"
           aria-label={h.awards.season}

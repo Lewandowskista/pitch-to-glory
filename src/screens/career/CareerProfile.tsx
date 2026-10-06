@@ -156,7 +156,7 @@ function Attributes({
                       </div>
                       <div
                         className="relative mt-1 h-2 rounded-full bg-surface-soft"
-                        title={format(c.profile.capLabel, { cap })}
+                        aria-hidden="true"
                       >
                         <span
                           className={`block h-full rounded-full ${
@@ -404,7 +404,7 @@ function History({ world, career }: { world: World; career: Career }) {
           <h3 className="mt-5 text-xs font-bold uppercase tracking-[0.14em] text-muted">
             {c.profile.seasons}
           </h3>
-          <div className="mt-2 overflow-x-auto">
+          <div className="relative mt-2 overflow-x-auto">
             <table className="w-full min-w-[34rem] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
@@ -443,7 +443,7 @@ function History({ world, career }: { world: World; career: Career }) {
           <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-muted">
             {c.profile.history}
           </h3>
-          <div className="mt-2 overflow-x-auto">
+          <div className="relative mt-2 overflow-x-auto">
             <table className="w-full min-w-[44rem] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">

@@ -79,6 +79,14 @@ try {
 } catch {
   preferences = { ...DEFAULT_SETTINGS };
 }
+/** A tutorial seen on this device stays seen when a save from before is loaded. */
+const withDeviceTutorial = (saved: Settings, device: Settings): Settings => ({
+  ...saved,
+  tutorial: {
+    week: saved.tutorial.week || device.tutorial.week,
+    match: saved.tutorial.match || device.tutorial.match,
+  },
+});
 const settingsSlice: StateCreator<AppStore, [], [], SettingsSlice> = (set) => ({
   settings: preferences,
   preferencesStored: true,
@@ -123,8 +131,10 @@ const sessionSlice: StateCreator<AppStore, [], [], SessionSlice> = (set) => ({
       world: save.payload.kind === 'world' ? save.payload.world : null,
       matchSession: save.payload.kind === 'world' ? (save.payload.matchSession ?? null) : null,
       gallery: save.payload.gallery,
-      settings: save.payload.settings,
-      preferencesStored: platform.writePreferences(save.payload.settings),
+      settings: withDeviceTutorial(save.payload.settings, state.settings),
+      preferencesStored: platform.writePreferences(
+        withDeviceTutorial(save.payload.settings, state.settings),
+      ),
       change: state.change + 1,
       savedChange: state.change + 1,
       saveStatus: 'saved',

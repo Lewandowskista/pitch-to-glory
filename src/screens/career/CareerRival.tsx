@@ -124,7 +124,7 @@ function RivalContent({
           {s.rival.compare}
         </h2>
         <div
-          className="mt-4 overflow-x-auto"
+          className="relative mt-4 overflow-x-auto"
           tabIndex={0}
           role="region"
           aria-label={s.rival.compare}

@@ -10,10 +10,13 @@ import { platform } from '../platform';
 import { Icon, type IconName } from './Icon';
 import { Dialog } from './Dialog';
 import { PwaPrompt } from './PwaPrompt';
+import { audio } from '../audio';
+import type { AudioSettings } from '../model/domain';
 const items: { path: string; label: string; icon: IconName }[] = [
   { path: '/', label: t.app.menu, icon: 'home' },
   { path: '/career', label: t.app.career, icon: 'career' },
   { path: '/world', label: t.app.world, icon: 'globe' },
+  { path: '/edit', label: t.app.edit, icon: 'edit' },
   { path: '/match', label: t.app.match, icon: 'ball' },
   { path: '/gallery', label: t.app.gallery, icon: 'gallery' },
   { path: '/saves', label: t.app.saves, icon: 'save' },
@@ -52,6 +55,7 @@ export function Shell() {
     }
   };
   useAutosave();
+  useAudio(settings.audio);
   // Before paint, so a page never shows one theme and then animates into the other.
   useLayoutEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
@@ -290,4 +294,31 @@ export function Shell() {
       )}
     </MotionConfig>
   );
+}
+
+/**
+ * Audio starts with the first interaction (browser autoplay rules). Buttons, links and tabs
+ * tap and switches toggle; an element can opt out with `data-sound="none"`.
+ */
+function useAudio(settings: AudioSettings): void {
+  useEffect(() => audio.configure(settings), [settings]);
+  useEffect(() => {
+    const unlock = () => audio.unlock();
+    const click = (event: MouseEvent) => {
+      const target = (event.target as Element | null)?.closest(
+        'button, a[href], summary, [role="tab"], input[type="checkbox"], input[type="radio"]',
+      );
+      if (!target || target.closest('[data-sound="none"]')) return;
+      if ((target as HTMLButtonElement).disabled) return;
+      audio.play(target.matches('input, [role="switch"]') ? 'toggle' : 'tap');
+    };
+    window.addEventListener('pointerdown', unlock, true);
+    window.addEventListener('keydown', unlock, true);
+    window.addEventListener('click', click, true);
+    return () => {
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+      window.removeEventListener('click', click, true);
+    };
+  }, []);
 }

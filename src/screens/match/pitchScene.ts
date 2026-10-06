@@ -147,6 +147,7 @@ export async function createPitchScene(
       .circle(0, 0, 1.7)
       .fill(isHome ? kits.home : kits.away)
       .stroke({ color: isHome ? '#111e2c' : '#ffffff', width: 0.3 });
+    if (!isHome && kits.clash) shape.circle(0, 0, 1.05).stroke({ color: '#ffffff', width: 0.3 });
     if (!isHome)
       for (let arc = 0; arc < 8; arc++) {
         const angle = (arc * Math.PI) / 4;

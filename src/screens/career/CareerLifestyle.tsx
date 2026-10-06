@@ -23,6 +23,7 @@ import { lifestyleText as l } from '../../i18n/lifestyle';
 import { CareerPage, ui } from './shared';
 import { ActionError, BlockNote, money, Stat, weekly } from './marketUi';
 import { fameName, useLifestyleAction } from './lifestyleUi';
+import { audio } from '../../audio';
 
 const L = CONFIG.career.lifestyle;
 
@@ -182,7 +183,9 @@ function DealCard({ world, deal, action }: { world: World; deal: Sponsorship; ac
           <button
             className="button"
             disabled={Boolean(action.block) || full}
-            onClick={() => action.run({ type: 'accept-sponsor', id: deal.id })}
+            onClick={() => {
+              if (action.run({ type: 'accept-sponsor', id: deal.id })) audio.play('reward');
+            }}
           >
             {l.sponsors.accept}
             <span className="sr-only"> — {brand.name}</span>
@@ -319,13 +322,16 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
         <button
           className="button secondary"
           disabled={Boolean(action.block) || Boolean(reason)}
-          onClick={() =>
-            action.run({
-              type: 'buy-asset',
-              itemId: item.id,
-              ...(item.kind === 'investment' ? { amount } : {}),
-            })
-          }
+          onClick={() => {
+            if (
+              action.run({
+                type: 'buy-asset',
+                itemId: item.id,
+                ...(item.kind === 'investment' ? { amount } : {}),
+              })
+            )
+              audio.play('confirm');
+          }}
         >
           {item.kind === 'investment' ? l.lifestyle.invest : l.lifestyle.buy}
           <span className="sr-only"> — {name}</span>

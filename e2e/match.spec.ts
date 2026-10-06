@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { skipTutorial } from './support';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
@@ -30,6 +31,7 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
   );
 });
 test.beforeEach(async ({ page }) => {
+  await skipTutorial(page);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (entry) => {
@@ -143,7 +145,7 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   const download = page.waitForEvent('download');
   await page.locator('.slot-card').first().getByRole('button', { name: 'Export backup' }).click();
   const saved = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
-  expect(saved.schemaVersion).toBe(12);
+  expect(saved.schemaVersion).toBe(13);
   expect(saved.payload.matchSession.state.match.status).toBe('finished');
   expect(
     saved.payload.matchSession.commands.some(

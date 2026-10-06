@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { skipTutorial } from './support';
 import { readFile } from 'node:fs/promises';
 
 test.beforeEach(async ({ page }) => {
+  await skipTutorial(page);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
@@ -65,7 +67,7 @@ test('preferences persist and system preferences are respected', async ({ page }
   await page.getByLabel('Text size', { exact: true }).focus();
   await page.keyboard.press('End');
   await page.keyboard.press('ArrowLeft');
-  await expect(page.locator('output')).toHaveText('125%');
+  await expect(page.locator('output[for="font-scale"]')).toHaveText('125%');
   await page.getByRole('switch', { name: 'Reduced motion' }).check();
   await page.reload();
   await expect(page.getByRole('radio', { name: 'Light', exact: true })).toBeChecked();

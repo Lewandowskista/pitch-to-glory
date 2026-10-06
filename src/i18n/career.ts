@@ -290,7 +290,6 @@ export const careerText = {
     raiseShort: '+1',
     cost: '{cost} pt',
     cap: 'Soft cap {cap}',
-    capLabel: 'Soft cap at your age: {cap}',
     atMax: 'At the maximum of 99.',
     needs: 'Needs {cost} points.',
     beyond: 'Beyond soft cap',

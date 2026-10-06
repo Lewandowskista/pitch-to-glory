@@ -3,6 +3,7 @@ import type { MatchSession } from '../../match/types';
 import { CONFIG } from '../../config';
 import { nextId } from '../market/records';
 import { today } from '../market/rules';
+import { chooseMatchKits } from '../../assets/clash';
 import { encodeClip, type Clip, type ClipFrame } from './clip';
 
 export * from './clip';
@@ -51,6 +52,7 @@ export function captureMoments(world: World, session: MatchSession, importance: 
   let theirGoals = 0;
   let scored = 0;
   const saved: string[] = [];
+  const kits = chooseMatchKits(session.setup.home, session.setup.away);
   for (const event of state.match.events) {
     if (event.kind !== 'goal') continue;
     const mine = event.teamId === (ownHome ? session.setup.home.id : session.setup.away.id);
@@ -81,8 +83,8 @@ export function captureMoments(world: World, session: MatchSession, importance: 
       kind,
       minute: event.minute,
       scorerName: world.players[career.playerId]!.name,
-      home: { name: session.setup.home.name, color: session.setup.home.kits.home.colors[0] },
-      away: { name: session.setup.away.name, color: session.setup.away.kits.away.colors[0] },
+      home: { name: session.setup.home.name, color: kits.home.colors[0] },
+      away: { name: session.setup.away.name, color: kits.away.colors[0] },
       score: [final[0]!, final[1]!],
       seed: session.setup.seed,
       clip: encodeClip(clip),

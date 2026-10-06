@@ -72,6 +72,9 @@ function SvgPitch({ frame, home, away, selectedPlayerId, celebration }: PitchPro
                 stroke={isHome ? '#111e2c' : '#ffffff'}
                 strokeWidth=".3"
               />
+              {!isHome && kits.clash && (
+                <circle r="1.05" fill="none" stroke="#ffffff" strokeWidth=".3" />
+              )}
               <text
                 textAnchor="middle"
                 dominantBaseline="central"

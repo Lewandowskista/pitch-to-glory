@@ -7,6 +7,8 @@ import { Icon } from '../ui/Icon';
 import { Artwork } from '../ui/Artwork';
 import { generateGallery } from '../engine/assets/gallery';
 import { renderCrest } from '../engine/assets/crest';
+import { audio, type SoundName } from '../audio';
+import type { AudioSettings } from '../model/domain';
 const sample = generateGallery('settings');
 export default function Settings() {
   const settings = useAppStore((s) => s.settings);
@@ -95,6 +97,21 @@ export default function Settings() {
               onChange={(event) => update({ simulationOnly: event.target.checked })}
             />
           </section>
+          <SoundSettings />
+          <section className="setting-section">
+            <h2>{t.settings.tutorial}</h2>
+            <p>{t.settings.tutorialBody}</p>
+            <button
+              className="button secondary"
+              disabled={!settings.tutorial.week && !settings.tutorial.match}
+              onClick={() => {
+                update({ tutorial: { week: false, match: false } });
+                setNotice(t.settings.tutorialDone);
+              }}
+            >
+              {t.settings.tutorialReset}
+            </button>
+          </section>
           <button
             className="button secondary"
             onClick={() => {
@@ -123,5 +140,93 @@ export default function Settings() {
         </aside>
       </div>
     </Page>
+  );
+}
+
+const PREVIEWS: { sound: SoundName | 'crowd'; label: string }[] = [
+  { sound: 'confirm', label: t.settings.previews.tap },
+  { sound: 'whistleLong', label: t.settings.previews.whistle },
+  { sound: 'roar', label: t.settings.previews.roar },
+  { sound: 'crowd', label: t.settings.previews.crowd },
+];
+let crowdPreview: ReturnType<typeof setTimeout> | undefined;
+function SoundSettings() {
+  const sound = useAppStore((s) => s.settings.audio);
+  const update = useAppStore((s) => s.updateSettings);
+  const set = (patch: Partial<AudioSettings>) => update({ audio: { ...sound, ...patch } });
+  const volumes = [
+    ['master', t.settings.master],
+    ['effects', t.settings.effects],
+    ['crowd', t.settings.crowd],
+  ] as const;
+  return (
+    <>
+      <section className="setting-section motion-setting">
+        <div>
+          <h2>
+            <label htmlFor="mute">{t.settings.mute}</label>
+          </h2>
+          <p>{t.settings.muteBody}</p>
+        </div>
+        <input
+          id="mute"
+          className="switch"
+          type="checkbox"
+          role="switch"
+          checked={sound.muted}
+          onChange={(event) => set({ muted: event.target.checked })}
+        />
+      </section>
+      <section className="setting-section">
+        <h2>{t.settings.sound}</h2>
+        <p>{t.settings.soundBody}</p>
+        {volumes.map(([key, label]) => {
+          const percent = Math.round(sound[key] * 100);
+          return (
+            <div key={key} className="volume-setting">
+              <div className="range-label">
+                <label htmlFor={`volume-${key}`}>{label}</label>
+                <output htmlFor={`volume-${key}`}>
+                  {format(t.settings.volumeValue, { percent })}
+                </output>
+              </div>
+              <input
+                id={`volume-${key}`}
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={percent}
+                disabled={sound.muted}
+                aria-valuetext={format(t.settings.volumeValue, { percent })}
+                onChange={(event) => set({ [key]: Number(event.target.value) / 100 })}
+              />
+            </div>
+          );
+        })}
+        <div className="sound-previews" role="group" aria-label={t.settings.previewSounds}>
+          {PREVIEWS.map(({ sound: name, label }) => (
+            <button
+              key={name}
+              className="button secondary"
+              data-sound="none"
+              disabled={sound.muted}
+              onClick={() => {
+                audio.unlock();
+                if (name !== 'crowd') {
+                  audio.play(name);
+                  return;
+                }
+                clearTimeout(crowdPreview);
+                audio.crowd(0.6);
+                crowdPreview = setTimeout(() => audio.crowd(null), 4000);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+    </>
   );
 }

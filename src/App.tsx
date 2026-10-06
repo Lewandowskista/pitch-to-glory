@@ -8,6 +8,7 @@ const Gallery = lazy(() => import('./screens/Gallery'));
 const Saves = lazy(() => import('./screens/Saves'));
 const Settings = lazy(() => import('./screens/Settings'));
 const World = lazy(() => import('./screens/World'));
+const EditMode = lazy(() => import('./screens/EditMode'));
 const Match = lazy(() => import('./screens/Match'));
 const CareerNew = lazy(() => import('./screens/career/CareerNew'));
 const CareerHub = lazy(() => import('./screens/career/CareerHub'));
@@ -46,6 +47,7 @@ export default function App() {
               <Route path="saves" element={<Saves />} />
               <Route path="settings" element={<Settings />} />
               <Route path="world" element={<World />} />
+              <Route path="edit" element={<EditMode />} />
               <Route path="match" element={<Match />} />
               <Route path="career" element={<CareerHub />} />
               <Route path="career/new" element={<CareerNew />} />

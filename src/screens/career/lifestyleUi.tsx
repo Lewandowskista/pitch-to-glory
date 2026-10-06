@@ -3,6 +3,7 @@ import { useAppStore } from '../../store';
 import { applyLifestyleAction, type LifestyleAction } from '../../engine/career/lifestyle';
 import { lifestyleText as l } from '../../i18n/lifestyle';
 import { useEditBlock } from './shared';
+import { audio } from '../../audio';
 
 /** Run a lifestyle decision; the world is replaced only when it changed. */
 export function useLifestyleAction() {
@@ -17,6 +18,7 @@ export function useLifestyleAction() {
       setError('');
       return true;
     } catch (cause) {
+      audio.play('error');
       setError(cause instanceof Error ? cause.message : '');
       return false;
     }

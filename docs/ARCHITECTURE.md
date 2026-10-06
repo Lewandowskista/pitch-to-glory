@@ -7,10 +7,11 @@ Milestones 1–4 (including the post-milestone-3 hardening pass), 6 October 2026
 ```text
 src/
   engine/             Pure TypeScript RNG, asset recipes and world simulation
-    assets/           Crest, kit and avatar recipes and geometry
+    assets/           Crest, kit and avatar recipes and geometry; colour-blind-safe kit clash check
     world/            Generation, schedules, background scores, squad lifecycle and seasons
       identities/     Real countries and towns; fictional clubs and competitions with real references
       continental.ts  Champions Cup and Shield: qualification, draw, groups and knockouts
+      edits.ts        Edit mode: renames, colours, crests, reverting, export and import packs
     match/            Deterministic command engine, session types and replay validation
     career/           Career creation, progression, skills, training, injuries, fixtures and commit
       market/         Contracts, agents, scouting, offers, negotiation, loans and the weekly market
@@ -25,7 +26,8 @@ src/
   store/              Zustand settings, gallery, world/job, match and active-save slices
   hooks/              Autosave and browser lifecycle integration
   platform/           Platform interface and web implementation
-  ui/                 Shell, reusable controls and SVG artwork wrapper
+  audio/              Procedural synthesiser, rendering worker, Howler player and the facade
+  ui/                 Shell, reusable controls, SVG artwork wrapper, tutorial and tooltip
   screens/            Lazy routes: menu, gallery, world, match, saves, settings
     world/            Competition views and club/squad inspector
     match/            Selection, preview, live controls, Pixi pitch and report maps
@@ -1239,6 +1241,26 @@ export interface World {
   international?: InternationalState;
   /** Season statistics baselines for awards (milestone 8). */
   awardState?: AwardState;
+  /** Edit mode changes (milestone 9), with the original values for reverting and export. */
+  edits?: WorldEdits;
+}
+/** A club changed in edit mode. Only the edited fields are set. */
+export interface ClubEdit {
+  name?: string;
+  /** Club colours, applied to the crest and to all three kits. */
+  colors?: [Hex, Hex, Hex];
+  /** A regenerated crest's shape and symbol. */
+  crest?: { shape: number; symbol: number };
+  original: { name: string; crest: Crest; kits: ClubKits };
+}
+export interface NameEdit {
+  name: string;
+  original: string;
+}
+export interface WorldEdits {
+  clubs: Record<Id, ClubEdit>;
+  leagues: Record<Id, NameEdit>;
+  players: Record<Id, NameEdit>;
 }
 /** Lifetime appearances, goals, assists and rating total at a baseline. */
 export type StatLine = [number, number, number, number];
@@ -1271,22 +1293,22 @@ export interface SeasonSummary {
   phases?: Record<Id, LeaguePhase>;
   ties?: Record<Id, PostseasonTie>;
 }
-export interface WorldEdits {
-  version: 1;
-  names: Record<Id, string>;
-  colors: Record<Id, [Hex, Hex, Hex]>;
-  crests: Record<Id, Crest>;
-}
-export interface TutorialProgress {
-  firstMatch: string[];
-  firstWeek: string[];
-}
 export interface Settings {
   theme: 'system' | 'light' | 'dark';
   fontScale: number;
   reducedMotion: boolean;
   backupReminder: boolean;
   simulationOnly: boolean;
+  /** Audio (milestone 9): volumes 0–1 per channel, and a master mute. */
+  audio: AudioSettings;
+  /** Tutorial tracks already completed or skipped on this device (milestone 9). */
+  tutorial: { week: boolean; match: boolean };
+}
+export interface AudioSettings {
+  muted: boolean;
+  master: number;
+  effects: number;
+  crowd: number;
 }
 export interface GalleryState {
   seed: string;
@@ -1307,7 +1329,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 12;
+  schemaVersion: 13;
   engineVersion: string;
   slot: SlotId;
   name: string;
@@ -1658,3 +1680,22 @@ How it plugs into the existing paths:
 `createCareer` accepts `draft.parentLegacyId` for a child career. `persistence/honoursValidation.ts` validates every honours record, and allows a world with legacies but no career. `nationalWorldSchema.ts` validates the continental cups.
 
 UI: `CareerNational`, `CareerTrophies` (ceremony in `?ceremony=`), `CareerChronicle` (with the shared `ChronicleView`, also used by Legacy), `CareerMoments`, `CareerLegacy` (works without a career) and the public `MomentViewer` at `/moment`, which reads the URL hash only. `MomentPitch` replays a clip on an SVG pitch. The platform adapter's `shareFile` accepts a `Blob`, and `shareLink` shares or copies a link.
+
+## Edit mode, audio and onboarding (milestone 9)
+
+`engine/assets/clash.ts` is pure: `colourDifference` simulates protanopia, deuteranopia and tritanopia and measures CIELAB differences; `chooseMatchKits` picks the away kit that is distinct for every viewer, or flags a clash. The pitch (`screens/match/Maps.tsx` `kitAppearance`) and `captureMoments` use it.
+
+`engine/world/edits.ts` is pure: `applyEditAction` (rename, recolour, regenerate or set a crest, revert) copies only the edits record and the touched maps and entities; `exportEdits`, `parseEditPack` and `applyEditPack` handle files, with one draft per pack. `persistence/editsValidation.ts` validates `World.edits` in both world schemas. `screens/EditMode.tsx` is the `/edit` route; files go through `platform.saveFile` and `platform.readFile`.
+
+Audio lives outside the engine, in `src/audio/`:
+
+- `synth.ts` is pure DSP (oscillators, seeded noise, RBJ biquads) that renders each `SoundName` deterministically, and `encodeWav` writes 16-bit PCM. Tests run it in Node.
+- `synth.worker.ts` renders on request off the main thread.
+- `player.ts` wraps WAV blob URLs in Howler `Howl`s, sets channel volumes (effects, crowd) and runs the crowd loop with fades.
+- `index.ts` is the facade the app imports: `configure`, `unlock`, `prepare`, `play`, `crowd`. It dynamically imports the player on the first user gesture, so Howler is not in the initial bundle.
+
+The shell calls `audio.configure(settings.audio)`, unlocks on the first pointer or key press, and plays interface sounds by delegation. `screens/match/useMatchAudio.ts` maps status changes, new events and momentum to whistles, goal sounds and the crowd level.
+
+`ui/Tutorial.tsx` renders a step list against `data-tour` anchors in a portal, marks the target with `data-tour-active`, and records completion in `Settings.tutorial`. The hub and the match screen supply their steps with `when`, `action` and `done` from their own state. `ui/Tooltip.tsx` is the shared hover, focus and long-press tooltip.
+
+Settings (device preferences and saves) gain `audio` and `tutorial`. When a save is applied, the device's tutorial flags are kept (`withDeviceTutorial` in the store).

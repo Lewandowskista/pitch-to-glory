@@ -24,6 +24,7 @@ import { validateMarket } from './marketValidation';
 import { validateSocial } from './socialValidation';
 import { validateLifestyle } from './lifestyleValidation';
 import { validateHonours } from './honoursValidation';
+import { validateEdits } from './editsValidation';
 
 // Bounds apply before traversing imported graphs. Rules are frozen by profile version.
 function canonicalData(value: unknown): string {
@@ -333,6 +334,7 @@ export function validateNationalWorld(value: unknown): World {
   validateSocial(w);
   validateLifestyle(w);
   validateHonours(w);
+  validateEdits(w);
   for (const club of Object.values(clubs)) {
     const identity = object(club.identity);
     requireValue(identity.counterpart === countries[String(club.countryId)]!.counterpart);

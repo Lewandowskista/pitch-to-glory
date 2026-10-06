@@ -32,6 +32,8 @@ import { challengeDone, fameProgress } from '../../engine/career/lifestyle';
 import { lifestyleText as l } from '../../i18n/lifestyle';
 import { fameName, useChallengeRefresh } from './lifestyleUi';
 import { HonoursSummary } from './honoursHub';
+import { Tutorial } from '../../ui/Tutorial';
+import { tutorialText as tt } from '../../i18n/tutorial';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
@@ -88,6 +90,13 @@ function HubContent({
       <RivalWatch world={world} />
       <MarketSummary world={world} />
       <InboxPreview world={world} />
+      <Tutorial
+        track="week"
+        enabled={world.phase === 'active' && career.matches.length === 0}
+        steps={(
+          ['next-match', 'player-card', 'training', 'career-nav', 'inbox', 'continue'] as const
+        ).map((target) => ({ target, ...tt.week[target] }))}
+      />
     </div>
   );
 }
@@ -124,7 +133,7 @@ function NextMatch({
       <Icon name="arrow" />
     </button>
   ) : pending ? (
-    <Link className="button hero-button min-w-48" to="/match">
+    <Link className="button hero-button min-w-48" to="/match" data-tour="continue">
       {c.hub.play}
       <Icon name="ball" />
     </Link>
@@ -133,6 +142,7 @@ function NextMatch({
       className="button hero-button min-w-48"
       disabled={busy || awaitingRecovery}
       aria-describedby={awaitingRecovery ? 'recovery-required' : undefined}
+      data-tour="continue"
       onClick={continueToMatchday}
     >
       {fixture ? c.hub.continue : c.hub.continueSeason}
@@ -142,6 +152,7 @@ function NextMatch({
   return (
     <section
       aria-labelledby="next-match-heading"
+      data-tour="next-match"
       className="relative overflow-hidden rounded-panel bg-field p-5 text-white shadow-surface sm:p-7 lg:col-span-8"
     >
       <div
@@ -263,7 +274,11 @@ function PlayerCard({
   age: number;
 }) {
   return (
-    <section aria-labelledby="player-card-heading" className={`${ui.panel} lg:col-span-4`}>
+    <section
+      aria-labelledby="player-card-heading"
+      data-tour="player-card"
+      className={`${ui.panel} lg:col-span-4`}
+    >
       <p className={ui.eyebrow}>{c.hub.player}</p>
       <div className="mt-3 flex items-center gap-4">
         <PlayerPortrait player={player} age={age} className="h-24 w-24 shrink-0" />
@@ -570,7 +585,11 @@ function Condition({ career, player }: { career: Career; player: Player }) {
 function TrainingSummary({ career }: { career: Career }) {
   const report = career.lastTraining;
   return (
-    <section aria-labelledby="training-summary-heading" className={`${ui.panel} lg:col-span-6`}>
+    <section
+      aria-labelledby="training-summary-heading"
+      data-tour="training"
+      className={`${ui.panel} lg:col-span-6`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <h2 id="training-summary-heading" className={ui.heading}>
           {c.hub.training}
@@ -669,7 +688,11 @@ function MarketSummary({ world }: { world: World }) {
 function InboxPreview({ world }: { world: World }) {
   const latest = [...world.inbox].reverse().slice(0, 4);
   return (
-    <section aria-labelledby="inbox-preview-heading" className={`${ui.panel} lg:col-span-6`}>
+    <section
+      aria-labelledby="inbox-preview-heading"
+      data-tour="inbox"
+      className={`${ui.panel} lg:col-span-6`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <h2 id="inbox-preview-heading" className={ui.heading}>
           {m.hub.inbox}

@@ -1,7 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { skipTutorial } from './support';
 import { mkdir } from 'node:fs/promises';
 
 test.beforeEach(async ({ page }) => {
+  await skipTutorial(page);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (entry) => {

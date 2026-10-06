@@ -1190,6 +1190,26 @@ export interface World {
   international?: InternationalState;
   /** Season statistics baselines for awards (milestone 8). */
   awardState?: AwardState;
+  /** Edit mode changes (milestone 9), with the original values for reverting and export. */
+  edits?: WorldEdits;
+}
+/** A club changed in edit mode. Only the edited fields are set. */
+export interface ClubEdit {
+  name?: string;
+  /** Club colours, applied to the crest and to all three kits. */
+  colors?: [Hex, Hex, Hex];
+  /** A regenerated crest's shape and symbol. */
+  crest?: { shape: number; symbol: number };
+  original: { name: string; crest: Crest; kits: ClubKits };
+}
+export interface NameEdit {
+  name: string;
+  original: string;
+}
+export interface WorldEdits {
+  clubs: Record<Id, ClubEdit>;
+  leagues: Record<Id, NameEdit>;
+  players: Record<Id, NameEdit>;
 }
 /** Lifetime appearances, goals, assists and rating total at a baseline. */
 export type StatLine = [number, number, number, number];
@@ -1222,22 +1242,22 @@ export interface SeasonSummary {
   phases?: Record<Id, LeaguePhase>;
   ties?: Record<Id, PostseasonTie>;
 }
-export interface WorldEdits {
-  version: 1;
-  names: Record<Id, string>;
-  colors: Record<Id, [Hex, Hex, Hex]>;
-  crests: Record<Id, Crest>;
-}
-export interface TutorialProgress {
-  firstMatch: string[];
-  firstWeek: string[];
-}
 export interface Settings {
   theme: 'system' | 'light' | 'dark';
   fontScale: number;
   reducedMotion: boolean;
   backupReminder: boolean;
   simulationOnly: boolean;
+  /** Audio (milestone 9): volumes 0–1 per channel, and a master mute. */
+  audio: AudioSettings;
+  /** Tutorial tracks already completed or skipped on this device (milestone 9). */
+  tutorial: { week: boolean; match: boolean };
+}
+export interface AudioSettings {
+  muted: boolean;
+  master: number;
+  effects: number;
+  crowd: number;
 }
 export interface GalleryState {
   seed: string;
@@ -1258,7 +1278,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 12;
+  schemaVersion: 13;
   engineVersion: string;
   slot: SlotId;
   name: string;

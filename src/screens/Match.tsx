@@ -27,6 +27,9 @@ import { COSMETIC_BY_ID } from '../engine/career/lifestyle/catalogue';
 import { lifestyleText as l } from '../i18n/lifestyle';
 import '../styles/match.css';
 
+import { useMatchAudio } from './match/useMatchAudio';
+import { Tutorial } from '../ui/Tutorial';
+import { tutorialText as tt } from '../i18n/tutorial';
 const Pitch = lazy(() => import('./match/Pitch'));
 const percent = (value: number) => (value * 100).toFixed(value < 0.1 ? 1 : 0);
 const attributeName = (name: string) =>
@@ -96,6 +99,7 @@ export default function MatchScreen() {
   const status = state?.match.status;
   const [announcement, setAnnouncement] = useState('');
   const announcedScore = useRef('');
+  useMatchAudio(session, playing);
   const momentId = state?.currentMoment?.id;
   const latestEvent = state?.match.events[state.match.events.length - 1];
   const latestText = latestEvent ? commentaryText(latestEvent) : '';
@@ -202,7 +206,7 @@ export default function MatchScreen() {
     )
       return;
     const timer = window.setInterval(() => {
-      if (document.querySelector('dialog[open], [role="dialog"]')) {
+      if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) {
         setPlaying(false);
         return;
       }
@@ -237,7 +241,7 @@ export default function MatchScreen() {
         event.ctrlKey ||
         event.metaKey ||
         event.repeat ||
-        document.querySelector('dialog[open], [role="dialog"]') ||
+        document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]') ||
         (event.target instanceof HTMLElement &&
           (event.target.matches('input,select,textarea') || event.target.isContentEditable))
       )
@@ -603,6 +607,7 @@ export default function MatchScreen() {
                   {state!.currentMoment && (
                     <section
                       className="match-panel match-decision"
+                      data-tour="decision"
                       aria-labelledby="decision-heading"
                     >
                       <span className="match-eyebrow">
@@ -614,6 +619,7 @@ export default function MatchScreen() {
                           <div className="match-choice" key={choice.id}>
                             <button
                               data-choice={choice.id}
+                              data-sound="none"
                               aria-describedby={`choice-hint-${choice.id}`}
                               onClick={() => command({ type: 'choose', choiceId: choice.id })}
                             >
@@ -640,7 +646,11 @@ export default function MatchScreen() {
                     </section>
                   )}
                   {outcome && (
-                    <section className="match-panel match-outcome" role="status">
+                    <section
+                      className="match-panel match-outcome"
+                      role="status"
+                      data-tour="outcome"
+                    >
                       <h2>{outcome.success ? m.succeeded : m.failed}</h2>
                       <p>
                         {matchFormat(m.roll, {
@@ -717,7 +727,7 @@ export default function MatchScreen() {
                       )}
                     </section>
                   )}
-                  <section className="match-panel">
+                  <section className="match-panel" data-tour="controls">
                     <div className="match-controls">
                       <button
                         className="button"
@@ -786,7 +796,7 @@ export default function MatchScreen() {
                       </div>
                     </dl>
                   </section>
-                  <section className="match-panel match-commentary">
+                  <section className="match-panel match-commentary" data-tour="live">
                     <h2>{m.commentary}</h2>
                     {!state!.match.events.length && <p className="muted">{m.opening}</p>}
                     <ol>
@@ -823,6 +833,28 @@ export default function MatchScreen() {
           )}
         </>
       )}
+      <Tutorial
+        track="match"
+        enabled={Boolean(session) && status !== 'finished'}
+        steps={[
+          { target: 'tactics', ...tt.match.tactics, when: status === 'preview' },
+          { target: 'kickoff', ...tt.match.kickoff, action: true, done: status !== 'preview' },
+          { target: 'controls', ...tt.match.controls, when: status === 'live' },
+          { target: 'live', ...tt.match.live, when: status === 'live' },
+          {
+            target: 'decision',
+            ...tt.match.decision,
+            when: status === 'decision',
+            action: true,
+            done: Boolean(outcome),
+          },
+          {
+            target: 'outcome',
+            ...tt.match.outcome,
+            when: Boolean(outcome) || status === 'live',
+          },
+        ]}
+      />
     </Page>
   );
 }

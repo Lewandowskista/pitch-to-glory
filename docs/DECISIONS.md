@@ -222,3 +222,17 @@ Implementation decisions:
 - **Chronicle export is client-side.** The poster is SVG drawn to a canvas and shared as a PNG through the Web Share API, or downloaded. The canvas cannot load the page's fonts inside an SVG image, so the poster uses the system sans-serif.
 - **Theme before first paint.** The browser journeys found that dark-mode pages first painted the light theme, then animated into dark, because the theme attribute was set in an effect after paint. The dark tokens now also apply under `prefers-color-scheme: dark` until the setting is known, and the theme is applied in a layout effect.
 - **Versions.** File schema 12; match engine unchanged (`match-6`).
+
+## Milestone 9: edit mode, accessibility pass, tutorial, audio and polish
+
+- **Edits keep originals.** `World.edits` stores each edited entity's original name, crest and kits, so any edit can be reverted, and an export can match entities by original name. Edits are presentation only: no sporting rule reads a name, colour or crest, so editing a saved world never changes its results or rules.
+- **Packs match by id, then by original name.** Ids are index-based and differ between worlds. Matching by original name lets a pack of names for referenced clubs and leagues (whose names are stable across seeds) apply to another world; ambiguous or missing matches are skipped and reported, never guessed.
+- **Club colours drive crest and kits together.** One set of three colours keeps a club recognisable everywhere; patterns, collars and trims are kept.
+- **Kit clashes are judged for every viewer.** The smallest colour difference across typical vision and the three dichromacies decides, rather than a luminance heuristic. When no kit is distinct, the pitch adds a shape cue (a solid inner ring) instead of recolouring a club's kit, since away tokens already carry a dashed ring.
+- **Procedural audio only.** With the user's agreement before the milestone, every sound is synthesised on the device (no recordings), which keeps the build free of licensing, works offline and adds no download. The crowd is stylised; CC0 recordings could replace it later behind the same facade.
+- **Audio after the first gesture, outside the initial bundle.** Howler.js (mandated) and the synthesiser load on the first click or key press. Rendering runs in a worker, so the crowd loop, the heaviest sound to render, never blocks input.
+- **Interface sounds by delegation.** One listener plays a soft tap for buttons, links and tabs and a toggle for switches, so every control has feedback without touching each screen; elements opt out with `data-sound="none"`.
+- **The tutorial is per device.** Completion lives in the device settings rather than the career, so it runs once for a new player; loading an old save does not bring it back. Settings can replay it. Its card is non-modal so the page stays usable, and match shortcuts and playback now treat only modal dialogs as blocking.
+- **Tooltips for every input.** A shared tooltip opens on hover, focus and touch long press and is always linked with `aria-describedby`. Hover titles that repeated visible text were removed rather than converted.
+- **A standing accessibility sweep.** All routes are checked with axe in both themes on a populated career, plus phone-width overflow and visible keyboard focus, so later milestones keep the bar.
+- **Versions.** File schema 13; match engine unchanged (`match-6`): kit choice and sound are presentation.

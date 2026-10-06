@@ -414,3 +414,47 @@ Desktop captures go to `artifacts/career-trophies.png`, `career-chronicle.png`, 
 - Lighthouse still audits empty-state career routes only.
 - The exported poster is checked for its download, not pixel by pixel.
 - Physical-device and Safari release checks remain outstanding.
+
+## Milestone 9 verification
+
+Verified on 7 October 2026:
+
+| Check                                                                    | Result                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Strict TypeScript, ESLint (engine now forbids browser globals), Prettier | Passed                                                                                                                                                                                                           |
+| Vitest                                                                   | 245 tests across 30 files passed (21 new: kit clash, edits, settings and schema 13, procedural audio)                                                                                                            |
+| Production build                                                         | Passed; all twenty-six routes 215.3–270.1 KB gzip (budget 300 KB); Howler and the synthesiser in their own lazy chunks                                                                                           |
+| Playwright                                                               | 92 passed and 1 skipped: 31 tests each in Chromium and Firefox, 30 in WebKit (its keyboard-order check is skipped)                                                                                               |
+| Accessibility sweep                                                      | All 26 routes pass axe (WCAG 2.1 AA, serious and critical) in light and dark on a career eight weeks in; none overflows at 390 px; keyboard focus is always visible on the hub, Edit mode, Settings and Trophies |
+
+**Unit coverage:**
+
+- **Kit clash:** red and green clash for protanopia but not typical vision; blue and teal for tritanopia; away-kit choice (away, then third, then a flagged clash); fewer than 5% of generated clubs lack a distinct second kit.
+- **Edits:** renames with originals, structural sharing, reverting, renaming back; rejection of empty, long and malformed values; recolouring through crest and kits; reproducible new crests; record and legacy names; export and import into the same world and, by original name, into another; malformed packs; validation and forgery rejection; edits surviving simulated weeks in a national world and a new career.
+- **Settings and saves:** defaults for older preferences, volume and flag validation, round trip of an edited world, the schema 12 migration.
+- **Audio:** every sound renders deterministically, finite, audible and below clipping; interface sounds short and quiet; one-shots start and end silent; the crowd loop joins seamlessly at a steady level; the roar builds and fades; WAV encoding.
+
+**Browser journeys:**
+
+- **Edit mode:** search, rename, recolour (including an invalid hex code), a new crest, league rename by keyboard tabs, "Edited only", export, revert, re-import, rejection of a bad file, autosave and refresh, the World screen showing the edited league; axe in both themes and phone width.
+- **Onboarding:** the week tour (focus on the heading, highlights, Back, Escape skipping without navigating), replay from Settings, the full week tour, then the match tour through kick-off, a key moment chosen with the 1 key, and the outcome; completion stored per device.
+- **Sound settings:** volume by keyboard, a preview loading Howler after the first gesture, mute disabling the controls, and the settings persisting through a reload.
+- **Accessibility:** the sweep above, in Chromium; Firefox and WebKit render every route without errors. Keyboard order is checked in Chromium and Firefox; WebKit is skipped because Safari's Tab order depends on a user setting.
+
+**Found and fixed during verification:**
+
+- Menu styles leaked pale "eyebrow" labels onto the World screen (all CSS ships in one bundle).
+- Gallery index numbers, unavailable skills and skill costs were below contrast minimums.
+- Invalid definition lists on Skills and Training.
+- The profile's match history widened the page on phones: screen-reader-only labels escaped a scroll container that was not positioned. Five scroll containers are now positioned.
+- Disabled-looking import labels on Saves and Edit mode now say they are disabled.
+- Colour inputs had text-field styling that hid the hex fields.
+- Match shortcuts and playback paused for any `role="dialog"`, which would have frozen the match under the tutorial; they now pause only for modal dialogs.
+- Edit-mode filters lagged because the URL updates in a transition; they now keep local state mirrored to the URL.
+- A large-backup import in the world journey waited only 5 s for its notice under the heavier parallel load; it now waits up to 60 s.
+
+**Not done:**
+
+- How the synthesised sounds sound is a human judgement; tests cover rendering, levels and loading.
+- Lighthouse was not re-run this milestone; it belongs to the milestone 10 performance audit.
+- Physical-device and Safari release checks remain outstanding.

@@ -14,3 +14,9 @@
 @import './celebrations.css';
 @import './responsive.css';
 @import './world.css';
+
+/* The element a tutorial step points at (milestone 9). */
+[data-tour-active] {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}

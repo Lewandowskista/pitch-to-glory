@@ -6,6 +6,7 @@ import { format } from '../../i18n';
 import { socialText as s } from '../../i18n/social';
 import { money } from './marketUi';
 import { useEditBlock } from './shared';
+import { audio } from '../../audio';
 
 /** Run a social decision against the loaded world, waiting like other career edits. */
 export function useSocialAction() {
@@ -19,6 +20,7 @@ export function useSocialAction() {
       setError('');
       return true;
     } catch (cause) {
+      audio.play('error');
       setError(cause instanceof Error ? cause.message : '');
       return false;
     }

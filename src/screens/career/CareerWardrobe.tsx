@@ -18,6 +18,7 @@ import { lifestyleText as l } from '../../i18n/lifestyle';
 import { CareerPage, ui } from './shared';
 import { ActionError, BlockNote } from './marketUi';
 import { CelebrationPreview, useChallengeRefresh, useLifestyleAction } from './lifestyleUi';
+import { audio } from '../../audio';
 
 type Action = ReturnType<typeof useLifestyleAction>;
 const W = l.wardrobe;
@@ -149,7 +150,8 @@ function Tile({
         disabled={Boolean(action.block) || (!usable && !affordable)}
         onClick={() => {
           if (usable) onSelect();
-          else if (item && affordable) action.run({ type: 'buy-cosmetic', id: item.id });
+          else if (item && affordable && action.run({ type: 'buy-cosmetic', id: item.id }))
+            audio.play('confirm');
         }}
         className={`flex min-h-24 w-full flex-col items-center justify-center gap-1 rounded-control border p-2 text-center transition ${
           selected
@@ -383,7 +385,10 @@ function ChallengeRow({
             className="button"
             disabled={!done || Boolean(action.block)}
             onClick={() => {
-              if (action.run({ type: 'claim-challenge', id: challenge.id })) setCelebrate(true);
+              if (action.run({ type: 'claim-challenge', id: challenge.id })) {
+                setCelebrate(true);
+                audio.play('reward');
+              }
             }}
           >
             {l.challenges.claim}

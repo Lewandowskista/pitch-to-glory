@@ -1,22 +1,15 @@
 import type { Club, MatchReport } from '../../model/domain';
+import { chooseMatchKits } from '../../engine/assets/clash';
 import { pitchCopy as copy } from '../../i18n/pitch';
 
-// Shared by the SVG fallback and GPU scene; importing this does not load Pixi.
-// Luminance and blue separation avoid relying on red/green differences alone.
+/**
+ * Token colours for a match, shared by the SVG fallback and GPU scene (importing this does
+ * not load Pixi). The away kit is chosen to be distinct for colour-blind viewers too; when no
+ * kit is, `clash` adds a second marker to away tokens.
+ */
 export function kitAppearance(home: Club, away: Club) {
-  const rgb = (hex: string) =>
-    [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255);
-  const first = rgb(home.kits.home.colors[0]);
-  const luminance = (c: number[]) => c[0]! * 0.2126 + c[1]! * 0.7152 + c[2]! * 0.0722;
-  const contrast = (hex: string) => {
-    const second = rgb(hex);
-    return (
-      Math.abs(luminance(first) - luminance(second)) * 2 + Math.abs(first[2]! - second[2]!) * 0.3
-    );
-  };
-  const options = [away.kits.away, away.kits.third, away.kits.home];
-  const best = [...options].sort((a, b) => contrast(b.colors[0]) - contrast(a.colors[0]))[0]!;
-  return { home: home.kits.home.colors[0], away: best.colors[0] };
+  const kits = chooseMatchKits(home, away);
+  return { home: kits.home.colors[0], away: kits.away.colors[0], clash: kits.clash };
 }
 
 export function PitchMarkings() {

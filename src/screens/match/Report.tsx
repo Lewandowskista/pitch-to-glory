@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { MatchSession } from '../../engine/match';
 import type { CareerMatchOutcome } from '../../engine/career/matches';
@@ -11,6 +11,7 @@ import { Footballer } from './Shared';
 import MatchMaps from './Maps';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../../store';
+import { audio } from '../../audio';
 
 /** Career fixtures: the granted XP once recorded, or the action that records it. */
 export interface CareerReport {
@@ -22,6 +23,7 @@ export interface CareerReport {
 
 function LevelUp({ outcome, reduced }: { outcome: CareerMatchOutcome; reduced: boolean }) {
   const level = outcome.previousLevel + outcome.levelsGained;
+  useEffect(() => audio.play('levelUp'), []);
   return (
     <motion.div
       role="status"

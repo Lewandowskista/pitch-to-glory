@@ -22,6 +22,8 @@ export const DEFAULT_SETTINGS: Settings = {
   reducedMotion: false,
   backupReminder: true,
   simulationOnly: false,
+  audio: { muted: false, master: 0.8, effects: 0.8, crowd: 0.6 },
+  tutorial: { week: false, match: false },
 };
 export type FoundationSave = Omit<SaveFile, 'payload'> & { payload: FoundationState };
 export type AppSave = Omit<SaveFile, 'payload'> & {
@@ -74,7 +76,29 @@ export function validateSettings(value: unknown): Settings {
     reducedMotion: boolean(s.reducedMotion),
     backupReminder: boolean(s.backupReminder),
     simulationOnly: boolean(s.simulationOnly),
+    audio: validateAudio(s.audio),
+    tutorial: validateTutorial(s.tutorial),
   };
+}
+/** Audio settings; preferences and saves from before milestone 9 get the defaults. */
+function validateAudio(value: unknown): Settings['audio'] {
+  if (value === undefined) return { ...DEFAULT_SETTINGS.audio };
+  const a = object(value);
+  const volume = (v: unknown) => {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 1) invalid();
+    return v as number;
+  };
+  return {
+    muted: boolean(a.muted),
+    master: volume(a.master),
+    effects: volume(a.effects),
+    crowd: volume(a.crowd),
+  };
+}
+function validateTutorial(value: unknown): Settings['tutorial'] {
+  if (value === undefined) return { ...DEFAULT_SETTINGS.tutorial };
+  const t = object(value);
+  return { week: boolean(t.week), match: boolean(t.match) };
 }
 export function validateFoundation(value: unknown): FoundationState {
   const p = object(value);
@@ -121,6 +145,8 @@ const migrations: Readonly<Record<number, Migration>> = {
   10: (old) => ({ ...old, schemaVersion: 11, payload: withCareerStyle(old.payload) }),
   // v12 adds honours (milestone 8): national team, awards, legacy, Chronicle and Moments.
   11: (old) => ({ ...old, schemaVersion: 12, payload: withCareerHonours(old.payload) }),
+  // Edits, audio and tutorial settings are optional additions; validation fills defaults.
+  12: (old) => ({ ...old, schemaVersion: 13 }),
 };
 /** Careers saved before milestone 8 gain their honours record and award baselines. */
 function withCareerHonours(payload: unknown): unknown {

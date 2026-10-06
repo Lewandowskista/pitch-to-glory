@@ -599,7 +599,12 @@ function Moves({ world, career }: { world: World; career: Career }) {
         {m.moves.title}
       </h2>
       {moves.length ? (
-        <div className="mt-4 overflow-x-auto" tabIndex={0} role="region" aria-label={m.moves.table}>
+        <div
+          className="relative mt-4 overflow-x-auto"
+          tabIndex={0}
+          role="region"
+          aria-label={m.moves.table}
+        >
           <table className="w-full min-w-[22rem] text-left text-sm">
             <thead>
               <tr className="text-xs uppercase tracking-wider text-muted">

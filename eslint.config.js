@@ -34,6 +34,27 @@ export default tseslint.config(
   {
     files: ['src/engine/**/*.ts'],
     rules: {
+      // Browser-only globals: the engine must run unchanged in workers and Node.
+      'no-restricted-globals': [
+        'error',
+        ...[
+          'window',
+          'document',
+          'navigator',
+          'location',
+          'history',
+          'localStorage',
+          'sessionStorage',
+          'indexedDB',
+          'requestAnimationFrame',
+          'cancelAnimationFrame',
+          'alert',
+          'confirm',
+          'prompt',
+          'matchMedia',
+          'getComputedStyle',
+        ].map((name) => ({ name, message: 'The engine must not use browser globals.' })),
+      ],
       'no-restricted-imports': [
         'error',
         {
