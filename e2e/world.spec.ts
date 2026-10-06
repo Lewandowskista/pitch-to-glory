@@ -39,7 +39,9 @@ test('generates a world and browses real countries, divisions, clubs and squads'
   await page.getByLabel('Division', { exact: true }).selectOption('6');
   await expect(page.locator('.standings-table tbody tr')).toHaveCount(24);
   await expect(page.getByLabel('Group', { exact: true }).locator('option')).toHaveCount(2);
-  await expect(page.locator('.rules-reference')).toHaveText('England · 2026/27 rules');
+  await expect(page.locator('.rules-reference')).toHaveText(
+    'Real-world model: National League North/South · 2026/27 rules',
+  );
   await page.getByLabel('Group', { exact: true }).selectOption({ label: 'South' });
   const southGroup = await page.getByLabel('Group', { exact: true }).inputValue();
   await expect(page).toHaveURL(new RegExp(`group=${encodeURIComponent(southGroup)}`));
@@ -60,7 +62,9 @@ test('generates a world and browses real countries, divisions, clubs and squads'
     division.value = '4';
     division.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  await expect(page.locator('.rules-reference')).toHaveText('Spain · 2026/27 rules');
+  await expect(page.locator('.rules-reference')).toHaveText(
+    'Real-world model: Segunda Federación · 2026/27 rules',
+  );
   await expect(page).toHaveURL(/country=.*tier=4/);
   await page.locator('.standings-table tbody tr').nth(2).getByRole('button').click();
   await expect(page.locator('.squad-table tbody tr')).toHaveCount(22);
@@ -70,23 +74,27 @@ test('generates a world and browses real countries, divisions, clubs and squads'
   await expect(page.locator('.fixture-row')).toHaveCount(9);
   await page.getByRole('tab', { name: 'Domestic cup', exact: true }).click();
   await expect(page.locator('.fixture-row')).toHaveCount(44);
-  await page.getByLabel('Country', { exact: true }).selectOption({ label: 'Belloria' });
-  await expect(page.locator('.rules-reference')).toHaveText('Italy · 2026/27 rules');
+  await page.getByLabel('Country', { exact: true }).selectOption({ label: 'Italy' });
+  await expect(page.locator('.rules-reference')).toHaveText(
+    'Real-world model: Serie A · 2026/27 rules',
+  );
   await page.getByLabel('Division', { exact: true }).selectOption('4');
   await expect(page.getByLabel('Group', { exact: true }).locator('option')).toHaveCount(9);
   await page
     .getByLabel('Cup competition', { exact: true })
-    .selectOption({ label: 'Belloria Serie C Cup' });
+    .selectOption({ label: 'Terza Serie Cup' });
   await expect(page).toHaveURL(/competition=/);
-  await expect(page.locator('.view-heading h2')).toHaveText('Belloria Serie C Cup');
+  await expect(page.locator('.view-heading h2')).toHaveText('Terza Serie Cup');
   await expect(page.locator('.fixture-row')).toHaveCount(28);
-  await page.getByLabel('Country', { exact: true }).selectOption({ label: 'Nordhaven' });
-  await expect(page.locator('.rules-reference')).toHaveText('Germany · 2026/27 rules');
+  await page.getByLabel('Country', { exact: true }).selectOption({ label: 'Germany' });
+  await expect(page.locator('.rules-reference')).toHaveText(
+    'Real-world model: Bundesliga · 2026/27 rules',
+  );
   await page.getByLabel('Division', { exact: true }).selectOption('4');
   await page.getByRole('tab', { name: 'League table', exact: true }).click();
-  await page.getByLabel('Group', { exact: true }).selectOption({ label: 'North' });
+  await page.getByLabel('Group', { exact: true }).selectOption({ label: 'Nord' });
   await expect(page.locator('.table-legend')).toContainText('Regional promotion playoff');
-  await page.getByLabel('Group', { exact: true }).selectOption({ label: 'Northeast' });
+  await page.getByLabel('Group', { exact: true }).selectOption({ label: 'Nordost' });
   await expect(page.locator('.table-legend')).toContainText('Automatic promotion');
 });
 test('worker advances, autosaves, finishes and rolls over a reproducible season', async ({
@@ -156,7 +164,7 @@ test('worker advances, autosaves, finishes and rolls over a reproducible season'
   const json = await readFile(backupPath, 'utf8');
   console.log(`Completed-season backup: ${Buffer.byteLength(json, 'utf8')} bytes`);
   const saved = JSON.parse(json);
-  expect(saved.schemaVersion).toBe(7);
+  expect(saved.schemaVersion).toBe(8);
   expect(saved.payload.kind).toBe('world');
   expect(saved.payload.world.phase).toBe('complete');
   expect(saved.payload.world.history).toHaveLength(1);
@@ -191,13 +199,15 @@ test('worker advances, autosaves, finishes and rolls over a reproducible season'
   await expect(page.locator('.world-date')).toContainText('Week 1');
   await page.getByRole('tab', { name: 'Season history', exact: true }).click();
   await expect(page.locator('.history-view')).toContainText('2026');
-  await page.getByLabel('Country', { exact: true }).selectOption({ label: 'Kestrelia' });
-  await expect(page.locator('.rules-reference')).toHaveText('Portugal · 2026/27 rules');
+  await page.getByLabel('Country', { exact: true }).selectOption({ label: 'Portugal' });
+  await expect(page.locator('.rules-reference')).toHaveText(
+    'Real-world model: Liga Portugal · 2026/27 rules',
+  );
   await page.getByLabel('Division', { exact: true }).selectOption('3');
   await expect(page.locator('.history-view .postseason-view')).toBeVisible();
   await page
     .getByLabel('Phase or tie', { exact: true })
-    .selectOption({ label: 'Liga 3 promotion league' });
+    .selectOption({ label: 'Portuguese Terceira promotion league' });
   await expect(page).toHaveURL(/postseason=phase/);
   await expect(
     page.locator('.history-view .postseason-view .standings-table tbody tr'),
@@ -221,11 +231,13 @@ test('mobile world preserves full statistics at large text sizes', async ({
   ).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.locator('.squad-table tbody tr')).toHaveCount(22);
-  await page.getByLabel('Country', { exact: true }).selectOption({ label: 'Belloria' });
-  await expect(page.locator('.rules-reference')).toHaveText('Italy · 2026/27 rules');
+  await page.getByLabel('Country', { exact: true }).selectOption({ label: 'Italy' });
+  await expect(page.locator('.rules-reference')).toHaveText(
+    'Real-world model: Serie A · 2026/27 rules',
+  );
   await page.getByLabel('Division', { exact: true }).selectOption('4');
-  await page.getByLabel('Group', { exact: true }).selectOption({ label: 'Islands' });
-  await expect(page.locator('.standings-table caption')).toContainText('Islands');
+  await page.getByLabel('Group', { exact: true }).selectOption({ label: 'Girone I' });
+  await expect(page.locator('.standings-table caption')).toContainText('Girone I');
   await page.locator('.competition-rules summary').click();
   await expect(page.locator('.rule-sources a').first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -40,9 +40,9 @@ When a historical plan differs from the current state, use AGENTS.md for require
 
 - Foundation: Vite, React 18, strict TypeScript, route splitting, Zustand slices, Tailwind/design tokens, Framer Motion, Dexie, Vitest, Playwright, lint/format tooling, PWA/update handling, web platform adapter and CI/static-host configuration.
 - Art and shell: seeded SVG crests, home/away/third kits and ageing avatars; asset gallery; title/menu, settings and three save slots; responsive sidebar/bottom navigation; light/dark themes, font scaling and reduced motion.
-- World: new generation uses six fictional national counterparts, **52 league groups, 959 initial clubs, 21,098 initial players and seven domestic cups**. Counters can change over subsequent seasons. Weekly/full-season simulation, competitions, regional groups, playoffs, squads, history and rollover run through the worker architecture.
+- World: new generation uses the six real countries with fictional, referenced clubs and competitions (identity version 2), **52 league groups, 959 initial clubs, 21,098 initial players and seven domestic cups**. Counters can change over subsequent seasons. Weekly/full-season simulation, competitions, regional groups, playoffs, squads, history and rollover run through the worker architecture.
 - Matches: pre-match teams/footballer/tactics, keeper and outfield moments, transparent probabilities, lazy PixiJS pitch with SVG fallback, commentary, live statistics, speed/skip controls, keyboard support, visibility pause, half-time/captain/substitution responses and rating/objective/heat/pass/shot reports. Simulation-only mode avoids constructing the renderer.
-- Persistence: three slots, export/import (compact JSON), revision/ownership checks, tab locks, migration, weekly/match autosave and saved-session restoration. Current file schema is **6** and the IndexedDB layout is **v6**: each slot is split into a metadata record, the world graph and the match session. Existing v1–v5 saves migrate without replacing world identities or sporting rules.
+- Persistence: three slots, export/import (compact JSON), revision/ownership checks, tab locks, migration, weekly/match autosave and saved-session restoration. Current file schema is **8** and the IndexedDB layout is **v6**: each slot is split into a metadata record, the world graph and the match session. Existing v1–v7 saves migrate without replacing world identities or sporting rules.
 - Hardening pass, after milestone 3:
   - A save survives code changes. A stale match session is discarded and the world kept; country profiles are frozen by rule fingerprint and version.
   - Each slot is listed and loaded independently.
@@ -60,6 +60,8 @@ Implemented routes are `/`, `/gallery`, `/saves`, `/settings`, `/world`, `/match
 
 The user requested real-life-inspired nations, league sizes, promotion rules and naming, and explicitly chose **every regional group and playoff in the first four real tiers, with deeper tiers for semi-professional starts**. Do not replace this with a uniform small league model.
 
+New worlds use the real country names. Worlds generated before identity version 2 keep these fictional names:
+
 | Fictional country | Real counterpart |
 | ----------------- | ---------------- |
 | Aldoria           | England          |
@@ -69,7 +71,7 @@ The user requested real-life-inspired nations, league sizes, promotion rules and
 | Belloria          | Italy            |
 | Kestrelia         | Portugal         |
 
-England extends through tier six, including National League North/South. Reference profiles generally use 2026/27, with explicitly documented older published regulations where applicable. Fictional identities remain the default. These are frozen saved profiles, not rules to update automatically each real-world season. Read REALISM.md for exact rules and adaptations; this handoff does not replace its source research.
+England extends through tier six, including National League North/South. Reference profiles generally use 2026/27, with explicitly documented older published regulations where applicable. Before milestone 5, the user chose **real countries and towns, with fictional clubs and competitions that clearly reference their real counterparts**: professional tiers map one to one (302 clubs), names are city + nickname, competitions are descriptive parodies, and older saves keep their fictional names. See REALISM.md "Identities" and `src/engine/world/identities/`. These are frozen saved profiles, not rules to update automatically each real-world season. Read REALISM.md for exact rules and adaptations; this handoff does not replace its source research.
 
 ## Important implementation boundaries
 
@@ -196,7 +198,7 @@ and quality requirements. New UI uses Tailwind utilities with the shared
 tokens. Do not start Milestone 6 or add future UI stubs.
 
 Preserve the source-documented national pyramids and legacy world rules.
-Current saves are schema 7; bump MATCH_ENGINE_VERSION when match logic
+Current saves are schema 8; bump MATCH_ENGINE_VERSION when match logic
 changes. Career fixtures are committed once through commitPlayedFixture;
 keep that single path. The career player is excluded from the AI squad
 lifecycle; contracts and transfers must now handle them explicitly.

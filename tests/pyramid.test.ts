@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateWorld } from '../src/engine/world/generate';
+import { IDENTITIES } from '../src/engine/world/identities';
 import { createLeagueFixtures } from '../src/engine/world/schedule';
 import type { World } from '../src/model/domain';
 import { advanceItaly } from '../src/engine/world/italy';
@@ -94,14 +95,15 @@ describe('postseason aggregate rules', () => {
       const reserves = Object.values(world.clubs).filter(
         (club) => club.countryId === country.id && club.identity?.reserveParentId,
       );
+      // Real reserve teams in referenced tiers, plus one per lower regional group.
       expect(reserves.length).toBe(
         country.counterpart === 'England'
           ? 0
           : country.counterpart === 'France' || country.counterpart === 'Italy'
             ? 3
-            : country.counterpart === 'Germany' || country.counterpart === 'Portugal'
-              ? 7 - Number(country.counterpart === 'Germany')
-              : 8,
+            : country.counterpart === 'Germany'
+              ? 7
+              : 9,
       );
       expect(new Set(reserves.map((club) => club.identity!.reserveParentId)).size).toBe(
         reserves.length,
@@ -109,14 +111,19 @@ describe('postseason aggregate rules', () => {
       for (const reserve of reserves) {
         const parent = world.clubs[reserve.identity!.reserveParentId!]!;
         expect(world.leagues[parent.leagueId]!.tier).toBe(1);
-        expect(reserve.city).toBe(parent.city);
+        // Referenced B teams keep their real home ground (e.g. Seixal for Lisbon Eagles B).
+        const referenced = IDENTITIES.flatMap((identity) =>
+          Object.values(identity.clubs).flatMap((list) => list ?? []),
+        ).find((club) => club.name === reserve.name);
+        if (referenced) expect(reserve.city).toBe(referenced.city);
+        else expect(reserve.city).toBe(parent.city);
         expect(reserve.crest.colors).toEqual(parent.crest.colors);
         expect([reserve.crest.shape, reserve.crest.symbol]).not.toEqual([
           parent.crest.shape,
           parent.crest.symbol,
         ]);
         expect(reserve.kits).toEqual(parent.kits);
-        expect(reserve.identity!.region).toBe(parent.identity!.region);
+        if (!referenced) expect(reserve.identity!.region).toBe(parent.identity!.region);
       }
     }
   });
@@ -359,7 +366,16 @@ describe('postseason aggregate rules', () => {
       (movement) => movement.clubId === reserve.id,
     )!.toLeagueId;
     expect(world.leagues[targetId]!.tier).toBe(3);
-    expect(world.leagues[targetId]!.region).toBe(reserve.identity!.region);
+    // The tier-3 group that covers the reserve's region (groups span two regions each).
+    const regionCount = (id: string) =>
+      world.leagues[id]!.clubIds.filter(
+        (clubId) => world.clubs[clubId]!.identity!.region === reserve.identity!.region,
+      ).length;
+    expect(regionCount(targetId)).toBeGreaterThan(0);
+    for (const league of Object.values(world.leagues).filter(
+      (l) => l.countryId === 'country:5' && l.tier === 3,
+    ))
+      expect(regionCount(targetId)).toBeGreaterThanOrEqual(regionCount(league.id));
   });
 
   it('uses head-to-head points ahead of overall goal difference in Portuguese tables', async () => {

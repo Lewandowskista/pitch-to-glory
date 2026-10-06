@@ -87,8 +87,10 @@ same persistent world, optionally as the child of their previous player.
 - Dark and light theme, following the system setting by default.
 
 ## 5. World generation
-- Fictional world with 6 countries, with pyramids explicitly based on documented real national
-  counterparts. Implement every regional group and promotion/relegation playoff in the first
+- World with 6 real countries (England, France, Spain, Germany, Italy, Portugal) and real
+  towns and geography. Clubs, leagues and competitions are fictional but clearly reference
+  their real counterparts (user decision before milestone 5; see `docs/REALISM.md`). Pyramids
+  are explicitly based on the documented real national systems. Implement every regional group and promotion/relegation playoff in the first
   four real tiers. Extend a pyramid below tier four where needed for a semi-professional start
   (notably England). League sizes, match counts, movement places, playoff brackets and
   country-appropriate club/player/city naming must follow the chosen counterpart and a named

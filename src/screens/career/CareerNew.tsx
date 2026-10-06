@@ -7,7 +7,7 @@ import { Artwork } from '../../ui/Artwork';
 import { renderAvatar, generateAvatar, AVATAR_OPTIONS } from '../../engine/assets/avatar';
 import { createRng } from '../../engine/rng';
 import { CONFIG } from '../../engine/config';
-import { COUNTRY_NAMES } from '../../engine/world/catalog';
+import { REAL_COUNTRY_NAMES } from '../../engine/world/catalog';
 import { ARCHETYPES, ARCHETYPE_BY_ID } from '../../engine/career/catalogue';
 import { trialOffers, validateDraft, type CareerDraft } from '../../engine/career/create';
 import { startWorldJob } from '../../workers/client';
@@ -96,7 +96,7 @@ export default function CareerNew() {
   const usable = world && !world.career ? world : null;
   const countries = usable
     ? Object.values(usable.countries).map((country) => ({ id: country.id, name: country.name }))
-    : COUNTRY_NAMES.map((name, index) => ({ id: `country:${index}`, name }));
+    : REAL_COUNTRY_NAMES.map((name, index) => ({ id: `country:${index}`, name }));
   const offers = useMemo(
     () => (usable ? trialOffers(usable, draft.nationalityId, careerSeed(usable)) : []),
     [usable, draft.nationalityId],

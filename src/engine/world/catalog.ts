@@ -1,6 +1,16 @@
 import type { Attributes, KeeperAttributes, Position } from '../../model/domain';
 import type { Rng } from '../rng';
 
+/** Country names in new worlds (real countries, fictional clubs). */
+export const REAL_COUNTRY_NAMES = [
+  'England',
+  'France',
+  'Spain',
+  'Germany',
+  'Italy',
+  'Portugal',
+] as const;
+/** Fictional country names of worlds generated before identity version 2, and legacy worlds. */
 export const COUNTRY_NAMES = [
   'Aldoria',
   'Valmere',

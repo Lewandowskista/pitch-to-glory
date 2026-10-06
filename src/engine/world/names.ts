@@ -1,5 +1,5 @@
 import type { Counterpart } from '../../model/domain';
-import type { Rng } from '../rng';
+import { hashSeed, type Rng } from '../rng';
 
 const FIRST = [
   [
@@ -1143,20 +1143,23 @@ export function nationalCityName(countryIndex: number, index: number): string {
     ]!;
   return `${root}${[2, 5].includes(countryIndex) || ending.startsWith('del ') ? ' ' : ''}${ending}`;
 }
-export function nationalClubName(city: string, country: Counterpart, index: number): string {
+/** A country-styled club name; the style is keyed on the town, so neighbours do not rotate. */
+export function nationalClubName(city: string, country: Counterpart): string {
+  const key = hashSeed(`club:${country}:${city}`);
+  const pick = (values: readonly string[]) => values[key % values.length]!;
   switch (country) {
     case 'England':
-      return `${city} ${['United', 'Athletic', 'Rovers', 'City', 'Wanderers', 'Albion', 'Town', 'FC'][index % 8]}`;
+      return `${city} ${pick(['United', 'Athletic', 'Rovers', 'City', 'Wanderers', 'Albion', 'Town', 'FC'])}`;
     case 'France':
-      return `${['AS', 'US', 'Stade', 'Olympique', 'Racing Club', 'FC'][index % 6]} ${city}`;
+      return `${pick(['AS', 'US', 'Stade', 'Olympique', 'Racing Club', 'FC'])} ${city}`;
     case 'Spain':
-      return `${['CD', 'UD', 'Atlético', 'Deportivo', 'CF'][index % 5]} ${city}`;
+      return `${pick(['CD', 'UD', 'Atlético', 'Deportivo', 'CF'])} ${city}`;
     case 'Germany':
-      return `${['FC', 'SV', 'TSV', 'SpVgg', 'VfB'][index % 5]} ${city} ${1890 + (index % 110)}`;
+      return `${pick(['FC', 'SV', 'TSV', 'SpVgg', 'VfB'])} ${city} ${1890 + ((key >>> 8) % 80)}`;
     case 'Italy':
-      return `${['AC', 'AS', 'US', 'Calcio', 'Polisportiva'][index % 5]} ${city}`;
+      return `${pick(['AC', 'AS', 'US', 'Calcio', 'Polisportiva'])} ${city}`;
     case 'Portugal':
-      return `${['FC', 'SC', 'CD', 'GD', 'UD'][index % 5]} ${city}`;
+      return `${pick(['FC', 'SC', 'CD', 'GD', 'UD'])} ${city}`;
   }
 }
 export function nationalStadiumName(city: string, countryIndex: number): string {

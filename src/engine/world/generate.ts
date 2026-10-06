@@ -1,5 +1,6 @@
 import type {
   Club,
+  ClubKits,
   Contract,
   GameDate,
   Manager,
@@ -15,6 +16,7 @@ import { generateKits } from '../assets/kit';
 import { generateAttributes } from '../ageing';
 import { playerAbility } from '../strength';
 import { withContrast } from '../assets/shared';
+import { IDENTITIES, TownPicker, identityProfile, type ReferencedClub } from './identities';
 import { CONFIG } from '../config';
 import { createRng, hashSeed, type Rng } from '../rng';
 import {
@@ -168,6 +170,14 @@ export function generatePlayer(
   return { player, contract };
 }
 
+/** Referenced clubs wear their real home-shirt pattern in their own colours. */
+function referencedKits(kits: ClubKits, referenced: ReferencedClub | undefined): ClubKits {
+  if (!referenced) return kits;
+  return {
+    ...kits,
+    home: { ...kits.home, pattern: referenced.pattern, colors: [...referenced.colours] },
+  };
+}
 export function generateWorld(
   seed: string,
   options: { format?: 'legacy' | 'national' } = {},
@@ -193,6 +203,7 @@ export function generateWorld(
         }
       : {}),
     developmentVersion: 2,
+    ...(national ? { identityVersion: 2 as const } : {}),
     id: `world:${hashSeed(seed)}`,
     seed,
     rng: rng.snapshot(),
@@ -249,8 +260,22 @@ export function generateWorld(
   for (let countryIndex = 0; countryIndex < CONFIG.world.countries; countryIndex++) {
     const countryId = `country:${countryIndex}`;
     const cupId = `cup:${countryIndex}`;
-    const name = COUNTRY_NAMES[countryIndex]!;
-    const profile = NATIONAL_PROFILES[countryIndex]!;
+    const identity = IDENTITIES[countryIndex]!;
+    const profile = national
+      ? identityProfile(NATIONAL_PROFILES[countryIndex]!, identity)
+      : NATIONAL_PROFILES[countryIndex]!;
+    const name = national ? identity.name : COUNTRY_NAMES[countryIndex]!;
+    // Real towns for generated clubs; referenced clubs' home cities are never reused.
+    const towns = new TownPicker(
+      identity,
+      seed,
+      new Set(
+        Object.values(identity.clubs)
+          .flatMap((list) => list ?? [])
+          .map((club) => club.city),
+      ),
+    );
+    const referencedIds = new Map<string, string>();
     const country = {
       id: countryId,
       name,
@@ -295,45 +320,87 @@ export function generateWorld(
         const clubId = `club:${countryIndex}:${clubIndex}`;
         const scoped = rng.fork(clubId);
         const regions = profile.divisions.at(-1)!.groups;
+        // National worlds: a referenced club from the identity data, or a real town.
+        const referenced = national ? identity.clubs[tier]?.[index] : undefined;
+        const town =
+          national && !referenced
+            ? towns.take(identity.groupRegions[tier]?.[groupIndex] ?? regions.map((r) => r.region))
+            : null;
+        const place = referenced
+          ? {
+              city: referenced.city,
+              lat: referenced.lat,
+              lon: referenced.lon,
+              region: referenced.region,
+            }
+          : town
+            ? { city: town.name, lat: town.lat, lon: town.lon, region: town.region }
+            : null;
         const regionIndex =
           division?.tier === profile.divisions.at(-1)!.tier
             ? groupIndex
             : clubIndex % regions.length;
-        const city = national
-          ? nationalCityName(countryIndex, clubIndex)
-          : cityName(countryIndex, clubIndex);
+        const city = place
+          ? place.city
+          : national
+            ? nationalCityName(countryIndex, clubIndex)
+            : cityName(countryIndex, clubIndex);
         const crest = generateCrest(scoped);
         const crestIndex =
           (crestOffset + (national ? crestSequence++ : countryIndex * 32 + clubIndex)) %
           (CREST_SHAPES.length * CREST_SYMBOLS.length);
         crest.shape = crestIndex % CREST_SHAPES.length;
         crest.symbol = Math.floor(crestIndex / CREST_SHAPES.length);
-        if (national)
+        if (referenced)
+          crest.colors = [
+            referenced.colours[0],
+            referenced.colours[1],
+            withContrast(referenced.colours[2], referenced.colours[0]),
+          ];
+        else if (national)
           // The hashed symbol colour keeps recipes distinct; contrast keeps the symbol visible.
           crest.colors[2] = withContrast(
             `#${(((crestOffset + countryIndex * 10000 + clubIndex + 1) * 2654435761) >>> 0).toString(16).padStart(8, '0').slice(-6)}`,
             crest.colors[0],
           );
-        const reputation = scoped.int(
+        const band = [
           Math.max(5, GEN.reputationFloor - tier * GEN.reputationTierStep),
           Math.max(15, GEN.reputationCeiling - tier * GEN.reputationTierStep),
-        );
+        ] as const;
+        // Referenced clubs sit in their tier's band by real stature; others are drawn at random.
+        const reputation = referenced
+          ? Math.max(
+              band[0],
+              Math.min(
+                band[1],
+                Math.round(band[0] + ((band[1] - band[0]) * (referenced.stature - 1)) / 9) +
+                  scoped.int(-2, 2),
+              ),
+            )
+          : scoped.int(band[0], band[1]);
         const club: Club = {
           id: clubId,
-          name: national
-            ? nationalClubName(city, profile.counterpart, clubIndex)
-            : `${city} ${scoped.pick(CLUB_SUFFIXES)}`,
+          name: referenced
+            ? referenced.name
+            : national
+              ? nationalClubName(city, profile.counterpart)
+              : `${city} ${scoped.pick(CLUB_SUFFIXES)}`,
           city,
           countryId,
           leagueId,
           crest,
-          kits: generateKits(scoped, crest.colors),
+          kits: referencedKits(generateKits(scoped, crest.colors), referenced),
           stadium: {
             id: `stadium:${clubId}`,
-            name: national ? nationalStadiumName(city, countryIndex) : `${city} Park`,
+            name: referenced
+              ? referenced.stadium
+              : national
+                ? nationalStadiumName(city, countryIndex)
+                : `${city} Park`,
             capacity:
+              referenced?.capacity ??
               within(scoped, GEN.stadiumCapacityFactor) *
-              Math.round((reputation * reputation) / GEN.stadiumReputationDivisor),
+                Math.round((reputation * reputation) / GEN.stadiumReputationDivisor),
             pitchQuality: within(scoped, GEN.pitchQuality),
           },
           reputation,
@@ -360,9 +427,9 @@ export function generateWorld(
             ? {
                 identity: {
                   counterpart: profile.counterpart,
-                  region: regions[regionIndex]!.region,
-                  latitude: 55 - regionIndex * 3 + scoped.next(),
-                  longitude: -5 + regionIndex * 3 + scoped.next(),
+                  region: place?.region ?? regions[regionIndex]!.region,
+                  latitude: place ? place.lat : 55 - regionIndex * 3 + scoped.next(),
+                  longitude: place ? place.lon : -5 + regionIndex * 3 + scoped.next(),
                   status: division!.status,
                   reserveParentId: null,
                 },
@@ -371,6 +438,7 @@ export function generateWorld(
         };
         world.clubs[clubId] = club;
         clubIds.push(clubId);
+        if (referenced) referencedIds.set(referenced.name, clubId);
         world.managers[club.managerId] = generateManager(
           club.managerId,
           scoped,
@@ -413,7 +481,7 @@ export function generateWorld(
         id: leagueId,
         countryId,
         name: national
-          ? `${name} ${division!.name}${division!.groups.length > 1 ? ` · ${group!.name}` : ''}`
+          ? `${division!.name}${division!.groups.length > 1 ? ` · ${group!.name}` : ''}`
           : `${name} ${['Premier League', 'Championship', 'League One', 'Regional League'][tier - 1]}`,
         tier,
         clubIds,
@@ -445,11 +513,26 @@ export function generateWorld(
           : {}),
       };
     }
+    // Reserve teams in referenced tiers follow the real league; their parents are fixed.
+    const usedParents = new Set<string>();
+    if (national)
+      for (const club of Object.values(identity.clubs).flatMap((list) => list ?? [])) {
+        if (!club.reserveOf) continue;
+        const reserve = world.clubs[referencedIds.get(club.name)!]!;
+        const parentId = referencedIds.get(club.reserveOf)!;
+        reserve.identity!.reserveParentId = parentId;
+        // Same kits and colours as the first team; the home town is the real reserve ground.
+        reserve.crest.colors = [...world.clubs[parentId]!.crest.colors];
+        reserve.kits = structuredClone(world.clubs[parentId]!.kits);
+        usedParents.add(parentId);
+        for (const [playerIndex, id] of reserve.playerIds.entries())
+          world.players[id]!.birthSeason = year - (18 + (playerIndex % 6));
+      }
     if (national && profile.counterpart !== 'England') {
       const parents = world.leagues[country.leagueIds[0]!]!.clubIds;
-      const usedParents = new Set<string>();
       const reserveLeagues = country.leagueIds
         .map((id) => world.leagues[id]!)
+        .filter((league) => !identity.clubs[league.tier])
         .filter((league) =>
           profile.counterpart === 'France'
             ? league.tier === 4
@@ -483,7 +566,7 @@ export function generateWorld(
     }
     const cup = {
       id: cupId,
-      name: `${name} Cup`,
+      name: national ? identity.cup.name : `${name} Cup`,
       kind: 'domestic' as const,
       format: 'knockout' as const,
       season: year,
@@ -502,7 +585,7 @@ export function generateWorld(
       const cupId = `cup:${countryIndex}:serie-c`;
       const cup = {
         id: cupId,
-        name: `${name} Serie C Cup`,
+        name: identity.tierCup?.name ?? `${name} Serie C Cup`,
         kind: 'domestic' as const,
         format: 'knockout' as const,
         season: year,

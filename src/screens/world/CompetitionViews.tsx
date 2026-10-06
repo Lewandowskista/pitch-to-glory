@@ -31,10 +31,15 @@ export function CompetitionRules({
     <section className="competition-rules" aria-label={t.world.rulesTitle}>
       <p className="rules-reference">
         {profile
-          ? format(t.world.reference, {
-              counterpart: profile.counterpart,
-              season: profile.referenceSeason,
-            })
+          ? division?.reference
+            ? format(t.world.modelledOn, {
+                competition: division.reference,
+                season: profile.referenceSeason,
+              })
+            : format(t.world.reference, {
+                counterpart: profile.counterpart,
+                season: profile.referenceSeason,
+              })
           : t.world.legacyRules}
       </p>
       <p className="rules-facts">
@@ -284,6 +289,44 @@ export function FixtureList({
   );
 }
 
+/**
+ * Display label for a playoff tie or extra phase, built from its kind, stage and source
+ * division in this world, rather than the engine's internal key.
+ */
+export function postseasonLabel(world: World, entry: LeaguePhase | PostseasonTie): string {
+  const source = entry.sourceLeagueIds.map((id) => world.leagues[id]).find(Boolean);
+  const multiple = new Set(entry.sourceLeagueIds.filter((id) => world.leagues[id])).size > 1;
+  const [division, group] = source
+    ? multiple
+      ? [source.name.split(' · ')[0]!, undefined]
+      : source.name.split(' · ')
+    : [world.countries[entry.countryId]?.name ?? '', undefined];
+  const key = entry.name.toLowerCase();
+  const number = /(\d+)$/.exec(entry.id)?.[1];
+  const stage =
+    'standings' in entry
+      ? 'league'
+      : key.includes('final')
+        ? 'final'
+        : key.includes('semi')
+          ? 'semi'
+          : key.includes('eliminator')
+            ? 'eliminator'
+            : key.includes('preliminary')
+              ? 'preliminary'
+              : key.includes('extra')
+                ? 'decider'
+                : key.includes('ranking')
+                  ? 'ranking'
+                  : 'playoff';
+  const numbered = ['semi', 'preliminary', 'eliminator', 'playoff'].includes(stage) && number;
+  return format(t.world.postseasonLabel, {
+    division,
+    kind: t.world.postseasonKinds[entry.kind],
+    stage: t.world.postseasonStages[stage],
+  }).concat(numbered ? ` ${Number(number) + 1}` : '', group ? ` · ${group}` : '');
+}
+
 function PhaseTable({
   world,
   league,
@@ -300,7 +343,7 @@ function PhaseTable({
   const phaseLeague: League = {
     ...league,
     id: phase.id,
-    name: phase.name,
+    name: postseasonLabel(world, phase),
     clubIds: phase.clubIds,
     fixtureIds: phase.fixtureIds,
     standings: phase.standings,
@@ -334,7 +377,7 @@ function TieResult({
   const home = world.clubs[homeId]!,
     away = world.clubs[awayId]!;
   return (
-    <section className="postseason-tie" aria-label={tie.name}>
+    <section className="postseason-tie" aria-label={postseasonLabel(world, tie)}>
       <div className="postseason-meta">
         <span>{t.world.tieLegs[tie.legs]}</span>
         <span>{t.world.stageStatuses[tie.status]}</span>
@@ -406,11 +449,16 @@ export function PostseasonView({
   const entries = [
     ...phases.map((phase) => ({
       id: `phase:${phase.id}`,
-      name: phase.name,
+      name: postseasonLabel(world, phase),
       phase,
       tie: undefined,
     })),
-    ...ties.map((tie) => ({ id: `tie:${tie.id}`, name: tie.name, phase: undefined, tie })),
+    ...ties.map((tie) => ({
+      id: `tie:${tie.id}`,
+      name: postseasonLabel(world, tie),
+      phase: undefined,
+      tie,
+    })),
   ];
   const entry =
     entries.find((entry) => entry.id === selection) ??

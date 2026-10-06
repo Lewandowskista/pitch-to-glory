@@ -1,6 +1,6 @@
 ﻿# Football world realism
 
-New worlds use `national-v1`: six fictional countries with source-based national pyramids. Initial generation contains 52 league groups, 959 clubs, 21,098 players and seven domestic cups. These are initial counts; feeder admissions and regional capacity changes can alter later totals. This revision remains within milestone 2. Interactive matches, continental competitions and career creation belong to later milestones.
+New worlds use `national-v1` with identity version 2: the six real countries with source-based national pyramids, real towns, and fictional clubs and competitions that reference their real counterparts (see [Identities](#identities)). Worlds generated before identity version 2 keep their fictional countries and names. Initial generation contains 52 league groups, 959 clubs, 21,098 players and seven domestic cups. These are initial counts; feeder admissions and regional capacity changes can alter later totals. This revision remains within milestone 2. Interactive matches, continental competitions and career creation belong to later milestones.
 
 ## Reference policy and compatibility
 
@@ -12,14 +12,14 @@ Existing compact worlds keep 24 eight-club leagues, 192 clubs, 4,224 initial pla
 
 Initial groups play home-and-away round robins. Counts exclude cups, playoffs and second phases. Odd groups include byes.
 
-| Fictional country / counterpart | Tier sizes, top to bottom                     | Regular matches per club    |
-| ------------------------------- | --------------------------------------------- | --------------------------- |
-| Aldoria / England               | 20; 24; 24; 24; 24; North/South 24 each       | 38; 46; 46; 46; 46; 46      |
-| Valmere / France                | 18; 18; 18; three groups of 16                | 34; 34; 34; 30              |
-| Solara / Spain                  | 20; 22; two groups of 20; five groups of 18   | 38; 42; 38; 34              |
-| Nordhaven / Germany             | 18; 18; 20; four groups of 18 and Bavaria 19  | 34; 34; 38; 34 / Bavaria 36 |
-| Belloria / Italy                | 20; 20; three groups of 20; nine groups of 18 | 38; 38; 38; 34              |
-| Kestrelia / Portugal            | 18; 18; two groups of 10; four groups of 14   | 34; 34; 18; 26              |
+| Country (older worlds) | Tier sizes, top to bottom                     | Regular matches per club    |
+| ---------------------- | --------------------------------------------- | --------------------------- |
+| England (Aldoria)      | 20; 24; 24; 24; 24; North/South 24 each       | 38; 46; 46; 46; 46; 46      |
+| France (Valmere)       | 18; 18; 18; three groups of 16                | 34; 34; 34; 30              |
+| Spain (Solara)         | 20; 22; two groups of 20; five groups of 18   | 38; 42; 38; 34              |
+| Germany (Nordhaven)    | 18; 18; 20; four groups of 18 and Bavaria 19  | 34; 34; 38; 34 / Bavaria 36 |
+| Italy (Belloria)       | 20; 20; three groups of 20; nine groups of 18 | 38; 38; 38; 34              |
+| Portugal (Kestrelia)   | 18; 18; two groups of 10; four groups of 14   | 34; 34; 18; 26              |
 
 ### England
 
@@ -83,9 +83,62 @@ Campeonato has four groups of 14. Top two per group enter two four-club home/awa
 
 Sources: [Liga Portugal 2026/27 regulations](https://www.ligaportugal.pt/backoffice/assets/20260701_RC_2026_27_f53785bcd4.pdf), [FPF Liga 3 2026/27 format](https://www.fpf.pt/DownloadDocument.ashx?id=32598), [FPF Campeonato 2026/27 format](https://www.fpf.pt/DownloadDocument.ashx?id=32599).
 
+## Identities
+
+Identity version 2 (`World.identityVersion`) separates **places** from **football names**:
+
+- **Real:** the six countries, their regions, and every town, with real coordinates. Data lives in `src/engine/world/identities/<country>.ts`.
+- **Fictional, but referenced:** clubs, leagues and cups. Each carries a `reference` to its real counterpart, and division names use descriptive parodies. The Rules panel shows "Real-world model: …".
+
+Professional tiers are mapped **one to one** to the real 2026/27 memberships, after the 2025/26 promotions, relegations and playoffs. That covers 302 clubs:
+
+| Country  | Referenced tiers                                     | Clubs |
+| -------- | ---------------------------------------------------- | ----- |
+| England  | Premier League, Championship, League One, League Two | 92    |
+| France   | Ligue 1, Ligue 2                                     | 36    |
+| Spain    | LaLiga, LaLiga Hypermotion                           | 42    |
+| Germany  | Bundesliga, 2. Bundesliga, 3. Liga                   | 56    |
+| Italy    | Serie A, Serie B                                     | 40    |
+| Portugal | Liga Portugal, Liga Portugal 2                       | 36    |
+
+Each referenced club is named **city + nickname**, for example North London Cannons, Munich Reds, Lisbon Eagles or Bergamo Goddess. Each also keeps:
+
+- its real home city, coordinates and region;
+- its real club colours and home-shirt pattern, on original SVG crests and kits;
+- its stadium name and capacity;
+- a 1–10 stature that places its reputation within the tier's band.
+
+Real reserve teams in referenced tiers are linked to their parents. Examples: Vigo Celestes B and San Sebastián Txuri-Urdin B (Segunda); Sinsheim Kraichgauers II and Stuttgart Swabians II (3. Liga); Lisbon Eagles B, Porto Dragons B and Lisbon Lions B (Liga Portugal 2). They wear the parent's kits and keep their real home grounds: Seixal, Vila Nova de Gaia and Alcochete for the Portuguese B teams.
+
+Lower tiers (National League and below, Ligue 3/National 1, Primera/Segunda Federación, Regionalliga, Serie C/D, Liga 3/Campeonato) are filled with **generated clubs in real towns**:
+
+- Towns are drawn without repeats from region pools, at least 1.4× the clubs needed.
+- Towns are never a referenced club's home city.
+- Names use the country's usual form: Bedford Albion, AS Tourcoing, CD Fraga, TSV Itzehoe 1904, Calcio Treviso, GD Lagos. The form is keyed on the town, so it does not rotate visibly across a table.
+- Feeder clubs admitted below the frontier take unused real towns from the same region.
+
+| Country  | Divisions, top to bottom                                                                                         | Domestic cup                          |
+| -------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| England  | English Premier Division; Championship; Division One; Division Two; English National Division (then North/South) | English Association Cup               |
+| France   | French Première, Deuxième and Troisième Division; French National Division (North-West, North-East, South)       | French National Cup                   |
+| Spain    | Spanish Primera; Segunda; Primera Federal (North/South); Segunda Federal (five groups)                           | Spanish Royal Cup                     |
+| Germany  | German Erste, Zweite and Dritte Liga; German Regionalklasse (Nord, Nordost, West, Südwest, Bayern)               | German Federation Cup                 |
+| Italy    | Italian Prima, Seconda, Terza (Girone A–C) and Quarta Serie (Girone A–I)                                         | Italian National Cup; Terza Serie Cup |
+| Portugal | Portuguese Primeira; Segunda; Terceira (North/South); Portuguese National Championship (Series A–D)              | Portuguese National Cup               |
+
+Continental names are reserved for milestone 8: European Champions Cup, European Shield and European Conference Trophy.
+
+**Identity adaptations:**
+
+- The rule fingerprint excludes display names. Region keys are unchanged, so identity version 2 changes no sporting rule, and older saves with fictional names validate as before.
+- Italy's identity assigns Serie C groups by geography: Girone A covers Northwest/West/Northeast, B North-central/Central-west/Central-east, and C Southwest/Southeast/Islands. Region keys still come from the Serie D groups.
+- Where a group region is broader than a club region (Portugal's Liga 3 North/South against four Campeonato regions), forced reserve demotions go to the group with the most clubs from the reserve's region.
+- Club regions are game regions, not administrative ones. Both Paris clubs sit in Northwest and Monaco in South. London clubs use the city "London" and are distinguished by name.
+- Club memberships were researched from the leagues' published 2026/27 memberships. Per-club source URLs are not recorded. `npx tsx scripts/check-identity.ts <country>` checks the data's counts, regions, colours, duplicates, town coverage and reserve links.
+
 ## Deliberate adaptations
 
-- Identity uses country-specific fictional town, club, stadium and person-name pools, original SVG kits/crests and fictional coordinates. English United/Athletic/Rovers, French AS/US/Stade, Spanish CD/UD/Atlético, German FC/SV/TSV/founding years, Italian AC/AS/Calcio and Portuguese FC/SC/CD forms replace the old shared suffix pool. These are not licensed identities or renamed real clubs.
+- Identity: see [Identities](#identities). Kits and crests are original SVG. Names are parodies that reference real clubs; they are not licensed identities. Worlds generated before identity version 2 keep fictional town, club, stadium and coordinate pools.
 - The calendar uses 60 abstract simulation weeks, not 60 literal weeks between annual dates. Real match counts fit regular schedules, second phases and playoffs; development, finances and events still tick in game weeks.
 - Cups are six all-club single-leg national knockouts plus Italy's tier-three cup, which supplies a playoff qualification place. Fields use byes. They deliberately differ from actual FA Cup/Copa/Coupe/Taça admission/qualifying formats. Continental cups remain milestone 8.
 - Generated feeder clubs replace departures below the simulated frontier. Departed identities/people persist; full feeder leagues, feeder fixtures and administrative licensing are not simulated.

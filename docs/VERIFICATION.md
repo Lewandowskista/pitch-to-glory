@@ -207,3 +207,28 @@ No console errors or page errors were observed.
 The UI worker found a real defect during this milestone, now fixed: the validators rejected the save made right after a career match, because that week's other fixtures were still unplayed.
 
 **Not done:** physical device frame-rate checks and Safari release-device checks remain outstanding, as before.
+
+## Real-world identities (before milestone 5)
+
+Verified on 6 October 2026:
+
+| Check             | Result                                                   |
+| ----------------- | -------------------------------------------------------- |
+| Strict TypeScript | Passed                                                   |
+| ESLint, Prettier  | Passed                                                   |
+| Vitest            | 157 tests across 24 files passed                         |
+| Production build  | Passed; every route 190.7–227.1 KB gzip (budget 300 KB)  |
+| Playwright        | 66 tests passed, 22 each in Chromium, Firefox and WebKit |
+| Identity checker  | All six countries pass `scripts/check-identity.ts`       |
+
+- **Initial counts unchanged:** 52 league groups, 959 clubs and 21,098 players.
+- **Bundle:** identity data ships only in the world worker (87 KB gzip including the engine), not in any route chunk.
+- **Unit tests** cover:
+  - consistency between identities and profiles;
+  - referenced clubs in order, with their colours, kit pattern, stadium and coordinates;
+  - real towns in lower tiers;
+  - cup and division names, and the reference recorded in the profile;
+  - feeder clubs in unused real towns, while older worlds stay fictional;
+  - older fictional profile names still validating;
+  - real reserve counts and the reserve demotion target.
+- **Browser journeys** check real country names, "Real-world model" rule lines, group names (Nord, Nordost, Girone I), the Terza Serie Cup and derived postseason labels.

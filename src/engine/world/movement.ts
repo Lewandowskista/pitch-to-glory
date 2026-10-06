@@ -21,16 +21,17 @@ export function resolveReserveDemotions(world: World): void {
     const franceAcademyDrop = reserve.identity!.counterpart === 'France' && parentTier > 2;
     if (!franceAcademyDrop && parentTier < reserveTier) continue;
     const targetTier = franceAcademyDrop ? 7 : parentTier + 1;
+    const region = reserve.identity!.region;
+    const candidates = Object.values(world.leagues).filter(
+      (league) => league.countryId === reserve.countryId && league.tier === targetTier,
+    );
+    // Group regions can be broader than club regions: prefer an exact match, then the group
+    // with the most members from the reserve's region.
+    const shared = (league: League) =>
+      league.clubIds.filter((id) => world.clubs[id]?.identity?.region === region).length;
     const targetLeague =
-      Object.values(world.leagues).find(
-        (league) =>
-          league.countryId === reserve.countryId &&
-          league.tier === targetTier &&
-          league.region === reserve.identity!.region,
-      ) ??
-      Object.values(world.leagues).find(
-        (league) => league.countryId === reserve.countryId && league.tier === targetTier,
-      );
+      candidates.find((league) => league.region === region) ??
+      [...candidates].sort((a, b) => shared(b) - shared(a))[0];
     const targetId =
       targetLeague?.id ?? `feeder:${reserve.countryId.split(':')[1]}:${reserve.identity!.region}`;
     if (proposed?.toLeagueId === targetId) continue;

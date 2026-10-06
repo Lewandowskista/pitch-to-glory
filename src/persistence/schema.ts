@@ -106,6 +106,8 @@ const migrations: Readonly<Record<number, Migration>> = {
   5: (old) => ({ ...old, schemaVersion: 6 }),
   // v7 adds the optional career and development version on the world.
   6: (old) => ({ ...old, schemaVersion: 7 }),
+  // v8 marks worlds with real countries and referenced fictional clubs (identityVersion 2).
+  7: (old) => ({ ...old, schemaVersion: 8 }),
 };
 export function migrateSave(value: unknown): AppSave {
   let save = object(value);

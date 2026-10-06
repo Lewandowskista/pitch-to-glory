@@ -160,6 +160,8 @@ export interface LeagueZone {
 export interface DivisionProfile {
   id: string;
   name: string;
+  /** The real competition this division is modelled on (display only). */
+  reference?: string;
   tier: Tier;
   groups: { id: string; name: string; region: string; size: number }[];
   status: ClubStatus;
@@ -855,6 +857,11 @@ export interface World {
   format?: 'legacy' | 'national-v1';
   /** 2: potential is peak overall ability and development follows age curves. */
   developmentVersion?: 2;
+  /**
+   * 2: real countries and towns, with fictional clubs and competitions referencing real ones.
+   * Absent for worlds generated with fictional countries, which keep their identities.
+   */
+  identityVersion?: 2;
   /** The player's career, when this world hosts one (milestone 4). */
   career?: Career;
   pyramid?: NationalPyramidState;
@@ -952,7 +959,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 7;
+  schemaVersion: 8;
   engineVersion: string;
   slot: SlotId;
   name: string;

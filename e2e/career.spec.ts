@@ -61,7 +61,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
 
   // Identity: Enter submits the step.
   await page.getByLabel('Player name', { exact: true }).fill('Robin Vale');
-  await page.getByRole('radio', { name: /Valmere/ }).check({ force: true });
+  await page.getByRole('radio', { name: /France/ }).check({ force: true });
   await page.getByLabel('Player name', { exact: true }).press('Enter');
   await expect(page).toHaveURL(/step=appearance/);
   await page.getByRole('button', { name: 'Eyebrows', exact: true }).click();

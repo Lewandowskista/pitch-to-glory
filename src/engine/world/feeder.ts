@@ -5,6 +5,7 @@ import { generateKits } from '../assets/kit';
 import { generateManager, generatePlayer } from './generate';
 import { nationalCityName, nationalClubName, nationalStadiumName } from './names';
 import { POSITIONS } from './catalog';
+import { IDENTITIES, TownPicker, usedTowns } from './identities';
 
 /**
  * A club dormant below the simulated frontier in this region, not already involved in this
@@ -62,8 +63,18 @@ export function createFeederClub(world: World, countryId: string, region: string
     (a, b) => a.reputation - b.reputation || a.id.localeCompare(b.id),
   )[0]!;
   const counterpart = world.countries[countryId]!.counterpart!;
-  const city = nationalCityName(countryIndex, index);
-  let name = nationalClubName(city, counterpart, index);
+  // Worlds with real geography draw an unused real town from the region; older worlds keep
+  // their fictional town names.
+  const town =
+    world.identityVersion === 2
+      ? new TownPicker(
+          IDENTITIES[countryIndex]!,
+          `${world.seed}:feeder:${world.date.season}`,
+          usedTowns(world, countryId),
+        ).take([region])
+      : null;
+  const city = town?.name ?? nationalCityName(countryIndex, index);
+  let name = nationalClubName(city, counterpart);
   if (Object.values(world.clubs).some((club) => club.name === name)) name += ` ${1880 + index}`;
   const crest = generateCrest(rng);
   const club: Club = {
@@ -79,7 +90,13 @@ export function createFeederClub(world: World, countryId: string, region: string
       id: `stadium:${id}`,
       name: nationalStadiumName(city, countryIndex),
     },
-    identity: { ...template.identity!, region, status: 'semi-professional', reserveParentId: null },
+    identity: {
+      ...template.identity!,
+      region,
+      ...(town ? { latitude: town.lat, longitude: town.lon } : {}),
+      status: 'semi-professional',
+      reserveParentId: null,
+    },
     managerId: `manager:${id}`,
     dressingRoomId: `dressing:${id}`,
     playerIds: [],

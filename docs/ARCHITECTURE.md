@@ -9,6 +9,7 @@ src/
   engine/             Pure TypeScript RNG, asset recipes and world simulation
     assets/           Crest, kit and avatar recipes and geometry
     world/            Generation, schedules, background scores, squad lifecycle and seasons
+      identities/     Real countries and towns; fictional clubs and competitions with real references
     match/            Deterministic command engine, session types and replay validation
     career/           Career creation, progression, skills, training, injuries, fixtures and commit
     ageing.ts         Age curves, attribute targets and AI development
@@ -203,6 +204,8 @@ export interface LeagueZone {
 export interface DivisionProfile {
   id: string;
   name: string;
+  /** The real competition this division is modelled on (display only). */
+  reference?: string;
   tier: Tier;
   groups: { id: string; name: string; region: string; size: number }[];
   status: ClubStatus;
@@ -898,6 +901,8 @@ export interface World {
   format?: 'legacy' | 'national-v1';
   /** 2: potential is peak overall ability and development follows age curves. */
   developmentVersion?: 2;
+  /** 2: real countries and towns, fictional clubs/competitions referencing real ones. */
+  identityVersion?: 2;
   /** The player's career, when this world hosts one (milestone 4). */
   career?: Career;
   pyramid?: NationalPyramidState;
@@ -995,7 +1000,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 7;
+  schemaVersion: 8;
   engineVersion: string;
   slot: SlotId;
   name: string;
@@ -1059,7 +1064,7 @@ type WorkerResponse =
 
 ## Persistence and tab ownership
 
-Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; earlier files migrate unchanged.
+Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; v7 adds the optional career and development version; v8 adds the optional identity version and division references. Earlier files migrate unchanged.
 
 Reads assemble and fully validate one slot. A world that fails validation rejects the save; an attached match session that is from another match-engine version, fails replay or no longer matches the world is discarded with a `match-discarded` recovery notice while the world is kept. Writes stay strict. National profiles are compared by rule fingerprint for their profile version, so corrected citations or descriptions never invalidate saves. The slot list reads metadata only and reports `ready`, `empty` or `error` per slot. Writes that leave the world graph unchanged (match checkpoints, preferences) update metadata and the session without transferring, validating or storing the world. Backups are compact JSON. File v1 → v2 adds settings/gallery/engine version/revision; v2 → v3 preserves those values and adds the world payload capability; v3 → v4 preserves each existing world and its rules without regeneration. Import checks the 128 MiB limit, format/version/timestamps/slot/settings and every implemented world entity. World validation checks bounded values, rosters, foreign keys, fixture pair/calendar coverage, tables reconstructed from results, cup progression and archive structure before a transaction. Malformed/future files never replace valid saves. Web Locks are preferred; transactional heartbeat leases provide a fallback. Revision checks prevent stale writes even after ownership loss. Cancelled generation reacquires a retained session's slot after cleanup, or reports a lock/storage error. Switching slots and unload release ownership; crashed fallback leases expire.
 
@@ -1216,3 +1221,22 @@ Validation (`persistence/careerValidation.ts`) checks every career field against
 - the match history is bounded.
 
 AI players cannot carry injuries.
+
+## World identities
+
+`engine/world/identities/` holds one `CountryIdentity` per country, in `NATIONAL_PROFILES` order:
+
+- division and group display names, each with its real `reference`;
+- the domestic cup, and Italy's tier cup;
+- referenced clubs per tier (`ReferencedClub`: name, reference, city, coordinates, region, colours, kit pattern, stadium, capacity, stature, optional `reserveOf`);
+- real towns per region;
+- `groupRegions`, which lists the regions each generated group draws towns from.
+
+Generation for a national world:
+
+1. `identityProfile` copies the sporting profile with display names, references and the adaptation note. Rules and region keys are untouched, so `profileRuleFingerprint` does not change.
+2. A referenced club fills each slot in a referenced tier, in data order. Every other slot gets a real town from `TownPicker`, which shuffles each region by seed and never repeats a town or a referenced club's city.
+3. Reserve links come from `reserveOf`. Lower-tier reserves are still converted from generated clubs.
+4. Feeder clubs (`feeder.ts`) use `TownPicker` with `usedTowns(world, countryId)` when `world.identityVersion === 2`, and the older fictional pool otherwise.
+
+The UI never reads identity data directly; it reads names and references from the saved world and profile. `scripts/check-identity.ts` validates a country's data during authoring.

@@ -147,7 +147,7 @@ export function advancePortugal(world: World, countryId: string): boolean {
         id: `${countryId}:${world.date.season}:campeonato-promotion-${index}`,
         countryId,
         divisionId: 'portugal:4',
-        name: `Campeonato promotion Â· ${index ? 'South' : 'North'}`,
+        name: `Campeonato promotion · ${index ? 'South' : 'North'}`,
         kind: 'promotion',
         sourceLeagueIds: sources.map((league) => league.id),
         clubIds: sources.flatMap((league) =>

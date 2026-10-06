@@ -41,7 +41,7 @@ Installing a PWA update flushes saves before reloading. An unsaved world must fi
 
 ## National pyramid revision (current new-world format)
 
-- The user selected every regional group/playoff within the first four counterpart tiers and a deeper semi-professional English route. New generation defaults to `national-v1`: Aldoria/England, Valmere/France, Solara/Spain, Nordhaven/Germany, Belloria/Italy and Kestrelia/Portugal. Fictional names/assets remain the default.
+- The user selected every regional group/playoff within the first four counterpart tiers and a deeper semi-professional English route. New generation defaults to `national-v1`: Aldoria/England, Valmere/France, Solara/Spain, Nordhaven/Germany, Belloria/Italy and Kestrelia/Portugal. Fictional names/assets remain the default. (Superseded for new worlds by identity version 2; see below.)
 - Initial generation has 52 league groups, 959 clubs, 21,098 players and seven domestic cups, including Italy's tier-three cup. Home/away schedules replace quadruple round robin. England extends through tier six with National League North/South.
 - Country profiles name 2026/27 as baseline and record sources. National League and Italian Serie A/B details explicitly reuse the last published 2025/26 rules. Future fictional seasons retain the saved profile rather than silently adopting later real-world reforms.
 - The 60-week calendar is abstract game time. Domestic cups use all-club single-leg knockout fields, rather than exact real qualifying/admission formats. Feeder clubs represent the boundary below simulated leagues; lower pyramids are not fully simulated. These choices and Portugal Liga 3's exactly-ten-points interpretation are documented in [realism](REALISM.md).
@@ -149,3 +149,25 @@ The user's "Proceed with Milestone 4" authorizes this milestone only. The design
 **Skills.** There are 49 skills, slightly above the specified ~40, so goalkeepers have a full branch. Every skill has a tested effect: boosted choices, an unlocked choice or a systemic effect. Skill ids double as trait ids.
 
 **Versions.** File schema 7 adds the optional career and development version. The match engine is `match-5`: sessions saved by `match-4` are discarded on load with the existing notice, and the world is kept.
+
+## Real countries and referenced clubs (before milestone 5)
+
+The user asked for real countries and regions, with fictional clubs, leagues and competitions that clearly reference their real counterparts. Their choices:
+
+- **Club mapping:** the professional tiers map one to one (302 clubs). Lower tiers use plausible generated clubs in real towns.
+- **Club names:** city + nickname.
+- **Competition names:** descriptive parody (English Premier Division, German Regionalklasse, European Champions Cup).
+- **Older saves:** keep their fictional names and rules.
+
+Implementation decisions:
+
+- **Identity version 2.** `World.identityVersion: 2` marks new national worlds. Its absence means fictional names, including for feeder clubs admitted later, so an older world never mixes styles.
+- **Names are display data.** Display names and real references are copied into the saved profile. The rule fingerprint excludes them and region keys are unchanged, so no sporting rule changed.
+- **File schema 8.** Schema 8 only adds the optional `identityVersion` and `DivisionProfile.reference`; schema 7 files migrate unchanged.
+- **Referenced clubs keep real attributes.** These are city, coordinates, colours, home-shirt pattern, stadium and capacity. Reputation comes from stature within the tier's existing band, so the balance of the tier is unchanged.
+- **Reserve teams.** Real reserve teams in referenced tiers have fixed parents and keep their real grounds; they share the parent's kits and colours. Generated reserves in lower groups still take the parent's city.
+- **Reserve counts follow the real leagues.** Spain and Portugal now start with 9 reserve teams, Germany 7, France and Italy 3. Forced reserve demotion now picks the target group sharing the reserve's region, instead of the first group.
+- **Lower-tier name styles** are keyed on a hash of the town rather than the club index, so tables do not show a fixed rotation. German founding years follow the same hash.
+- **Wizard and Rules panel.** The career wizard lists the real country names. The Rules panel shows "Real-world model: <competition> · <season> rules". Postseason labels come from the division and stage, not the engine key, so no real competition names leak into the UI.
+- **Identity data stays in the worker.** All identity data lives in `src/engine/world/identities/` and ships only in the world-worker bundle.
+- **Open review items for the user:** "Lisbon Lions" also evokes Celtic's 1967 side; "Bochum Unrelegatables" is a fan nickname rather than an official one; Paris clubs sit in the Northwest game region and Monaco in South.
