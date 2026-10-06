@@ -202,8 +202,8 @@ Optional inspection scripts are `scripts/capture.mjs` (screen captures) and `scr
 ## Git and delivery state
 
 - Repository root on the original machine: `C:\Users\Stefan\Game Mod`.
-- Git was initialized after milestones 1–3. Branch: **main**. Initial implementation commit: **`d1c1be7` — Build Pitch to Glory through milestone 3**. The hardening pass is commit **`2f71752`**, milestone 4 is **`dfc06a0`** and the real-identity rework is **`d1b8358`**. Milestone 5 is **`c14601f`**, milestone 6 is **`5fe762b`** and milestone 7 is **`56eab5f`** and milestone 8 is **`1e55fd3`**; milestone 9 follows. Check `git log` for later commits.
-- No remote or hosting deployment is configured at this snapshot. Do not infer that the local commit exists on GitHub. The new handoff document is subsequent work; inspect `git status` and newer commits when continuing.
+- Git was initialized after milestones 1–3. Branch: **main**. Initial implementation commit: **`fde81f5` — Build Pitch to Glory through milestone 3**. The hardening pass is commit **`bb50490`**, milestone 4 is **`bb9d30f`** and the real-identity rework is **`9480351`**. Milestone 5 is **`d11b040`**, milestone 6 is **`eb3a1d8`**, milestone 7 is **`7c3ef78`**, milestone 8 is **`ec10897`** and milestone 9 is **`455d003`**. Before the first push, the history was rewritten to use the GitHub noreply author email, so hashes recorded in older notes differ. Check `git log` for later commits.
+- Remote: **https://github.com/Lewandowskista/pitch-to-glory** (public), pushed from the `Lewandowskista` account. No hosting deployment is configured yet; milestone 10 targets Cloudflare Pages (free tier). Commits use the noreply email `8884915+Lewandowskista@users.noreply.github.com` (set in this repository's local Git config).
 - `.gitignore` excludes dependencies, builds, local test reports/artifacts, logs and environment files. Never stage generated large backup fixtures or credentials.
 - `netlify.toml` supplies the static-host configuration. `.github/workflows/ci.yml` contains checks and optional deployment; publishing requires the configured Netlify production secrets and explicit deployment scope.
 
