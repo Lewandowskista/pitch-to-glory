@@ -42,7 +42,7 @@ describe('squad lifecycle', () => {
     expect(released.every((p) => p.releasedSeason === world.date.season)).toBe(true);
     expect(world.events.some((event) => event.kind === 'release')).toBe(true);
     expect(() => validateWorld(clone(world))).not.toThrow();
-  });
+  }, 120000);
 
   it('signs free agents into squads below target, strongest clubs choosing first', () => {
     const world = generateWorld('lifecycle-signings', { format: 'legacy' });

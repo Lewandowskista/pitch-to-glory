@@ -91,6 +91,8 @@ function uniform(value: number): DecisionContext['player'] {
   for (const key of Object.keys(player.keeperAttributes) as (keyof Player['keeperAttributes'])[])
     player.keeperAttributes[key] = value;
   player.traits = [];
+  // Reference conditions include neutral morale.
+  player.morale = CONFIG.career.social.matchMorale.neutral;
   return player;
 }
 /** Neutral analytic context: reference conditions, equal teams and a 60-rated opponent. */

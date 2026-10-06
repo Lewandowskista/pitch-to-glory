@@ -38,7 +38,9 @@ export type InboxKind =
   | 'transfer-request-withdrawn'
   | 'loan-request'
   | 'relocated'
-  | 'new-manager';
+  | 'new-manager'
+  | 'press-request'
+  | 'rival-transfer';
 
 /** Post an inbox message; old read messages are dropped beyond the limit. */
 export function postMessage(
@@ -63,7 +65,13 @@ export function postMessage(
 }
 
 /** The career player's relationship with a manager or a club's fans, created on first use. */
-export function relationship(world: World, kind: 'manager' | 'fans', targetId: string) {
+export type RelationshipKind = 'manager' | 'fans' | 'teammate';
+export function relationship(
+  world: World,
+  kind: RelationshipKind,
+  targetId: string,
+  initial?: number,
+) {
   const playerId = world.career!.playerId;
   let entry = world.relationships.find(
     (r) => r.sourceId === playerId && r.kind === kind && r.targetId === targetId,
@@ -74,7 +82,7 @@ export function relationship(world: World, kind: 'manager' | 'fans', targetId: s
       sourceId: playerId,
       targetId,
       kind,
-      value: kind === 'manager' ? M.relationships.newManager : M.relationships.fans,
+      value: initial ?? (kind === 'manager' ? M.relationships.newManager : M.relationships.fans),
       history: [],
     };
     world.relationships.push(entry);
@@ -83,12 +91,12 @@ export function relationship(world: World, kind: 'manager' | 'fans', targetId: s
 }
 export function adjustRelationship(
   world: World,
-  kind: 'manager' | 'fans',
+  kind: RelationshipKind,
   targetId: string,
   delta: number,
 ): void {
   const entry = relationship(world, kind, targetId);
-  entry.value = Math.max(0, Math.min(100, entry.value + delta));
+  entry.value = Math.round(Math.max(0, Math.min(100, entry.value + delta)) * 10) / 10;
 }
 /**
  * Relationships with the current club's manager and fans exist (after a move or sacking).

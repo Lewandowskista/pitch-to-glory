@@ -294,3 +294,36 @@ The career journey was updated: a level-up can now land in a week with a second 
 - the career-moves table's scroll region was not keyboard focusable (axe).
 
 **Not done:** Lighthouse still audits empty-state career routes only. Physical-device and Safari release checks remain outstanding, as before.
+
+## Milestone 6 verification
+
+Verified on 6 October 2026:
+
+| Check                                             | Result                                                                                                     |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Strict TypeScript, ESLint, Prettier               | Passed                                                                                                     |
+| Vitest                                            | 190 tests across 26 files passed (14 new social tests)                                                     |
+| 10,000-match calibration (with the morale factor) | 2.744 goals per match; home 1.509, away 1.226; away upsets 26.2% at a 15-point and 17.7% at a 45-point gap |
+| Production build                                  | Passed; all seventeen routes 203.3–248.1 KB gzip (budget 300 KB)                                           |
+| Playwright                                        | 72 tests passed, 24 each in Chromium, Firefox and WebKit                                                   |
+| axe-core                                          | No serious or critical violations on Club life, Media, Rival and hub, light and dark                       |
+
+**Unit coverage:**
+
+- **Rival:** its choice, lifecycle protection, a consistent transfer, meetings and the season comparison.
+- **Dressing room:** cliques with valid leaders through squad changes; teammate chemistry over weeks.
+- **Morale and culture fit:** fit parts; morale parts, bounds and weekly history; the morale match factor.
+- **Media:** match coverage; answering once with the stated effects; lapses; determinism.
+- **Saves:** round trip, forgery rejection and the schema 9 migration.
+
+The analytic match test now pins neutral morale, as its reference conditions intend. A legacy lifecycle test gained the 120 s timeout its neighbours use; it timed out under parallel load, unrelated to the career code.
+
+**The social browser journey:** an engine-built save, imported through Saves.
+
+- The hub press room, and answering the rival question with the 2 key.
+- The effect chips and the rival's reply; feed filters through the URL.
+- Club life: chart, breakdown, groups, fit and table. The rival comparison.
+- Autosave and refresh.
+- axe in both themes, and 390 px overflow checks.
+
+**Not done:** Lighthouse still audits empty-state career routes only. Physical-device and Safari release checks remain outstanding.

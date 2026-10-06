@@ -27,7 +27,7 @@ export const scaleOdds = (p: number, multiplier: number) =>
   (p * multiplier) / (1 - p + p * multiplier);
 
 export interface DecisionContext {
-  player: Pick<Player, 'attributes' | 'keeperAttributes' | 'traits'>;
+  player: Pick<Player, 'attributes' | 'keeperAttributes' | 'traits' | 'morale'>;
   situation: Situation;
   /** Expected goals this moment replaces for and against the selected team. */
   budget: { for: number; against: number };
@@ -134,6 +134,11 @@ export function traitMultiplier(
   return (boosted ? D.traitMultiplier : 1) * (bigGame ? D.bigGameMultiplier : 1);
 }
 
+/** Confidence: morale above the generated average helps, low morale hurts (milestone 6). */
+export function moraleMultiplier(morale: number): number {
+  const MM = CONFIG.career.social.matchMorale;
+  return clamp(1 + (morale - MM.neutral) * MM.slope, MM.minimum, MM.maximum);
+}
 /** Builds the displayed choices for a situation. Factors sum exactly to the probability. */
 export function buildChoices(context: DecisionContext): DecisionChoice[] {
   const { player, situation, budget, tactics } = context;
@@ -203,6 +208,7 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
         ['match.factor.attribute', 'attribute', attribute],
         ['match.factor.trait', 'trait', traitMultiplier(player.traits, t, context.importance)],
         ['match.factor.fatigue', 'fatigue', fatigue],
+        ['match.factor.morale', 'attribute', moraleMultiplier(player.morale)],
         ['match.factor.role', 'attribute', role.choices?.includes(t.id) ? D.roleMultiplier : 1],
         ['match.factor.risk', 'attribute', t.direct ? 1 : risk.odds],
         [

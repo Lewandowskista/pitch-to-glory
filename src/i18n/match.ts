@@ -485,6 +485,7 @@ const engineText: Record<string, string> = {
   'match.factor.attribute': 'Relevant attribute',
   'match.factor.trait': 'Trait bonus',
   'match.factor.fatigue': 'Fatigue',
+  'match.factor.morale': 'Morale',
   'match.factor.role': 'Personal role',
   'match.factor.risk': 'Risk level',
   'match.factor.conditions': 'Weather and pitch',

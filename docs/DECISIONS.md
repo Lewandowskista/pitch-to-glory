@@ -186,3 +186,14 @@ Implementation decisions:
 - **Bundle.** The schema 9 migration lives in the shell bundle, as validators already did. Agent generation therefore uses a compact name list, not the name catalogues. The shell grew from about 191 to about 199 KB gzip.
 - **Accessibility tooling.** `axe-core` is now an explicit dev dependency. The market journey checks the populated pages with it, because Lighthouse only sees empty-state pages in a fresh profile.
 - **Versions.** File schema 9; `MATCH_ENGINE_VERSION` is unchanged (`match-5`), because the match engine itself did not change.
+
+## Milestone 6: media, relationships, rival, dressing room, morale and form
+
+- **Morale now matters.** Morale had no effect before. It now shifts key-moment odds by up to ±8%, shown as a "Morale" factor (decision transparency, §9.5). The factor is centred on the average generated morale, so match calibration is unchanged. The match engine became `match-6`; older sessions are discarded on load with the existing notice.
+- **An explained morale target.** Morale moves toward a target made of named, bounded parts, so every system in this milestone (relationships, dressing room, culture fit, media) reaches the player through one visible number.
+- **The rival is an existing player.** Choosing a real player of the same generation, rather than generating one, keeps the world graph and the schema 10 migration small. The migration lives in the shell bundle and must not pull in world generation. The rival is protected from the AI lifecycle for the career's duration, and moves club by their own rule.
+- **Cliques for the player's club only.** Groups are derived from the squad each week (age and nationality) and keep their regard for the player. Other clubs keep a static mood, which keeps weekly simulation cost bounded. The shared dressing-room refresh keeps clique members and leaders valid for every club.
+- **Culture fit (§9.6) is in this milestone.** It belongs with relationships and the dressing room. Personality `temperament` is read as composure (high is calm), documented in BALANCING.md.
+- **Press design.** At most one open question; a fixed catalogue of topics, each with three answers whose effects are shown before choosing; a six-week topic cooldown. Number keys 1–3 answer, matching key moments.
+- **Size and cost.** The shell grew about 5 KB gzip (migration and validator); the new routes are 226–232 KB. A national career week costs about 330 ms in the worker, against 284 ms after milestone 5.
+- **Versions.** File schema 10, match engine `match-6`.

@@ -48,6 +48,8 @@ const INBOX_KINDS = [
   'loan-request',
   'relocated',
   'new-manager',
+  'press-request',
+  'rival-transfer',
 ];
 
 const nullableDate = (value: unknown) => {
@@ -276,7 +278,7 @@ export function validateMarket(w: Record<string, unknown>): void {
     relationIds.add(String(relation.id));
     requireValue(relation.sourceId === playerId);
     id(relation.targetId);
-    options(relation.kind, ['manager', 'fans']);
+    options(relation.kind, ['manager', 'fans', 'teammate']);
     number(relation.value, 0, 100);
     ids(relation.history, 50);
   }

@@ -20,6 +20,7 @@ import { defaultTrainingPlan } from './training';
 import { initialMarket } from './market/records';
 import { bonusesFor, marketWage } from './market/rules';
 import { attachMarket } from './market/agents';
+import { attachSocial, initialSocial } from './social/week';
 
 const S = CONFIG.career.start;
 
@@ -150,9 +151,11 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
     fame: 0,
     matches: [],
     market: initialMarket(world),
+    social: initialSocial(),
   };
   grantStartingSkill(career, player, archetype.startingSkill);
   world.career = career;
   attachMarket(world);
+  attachSocial(world);
   return world;
 }

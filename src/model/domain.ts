@@ -469,6 +469,34 @@ export interface Career {
   matches: CareerMatchRecord[];
   /** Contracts, agent, transfers and loans (milestone 5). */
   market: CareerMarket;
+  /** Morale, form and media (milestone 6). */
+  social: CareerSocial;
+}
+export interface WellbeingPoint {
+  season: number;
+  week: number;
+  morale: number;
+  form: number;
+}
+export type MoralePart =
+  | 'results'
+  | 'playingTime'
+  | 'trust'
+  | 'chemistry'
+  | 'dressingRoom'
+  | 'cultureFit'
+  | 'fans'
+  | 'media'
+  | 'situation';
+export interface CareerSocial {
+  /** Weekly morale and form, newest last. */
+  history: WellbeingPoint[];
+  /** The latest weekly morale target and what made it up. */
+  morale: { target: number; parts: Record<MoralePart, number> } | null;
+  /** Press conferences and interviews answered, for media standing. */
+  answered: number;
+  /** Sentiment of recent coverage, decaying weekly (−10 to 10). */
+  coverage: number;
 }
 export interface Payslip {
   season: number;
@@ -617,12 +645,39 @@ export interface Relationship {
   value: number;
   history: Id[];
 }
+export interface SeasonLine {
+  clubId: Id;
+  appearances: number;
+  goals: number;
+  assists: number;
+  /** Average match rating, 0 without appearances. */
+  rating: number;
+}
+export interface RivalSeason {
+  season: number;
+  career: SeasonLine;
+  rival: SeasonLine;
+}
+export interface RivalryEntry {
+  date: GameDate;
+  kind: 'started' | 'transfer' | 'head-to-head' | 'season' | 'media';
+  params: Record<string, string | number>;
+}
+/** A player of the same generation and position whose career runs alongside the player's. */
 export interface Rivalry {
   id: Id;
   careerPlayerId: Id;
   rivalPlayerId: Id;
+  /** 0–100: how personal it has become. */
   intensity: number;
-  eventIds: Id[];
+  started: GameDate;
+  headToHead: { played: number; won: number; drawn: number; lost: number };
+  seasons: RivalSeason[];
+  /** The rival's lifetime statistics when the current season began. */
+  seasonStart: { appearances: number; goals: number; assists: number; ratingTotal: number };
+  /** The rival's goals at the end of last week, to notice new ones. */
+  lastGoals: number;
+  timeline: RivalryEntry[];
 }
 export interface DressingRoom {
   id: Id;
@@ -631,27 +686,48 @@ export interface DressingRoom {
   cliques: Clique[];
   mood: number;
 }
+export type CliqueKind = 'seniors' | 'young' | 'core' | 'internationals';
 export interface Clique {
   id: Id;
+  kind: CliqueKind;
   playerIds: Id[];
+  leaderId: Id | null;
+  /** 0–100: how the group regards the career player. */
   affinity: number;
+  /** 0–100: how much the group sways the dressing room. */
   influence: number;
 }
-export interface MediaItem {
-  id: Id;
-  authorId: Id;
-  date: GameDate;
-  kind: 'press' | 'interview' | 'social' | 'headline';
-  textKey: string;
-  params: Record<string, string | number>;
-  choices: MediaChoice[];
+export type MediaTone = 'team' | 'confident' | 'humble' | 'provocative' | 'deflect';
+export interface MediaEffects {
+  fame: number;
+  trust: number;
+  mood: number;
+  fans: number;
+  rival: number;
+  cliques: Partial<Record<CliqueKind, number>>;
 }
 export interface MediaChoice {
   id: Id;
+  tone: MediaTone;
   labelKey: string;
-  fameDelta: number;
-  trustDelta: number;
-  moodDelta: number;
+  effects: MediaEffects;
+}
+export interface MediaItem {
+  id: Id;
+  date: GameDate;
+  kind: 'press' | 'interview' | 'social' | 'headline';
+  author: 'fan' | 'journalist' | 'rival' | 'club' | 'teammate';
+  authorName: string;
+  /** Topic of a press item, or the template of a post or headline. */
+  textKey: string;
+  params: Record<string, string | number>;
+  /** −2 (hostile) to 2 (glowing). */
+  sentiment: number;
+  likes: number;
+  choices: MediaChoice[];
+  /** The chosen answer of a press item; 'silence' if it lapsed unanswered. */
+  answer: Id | null;
+  expires: GameDate | null;
 }
 export interface InboxMessage {
   id: Id;
@@ -1049,7 +1125,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 9;
+  schemaVersion: 10;
   engineVersion: string;
   slot: SlotId;
   name: string;

@@ -220,12 +220,18 @@ export function seasonalSquadReview(world: World, rng: Rng): void {
     )
       retirePlayer(world, player, null);
   }
-  // The career player retires, renews and leaves only through their own decisions.
+  // The career player retires, renews and leaves only through their own decisions. Their
+  // rival stays in the game for the length of the career: never retired, released or trimmed.
   const careerId = world.career?.playerId;
+  const rivalIds = new Set(world.rivalries.map((rivalry) => rivalry.rivalPlayerId));
   for (const club of Object.values(world.clubs)) {
     if (!isActiveClub(world, club)) continue;
     for (const player of roster(world, club))
-      if (rng.next() < retirementProbability(ageOf(world, player)) && player.id !== careerId)
+      if (
+        rng.next() < retirementProbability(ageOf(world, player)) &&
+        player.id !== careerId &&
+        !rivalIds.has(player.id)
+      )
         retirePlayer(world, player, club);
     const ranked = rankByValue(world, roster(world, club));
     for (const [rank, player] of ranked.entries()) {
@@ -233,7 +239,10 @@ export function seasonalSquadReview(world: World, rng: Rng): void {
       const contract = world.contracts[player.contractId!]!;
       if (contract.end.season > season) continue;
       const age = ageOf(world, player);
-      if ((rank < L.renewalRank || age <= L.renewalYouthAge) && age <= L.renewalMaximumAge)
+      if (
+        rivalIds.has(player.id) ||
+        ((rank < L.renewalRank || age <= L.renewalYouthAge) && age <= L.renewalMaximumAge)
+      )
         world.contracts[contract.id] = terms(
           world,
           club,
@@ -262,7 +271,7 @@ export function seasonalSquadReview(world: World, rng: Rng): void {
     const counts = groupCounts(world, club);
     for (const player of rankByValue(world, roster(world, club)).reverse()) {
       if (club.playerIds.length <= L.squadMaximum) break;
-      if (player.id === careerId) continue;
+      if (player.id === careerId || rivalIds.has(player.id)) continue;
       const group = GROUP[player.primaryPosition];
       if (counts[group] <= L.groupMinimum[group]) continue;
       counts[group]--;
@@ -341,7 +350,11 @@ export function fillSquads(world: World, rng: Rng): void {
 export function refreshReturningClub(world: World, club: Club): void {
   const rng = createRng(`${world.seed}:readmission:${world.date.season}:${club.id}`);
   for (const [index, player] of roster(world, club).entries()) {
-    if (player.id === world.career?.playerId) continue;
+    if (
+      player.id === world.career?.playerId ||
+      world.rivalries.some((rivalry) => rivalry.rivalPlayerId === player.id)
+    )
+      continue;
     if (ageOf(world, player) >= L.readmissionRetirementAge) {
       const position = player.primaryPosition;
       retirePlayer(world, player, club);

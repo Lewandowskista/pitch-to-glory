@@ -32,6 +32,10 @@ export function messageLink(
         label: m.inbox.goTalks,
       };
   }
+  if (message.subjectKey === 'press-request')
+    return { to: join('/career/media'), label: m.inbox.goMedia };
+  if (message.subjectKey === 'rival-transfer')
+    return { to: join('/career/rival'), label: m.inbox.goRival };
   if (message.subjectKey.startsWith('agent-'))
     return { to: join('/career/agent'), label: m.inbox.goAgent };
   if (message.subjectKey === 'new-manager' || message.subjectKey === 'welcome-market') return null;

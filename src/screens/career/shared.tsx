@@ -15,6 +15,7 @@ import { cancelWorldJob } from '../../workers/client';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
+import { socialText } from '../../i18n/social';
 
 /** Shared Tailwind class strings, so every career card reads as one family. */
 export const ui = {
@@ -88,6 +89,9 @@ const sections = [
   { to: '/career/profile', label: c.sectionNames.profile, end: false },
   { to: '/career/skills', label: c.sectionNames.skills, end: false },
   { to: '/career/training', label: c.sectionNames.training, end: false },
+  { to: '/career/club', label: socialText.sectionNames.club, end: false },
+  { to: '/career/media', label: socialText.sectionNames.media, end: false },
+  { to: '/career/rival', label: socialText.sectionNames.rival, end: false },
   { to: '/career/transfers', label: m.sectionNames.transfers, end: false },
   { to: '/career/agent', label: m.sectionNames.agent, end: false },
   { to: '/career/inbox', label: m.sectionNames.inbox, end: false },

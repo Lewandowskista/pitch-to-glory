@@ -22,6 +22,7 @@ import { careerWeek, refreshMentor } from '../career/training';
 import { pendingCareerFixture } from '../career/fixtures';
 import { benchedCareerFixtures, marketRollover, marketWeek } from '../career/market/week';
 import { postMessage, recordMove } from '../career/market/records';
+import { socialRollover, socialWeek } from '../career/social/week';
 import {
   archiveAndPrune,
   fillSquads,
@@ -362,6 +363,7 @@ function exchangeTransfers(world: World, rng: Rng): void {
       .flatMap((id) => world.leagues[id]!.clubIds)
       .map((id) => world.clubs[id]!);
     const careerId = world.career?.playerId;
+    const rivalIds = new Set(world.rivalries.map((rivalry) => rivalry.rivalPlayerId));
     const a = rng.pick(clubs);
     // Exchanges happen between clubs of a similar level, never top flight and sixth tier.
     const tier = world.leagues[a.leagueId]!.tier;
@@ -371,7 +373,8 @@ function exchangeTransfers(world: World, rng: Rng): void {
       ),
     );
     // The career player only moves through their own decisions (milestone 5).
-    const movable = (club: Club) => club.playerIds.filter((id) => id !== careerId);
+    const movable = (club: Club) =>
+      club.playerIds.filter((id) => id !== careerId && !rivalIds.has(id));
     const positionsOf = (club: Club) =>
       new Set(movable(club).map((id) => world.players[id]!.primaryPosition));
     const shared = [...positionsOf(a)].filter(
@@ -625,6 +628,7 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   if (world.career) {
     careerWeek(world);
     marketWeek(world, benched);
+    socialWeek(world);
   }
   if ((CONFIG.world.transferWeeks as readonly number[]).includes(world.date.week)) {
     exchangeTransfers(world, rng);
@@ -655,6 +659,7 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
     marketRollover(world);
     keepCareerInSimulatedLeagues(world);
     refreshMentor(world);
+    socialRollover(world);
   }
   world.phase = 'active';
   world.fixtures = {};

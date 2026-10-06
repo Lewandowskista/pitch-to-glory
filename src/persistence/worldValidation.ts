@@ -351,6 +351,7 @@ export function validateEntities(
       ref(key, players);
       requireValue(players[key]!.clubId === room.clubId);
     }
-    requireValue(array(room.cliques).length === 0);
+    // socialValidation checks the cliques.
+    array(room.cliques, 4);
   }
 }

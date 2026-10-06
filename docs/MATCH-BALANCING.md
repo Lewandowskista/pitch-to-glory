@@ -170,3 +170,13 @@ Tests enforce: 2.5–2.9 goals, home advantage, 18–35 % draws, close-gap upset
 
 - **Assists.** A goal created by the selected player's choice is tagged with `assistId`, so a committed career fixture credits the assist to the right player. Other assists in committed fixtures are assigned with the background resolver's 78% rule.
 - **Calibration.** Because generation changed (development version 2), the 10,000-match gate was re-measured: 2.758 goals per match, equal-team home/away goals 1.521/1.225, draws 25.1%, away underdog wins 26.1% at a 15-point and 17.7% at a 45-point reputation gap. All within the asserted bands.
+
+## Morale factor (milestone 6, `match-6`)
+
+Each choice now multiplies its odds by `clamp(1 + (morale − 70) × 0.002, 0.92, 1.08)` after the fatigue factor. It is shown as the "Morale" factor in the choice breakdown. 70 is the average generated morale, so the calibration is unchanged within noise. The 10,000-match run gave:
+
+- **Goals per match:** 2.744.
+- **Equal teams:** home 1.509 and away 1.226 goals; home win 44.3%, draw 25.2%, away win 30.5%.
+- **Away upsets:** 26.2% at a 15-point gap and 17.7% at a 45-point gap.
+
+The analytic tests pin neutral morale.

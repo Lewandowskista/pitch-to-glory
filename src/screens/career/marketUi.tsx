@@ -11,6 +11,9 @@ import { renderAvatar } from '../../engine/assets/avatar';
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { marketText as m } from '../../i18n/market';
+import { socialText } from '../../i18n/social';
+
+const socialMessages = socialText.messages;
 import { ui, useEditBlock } from './shared';
 
 const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
@@ -43,7 +46,8 @@ export function useMarketAction() {
 
 /** A message's subject and body with money and roles formatted. */
 export function messageText(message: InboxMessage): { subject: string; body: string } {
-  const template = m.messages[message.subjectKey] ?? { subject: message.subjectKey, body: '' };
+  const template = m.messages[message.subjectKey] ??
+    socialMessages[message.subjectKey] ?? { subject: message.subjectKey, body: '' };
   const params: Record<string, string | number> = { ...message.params };
   for (const key of ['fee', 'bid'] as const)
     if (typeof params[key] === 'number') params[key] = money(params[key]);

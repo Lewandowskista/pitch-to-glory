@@ -11,7 +11,7 @@ import type { RatingFamily } from './situations';
 export type { Tactics } from '../../model/domain';
 
 /** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
-export const MATCH_ENGINE_VERSION = 'match-5';
+export const MATCH_ENGINE_VERSION = 'match-6';
 
 export interface MatchSetup {
   version: 1;

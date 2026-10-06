@@ -57,6 +57,8 @@ function player(traits: string[]): DecisionContext['player'] {
       KEEPING.map((key) => [key, 60]),
     ) as Player['keeperAttributes'],
     traits,
+    // Neutral morale, so skill effects are measured on their own.
+    morale: CONFIG.career.social.matchMorale.neutral,
   };
 }
 function contexts(position: Position, traits: string[], importance = 1): DecisionContext[] {

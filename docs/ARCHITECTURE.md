@@ -13,6 +13,7 @@ src/
     match/            Deterministic command engine, session types and replay validation
     career/           Career creation, progression, skills, training, injuries, fixtures and commit
       market/         Contracts, agents, scouting, offers, negotiation, loans and the weekly market
+      social/         Morale, dressing room, teammates, culture fit, rival and media
     ageing.ts         Age curves, attribute targets and AI development
     strength.ts       Team strength model shared by background and interactive matches
     config.ts         Tunable constants; no browser dependencies
@@ -514,6 +515,34 @@ export interface Career {
   matches: CareerMatchRecord[];
   /** Contracts, agent, transfers and loans (milestone 5). */
   market: CareerMarket;
+  /** Morale, form and media (milestone 6). */
+  social: CareerSocial;
+}
+export interface WellbeingPoint {
+  season: number;
+  week: number;
+  morale: number;
+  form: number;
+}
+export type MoralePart =
+  | 'results'
+  | 'playingTime'
+  | 'trust'
+  | 'chemistry'
+  | 'dressingRoom'
+  | 'cultureFit'
+  | 'fans'
+  | 'media'
+  | 'situation';
+export interface CareerSocial {
+  /** Weekly morale and form, newest last. */
+  history: WellbeingPoint[];
+  /** The latest weekly morale target and what made it up. */
+  morale: { target: number; parts: Record<MoralePart, number> } | null;
+  /** Press conferences and interviews answered, for media standing. */
+  answered: number;
+  /** Sentiment of recent coverage, decaying weekly (−10 to 10). */
+  coverage: number;
 }
 export interface Payslip {
   season: number;
@@ -662,12 +691,39 @@ export interface Relationship {
   value: number;
   history: Id[];
 }
+export interface SeasonLine {
+  clubId: Id;
+  appearances: number;
+  goals: number;
+  assists: number;
+  /** Average match rating, 0 without appearances. */
+  rating: number;
+}
+export interface RivalSeason {
+  season: number;
+  career: SeasonLine;
+  rival: SeasonLine;
+}
+export interface RivalryEntry {
+  date: GameDate;
+  kind: 'started' | 'transfer' | 'head-to-head' | 'season' | 'media';
+  params: Record<string, string | number>;
+}
+/** A player of the same generation and position whose career runs alongside the player's. */
 export interface Rivalry {
   id: Id;
   careerPlayerId: Id;
   rivalPlayerId: Id;
+  /** 0–100: how personal it has become. */
   intensity: number;
-  eventIds: Id[];
+  started: GameDate;
+  headToHead: { played: number; won: number; drawn: number; lost: number };
+  seasons: RivalSeason[];
+  /** The rival's lifetime statistics when the current season began. */
+  seasonStart: { appearances: number; goals: number; assists: number; ratingTotal: number };
+  /** The rival's goals at the end of last week, to notice new ones. */
+  lastGoals: number;
+  timeline: RivalryEntry[];
 }
 export interface DressingRoom {
   id: Id;
@@ -676,27 +732,48 @@ export interface DressingRoom {
   cliques: Clique[];
   mood: number;
 }
+export type CliqueKind = 'seniors' | 'young' | 'core' | 'internationals';
 export interface Clique {
   id: Id;
+  kind: CliqueKind;
   playerIds: Id[];
+  leaderId: Id | null;
+  /** 0–100: how the group regards the career player. */
   affinity: number;
+  /** 0–100: how much the group sways the dressing room. */
   influence: number;
 }
-export interface MediaItem {
-  id: Id;
-  authorId: Id;
-  date: GameDate;
-  kind: 'press' | 'interview' | 'social' | 'headline';
-  textKey: string;
-  params: Record<string, string | number>;
-  choices: MediaChoice[];
+export type MediaTone = 'team' | 'confident' | 'humble' | 'provocative' | 'deflect';
+export interface MediaEffects {
+  fame: number;
+  trust: number;
+  mood: number;
+  fans: number;
+  rival: number;
+  cliques: Partial<Record<CliqueKind, number>>;
 }
 export interface MediaChoice {
   id: Id;
+  tone: MediaTone;
   labelKey: string;
-  fameDelta: number;
-  trustDelta: number;
-  moodDelta: number;
+  effects: MediaEffects;
+}
+export interface MediaItem {
+  id: Id;
+  date: GameDate;
+  kind: 'press' | 'interview' | 'social' | 'headline';
+  author: 'fan' | 'journalist' | 'rival' | 'club' | 'teammate';
+  authorName: string;
+  /** Topic of a press item, or the template of a post or headline. */
+  textKey: string;
+  params: Record<string, string | number>;
+  /** −2 (hostile) to 2 (glowing). */
+  sentiment: number;
+  likes: number;
+  choices: MediaChoice[];
+  /** The chosen answer of a press item; 'silence' if it lapsed unanswered. */
+  answer: Id | null;
+  expires: GameDate | null;
 }
 export interface InboxMessage {
   id: Id;
@@ -1091,7 +1168,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 9;
+  schemaVersion: 10;
   engineVersion: string;
   slot: SlotId;
   name: string;
@@ -1155,7 +1232,7 @@ type WorkerResponse =
 
 ## Persistence and tab ownership
 
-Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; v7 adds the optional career and development version; v8 adds the optional identity version and division references; v9 gives each career its market record, the agent pool and club relationships. Earlier files migrate unchanged.
+Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; v7 adds the optional career and development version; v8 adds the optional identity version and division references; v9 gives each career its market record, the agent pool and club relationships; v10 adds the social records (rival, cliques, teammates, media, morale history). Earlier files migrate unchanged.
 
 Reads assemble and fully validate one slot. A world that fails validation rejects the save; an attached match session that is from another match-engine version, fails replay or no longer matches the world is discarded with a `match-discarded` recovery notice while the world is kept. Writes stay strict. National profiles are compared by rule fingerprint for their profile version, so corrected citations or descriptions never invalidate saves. The slot list reads metadata only and reports `ready`, `empty` or `error` per slot. Writes that leave the world graph unchanged (match checkpoints, preferences) update metadata and the session without transferring, validating or storing the world. Backups are compact JSON. File v1 → v2 adds settings/gallery/engine version/revision; v2 → v3 preserves those values and adds the world payload capability; v3 → v4 preserves each existing world and its rules without regeneration. Import checks the 128 MiB limit, format/version/timestamps/slot/settings and every implemented world entity. World validation checks bounded values, rosters, foreign keys, fixture pair/calendar coverage, tables reconstructed from results, cup progression and archive structure before a transaction. Malformed/future files never replace valid saves. Web Locks are preferred; transactional heartbeat leases provide a fallback. Revision checks prevent stale writes even after ownership loss. Cancelled generation reacquires a retained session's slot after cleanup, or reports a lock/storage error. Switching slots and unload release ownership; crashed fallback leases expire.
 
@@ -1361,3 +1438,25 @@ Validation (`persistence/marketValidation.ts`) checks every market record agains
 - inbox kinds come from a fixed list;
 - agent fees never exceed lifetime earnings;
 - a world without a career keeps every market collection empty.
+
+## Career social systems (milestone 6)
+
+`engine/career/social/` is pure, like the market:
+
+- `rules.ts`: culture fit, clique membership, teammate compatibility, morale parts.
+- `dressing.ts`: `syncCliques`, key teammates and their chemistry, mood, `dressingWeek`.
+- `rival.ts`: choosing the rival, transfers, meetings, the season comparison.
+- `media.ts`: the press catalogue, weekly coverage, `openPress`, `answerPress` and the lapse of unanswered questions.
+- `week.ts`: `socialWeek`, `socialMatch`, `socialRollover`, and `attachSocial` (also used by the schema 10 migration).
+- `actions.ts`: `applySocialAction` for the UI, using the market's structural-sharing draft.
+
+How it plugs into the existing paths:
+
+1. `simulateWeek` runs `socialWeek` after `marketWeek`.
+2. `commitCareerMatch` calls `socialMatch`: trust, fans, cliques and head-to-head. It stays the single commit path.
+3. `startNextSeason` runs `socialRollover` after the career's market and relocation steps.
+4. A move (`moveRegistration`) regroups the new club's cliques and teammates.
+5. The AI lifecycle and the AI exchanges skip the rival.
+6. `buildChoices` adds a morale factor (`moraleMultiplier`), so the session format is `match-6`.
+
+`world/dressing.ts` keeps clique members and leaders valid whenever a roster changes. `persistence/socialValidation.ts` validates every social record.

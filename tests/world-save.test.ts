@@ -16,7 +16,7 @@ describe('world milestone save upgrade', () => {
       revision: 7,
     };
     const migrated = migrateSave(v2);
-    expect(migrated.schemaVersion).toBe(9);
+    expect(migrated.schemaVersion).toBe(10);
     expect(migrated.payload).toEqual(v2.payload);
     expect(migrated.revision).toBe(7);
   });

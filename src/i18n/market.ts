@@ -260,6 +260,8 @@ export const marketText = {
     goTalks: 'Go to the talks',
     goAgent: 'See your agent',
     goTransfers: 'See transfers',
+    goMedia: 'Go to the media room',
+    goRival: 'See your rival',
     back: 'Back to the inbox',
     from: { club: 'Club', agent: 'Agent', board: 'Your club' },
     list: 'Messages',

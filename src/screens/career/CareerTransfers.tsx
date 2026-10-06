@@ -31,6 +31,9 @@ import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
 import { CareerPage, CrestImage, Meter, plural, ui } from './shared';
 import { useUrlDialog } from './useUrlDialog';
+import { cultureFit } from '../../engine/career/social';
+import { socialText } from '../../i18n/social';
+import { cultureTraits } from './socialUi';
 import {
   ActionError,
   BlockNote,
@@ -698,6 +701,11 @@ function Talks({
           {offer.fee > 0 && (
             <p className="mt-1 text-sm">{format(m.talks.fee, { fee: money(offer.fee) })}</p>
           )}
+          <p className="mt-1 text-sm">
+            {format(socialText.fit.talks, { club: club.name })}:{' '}
+            <strong>{cultureFit(world, world.players[world.career!.playerId]!, club).value}</strong>{' '}
+            · {cultureTraits(club).join(' · ')}
+          </p>
         </div>
         <button className="button secondary" onClick={onClose}>
           {m.talks.back}

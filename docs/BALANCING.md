@@ -320,3 +320,84 @@ Standing is `0.55 × ability + 0.45 × club reputation + min(15, fame / 25)`.
 - Compact world: a 17-year-old trial striker drew interest within weeks and moved up three times in three seasons, for fees of 15,700–17,200 Cr.
 - National world: two moves in two seasons, for fees of about 5,000 Cr in non-league.
 - Choosing a bigger club where the role is backup or youth reduces starts sharply. That is the trade-off the role promise makes visible.
+
+## Social systems (milestone 6)
+
+Constants live in `CONFIG.career.social`.
+
+**Morale.**
+
+- Weekly: `morale += (target − morale) × 0.3`, where `target = clamp(50 + Σ parts, 0, 100)`.
+- Every part is bounded to ±10, except results (±12):
+
+| Part          | Formula                                                                                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Results       | 3 × (wins − losses) in the club's last 4 matches                                                                                 |
+| Playing time  | 20 × (start rate − expected), expected key 0.9, rotation 0.7, backup 0.4, youth 0.5; counted from 3 matchdays, not while injured |
+| Trust         | 0.2 × (trust − 50)                                                                                                               |
+| Chemistry     | 0.2 × (average teammate chemistry − 50)                                                                                          |
+| Dressing room | 0.15 × (mood − 50)                                                                                                               |
+| Culture fit   | 0.2 × (fit − 50)                                                                                                                 |
+| Fans          | 0.1 × (fan affection − 50)                                                                                                       |
+| Media         | 0.6 × coverage                                                                                                                   |
+| Situation     | injury −8; pending transfer request −5, unless the promise was broken                                                            |
+
+- Without a match, form moves 10% toward 50 each week.
+
+**Morale in key moments.** Odds × `clamp(1 + (morale − 70) × 0.002, 0.92, 1.08)`. The 10,000-match calibration with this factor gave 2.744 goals per match, home 1.509 and away 1.226. Away upsets were 26.2% at a 15-point gap and 17.7% at a 45-point gap.
+
+**Culture fit.** `clamp(55 + Σ parts, 0, 100)`, using `c(x) = (x − 50)/50`:
+
+- ambition: `c(ambition) × c((winNow + reputation)/2) × 12`;
+- youth: `c(youth) × 10` up to age 21, or `−c(youth) × 4` from 28;
+- discipline: `c(discipline) × c(temperament) × 10` (temperament read as composure);
+- loyalty: `c(loyalty) × 8` at fan-owned clubs;
+- style: `0.8 × (style-attribute average − overall)`, ±10;
+- attacking: `±6 × c(attacking)`, positive for attackers;
+- sociability: `c(sociability) × 4`.
+
+**Cliques.**
+
+- Groups: young (22 and under), seniors (29+), internationals (3 or more mid-career foreigners), core.
+- Influence is `size share × 60 + leader leadership × 0.4`.
+- Affinity starts at 60 for the player's own group and 45 for others. Each week it drifts 5% toward `50 + 0.3 × (mood − 50)`.
+- A rating of 7.5 or more adds 1.5 to every group; below 5.5 removes 1.5.
+- Mood: `0.85 × mood + 0.15 × (50 + 6 × (wins − losses in the last 5) + 0.2 × (standing − 50))`.
+- Seniors' affinity above 65 adds 0.3 manager trust a week; below 35 removes 0.3.
+
+**Teammates.**
+
+- Up to 6. Compatibility is `50 + 8 (same clique) + 4 (same nationality) + 0.2 × (mean sociability − 50) − 0.1 × |temperament gap| + 0.1 × (fit − 50)`, clamped to 5–95.
+- Weekly change: `+0.5`, `+1` if the teammate is in the XI when the player played, `+0.1 × (compatibility − chemistry)`, and `+0.02 × (their clique's affinity − 50)`.
+- The 30 most recent former-teammate relationships are kept.
+
+**Performance reactions.**
+
+| Rating      | Trust | Fans |
+| ----------- | ----- | ---- |
+| 7.5 or more | +2    | +2   |
+| 6.8 or more | +1    | +1   |
+| below 5.5   | −2    | −1.5 |
+
+Each goal adds 1 fan affection.
+
+**Rival.**
+
+- Chosen within a year of age and 12 ability points, scored by `5 × |age gap| + |ability gap| + 3 (other position) + 10 (abroad)`.
+- Potential is set to the player's ±2. Intensity starts at 30, rises 6 per meeting and 4 per season, and media answers add their stated amount.
+- In a window, once their ability is 4 or more above their club's first team, the rival moves with chance 0.35 a week. The new club has higher reputation, a first-team level within −6/+2 of the rival, and the budget for their value.
+
+**Media.**
+
+- 150 items kept. Questions lapse after 2 weeks; silence costs 1 fame.
+- The same topic waits 6 weeks before it is raised again.
+- Press after a match comes with chance 0.5, a big match 0.6, a transfer rumour 0.2, the rival 0.1 (at intensity 40 or more), and being dropped 0.4.
+- Coverage: `0.8 × coverage + 0.5 × the week's post sentiment`, within ±10.
+- Likes: `3–40 + 0.5 × fame`.
+
+**Measured (Node):** a compact career season produced:
+
+- about 8 press questions, 18 headlines, 36 fan posts and 10 rival posts;
+- final morale of 50–57 and chemistry of about 63.
+
+A national career week costs about 330 ms with auto-play, against 251 ms for a plain week.

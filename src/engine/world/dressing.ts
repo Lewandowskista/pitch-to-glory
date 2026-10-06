@@ -14,8 +14,19 @@ export function refreshDressingRoom(world: World, club: Club): void {
     .sort((a, b) => b.attributes.leadership - a.attributes.leadership || byId(a, b))
     .slice(0, 2)
     .map((player) => player.id);
-  dressing.cliques = dressing.cliques.map((clique) => ({
-    ...clique,
-    playerIds: clique.playerIds.filter((id) => club.playerIds.includes(id)),
-  }));
+  // Cliques keep only current members; a departed leader is replaced by the best leader left.
+  dressing.cliques = dressing.cliques
+    .map((clique) => {
+      const playerIds = clique.playerIds.filter((id) => club.playerIds.includes(id));
+      const leaderId =
+        clique.leaderId && playerIds.includes(clique.leaderId)
+          ? clique.leaderId
+          : ([...playerIds].sort(
+              (a, b) =>
+                world.players[b]!.attributes.leadership - world.players[a]!.attributes.leadership ||
+                (a < b ? -1 : 1),
+            )[0] ?? null);
+      return { ...clique, playerIds, leaderId };
+    })
+    .filter((clique) => clique.playerIds.length >= 2);
 }

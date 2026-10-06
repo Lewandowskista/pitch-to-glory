@@ -25,6 +25,9 @@ import { useUrlDialog } from './useUrlDialog';
 import { careerContract, windowState } from '../../engine/career/market';
 import { marketText as m } from '../../i18n/market';
 import { messageText, money, roleName, weekly, WindowBanner } from './marketUi';
+import { rivalOf, seasonLines } from '../../engine/career/social';
+import { socialText as s } from '../../i18n/social';
+import { mediaText } from './socialUi';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
@@ -74,6 +77,8 @@ function HubContent({
       <ClubStanding world={world} club={club} />
       <Condition career={career} player={player} />
       <TrainingSummary career={career} />
+      <PressRoom world={world} />
+      <RivalWatch world={world} />
       <MarketSummary world={world} />
       <InboxPreview world={world} />
     </div>
@@ -693,6 +698,80 @@ function InboxPreview({ world }: { world: World }) {
       ) : (
         <p className={`${ui.muted} mt-4`}>{m.inbox.empty}</p>
       )}
+    </section>
+  );
+}
+
+function PressRoom({ world }: { world: World }) {
+  const pending = world.media.find((item) => item.choices.length > 0 && item.answer === null);
+  const headline = [...world.media].reverse().find((item) => item.kind === 'headline');
+  return (
+    <section
+      aria-labelledby="press-room-heading"
+      className={`${ui.panel} lg:col-span-6 ${pending ? 'border-gold' : ''}`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h2 id="press-room-heading" className={ui.heading}>
+          {s.hub.press}
+        </h2>
+        <Link className="button secondary" to="/career/media">
+          {s.hub.seeMedia}
+        </Link>
+      </div>
+      {pending ? (
+        <div className="mt-4 grid gap-3">
+          <p className={ui.eyebrow}>{format(s.hub.pressWaiting, { outlet: pending.authorName })}</p>
+          <p className="font-display text-2xl leading-tight">{mediaText(pending)}</p>
+          <div>
+            <Link className="button" to="/career/media">
+              {s.hub.pressOpen}
+              <Icon name="arrow" />
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <p className={`${ui.muted} mt-4`}>{s.hub.pressNone}</p>
+      )}
+      {headline && (
+        <div className="mt-4 border-t border-line pt-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted">{s.hub.latest}</p>
+          <p className="mt-1 font-display text-xl leading-tight">{mediaText(headline)}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RivalWatch({ world }: { world: World }) {
+  const rival = rivalOf(world);
+  const lines = seasonLines(world);
+  if (!rival || !lines) return null;
+  return (
+    <section aria-labelledby="rival-watch-heading" className={`${ui.panel} lg:col-span-6`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h2 id="rival-watch-heading" className={ui.heading}>
+          {s.hub.rival}
+        </h2>
+        <Link className="button secondary" to="/career/rival">
+          {s.hub.seeRival}
+        </Link>
+      </div>
+      <p className="mt-4 flex items-center gap-2 font-semibold">
+        <CrestImage crest={world.clubs[rival.clubId!]!.crest} alt="" className="h-8 w-8 shrink-0" />
+        <span className="min-w-0 truncate">
+          {format(s.hub.rivalLine, { rival: rival.name, club: world.clubs[rival.clubId!]!.name })}
+        </span>
+      </p>
+      <p className="mt-2 text-sm text-muted">
+        {format(s.hub.rivalSeason, {
+          goals: lines.career.goals,
+          rival: rival.name,
+          rivalGoals: lines.rival.goals,
+        })}
+      </p>
+      <Link className="text-button mt-2 -ml-3 inline-flex" to="/career/club">
+        {s.hub.seeClub}
+      </Link>
     </section>
   );
 }

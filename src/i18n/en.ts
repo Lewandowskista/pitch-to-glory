@@ -19,6 +19,9 @@ export const en = {
       '/career/transfers': 'Transfers and contract',
       '/career/agent': 'Agent',
       '/career/inbox': 'Inbox',
+      '/career/club': 'Club life',
+      '/career/media': 'Media',
+      '/career/rival': 'Rival',
     } as Record<string, string>,
     short: {
       '/': 'Club',

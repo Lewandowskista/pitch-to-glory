@@ -9,6 +9,7 @@ import type {
 import type { MatchSession } from '../engine/match/types';
 import { attachMarket } from '../engine/career/market/agents';
 import { initialMarket } from '../engine/career/market/records';
+import { attachSocial } from '../engine/career/social/week';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
 import { validateWorld } from './worldSchema';
 import { validateMatchSession } from '../engine/match';
@@ -112,7 +113,24 @@ const migrations: Readonly<Record<number, Migration>> = {
   7: (old) => ({ ...old, schemaVersion: 8 }),
   // v9 adds the career market (milestone 5): agents, finances, relationships and moves.
   8: (old) => ({ ...old, schemaVersion: 9, payload: withCareerMarket(old.payload) }),
+  // v10 adds the career's social records (milestone 6): rival, cliques, teammates, media.
+  9: (old) => ({ ...old, schemaVersion: 10, payload: withCareerSocial(old.payload) }),
 };
+/** Careers saved before milestone 6 gain a rival, their club's cliques and key teammates. */
+function withCareerSocial(payload: unknown): unknown {
+  try {
+    const p = object(payload);
+    if (p.kind !== 'world') return payload;
+    const world = object(p.world) as unknown as World;
+    if (!world.career || world.career.social) return payload;
+    world.rivalries ??= [];
+    world.media ??= [];
+    attachSocial(world);
+  } catch {
+    // Validation reports the problem.
+  }
+  return payload;
+}
 /**
  * Careers saved before milestone 5 gain an empty market: the agent pool, wage records and
  * relationships with the current club. Malformed payloads are left for validation to reject.

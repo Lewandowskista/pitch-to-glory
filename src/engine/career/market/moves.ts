@@ -3,6 +3,7 @@ import { getSeasonWeeks } from '../../world/calendar';
 import { recordEvent } from '../../world/events';
 import { refreshDressingRoom } from '../../world/dressing';
 import { refreshMentor } from '../training';
+import { ensureTeammates, syncCliques } from '../social/dressing';
 import {
   addWeeks,
   ageOf,
@@ -128,6 +129,10 @@ function moveRegistration(world: World, fromId: string, toId: string): void {
   refreshDressingRoom(world, to);
   ensureClubRelationships(world);
   refreshMentor(world);
+  if (world.career!.social) {
+    syncCliques(world);
+    ensureTeammates(world);
+  }
 }
 
 /**
