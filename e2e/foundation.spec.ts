@@ -7,7 +7,8 @@ test.beforeEach(async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
-    if (message.type() === 'error' && !isBrowserNoise(message)) errors.push(message.text());
+    if (message.type() === 'error' && !isBrowserNoise(message))
+      errors.push(`${message.text()} (${message.location().url || 'no location'})`);
   });
   await page.addInitScript(() => {
     window.addEventListener('unhandledrejection', (event) => {

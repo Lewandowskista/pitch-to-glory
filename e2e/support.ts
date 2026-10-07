@@ -29,14 +29,16 @@ export async function skipTutorial(page: Page): Promise<void> {
 /**
  * Console errors that come from the browser itself rather than the game. Firefox on Linux
  * reports an internal "Navigated away from page" error, with no script location, on ordinary
- * navigations; anything with a location is still treated as a real error. Errors raised inside
- * Playwright's own Firefox instrumentation (chrome://juggler/, e.g. NS_BINDING_ABORTED when a
- * worker request is cancelled by a navigation) never come from game code either.
+ * navigations; anything with a web location is still treated as a real error. Errors located in
+ * browser-internal chrome:// code, such as Playwright's Firefox instrumentation reporting
+ * NS_BINDING_ABORTED when a navigation cancels a worker request, never come from game code.
  */
 export function isBrowserNoise(message: ConsoleMessage): boolean {
+  const { url } = message.location();
   return (
     (message.text() === '[JavaScript Error: "InvalidStateError: Navigated away from page"]' &&
-      !message.location().url) ||
+      !url) ||
+    url.startsWith('chrome://') ||
     /\{file: "chrome:\/\/juggler\//.test(message.text())
   );
 }
