@@ -5,6 +5,7 @@ import { marketValue } from '../../engine/career/market';
 import { rivalOf, rivalryOf, seasonLines } from '../../engine/career/social';
 import { renderAvatar } from '../../engine/assets/avatar';
 import { Artwork } from '../../ui/Artwork';
+import { HeadToHead } from '../../ui/HeadToHead';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { socialText as s } from '../../i18n/social';
@@ -93,27 +94,22 @@ function RivalContent({
         <h2 id="rival-heading" className="sr-only">
           {s.rival.title}
         </h2>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
-          {[player, rival].map((p, index) => (
-            <div
-              key={p.id}
-              className={`flex min-w-0 flex-col items-center gap-2 text-center ${index === 0 ? 'sm:items-end sm:text-right' : 'sm:items-start sm:text-left'}`}
-            >
-              <Portrait player={p} age={age(p)} />
-              <strong className="font-display text-2xl leading-tight break-words sm:text-3xl">
-                {p.name}
-              </strong>
-              <span className="flex items-center gap-2 text-sm text-muted">
-                <CrestImage crest={club(p).crest} alt="" className="h-6 w-6" />
-                <span className="truncate">{club(p).name}</span>
+        <HeadToHead
+          inward
+          versus={c.common.vs}
+          sides={[player, rival].map((p, index) => ({
+            id: p.id,
+            name: p.name,
+            artwork: <Portrait player={p} age={age(p)} />,
+            detail: (
+              <span className="flex min-w-0 items-start gap-2 text-sm text-muted">
+                <CrestImage crest={club(p).crest} alt="" className="h-6 w-6 shrink-0" />
+                <span className="min-w-0 break-words text-balance">{club(p).name}</span>
               </span>
-              {index === 0 && <span className={ui.chip}>{s.rival.you}</span>}
-            </div>
-          ))}
-          <span className="col-start-2 row-start-1 font-display text-3xl text-muted">
-            {c.common.vs}
-          </span>
-        </div>
+            ),
+            label: index === 0 && <span className={ui.chip}>{s.rival.you}</span>,
+          }))}
+        />
         <p className={`${ui.muted} mx-auto mt-4 max-w-prose text-center`}>{s.rival.body}</p>
         <div className="mx-auto mt-4 max-w-md">
           <Meter label={s.rival.intensity} value={rivalry.intensity} tone="danger" />

@@ -188,9 +188,9 @@ function Editor({ world }: { world: World }) {
           ? world.players[selected]
           : undefined;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
       {block && (
-        <p role="status" className="inline-error lg:col-span-2">
+        <p role="status" className="inline-error xl:col-span-2">
           {block}
         </p>
       )}
@@ -226,7 +226,7 @@ function Editor({ world }: { world: World }) {
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 lg:grid-cols-1">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 xl:grid-cols-1">
           <label className="grid gap-1 text-sm font-semibold">
             {e.search}
             <input
@@ -301,7 +301,7 @@ function Editor({ world }: { world: World }) {
           )}
         </div>
       </section>
-      <div className="order-first min-w-0 lg:order-none">
+      <div className="order-first min-w-0 xl:order-none">
         {entity && kind === 'clubs' ? (
           <ClubEditor key={entity.id} world={world} club={entity as Club} />
         ) : entity && kind === 'leagues' ? (
@@ -309,7 +309,7 @@ function Editor({ world }: { world: World }) {
         ) : entity ? (
           <NameEditor key={entity.id} world={world} kind="players" entity={entity as Player} />
         ) : (
-          <section className={`${ui.panel} hidden lg:block`}>
+          <section className={`${ui.panel} hidden xl:block`}>
             <p className={ui.muted}>{e.choose}</p>
           </section>
         )}
@@ -522,7 +522,7 @@ function ClubEditor({ world, club }: { world: World; club: Club }) {
       <div className="grid gap-3">
         <h3 className="text-xs font-bold uppercase tracking-wider text-muted">{e.colours}</h3>
         <p className="text-sm text-muted">{e.coloursBody}</p>
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3">
           {colors.map((color, index) => {
             const label = e.colourNames[index]!;
             const ok = /^#[0-9a-f]{6}$/i.test(color);
@@ -676,7 +676,7 @@ function EditFile({ world }: { world: World }) {
   return (
     <section
       aria-labelledby="edit-file-heading"
-      className={`${ui.panel} flex flex-wrap items-center gap-4 lg:col-span-2`}
+      className={`${ui.panel} flex flex-wrap items-center gap-4 xl:col-span-2`}
     >
       <div className="min-w-0 flex-1 basis-72">
         <h2 id="edit-file-heading" className={ui.heading}>

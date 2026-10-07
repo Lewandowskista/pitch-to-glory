@@ -1,6 +1,6 @@
 import type { Crest } from '../../model/domain';
 import type { Rng } from '../rng';
-import { colors, item, PALETTES, svg } from './shared';
+import { colors, item, PALETTES, svg, withContrast } from './shared';
 
 export const CREST_SHAPES = [
   'M22 14H138V86Q138 135 80 169Q22 135 22 86Z',
@@ -67,10 +67,11 @@ export function generateCrest(rng: Rng): Crest {
 export function renderCrest(crest: Crest): string {
   colors(crest.colors);
   const [base, accent, light] = crest.colors;
+  const foreground = withContrast(light, base);
   const path = item(CREST_SHAPES, crest.shape);
   const symbol = item(CREST_SYMBOLS, crest.symbol);
   return svg(
-    `<path d="${path}" fill="${base}" stroke="${accent}" stroke-width="5" stroke-linejoin="round"/><path d="${path}" transform="translate(8 9) scale(.9)" stroke="${light}" stroke-opacity=".45" stroke-width="1.5"/><g transform="translate(40 37) scale(.8)" fill="${light}" stroke="${light}" color="${base}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">${symbol}</g><path d="M57 133H103" stroke="${accent}" stroke-width="5" stroke-linecap="round"/>`,
+    `<path d="${path}" fill="${base}" stroke="${accent}" stroke-width="5" stroke-linejoin="round"/><path d="${path}" transform="translate(8 9) scale(.9)" stroke="${light}" stroke-opacity=".45" stroke-width="1.5"/><g transform="translate(40 37) scale(.8)" fill="${foreground}" stroke="${foreground}" color="${base}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">${symbol}</g><path d="M57 133H103" stroke="${accent}" stroke-width="5" stroke-linecap="round"/>`,
     '0 0 160 180',
   );
 }

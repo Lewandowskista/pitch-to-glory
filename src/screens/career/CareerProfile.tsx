@@ -141,7 +141,9 @@ function Attributes({
                   >
                     <div className="min-w-0">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="truncate text-sm font-semibold">{attributeName(key)}</span>
+                        <span className="break-words text-sm font-semibold">
+                          {attributeName(key)}
+                        </span>
                         <m.span
                           key={flash?.startsWith(`${key}:`) ? flash : 'static'}
                           initial={
@@ -215,8 +217,8 @@ function Attributes({
         <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
           {groups.untrained.map((key) => (
             <li key={key} className="flex justify-between gap-2 text-sm text-muted">
-              <span className="truncate">{attributeName(key)}</span>
-              <span className="font-semibold">{attributeValue(player, key)}</span>
+              <span className="min-w-0 break-words">{attributeName(key)}</span>
+              <span className="shrink-0 font-semibold">{attributeValue(player, key)}</span>
             </li>
           ))}
         </ul>
@@ -242,9 +244,9 @@ function Summary({
   const band = potentialBand(player.potential);
   return (
     <section aria-labelledby="summary-heading" className={ui.panel}>
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <PlayerPortrait player={player} age={age} className="h-20 w-20 shrink-0" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1 basis-40">
           <h2 id="summary-heading" className="font-display text-[2rem] leading-none break-words">
             {player.name}
           </h2>
@@ -253,8 +255,8 @@ function Summary({
           </p>
           {club && (
             <p className="mt-1 flex items-center gap-2 text-sm font-semibold">
-              <CrestImage crest={club.crest} alt="" className="h-5 w-5" />
-              <span className="truncate">{club.name}</span>
+              <CrestImage crest={club.crest} alt="" className="h-5 w-5 shrink-0" />
+              <span className="min-w-0 break-words">{club.name}</span>
             </p>
           )}
         </div>

@@ -8,8 +8,18 @@ import {
 } from '../src/engine/assets/crest';
 import { KIT_PATTERNS, generateKits, renderKit } from '../src/engine/assets/kit';
 import { AVATAR_OPTIONS, generateAvatar, renderAvatar } from '../src/engine/assets/avatar';
+import { contrastRatio, PALETTES } from '../src/engine/assets/shared';
 
 describe('procedural SVG artwork', () => {
+  it('keeps crest symbols readable for every club palette, including edited colours', () => {
+    const palettes = [...PALETTES, ['#123456', '#123457', '#123458'] as const];
+    for (const colors of palettes) {
+      const output = renderCrest({ shape: 4, symbol: 9, colors: [...colors] });
+      const foreground = output.match(/<g transform="[^"]+" fill="(#[0-9a-f]{6})"/i)?.[1];
+      expect(foreground).toBeDefined();
+      expect(contrastRatio(foreground as `#${string}`, colors[0])).toBeGreaterThanOrEqual(3);
+    }
+  });
   it('contains 15 distinct silhouettes and 30 distinct symbols', () => {
     expect(new Set(CREST_SHAPES).size).toBeGreaterThanOrEqual(15);
     expect(new Set(CREST_SYMBOLS).size).toBeGreaterThanOrEqual(30);
@@ -74,6 +84,11 @@ describe('procedural SVG artwork', () => {
       expect(svg).toContain('viewBox=');
       expect(svg).toMatch(/<\/svg>$/);
       expect(svg).not.toMatch(/script|foreignObject|https?:\/\/(?!www.w3.org)|onload=/);
+      const ids = [...svg.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const reference of svg.matchAll(/url\(#([^)]+)\)/g)) {
+        expect(ids).toContain(reference[1]);
+      }
     }
   });
 });

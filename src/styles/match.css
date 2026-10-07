@@ -40,8 +40,11 @@
 }
 .match-selection {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 3rem;
+}
+.match-selection > * {
+  min-width: 0;
 }
 .match-selection-intro {
   padding: 1rem;
@@ -54,6 +57,7 @@
 .match-selection-form,
 .match-tactics {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.1rem;
 }
 .match-page label {
@@ -77,7 +81,7 @@
 }
 .match-input-pair {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 .match-fixture-art {
@@ -100,9 +104,15 @@
 }
 .match-footballer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
   margin: 1rem 0;
+}
+.match-footballer > div {
+  min-width: 0;
+  flex: 1 1 9rem;
+  overflow-wrap: anywhere;
 }
 .match-footballer h2 {
   margin: 0;
@@ -606,7 +616,7 @@
   .match-selection,
   .match-preview,
   .match-live-aside {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .match-selection {
     padding: 1rem;

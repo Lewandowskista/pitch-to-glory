@@ -270,8 +270,12 @@ export default function CareerNew() {
           })}
         </ol>
       </nav>
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <form onSubmit={submit} className={`${ui.panel} flex flex-col gap-6`} noValidate>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <form
+          onSubmit={submit}
+          className={`${ui.panel} @container/wizard flex flex-col gap-6`}
+          noValidate
+        >
           {step === 'identity' && (
             <IdentityStep
               draft={draft}
@@ -498,7 +502,7 @@ function AppearanceStep({ draft, update }: StepProps) {
   return (
     <>
       <StepHeading title={c.wizard.appearanceTitle} body={c.wizard.appearanceBody} />
-      <div className="grid gap-6 md:grid-cols-[14rem_minmax(0,1fr)]">
+      <div className="grid gap-6 @min-[34rem]/wizard:grid-cols-[14rem_minmax(0,1fr)]">
         <div className="flex flex-col items-center gap-3">
           <Artwork
             svg={renderAvatar(draft.avatar, draft.age)}
@@ -770,7 +774,7 @@ function TrialStep({ draft, update, world, offers }: StepProps & { world: World;
       {offers.length ? (
         <fieldset>
           <legend className="sr-only">{c.wizard.steps.trial}</legend>
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-3 @min-[36rem]/wizard:grid-cols-3">
             {offers.map((club) => {
               const league = world.leagues[club.leagueId];
               const manager = world.managers[club.managerId];
@@ -784,9 +788,9 @@ function TrialStep({ draft, update, world, offers }: StepProps & { world: World;
                   className="flex-col"
                 >
                   <span className="flex flex-col gap-3">
-                    <span className="flex items-center gap-3">
+                    <span className="flex flex-wrap items-center gap-3">
                       <CrestImage crest={club.crest} alt="" className="h-16 w-16 shrink-0" />
-                      <strong className="font-display text-2xl leading-none break-words">
+                      <strong className="min-w-0 flex-1 basis-32 font-display text-2xl leading-none break-words">
                         {club.name}
                       </strong>
                     </span>
@@ -941,7 +945,7 @@ function Summary({
   return (
     <aside
       aria-label={c.wizard.summary}
-      className="self-start overflow-hidden rounded-panel border border-line bg-surface shadow-surface lg:sticky lg:top-6"
+      className="self-start overflow-hidden rounded-panel border border-line bg-surface shadow-surface xl:sticky xl:top-6"
     >
       <div className="relative bg-field px-5 pt-6 pb-4 text-white">
         <div

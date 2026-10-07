@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { Page } from '../../ui/Page';
 import { Icon } from '../../ui/Icon';
@@ -133,10 +133,29 @@ const groups: { label: string; sections: Section[] }[] = [
  */
 export function CareerNav() {
   const [params] = useSearchParams();
+  const { pathname } = useLocation();
+  const navigation = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = navigation.current;
+    if (!nav) return;
+    const revealActive = () => {
+      const active = nav.querySelector<HTMLAnchorElement>('[aria-current="page"]');
+      if (!active || nav.scrollWidth <= nav.clientWidth) return;
+      const bounds = nav.getBoundingClientRect();
+      const link = active.getBoundingClientRect();
+      if (link.left < bounds.left) nav.scrollLeft += link.left - bounds.left;
+      else if (link.right > bounds.right) nav.scrollLeft += link.right - bounds.right;
+    };
+    revealActive();
+    const resize = new ResizeObserver(revealActive);
+    resize.observe(nav);
+    return () => resize.disconnect();
+  }, [pathname]);
   const save = params.get('save');
   const unread = useAppStore((s) => s.world?.inbox.filter((message) => !message.read).length ?? 0);
   return (
     <nav
+      ref={navigation}
       aria-label={c.sections}
       data-tour="career-nav"
       className="mb-6 overflow-x-auto lg:overflow-visible"
@@ -181,7 +200,7 @@ export function CareerNav() {
                       <>
                         <span
                           aria-hidden="true"
-                          className="ml-2 grid min-w-6 place-items-center rounded-full bg-gold px-1.5 text-xs font-bold text-[#1d3127]"
+                          className="ml-2 grid min-w-6 place-items-center rounded-full bg-gold px-1.5 text-xs font-bold text-on-gold"
                         >
                           {unread}
                         </span>

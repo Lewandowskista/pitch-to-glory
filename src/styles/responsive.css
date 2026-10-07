@@ -7,8 +7,8 @@
     padding: 3.6rem;
   }
   .stadium {
-    width: 59%;
-    right: -1%;
+    width: 58%;
+    right: 0;
   }
   .crest-card img {
     height: 165px;
@@ -36,8 +36,8 @@
     max-width: 265px;
   }
   .stadium {
-    width: 69%;
-    right: -16%;
+    width: 58%;
+    right: 0;
     bottom: -1%;
   }
   .crest-grid {
@@ -89,8 +89,8 @@
     font-size: 3.5rem;
   }
   .stadium {
-    width: 75%;
-    right: -23%;
+    width: 58%;
+    right: 0;
     bottom: 1%;
     opacity: 0.85;
   }
@@ -245,10 +245,10 @@
   .stadium {
     position: relative;
     display: block;
-    width: 108%;
+    width: 100%;
     right: auto;
     bottom: auto;
-    margin: 0 -4% -4% auto;
+    margin: 0 0 -4% auto;
     opacity: 1;
   }
   .hero-button {

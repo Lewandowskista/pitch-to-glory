@@ -12,6 +12,7 @@ export default tseslint.config(
       'test-results/**',
       '.npm-cache/**',
       '.claude/**',
+      '.kilo/worktrees/**',
     ],
   },
   js.configs.recommended,

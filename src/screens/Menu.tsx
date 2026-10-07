@@ -92,21 +92,21 @@ export default function Menu() {
           )}
           <div className="relative z-[2] mt-3 flex flex-wrap items-center gap-x-1 gap-y-2">
             <Link
-              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-[#fff7e4] underline underline-offset-4 transition-colors hover:bg-white/10"
+              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-hero-ink underline underline-offset-4 transition-colors hover:bg-white/10"
               to="/gallery"
             >
               {t.menu.explore}
               <Icon name="arrow" />
             </Link>
             <Link
-              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-[#fff7e4] underline underline-offset-4 transition-colors hover:bg-white/10"
+              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-hero-ink underline underline-offset-4 transition-colors hover:bg-white/10"
               to="/world"
             >
               {t.menu.world}
               <Icon name="ball" />
             </Link>
             <Link
-              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-[#fff7e4] underline underline-offset-4 transition-colors hover:bg-white/10"
+              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-hero-ink underline underline-offset-4 transition-colors hover:bg-white/10"
               to="/match"
             >
               {t.app.match}

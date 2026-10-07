@@ -167,6 +167,16 @@
 .world-filters select {
   width: 100%;
 }
+.world-page select {
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+}
 .world-tabs {
   display: flex;
   gap: 2px;
@@ -853,6 +863,9 @@
   gap: 0.85rem;
 }
 .rule-sources a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;

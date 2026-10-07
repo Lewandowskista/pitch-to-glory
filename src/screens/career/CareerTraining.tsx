@@ -66,7 +66,7 @@ function FocusSelect({
       id={id}
       value={value}
       onChange={(event) => onChange(event.target.value as TrainingFocus)}
-      className="min-h-12 w-full rounded-control border border-line bg-surface px-3 text-sm font-semibold text-ink"
+      className="min-h-12 w-full min-w-0 rounded-control border border-line bg-surface px-3 text-sm font-semibold text-ink"
     >
       <optgroup label={c.training.groups}>
         {groups.map((group) => (
@@ -267,7 +267,7 @@ function TrainingPlanner({
             />
             {c.training.extraEnable}
           </label>
-          <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
             <div>
               <label htmlFor="extra-focus" className="mb-1.5 block">
                 {c.training.focus}
@@ -304,7 +304,7 @@ function TrainingPlanner({
                     className="h-12 w-12 shrink-0"
                   />
                   <div className="min-w-0">
-                    <strong className="block truncate">{mentor.name}</strong>
+                    <strong className="block break-words">{mentor.name}</strong>
                     <span className="text-xs text-muted">
                       {format(c.training.mentorValue, {
                         position: c.positions[mentor.primaryPosition]!,

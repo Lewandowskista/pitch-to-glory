@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { Icon } from '../../ui/Icon';
+import { HeadToHead } from '../../ui/HeadToHead';
 import { Dialog } from '../../ui/Dialog';
 import { CONFIG } from '../../engine/config';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
@@ -179,33 +180,27 @@ function NextMatch({
             <p className="mt-2 max-w-prose text-sm text-white/80">{c.hub.seasonCompleteBody}</p>
           </div>
         ) : fixture && opponent && club ? (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
-            {[home ? club : opponent, home ? opponent : club].map((side, index) => (
-              <div
-                key={side.id}
-                className={`flex min-w-0 flex-col items-center gap-2 text-center ${
-                  index === 0 ? 'sm:items-end sm:text-right' : 'sm:items-start sm:text-left'
-                }`}
-              >
+          <HeadToHead
+            inward
+            versus={c.common.vs}
+            versusClass="text-white/70"
+            sides={[home ? club : opponent, home ? opponent : club].map((side) => ({
+              id: side.id,
+              name: side.name,
+              artwork: (
                 <CrestImage
                   crest={side.crest}
                   alt={side.name}
                   className="h-16 w-16 drop-shadow-lg sm:h-24 sm:w-24"
                 />
-                <strong className="font-display text-xl leading-tight break-words sm:text-3xl">
-                  {side.name}
-                </strong>
-                {side.id === club.id && (
-                  <span className="text-[0.65rem] font-bold uppercase tracking-wider text-gold">
-                    {c.hub.club}
-                  </span>
-                )}
-              </div>
-            ))}
-            <span className="col-start-2 row-start-1 font-display text-3xl text-white/70">
-              {c.common.vs}
-            </span>
-          </div>
+              ),
+              label: side.id === club.id && (
+                <span className="block text-[0.65rem] font-bold uppercase tracking-wider text-gold">
+                  {c.hub.club}
+                </span>
+              ),
+            }))}
+          />
         ) : (
           <div>
             <p className="font-display text-[2.2rem] leading-none">{c.hub.noFixture}</p>
@@ -280,9 +275,9 @@ function PlayerCard({
       className={`${ui.panel} lg:col-span-4`}
     >
       <p className={ui.eyebrow}>{c.hub.player}</p>
-      <div className="mt-3 flex items-center gap-4">
+      <div className="mt-3 flex flex-wrap items-center gap-4">
         <PlayerPortrait player={player} age={age} className="h-24 w-24 shrink-0" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1 basis-40">
           <h2
             id="player-card-heading"
             className="font-display text-[2rem] leading-none break-words"
@@ -294,8 +289,8 @@ function PlayerCard({
           </p>
           {club && (
             <p className="mt-2 flex items-center gap-2 text-sm font-semibold">
-              <CrestImage crest={club.crest} alt="" className="h-6 w-6" />
-              <span className="truncate">{club.name}</span>
+              <CrestImage crest={club.crest} alt="" className="h-6 w-6 shrink-0" />
+              <span className="min-w-0 break-words">{club.name}</span>
             </p>
           )}
         </div>
@@ -309,7 +304,7 @@ function PlayerCard({
           to="/career/profile"
           className={`flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold ${
             career.attributePoints
-              ? 'bg-gold text-[#1d3127]'
+              ? 'bg-gold text-on-gold'
               : 'border border-line bg-surface-soft text-muted'
           }`}
         >
@@ -320,7 +315,7 @@ function PlayerCard({
           to="/career/skills"
           className={`flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold ${
             career.skillPoints
-              ? 'bg-gold text-[#1d3127]'
+              ? 'bg-gold text-on-gold'
               : 'border border-line bg-surface-soft text-muted'
           }`}
         >
@@ -366,7 +361,7 @@ function LastResult({ world, career }: { world: World; career: Career }) {
           <div className="mt-4 flex items-center gap-3">
             {opponent && <CrestImage crest={opponent.crest} alt="" className="h-12 w-12" />}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">
+              <p className="break-words text-sm font-semibold">
                 {last.home ? c.common.home : c.common.away} · {opponent?.name}
               </p>
               <p className="text-xs text-muted">
@@ -456,10 +451,10 @@ function ClubStanding({ world, club }: { world: World; club: Club | undefined })
       {club ? (
         <>
           <div className="mt-4 flex items-center gap-3">
-            <CrestImage crest={club.crest} alt="" className="h-14 w-14" />
+            <CrestImage crest={club.crest} alt="" className="h-14 w-14 shrink-0" />
             <div className="min-w-0">
-              <p className="truncate font-semibold">{club.name}</p>
-              <p className="truncate text-xs text-muted">{league?.name}</p>
+              <p className="break-words font-semibold">{club.name}</p>
+              <p className="break-words text-xs text-muted">{league?.name}</p>
             </div>
           </div>
           {standing ? (
@@ -788,7 +783,7 @@ function RivalWatch({ world }: { world: World }) {
       </div>
       <p className="mt-4 flex items-center gap-2 font-semibold">
         <CrestImage crest={world.clubs[rival.clubId!]!.crest} alt="" className="h-8 w-8 shrink-0" />
-        <span className="min-w-0 truncate">
+        <span className="min-w-0 break-words">
           {format(s.hub.rivalLine, { rival: rival.name, club: world.clubs[rival.clubId!]!.name })}
         </span>
       </p>
@@ -817,7 +812,7 @@ function FameSummary({ world }: { world: World }) {
       <div className="flex flex-wrap items-center gap-4">
         <span
           aria-hidden="true"
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gold font-display text-3xl text-[#1d3127]"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gold font-display text-3xl text-on-gold"
         >
           {progress.level}
         </span>

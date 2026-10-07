@@ -322,7 +322,7 @@ function Teammates({ world, player, club }: { world: World; player: Player; club
                   age={world.date.season - teammate.birthSeason}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">
+                  <p className="break-words text-sm font-semibold">
                     {teammate.name}{' '}
                     <span className="font-normal text-muted">
                       · {c.positions[teammate.primaryPosition]}

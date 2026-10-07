@@ -108,7 +108,7 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
       <div className="mt-4 flex items-center gap-3">
         <CrestImage crest={parent.crest} alt="" className="h-12 w-12 shrink-0" />
         <div className="min-w-0">
-          <p className="truncate font-semibold">{parent.name}</p>
+          <p className="break-words font-semibold">{parent.name}</p>
           <p className="text-sm text-muted">
             {roleName(contract.role)} · {m.roleBodies[contract.role]}
           </p>
@@ -476,7 +476,7 @@ function Offers({ world, onOpen }: { world: World; onOpen: (id: string) => void 
                 <div className="flex items-center gap-3">
                   <CrestImage crest={club.crest} alt="" className="h-12 w-12 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{club.name}</p>
+                    <p className="break-words font-semibold">{club.name}</p>
                     <p className="text-xs text-muted">
                       {m.kinds[offer.kind]} · {m.statuses[offer.status]}
                     </p>
@@ -554,11 +554,11 @@ function Interest({ world }: { world: World }) {
             const league = world.leagues[club.leagueId];
             return (
               <li key={interest.id} className="rounded-control bg-surface-soft p-3">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <CrestImage crest={club.crest} alt="" className="h-10 w-10 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{club.name}</p>
-                    <p className="truncate text-xs text-muted">
+                  <div className="min-w-0 flex-1 basis-36">
+                    <p className="break-words text-sm font-semibold">{club.name}</p>
+                    <p className="break-words text-xs text-muted">
                       {league?.name}
                       {club.countryId !== parent.countryId
                         ? ` · ${m.interest.abroad}: ${world.countries[club.countryId]!.name}`

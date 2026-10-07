@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { Icon } from '../../ui/Icon';
+import { HeadToHead } from '../../ui/HeadToHead';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import type { CareerMatchOutcome } from '../../engine/career/matches';
 import type { Fixture, World } from '../../model/domain';
@@ -15,29 +16,21 @@ function FixtureTeams({ world, fixture }: { world: World; fixture: Fixture }) {
   const home = world.clubs[fixture.homeId]!;
   const away = world.clubs[fixture.awayId]!;
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
-      {[home, away].map((club, index) => (
-        <div
-          key={club.id}
-          className={`flex min-w-0 flex-col items-center gap-2 text-center ${
-            index === 0 ? 'col-start-1' : 'col-start-3'
-          } row-start-1`}
-        >
+    <HeadToHead
+      versus={c.common.vs}
+      sides={[home, away].map((club) => ({
+        id: club.id,
+        name: club.name,
+        artwork: (
           <CrestImage crest={club.crest} alt={club.name} className="h-16 w-16 sm:h-24 sm:w-24" />
-          <strong className="font-display text-xl leading-tight break-words sm:text-3xl">
-            {club.name}
-          </strong>
-          {club.id === clubId && (
-            <span className="text-[0.65rem] font-bold uppercase tracking-wider text-accent">
-              {c.hub.club}
-            </span>
-          )}
-        </div>
-      ))}
-      <span className="col-start-2 row-start-1 font-display text-3xl text-muted">
-        {c.common.vs}
-      </span>
-    </div>
+        ),
+        label: club.id === clubId && (
+          <span className="block text-[0.65rem] font-bold uppercase tracking-wider text-accent">
+            {c.hub.club}
+          </span>
+        ),
+      }))}
+    />
   );
 }
 

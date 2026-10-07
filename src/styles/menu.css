@@ -1,8 +1,8 @@
 /* Clubhouse (title / main menu) screen. */
 .hero {
   min-height: 465px;
-  background: #075e45;
-  color: #fff7e4;
+  background: var(--color-field);
+  color: var(--color-hero-ink);
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -20,7 +20,7 @@
   font-size: 0.66rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #d9e2b7;
+  color: var(--color-hero-eyebrow);
   margin-bottom: 1.2rem;
 }
 .hero h1 {
@@ -32,20 +32,20 @@
 }
 .hero-description {
   max-width: 340px;
-  color: #e4edd7;
+  color: var(--color-hero-muted);
   font-size: 0.85rem;
   line-height: 1.7;
   margin: 1.1rem 0 1.5rem;
 }
 .hero-button {
-  background: #efcf63;
-  color: #153c2d;
+  background: var(--color-gold);
+  color: var(--color-on-gold);
 }
 .stadium {
   position: absolute;
-  width: 64%;
+  width: 58%;
   max-width: none;
-  right: -6%;
+  right: 0;
   bottom: -4%;
   z-index: 1;
 }
