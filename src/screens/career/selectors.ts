@@ -88,6 +88,21 @@ export function seasonLine(career: Career, season: number): SeasonLine {
     }
   );
 }
+/** A season's league matches only, wherever the player played them (regular-season fixtures). */
+export function leagueSeasonLine(
+  world: World,
+  career: Career,
+  season: number,
+): { apps: number; goals: number; assists: number } {
+  const matches = career.matches.filter(
+    (match) => match.season === season && Boolean(world.leagues[match.competitionId]),
+  );
+  return {
+    apps: matches.length,
+    goals: matches.reduce((sum, match) => sum + match.goals, 0),
+    assists: matches.reduce((sum, match) => sum + match.assists, 0),
+  };
+}
 export function recentForm(career: Career, count = 5): CareerMatchRecord[] {
   return career.matches.slice(-count);
 }

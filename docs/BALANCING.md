@@ -154,6 +154,7 @@ All constants are in `CONFIG.career`; the logic is in `src/engine/career/`.
 - Match XP is the report's performance XP (`minutes × 1.2 + max(0, rating − 6) × 25 + goals × 30 + assists × 20 + objectives × 15`), multiplied by:
   - opposition: `clamp(1 + (opponent reputation − own reputation) × 0.01, 0.8, 1.3)`;
   - importance: league 1, promotion/survival phase 1.1, cup 1.15, playoff tie 1.25, final 1.5.
+- Extra time after an interactive 90 minutes is simulated with the background rule, using only the players on the pitch at 90 minutes; each of them plays 30 extra minutes, and a player already substituted takes no part. The career player's simulated extra-time goals and assists count in their record, statistics, contract bonuses and objectives, add the match engine's goal and assist rating credit (+0.6 each, within 3–10, rounded to 0.1) and enter performance XP and fame through the same formulas, with 30 more minutes. Penalties decide the winner and are never goals. The match report shows these finalized values.
 - Going from level n to n + 1 needs `round(300 × 1.06^(n − 1))` XP, up to level 99.
 - Each level grants 8 attribute points and 1 skill point.
 - Auto-played seasons in Node reached about level 11 in a first season (about 39 appearances).
@@ -511,13 +512,17 @@ Constants live in `CONFIG.world.continental` and `CONFIG.career.honours`.
 
 - Award score: `10 × average rating + 1.5 × goals + 1 × assists`. For the month: `10 × average rating + 0.6 × goals + 0.4 × assists`.
 - Minimum appearances: 2 for a month, 10 for a season. A month is five weeks. Young player: 21 or under.
+- Scope (Phase 1.3): player of the month, the Golden Boot, MVP and team of the season count only matches in the career player's league, read from its current-season competition lines. A player who left the league keeps what they earned there; one who joined brings nothing from elsewhere; minimum appearances are league appearances. The young player award, the Golden Ball and the season-goals record count all club competitions. Internationals count in none of them. Second-phase league tables (promotion or survival phases) and play-off ties are separate competitions and do not count for league awards.
+- Season statistics: one line per competition, club and player of appearances, minutes (extra time included), goals, assists, clean sheets and rating total. A full national season holds about 27,000 lines (about 1 MB of a 55 MB world); they are cleared at rollover, so awards, records and career match records are the lasting history. A world saved before Phase 1.3 keeps the earlier all-competition baselines for the rest of that season and starts complete statistics at its next season.
 - Golden Ball bonuses: league champion +10, top four +5 (top division only); continental winner +10 or finalist +5 (half for the Shield); international tournament winner +8.
 - Fame: player of the month +3; season awards +6; Golden Ball +25; Golden Ball shortlist without winning +5.
+
+**Club trophies (Phase 1.4).** A title is decided when a league's fixtures are complete, its country's regular season is over (national worlds create deciders such as Italy's level-points ties only then) and no championship tie between its clubs is open, when a cup's final is played, or (Portugal's Liga 3 and Campeonato) when the deciding promotion league or final ends. The career player earns the trophy the week it is decided if they made a competitive appearance for the winning club in that campaign: the league, the cup, or every phase of a multi-phase division. Moving away afterwards keeps it; joining the winners afterwards, or never playing for them, earns nothing. Each title is recorded once. A world without complete season statistics keeps the earlier rule (titles won by the player's club at season end) for the rest of that season.
 
 **Retirement and legacy.**
 
 - Retirement is optional from 32 once the season is complete, and forced at 40.
-- Hall of Fame score: `0.5 × appearances + 2 × goals + 1 × assists + 1 × caps + 15 × trophies + 10 × awards + 40 × Golden Balls`. Players without a legacy are scored on their club numbers. Rank is among all active, retired and archived players.
+- Hall of Fame score: `0.5 × appearances + 2 × goals + 1 × assists + 1 × caps + 15 × trophies + 10 × awards + 40 × Golden Balls`. Players without a legacy are scored on their club numbers; a former career player is compared by their legacy's saved score, which includes honours. Rank is among all active, retired and archived players, each counted once.
 - A child gets +3 potential, `min(30, round(0.1 × parent fame))` fame and 10% of the parent's savings.
 - A retired former teammate aged 34 or over takes a vacant manager's job with chance 0.4.
 

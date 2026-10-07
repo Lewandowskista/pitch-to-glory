@@ -89,6 +89,9 @@ const migrations: Readonly<Record<number, Migration>> = {
   11: (old) => ({ ...old, schemaVersion: 12, payload: withCareerHonours(old.payload) }),
   // Edits, audio and tutorial settings are optional additions; validation fills defaults.
   12: (old) => ({ ...old, schemaVersion: 13 }),
+  // v14 adds optional current-season competition statistics. Worlds saved before keep their
+  // award mode and start complete statistics at their next season; issued awards are kept.
+  13: (old) => ({ ...old, schemaVersion: 14 }),
 };
 /** Careers saved before milestone 8 gain their honours record and award baselines. */
 function withCareerHonours(payload: unknown): unknown {

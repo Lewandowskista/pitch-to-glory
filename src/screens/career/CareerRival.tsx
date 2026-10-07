@@ -166,6 +166,7 @@ function RivalContent({
             </tbody>
           </table>
         </div>
+        <p className="mt-3 text-xs text-muted">{s.rival.scope}</p>
       </section>
       <section aria-labelledby="h2h-heading" className={`${ui.panel} lg:col-span-5`}>
         <h2 id="h2h-heading" className={ui.heading}>

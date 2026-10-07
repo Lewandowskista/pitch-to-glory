@@ -33,7 +33,7 @@ export const ui = {
  * The loaded world, restoring a saved slot from the `save` URL parameter after a refresh,
  * exactly like the world and match screens.
  */
-export function useRestoredWorld(): { loading: boolean; error: string } {
+export function useRestoredWorld(): { loading: boolean; error: string; retry: () => void } {
   const world = useAppStore((s) => s.world);
   const job = useAppStore((s) => s.worldJob);
   const active = useAppStore((s) => s.activeSave);
@@ -41,6 +41,12 @@ export function useRestoredWorld(): { loading: boolean; error: string } {
   const attempted = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const retry = () => {
+    attempted.current = null;
+    setError('');
+    setAttempt((count) => count + 1);
+  };
   useEffect(() => {
     const slot = params.get('save');
     if (world && active?.payload.kind === 'world' && slot !== String(active.slot)) {
@@ -65,8 +71,24 @@ export function useRestoredWorld(): { loading: boolean; error: string } {
         .catch((cause: unknown) => setError(errorText(errorCode(cause))))
         .finally(() => setLoading(false));
     }
-  }, [world, active, job, params, setParams]);
-  return { loading: loading || Boolean(!world && params.get('save') && !error && !job), error };
+  }, [world, active, job, params, setParams, attempt]);
+  return {
+    loading: loading || Boolean(!world && params.get('save') && !error && !job),
+    error,
+    retry,
+  };
+}
+
+/** `path` carrying the loaded save slot, so refreshing the target restores the same world. */
+export function useSaveLink(): (path: string) => string {
+  const slot = useAppStore((s) => (s.activeSave?.payload.kind === 'world' ? s.activeSave.slot : 0));
+  return (path) => {
+    if (!slot) return path;
+    const [base, query] = path.split('?');
+    const params = new URLSearchParams(query);
+    params.set('save', String(slot));
+    return `${base}?${params.toString()}`;
+  };
 }
 
 /** Why career edits are blocked right now, if they are. */
@@ -382,6 +404,7 @@ export function CareerEmpty() {
 
 function NoCareerInWorld() {
   const legacy = useAppStore((s) => s.world?.legacies.at(-1));
+  const link = useSaveLink();
   if (legacy)
     return (
       <section className={`${ui.panel} flex flex-col gap-4 bg-art-green`}>
@@ -396,19 +419,19 @@ function NoCareerInWorld() {
           })}
         </p>
         <div className="flex flex-wrap gap-2">
-          <Link className="button" to="/career/legacy">
+          <Link className="button" to={link('/career/legacy')}>
             {honoursText.titles.legacy}
             <Icon name="arrow" />
           </Link>
           {!legacy.childPlayerId && (
             <Link
               className="button secondary"
-              to={`/career/new?parent=${encodeURIComponent(legacy.id)}`}
+              to={link(`/career/new?parent=${encodeURIComponent(legacy.id)}`)}
             >
               {format(honoursText.legacy.child, { name: legacy.name })}
             </Link>
           )}
-          <Link className="button secondary" to="/career/new">
+          <Link className="button secondary" to={link('/career/new')}>
             {honoursText.legacy.newCareer}
           </Link>
         </div>
@@ -419,7 +442,7 @@ function NoCareerInWorld() {
       <h2 className="font-display text-[2.2rem] leading-none">{c.empty.noWorldCareer}</h2>
       <p className="max-w-prose text-muted">{c.empty.noWorldCareerBody}</p>
       <div>
-        <Link className="button" to="/career/new">
+        <Link className="button" to={link('/career/new')}>
           {c.empty.start}
           <Icon name="arrow" />
         </Link>

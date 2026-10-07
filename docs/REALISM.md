@@ -81,6 +81,8 @@ Liga 3 starts with two groups of ten. Top four per group enter an eight-club hom
 
 Campeonato has four groups of 14. Top two per group enter two four-club home/away promotion leagues with points reset. Top two per promotion league go up; winners play a neutral single championship final. Initial 13th/14th go down; 11th/12th cross-pair with the adjacent group in two-leg survival ties, adding four departures: 12 total.
 
+Titles (Phase 1.4): first-phase group winners in Liga 3 and the Campeonato only qualify; history labels them as first-phase winners. The Liga 3 champion is the promotion-league winner (no final is modelled), and the Campeonato champion is the final's winner. Seasons archived before Phase 1.4 keep their stored group winners unchanged.
+
 Sources: [Liga Portugal 2026/27 regulations](https://www.ligaportugal.pt/backoffice/assets/20260701_RC_2026_27_f53785bcd4.pdf), [FPF Liga 3 2026/27 format](https://www.fpf.pt/DownloadDocument.ashx?id=32598), [FPF Campeonato 2026/27 format](https://www.fpf.pt/DownloadDocument.ashx?id=32599).
 
 ## Identities
@@ -144,6 +146,7 @@ Continental names are reserved for milestone 8: European Champions Cup, European
 - Generated feeder clubs replace departures below the simulated frontier. Departed identities/people persist; full feeder leagues, feeder fixtures and administrative licensing are not simulated.
 - Reserve-parent references restrict promotion and force demotion when a parent would share the reserve's level. France excludes reserves from professional tier three, Germany from promotion to tier two and Portugal from tier one. Eligibility and planned movements are resolved together.
 - No away-goals rule. Serializable ties store legs, aggregates, draw rule and winner; two-leg ties wait for both results. Country ranking follows distinct criteria: English tables use goal difference/goals scored; German professional tables then use head-to-head goal difference/away goals and total away goals; Bavaria prioritizes head-to-head. French professional tables use overall goal difference, head-to-head points/difference, goals scored, wins and away wins. Spanish two-club ties prioritize head-to-head goal difference, while multi-club ties use a head-to-head mini-table. Portugal uses head-to-head points/difference, overall goal difference, wins and goals scored. Final unresolved ties use a seeded lot; fair-play values are treated equally because disciplinary statistics are not simulated.
+- League awards count a league's regular-season fixtures only. Second phases and play-off ties are separate competitions in the season statistics, so they count towards all-competition totals (Golden Ball, young player) but not a league's Golden Boot, MVP or team of the season.
 - Completed tables, cup winners, actual movements and postseason summaries are archived. Current detailed fixtures/results are replaced on rollover; identities and historical references remain.
 
 ## Evidence boundary

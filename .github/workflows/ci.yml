@@ -9,6 +9,10 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# The public address (repository variable SITE_URL; empty means the default Pages address).
+# The build writes it into share tags and the release journey checks the build against it.
+env:
+  SITE_URL: ${{ vars.SITE_URL }}
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -55,13 +59,31 @@ jobs:
         with:
           name: browser-test-results-${{ matrix.browser }}
           path: test-results
+  # The release journey for a separately built custom domain (dist-custom, never the deployed
+  # dist), so the documented SITE_URL override keeps passing the gate.
+  custom-domain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:release:custom
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: custom-domain-results
+          path: test-results
   deploy:
-    needs: [verify, browsers]
+    needs: [verify, browsers, custom-domain]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://pitch-to-glory.pages.dev
+      url: ${{ vars.SITE_URL || 'https://pitch-to-glory.pages.dev' }}
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

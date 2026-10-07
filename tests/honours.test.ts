@@ -33,6 +33,8 @@ import {
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { validateNationalWorld } from '../src/persistence/nationalWorldSchema';
+import * as awards from '../src/engine/career/honours/awards';
+import { decidedTitles } from '../src/engine/world/titles';
 
 const H = CONFIG.career.honours;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
@@ -450,11 +452,142 @@ describe('persistence', () => {
         settings: DEFAULT_SETTINGS,
       },
     });
-    expect(migrated.schemaVersion).toBe(13);
+    expect(migrated.schemaVersion).toBe(14);
     const next = (migrated.payload as { world: World }).world;
     expect(next.career!.honours.caps).toEqual({ U19: 0, U21: 0, senior: 0 });
     expect(next.international!.nations.length).toBeGreaterThan(6);
     expect(next.awardState!.season).toBe(next.date.season);
     valid(next);
   });
+});
+
+describe('club trophies', () => {
+  const { recordCareerTrophies } = awards;
+  /** A legacy career world with one cup won by `winnerId`, decided this week. */
+  function cupWon(winnerId: string) {
+    const world = clone(career);
+    const cup = Object.values(world.competitions)[0]!;
+    cup.winnerId = winnerId;
+    return { world, cup };
+  }
+  const appear = (world: World, competitionId: string, clubId: string, playerId: string) => {
+    const lines = (world.seasonStats!.competitions[competitionId] ??= {});
+    (lines[clubId] ??= {})[playerId] = [1, 90, 0, 0, 0, 7];
+  };
+  function move(world: World, clubId: string) {
+    const player = world.players[world.career!.playerId]!;
+    const from = world.clubs[player.clubId!]!;
+    from.playerIds = from.playerIds.filter((id) => id !== player.id);
+    world.clubs[clubId]!.playerIds.push(player.id);
+    player.clubId = clubId;
+  }
+  const other = (world: World) =>
+    Object.values(world.clubs).find(
+      (club) => club.id !== world.players[world.career!.playerId]!.clubId,
+    )!.id;
+
+  it('awards a trophy earned before moving on, once', () => {
+    const own = career.players[career.career!.playerId]!.clubId!;
+    const { world, cup } = cupWon(own);
+    appear(world, cup.id, own, world.career!.playerId);
+    // Left before the final: the trophy still belongs to the campaign they played in.
+    move(world, other(world));
+    recordCareerTrophies(world);
+    recordCareerTrophies(world);
+    const trophies = world.trophies.filter((trophy) => trophy.competitionId === cup.id);
+    expect(trophies).toHaveLength(1);
+    expect(trophies[0]).toMatchObject({
+      clubId: own,
+      playerIds: [world.career!.playerId],
+      name: cup.name,
+      season: world.date.season,
+    });
+    // The award run at season end never adds it again.
+    awards.seasonAwards(world);
+    expect(world.trophies.filter((trophy) => trophy.competitionId === cup.id)).toHaveLength(1);
+  });
+
+  it('gives nothing for a zero-appearance signing or a move after the final', () => {
+    const own = career.players[career.career!.playerId]!.clubId!;
+    // Signed by the winners but never played for them in the cup.
+    const unused = cupWon(own);
+    recordCareerTrophies(unused.world);
+    expect(unused.world.trophies).toHaveLength(0);
+    // Joined the winners after they won it.
+    const winner = other(career);
+    const late = cupWon(winner);
+    appear(late.world, late.cup.id, own, late.world.career!.playerId);
+    move(late.world, winner);
+    recordCareerTrophies(late.world);
+    expect(late.world.trophies).toHaveLength(0);
+  });
+
+  it('records each title of a played season for the campaign the player appeared in', () => {
+    const titles = decidedTitles(season);
+    const playerId = season.career!.playerId;
+    const earned = titles.filter((title) =>
+      title.campaign.some(
+        (id) => (season.seasonStats!.competitions[id]?.[title.clubId]?.[playerId]?.[0] ?? 0) > 0,
+      ),
+    );
+    const recorded = season.trophies.filter((trophy) => trophy.season === season.date.season);
+    expect(recorded.map((trophy) => trophy.competitionId).sort()).toEqual(
+      earned.map((title) => title.competitionId).sort(),
+    );
+  });
+});
+
+describe('Hall of Fame comparisons', () => {
+  /** Every person once: a legacy by its saved score, everyone else by club numbers. */
+  function expectedRank(world: World, score: number, excludeId: string) {
+    const scores = new Map<string, number>();
+    for (const legacy of world.legacies) scores.set(legacy.playerId, legacy.hallOfFame.score);
+    for (const player of Object.values(world.players))
+      if (!scores.has(player.id)) scores.set(player.id, hallOfFameScore(player.stats));
+    for (const [id, record] of Object.entries(world.archive?.players ?? {}))
+      if (!scores.has(id)) scores.set(id, hallOfFameScore(record.stats));
+    scores.delete(excludeId);
+    return {
+      rank: 1 + [...scores.values()].filter((value) => value > score).length,
+      of: scores.size + 1,
+    };
+  }
+
+  it('compares a retained former career by its saved legacy score', () => {
+    const world = applyHonoursAction(aged(season, 34), { type: 'retire' });
+    const legacy = world.legacies.at(-1)!;
+    // The retired player stays in the world; their club numbers alone are far lower.
+    expect(world.players[legacy.playerId]).toBeDefined();
+    legacy.hallOfFame.score = 10000;
+    expect(hallOfFameScore(world.players[legacy.playerId]!.stats)).toBeLessThan(1000);
+    const newcomer = Object.keys(world.players).find((id) => id !== legacy.playerId)!;
+    const ranked = hallOfFameRank(world, 1000, newcomer);
+    expect(ranked).toEqual(expectedRank(world, 1000, newcomer));
+    legacy.hallOfFame.score = 0;
+    expect(hallOfFameRank(world, 1000, newcomer).rank).toBe(ranked.rank - 1);
+  });
+
+  it('ranks two retired generations by the same criteria, each person once', () => {
+    const parentWorld = applyHonoursAction(aged(season, 34), { type: 'retire' });
+    const parent = parentWorld.legacies.at(-1)!;
+    const trial = trialOffers(parentWorld, 'country:0', 'honours-generations')[0]!;
+    const childWorld = createCareer(
+      parentWorld,
+      { ...draft, name: 'Sam Vale', parentLegacyId: parent.id },
+      trial.id,
+      'honours-generations',
+    );
+    const world = applyHonoursAction(aged(childWorld, 34), { type: 'retire' });
+    const child = world.legacies.at(-1)!;
+    expect(world.legacies.map((legacy) => legacy.playerId)).toEqual([
+      parent.playerId,
+      child.playerId,
+    ]);
+    expect(child.hallOfFame).toMatchObject(
+      expectedRank(world, child.hallOfFame.score, child.playerId),
+    );
+    // The parent, still in the world, counts once at their saved score.
+    expect(parent.hallOfFame.score).toBeGreaterThan(child.hallOfFame.score);
+    valid(world);
+  }, 120000);
 });

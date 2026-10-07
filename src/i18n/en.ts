@@ -430,6 +430,10 @@ export const en = {
     promotion: 'Promotion',
     relegation: 'Relegation',
     champions: 'Champions',
+    groupWinner: 'First-phase winner',
+    divisionChampion: 'Division champions',
+    groupWinnerNote:
+      'This group only qualifies clubs for the next phase; the division title is decided there.',
     legend:
       'Three points for a win. Ranked by points, goal difference, goals scored, then club ID.',
     fullStats: 'Show all statistics',

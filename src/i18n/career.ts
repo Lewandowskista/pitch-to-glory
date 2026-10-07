@@ -83,6 +83,11 @@ export const careerText = {
       'Six steps from a name to your first contract. Every choice can be revisited before you sign.',
     progress: 'Step {step} of {total}',
     progressLabel: 'Career creation progress',
+    restoring: 'Opening your saved world…',
+    restoreFailed: 'Your saved world could not be opened',
+    restoreFailedBody:
+      'This career continues the world in save slot {slot}. Nothing has been replaced; try again once the slot is available.',
+    restoreRetry: 'Try again',
     steps: {
       identity: 'Identity',
       appearance: 'Appearance',
@@ -256,6 +261,8 @@ export const careerText = {
     results: { win: 'W', draw: 'D', loss: 'L' },
     resultNames: { win: 'Win', draw: 'Draw', loss: 'Loss' },
     season: 'Season {season}',
+    scope: 'All club competitions',
+    leagueLine: 'In the league: {goals} goals and {assists} assists in {apps} games',
     stats: {
       apps: 'Appearances',
       goals: 'Goals',
@@ -328,7 +335,7 @@ export const careerText = {
     roles: { key: 'Key player', rotation: 'Rotation', backup: 'Backup', youth: 'Youth' },
     history: 'Match history',
     historyEmpty: 'Your competitive matches will be listed here.',
-    seasons: 'Seasons',
+    seasons: 'Seasons · all club competitions',
     columns: {
       season: 'Season',
       week: 'Week',
@@ -620,5 +627,14 @@ export const careerText = {
     previewNote:
       'A competitive fixture. The result counts in the table and earns XP for your career.',
     lastRecorded: 'Last recorded result',
+    finalTitle: 'Final result',
+    finalScore: '{own}–{opposition}',
+    afterExtraTime: 'After extra time. You played 90 minutes; the 30 that followed were simulated.',
+    extraTimeScore: 'Extra time {own}–{opposition}',
+    penaltiesWon: 'Won {own}–{opposition} on penalties',
+    penaltiesLost: 'Lost {own}–{opposition} on penalties',
+    extraTimeYou: 'Your extra time: {minutes} minutes · {goals} goals · {assists} assists',
+    extraTimeRating: 'Extra-time goals and assists (simulated)',
+    extraTimeOff: 'You had already been substituted, so you took no part in extra time.',
   },
 } as const;

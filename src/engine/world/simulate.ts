@@ -1,13 +1,6 @@
-import type {
-  BackgroundResult,
-  Club,
-  Fixture,
-  Player,
-  SeasonSummary,
-  World,
-} from '../../model/domain';
+import type { Club, Player, SeasonSummary, World } from '../../model/domain';
 import { CONFIG } from '../config';
-import { createRng, restoreRng, type Rng } from '../rng';
+import { restoreRng, type Rng } from '../rng';
 import { developWeek, recalibratePotential } from '../ageing';
 import { generateManager } from './generate';
 import { addCupRound, createLeagueFixtures, emptyStanding, sortStandings } from './schedule';
@@ -16,14 +9,16 @@ import { resolvePostseasonTie } from './postseason';
 import { getSeasonWeeks } from './calendar';
 import { rankStandings } from './ranking';
 import { resetNationalSeason } from './movement';
-import {
-  advanceContinental,
-  isContinental,
-  isKnockoutFixture,
-  startContinental,
-} from './continental';
+import { advanceContinental, isContinental, startContinental } from './continental';
 import { recordEvent as event } from './events';
-import { expectedGoals, selectStartingPlayers, teamStrength } from '../strength';
+import { startSeasonStatistics } from './statistics';
+import { decidedTitles, QUALIFYING_DIVISIONS } from './titles';
+import {
+  applyFinalizedFixture,
+  finalizeFixture,
+  type FinalizedFixture,
+  type PlayedFixture,
+} from './finalize';
 import { careerWeek, refreshMentor } from '../career/training';
 import { pendingCareerFixture } from '../career/fixtures';
 import { benchedCareerFixtures, marketRollover, marketWeek } from '../career/market/week';
@@ -34,6 +29,7 @@ import {
   honoursRollover,
   honoursSeasonEnd,
   honoursWeek,
+  recordCareerTrophies,
   startAwardSeason,
 } from '../career/honours/week';
 import { chronicle } from '../career/honours/chronicle';
@@ -52,74 +48,20 @@ const BACKGROUND = CONFIG.world.background;
 const clampPercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 const money = (value: number): number => Math.max(0, Math.round(value));
 
-function poisson(rng: Rng, mean: number): number {
-  const stop = Math.exp(-mean);
-  let product = 1;
-  let count = 0;
-  do {
-    product *= rng.next();
-    count++;
-  } while (product > stop && count <= CONFIG.world.maxGoals);
-  return Math.min(CONFIG.world.maxGoals, count - 1);
-}
-/** The background XI: available squad members, best by ability within each line. */
-function startingPlayers(world: World, club: Club, benched?: string): Player[] {
-  return selectStartingPlayers(
-    club.playerIds.filter((id) => id !== benched).map((id) => world.players[id]!),
-  );
-}
-function scoreGoals(
-  players: Player[],
-  teamId: string,
-  count: number,
-  rng: Rng,
-): BackgroundResult['goals'] {
-  const weights = players.map((player) =>
-    player.primaryPosition === 'GK'
-      ? BACKGROUND.scorerWeights.GK
-      : player.primaryPosition === 'ST'
-        ? BACKGROUND.scorerWeights.ST
-        : ['LW', 'RW', 'AM'].includes(player.primaryPosition)
-          ? BACKGROUND.scorerWeights.winger
-          : ['CM', 'DM'].includes(player.primaryPosition)
-            ? BACKGROUND.scorerWeights.midfield
-            : BACKGROUND.scorerWeights.defender,
-  );
-  const sum = weights.reduce((total, weight) => total + weight, 0);
-  return Array.from({ length: count }, () => {
-    let target = rng.next() * sum;
-    let scorer = players[players.length - 1]!;
-    for (let index = 0; index < players.length; index++) {
-      target -= weights[index]!;
-      if (target < 0) {
-        scorer = players[index]!;
-        break;
-      }
-    }
-    scorer.stats.goals++;
-    if (rng.next() < BACKGROUND.assistedGoalChance)
-      rng.pick(
-        players.filter((player) => player.id !== scorer.id && player.primaryPosition !== 'GK'),
-      ).stats.assists++;
-    return { playerId: scorer.id, teamId, minute: rng.int(1, 90) };
-  });
-}
-/** A fixture played interactively, committed through the same resolver as background games. */
-export interface PlayedFixture {
-  /** Regulation score, home first. Extra time and penalties are added here if required. */
-  score: [number, number];
-  /** Regulation goals; a missing assist is assigned the way background goals are. */
-  goals: { playerId: string; teamId: string; minute: number; assistId?: string }[];
-  /** Minutes played by everyone who appeared, per side. */
-  minutes: { home: Record<string, number>; away: Record<string, number> };
-  /** Interactive ratings (the career player); others use the background rating. */
-  ratings: Record<string, number>;
-}
-/** Record a played fixture's result exactly once, through the shared resolver. */
-export function commitPlayedFixture(world: World, fixtureId: string, played: PlayedFixture): void {
+export type { PlayedFixture } from './finalize';
+/**
+ * Record a played fixture's result exactly once, through the shared resolver, and return the
+ * finalized outcome the career record is derived from.
+ */
+export function commitPlayedFixture(
+  world: World,
+  fixtureId: string,
+  played: PlayedFixture,
+): FinalizedFixture {
   const fixture = world.fixtures[fixtureId];
   if (!fixture || world.results[fixtureId]) throw new Error('Fixture already resolved');
-  resolveFixture(world, fixture, played);
+  const final = finalizeFixture(world, fixture, played);
+  applyFinalizedFixture(world, final);
   // Settle what the result decides immediately (tie aggregates, a cup final's winner), so the
   // committed world is consistent before the rest of the week is simulated.
   const tie = fixture.tieId ? world.pyramid?.ties[fixture.tieId] : undefined;
@@ -134,187 +76,7 @@ export function commitPlayedFixture(world: World, fixtureId: string, played: Pla
       world.format === 'national-v1'
         ? rankStandings(world, league.standings, league.fixtureIds)
         : sortStandings(league.standings);
-}
-function resolveFixture(
-  world: World,
-  fixture: Fixture,
-  played?: PlayedFixture,
-  benched?: string,
-): void {
-  const rng = createRng(`${world.seed}:result:${fixture.id}`);
-  const home = world.clubs[fixture.homeId]!;
-  const away = world.clubs[fixture.awayId]!;
-  const appeared = (side: Record<string, number>) =>
-    Object.keys(side).map((id) => world.players[id]!);
-  const homePlayers = played
-    ? appeared(played.minutes.home)
-    : startingPlayers(world, home, benched);
-  const awayPlayers = played
-    ? appeared(played.minutes.away)
-    : startingPlayers(world, away, benched);
-  // Shared with the interactive match engine so played and simulated fixtures agree.
-  const homeStrength = teamStrength(home.reputation, homePlayers);
-  const awayStrength = teamStrength(away.reputation, awayPlayers);
-  const difference = (homeStrength - awayStrength) * CONFIG.world.strengthScale;
-  const [homeGoals, awayGoals] = expectedGoals(
-    homeStrength,
-    awayStrength,
-    Boolean(fixture.neutral),
-  );
-  const score: [number, number] = played
-    ? [...played.score]
-    : [poisson(rng, homeGoals), poisson(rng, awayGoals)];
-  const regulation: [number, number] = [...score];
-  let winnerId = score[0] === score[1] ? null : score[0] > score[1] ? home.id : away.id;
-  let penalties: [number, number] | null = null;
-  let extraTime: [number, number] | undefined;
-  const tie = fixture.tieId ? world.pyramid!.ties[fixture.tieId] : undefined;
-  if (tie && fixture.id === tie.fixtureIds.at(-1)) {
-    const aggregate: [number, number] = [0, 0];
-    for (const id of tie.fixtureIds) {
-      const previousFixture = world.fixtures[id]!;
-      const resultScore = id === fixture.id ? score : world.results[id]?.score;
-      if (!resultScore) throw new Error('A tie cannot resolve before its first leg');
-      const homeIndex = tie.clubIds.indexOf(previousFixture.homeId) as 0 | 1;
-      aggregate[homeIndex] += resultScore[0];
-      aggregate[(1 - homeIndex) as 0 | 1] += resultScore[1];
-    }
-    if (aggregate[0] === aggregate[1] && tie.drawRule !== 'higher-rank') {
-      if (tie.drawRule !== 'penalties') {
-        extraTime = [
-          poisson(
-            rng,
-            Math.max(BACKGROUND.minimumGoals, CONFIG.world.baseGoals / 3 + difference / 3),
-          ),
-          poisson(
-            rng,
-            Math.max(BACKGROUND.minimumGoals, CONFIG.world.baseGoals / 3 - difference / 3),
-          ),
-        ];
-        score[0] += extraTime[0];
-        score[1] += extraTime[1];
-        const homeIndex = tie.clubIds.indexOf(home.id) as 0 | 1;
-        aggregate[homeIndex] += extraTime[0];
-        aggregate[(1 - homeIndex) as 0 | 1] += extraTime[1];
-      }
-      if (aggregate[0] === aggregate[1] && tie.drawRule !== 'higher-rank-after-extra-time') {
-        const homeWins = rng.next() < BACKGROUND.penaltyWinnerChance;
-        const loserScore = rng.int(...BACKGROUND.penaltyLoserGoals);
-        penalties = homeWins ? [loserScore + 1, loserScore] : [loserScore, loserScore + 1];
-        winnerId = homeWins ? home.id : away.id;
-      } else winnerId = score[0] === score[1] ? null : score[0] > score[1] ? home.id : away.id;
-    }
-  }
-  if (!winnerId && isKnockoutFixture(world, fixture)) {
-    const homeWins = rng.next() < BACKGROUND.penaltyWinnerChance;
-    const loserScore = rng.int(...BACKGROUND.penaltyLoserGoals);
-    penalties = homeWins ? [loserScore + 1, loserScore] : [loserScore, loserScore + 1];
-    winnerId = homeWins ? home.id : away.id;
-  }
-  const goals = (
-    played
-      ? [
-          ...played.goals.map((goal) => {
-            const side = goal.teamId === home.id ? homePlayers : awayPlayers;
-            world.players[goal.playerId]!.stats.goals++;
-            const assister =
-              goal.assistId ??
-              (rng.next() < BACKGROUND.assistedGoalChance
-                ? rng.pick(side.filter((p) => p.id !== goal.playerId && p.primaryPosition !== 'GK'))
-                    .id
-                : undefined);
-            if (assister) world.players[assister]!.stats.assists++;
-            return { playerId: goal.playerId, teamId: goal.teamId, minute: goal.minute };
-          }),
-          // Extra-time goals after an interactive 90 minutes use the background scorers.
-          ...scoreGoals(homePlayers, home.id, score[0] - regulation[0], rng).map((goal) => ({
-            ...goal,
-            minute: 90 + Math.ceil(goal.minute / 3),
-          })),
-          ...scoreGoals(awayPlayers, away.id, score[1] - regulation[1], rng).map((goal) => ({
-            ...goal,
-            minute: 90 + Math.ceil(goal.minute / 3),
-          })),
-        ]
-      : [
-          ...scoreGoals(homePlayers, home.id, score[0], rng),
-          ...scoreGoals(awayPlayers, away.id, score[1], rng),
-        ]
-  ).sort((a, b) => a.minute - b.minute);
-  world.results[fixture.id] = {
-    fixtureId: fixture.id,
-    score,
-    winnerId,
-    penalties,
-    goals,
-    ...(extraTime ? { extraTime } : {}),
-  };
-  for (const [players, ownGoals, oppositionGoals, minutes] of [
-    [homePlayers, score[0], score[1], played?.minutes.home],
-    [awayPlayers, score[1], score[0], played?.minutes.away],
-  ] as const) {
-    for (const player of players) {
-      const played90 = minutes ? minutes[player.id]! : 90;
-      player.stats.appearances++;
-      player.stats.minutes += played90 + (extraTime && played90 >= 90 ? 30 : 0);
-      if (oppositionGoals === 0) player.stats.cleanSheets++;
-      const scored = goals.filter((goal) => goal.playerId === player.id).length;
-      const interactive = played?.ratings[player.id];
-      const background = Math.max(
-        BACKGROUND.minimumRating,
-        Math.min(
-          BACKGROUND.maximumRating,
-          BACKGROUND.ratingBase +
-            (ownGoals > oppositionGoals
-              ? BACKGROUND.ratingWin
-              : ownGoals < oppositionGoals
-                ? BACKGROUND.ratingLoss
-                : 0) +
-            scored * BACKGROUND.ratingGoal +
-            rng.next() * BACKGROUND.ratingVariation,
-        ),
-      );
-      const rating = interactive ?? background;
-      player.stats.ratingTotal = Math.round((player.stats.ratingTotal + rating) * 100) / 100;
-      player.form = clampPercent(
-        player.form * BACKGROUND.formRetention + rating * 10 * BACKGROUND.formRatingWeight,
-      );
-      player.morale = clampPercent(
-        player.morale +
-          (ownGoals > oppositionGoals
-            ? BACKGROUND.moraleResultDelta
-            : ownGoals < oppositionGoals
-              ? -BACKGROUND.moraleResultDelta
-              : 0),
-      );
-      player.fatigue = clampPercent(
-        player.fatigue + (BACKGROUND.matchFatigue * Math.max(played90, 1)) / 90,
-      );
-    }
-  }
-  const league = fixture.phaseId
-    ? world.pyramid!.phases[fixture.phaseId]
-    : world.leagues[fixture.competitionId];
-  if (league) {
-    const homeRow = league.standings.find((row) => row.clubId === home.id)!;
-    const awayRow = league.standings.find((row) => row.clubId === away.id)!;
-    for (const [row, goalsFor, goalsAgainst] of [
-      [homeRow, score[0], score[1]],
-      [awayRow, score[1], score[0]],
-    ] as const) {
-      row.played++;
-      row.goalsFor += goalsFor;
-      row.goalsAgainst += goalsAgainst;
-      if (goalsFor > goalsAgainst) {
-        row.won++;
-        row.points += 3;
-      } else if (goalsFor < goalsAgainst) row.lost++;
-      else {
-        row.drawn++;
-        row.points++;
-      }
-    }
-  }
+  return final;
 }
 
 function developPlayers(world: World, rng: Rng): void {
@@ -518,10 +280,12 @@ function archiveSeason(world: World): void {
         : sortStandings(league.standings);
     summary.tables[league.id] = table.map((row) => ({ ...row }));
     summary.champions[league.id] = table[0]!.clubId;
-    event(world, 'trophy', [table[0]!.clubId, league.id], {
-      name: world.clubs[table[0]!.clubId]!.name,
-      competition: league.name,
-    });
+    // A qualifying group's winner is not a champion; its division's title is archived below.
+    if (!(league.divisionId && QUALIFYING_DIVISIONS[league.divisionId]))
+      event(world, 'trophy', [table[0]!.clubId, league.id], {
+        name: world.clubs[table[0]!.clubId]!.name,
+        competition: league.name,
+      });
     const country = world.countries[league.countryId]!;
     if (world.format !== 'national-v1' && league.promotionPlaces)
       for (const row of table.slice(0, league.promotionPlaces))
@@ -542,6 +306,17 @@ function archiveSeason(world: World): void {
     summary.movements = world.pyramid!.movements.map((movement) => ({ ...movement }));
     summary.phases = JSON.parse(JSON.stringify(world.pyramid!.phases)) as typeof summary.phases;
     summary.ties = JSON.parse(JSON.stringify(world.pyramid!.ties)) as typeof summary.ties;
+    for (const title of decidedTitles(world)) {
+      if (!title.divisionId) continue;
+      (summary.divisionChampions ??= {})[title.divisionId] = {
+        competitionId: title.competitionId,
+        clubId: title.clubId,
+      };
+      event(world, 'trophy', [title.clubId, title.competitionId], {
+        name: world.clubs[title.clubId]!.name,
+        competition: title.name,
+      });
+    }
   }
   for (const cup of Object.values(world.competitions))
     if (cup.winnerId) summary.cupWinners[cup.id] = cup.winnerId;
@@ -645,11 +420,14 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   const benched = benchedCareerFixtures(world);
   const benchedIds = new Set(benched.map((fixture) => fixture.id));
   for (const fixture of fixtures)
-    resolveFixture(
+    applyFinalizedFixture(
       world,
-      fixture,
-      undefined,
-      benchedIds.has(fixture.id) ? world.career!.playerId : undefined,
+      finalizeFixture(
+        world,
+        fixture,
+        undefined,
+        benchedIds.has(fixture.id) ? world.career!.playerId : undefined,
+      ),
     );
   for (const league of Object.values(world.leagues))
     league.standings =
@@ -659,6 +437,8 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   advanceCups(world);
   advanceContinental(world);
   if (world.format === 'national-v1') advanceNationalPyramid(world);
+  // Trophies are earned when each title is decided, before anyone moves this week.
+  if (world.career) recordCareerTrophies(world);
   developPlayers(world, rng);
   if (world.career) {
     careerWeek(world);
@@ -752,6 +532,8 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
     // milestone 8 gain their continental cups here, at their next season.
     startContinental(world, true);
   }
+  // A new season of competition statistics: worlds saved before Phase 1.3 start here.
+  startSeasonStatistics(world);
   // Award baselines once this season's league memberships are set.
   if (world.career) startAwardSeason(world);
   return world;

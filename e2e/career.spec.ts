@@ -1,6 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import { isBrowserNoise, skipTutorial } from './support';
 import { mkdir } from 'node:fs/promises';
+import { generateWorld } from '../src/engine/world/generate';
+import { createCareer, trialOffers } from '../src/engine/career/create';
+import { advanceCareerWeek } from '../src/engine/career/season';
+import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
+import type { SlotId } from '../src/model/domain';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
@@ -235,4 +240,86 @@ test('creates a career, plays matchdays, develops the player and restores the hu
       expect(overflow, `${name} overflows horizontally`).toBe(false);
     }
   }
+});
+
+/** A legacy-world career waiting at its first matchday, as an exported save file. */
+function matchdaySave(seed: string, name: string, slot: SlotId): string {
+  const base = generateWorld(seed, { format: 'legacy' });
+  const trial = trialOffers(base, 'country:0', seed)[0]!;
+  const world = createCareer(
+    base,
+    {
+      name,
+      avatar: {
+        face: 1,
+        skin: 2,
+        hair: 3,
+        hairColor: 4,
+        facialHair: 0,
+        eyebrows: 1,
+        eyes: 2,
+        accessory: 3,
+      },
+      nationalityId: 'country:0',
+      position: 'ST',
+      foot: 'left',
+      age: 17,
+      archetype: 'finisher',
+    },
+    trial.id,
+    seed,
+  );
+  while (!advanceCareerWeek(world, { inPlace: true }).pendingFixtureId);
+  return JSON.stringify(
+    createSave(slot, name, {
+      kind: 'world',
+      world,
+      gallery: { seed, generation: 0 },
+      settings: DEFAULT_SETTINGS,
+    }),
+  );
+}
+
+test('a finished match report never follows the player into another save', async ({
+  page,
+  browserName,
+}) => {
+  test.setTimeout(300000);
+  await page.goto('/saves');
+  for (const [index, name] of ['Robin Vale', 'Sam Okafor'].entries()) {
+    const slot = (index + 1) as SlotId;
+    await page
+      .locator('.slot-card')
+      .nth(index)
+      .getByLabel(`Import backup — Slot ${slot}`)
+      .setInputFiles({
+        name: `career-${slot}.json`,
+        mimeType: 'application/json',
+        buffer: Buffer.from(matchdaySave(`report-${slot}`, name, slot)),
+      });
+    await expect(page.locator('.slot-card').nth(index).getByRole('heading')).toHaveText(name);
+  }
+
+  // Finish slot 1's match: its report is shown from memory.
+  await page.goto('/match?save=1');
+  await playMatch(page);
+  await expect(page.getByTestId('career-xp')).toBeVisible({ timeout: 60000 });
+  // The recorded report shows the finalized result.
+  await expect(page.getByTestId('final-result')).toContainText('Final result');
+  if (browserName === 'chromium') {
+    await mkdir('artifacts', { recursive: true });
+    await page.screenshot({ path: 'artifacts/career-report.png', fullPage: true });
+  }
+
+  // Load slot 2 in the same session; Matchday shows slot 2's own fixture, not that report.
+  const shell = page.getByRole('navigation').first();
+  await shell.getByRole('link', { name: 'Save collections' }).click();
+  await page.locator('.slot-card').nth(1).getByRole('button', { name: 'Load world' }).click();
+  await expect(page.locator('.notice')).toHaveText('Collection loaded.');
+  await expect(page.locator('.slot-card').nth(1)).toContainText('Sam Okafor');
+  await shell.getByRole('link', { name: 'Matchday' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  await expect(page.getByTestId('career-xp')).toHaveCount(0);
 });

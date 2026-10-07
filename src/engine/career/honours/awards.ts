@@ -1,15 +1,36 @@
-import type { Award, League, Player, RecordKind, StatLine, World } from '../../../model/domain';
+import type {
+  Award,
+  League,
+  Player,
+  RecordKind,
+  StatLine,
+  Trophy,
+  World,
+} from '../../../model/domain';
 import { CONFIG } from '../../config';
 import { CONTINENTAL_IDS } from '../../world/continental';
+import { decidedTitles } from '../../world/titles';
+import { trophyName } from './trophies';
 import { nextId, postMessage } from '../market/records';
 import { today } from '../market/rules';
 import { chronicle } from './chronicle';
+import {
+  allCompetitionTotals,
+  competitionTotals,
+  hasSeasonStatistics,
+  type StatTotals,
+} from '../../world/statistics';
 
 /**
  * Awards (AGENTS.md §8): player of the month and the season's league awards for the career
  * player's league, young player of the year for their country, and a global Golden Ball
- * with a ranked shortlist. Statistics come from baselines taken at the start of each
- * season and month, for the players awards can consider.
+ * with a ranked shortlist.
+ *
+ * With complete season statistics (Phase 1.3), league awards count only that league's
+ * matches, wherever the player is now, while the young player award, the Golden Ball and the
+ * records count all club competitions. Worlds saved before then keep the earlier mode for the
+ * rest of that season: baselines of all-competition totals taken at the start of each season
+ * and month, for the players awards can consider.
  */
 const A = CONFIG.career.honours.awards;
 const line = (player: Player): StatLine => [
@@ -34,6 +55,31 @@ function since(player: Player, base: StatLine | undefined): Line {
     assists: assists - s,
     rating: played ? (total - t) / played : 0,
   };
+}
+const fromTotals = (t: StatTotals | undefined): Line =>
+  t
+    ? {
+        apps: t.apps,
+        goals: t.goals,
+        assists: t.assists,
+        rating: t.apps ? t.ratingTotal / t.apps : 0,
+      }
+    : { apps: 0, goals: 0, assists: 0, rating: 0 };
+const totalsLine = (t: StatTotals): StatLine => [t.apps, t.goals, t.assists, t.ratingTotal];
+/** A league's players by their totals in it, including those who have since left. */
+function leagueEntries(world: World, league: League): { player: Player; line: Line }[] {
+  return [...competitionTotals(world, league.id)].flatMap(([id, totals]) => {
+    const player = world.players[id];
+    return player ? [{ player, line: fromTotals(totals) }] : [];
+  });
+}
+/** Month baselines: league totals in competition mode, all-competition totals before it. */
+function monthBaselines(world: World, league: League): Record<string, StatLine> {
+  const start: Record<string, StatLine> = {};
+  if (hasSeasonStatistics(world))
+    for (const [id, totals] of competitionTotals(world, league.id)) start[id] = totalsLine(totals);
+  else for (const player of leaguePlayers(world, league)) start[player.id] = line(player);
+  return start;
 }
 const score = (l: Line) =>
   l.rating * A.score.rating + l.goals * A.score.goal + l.assists * A.score.assist;
@@ -64,18 +110,18 @@ function candidates(world: World): Player[] {
 
 /** Take the season and month baselines; called at career start and each new season. */
 export function startAwardSeason(world: World): void {
+  // Complete season statistics need no season baselines.
   const seasonStart: Record<string, StatLine> = {};
-  for (const player of candidates(world)) seasonStart[player.id] = line(player);
+  if (!hasSeasonStatistics(world))
+    for (const player of candidates(world)) seasonStart[player.id] = line(player);
   const league = careerLeague(world);
-  const monthStart: Record<string, StatLine> = {};
-  if (league)
-    for (const player of leaguePlayers(world, league)) monthStart[player.id] = line(player);
+  const monthStart = league ? monthBaselines(world, league) : {};
   world.awardState = { season: world.date.season, seasonStart, month: 1, monthStart };
 }
 /** A player who joins the tracked leagues mid-season starts from their current numbers. */
 export function trackPlayers(world: World, players: Player[]): void {
   const state = world.awardState;
-  if (!state) return;
+  if (!state || hasSeasonStatistics(world)) return;
   for (const player of players) {
     state.seasonStart[player.id] ??= line(player);
     state.monthStart[player.id] ??= line(player);
@@ -108,9 +154,32 @@ export function monthlyAward(world: World): void {
   const state = world.awardState;
   const league = world.career ? careerLeague(world) : undefined;
   if (!state || !league || world.date.week % A.monthWeeks !== 0) return;
+  const competition = hasSeasonStatistics(world);
   trackPlayers(world, leaguePlayers(world, league));
-  const ranked = leaguePlayers(world, league)
-    .map((player) => ({ player, line: since(player, state.monthStart[player.id]) }))
+  const zero: StatLine = [0, 0, 0, 0];
+  const entries = competition
+    ? [...competitionTotals(world, league.id)].flatMap(([id, totals]) => {
+        const player = world.players[id];
+        if (!player) return [];
+        const [apps, goals, assists, rating] = state.monthStart[id] ?? zero;
+        const played = totals.apps - apps;
+        return [
+          {
+            player,
+            line: {
+              apps: played,
+              goals: totals.goals - goals,
+              assists: totals.assists - assists,
+              rating: played ? (totals.ratingTotal - rating) / played : 0,
+            },
+          },
+        ];
+      })
+    : leaguePlayers(world, league).map((player) => ({
+        player,
+        line: since(player, state.monthStart[player.id]),
+      }));
+  const ranked = entries
     .filter((entry) => entry.line.apps >= A.monthMinimumApps)
     .map((entry) => ({
       ...entry,
@@ -133,8 +202,7 @@ export function monthlyAward(world: World): void {
     celebrate(world, award, A.fame.month);
   }
   state.month++;
-  state.monthStart = {};
-  for (const player of leaguePlayers(world, league)) state.monthStart[player.id] = line(player);
+  state.monthStart = monthBaselines(world, league);
 }
 
 const LINES: Record<string, 'GK' | 'DEF' | 'MID' | 'ATT'> = {
@@ -150,8 +218,48 @@ const LINES: Record<string, 'GK' | 'DEF' | 'MID' | 'ATT'> = {
   ST: 'ATT',
 };
 
-/** Club trophies won this season while the career player was at the club. */
+function addTrophy(world: World, trophy: Trophy): void {
+  world.trophies.push(trophy);
+  const competition = trophyName(world, trophy);
+  chronicle(world, 'trophy', { competition, club: world.clubs[trophy.clubId]!.name });
+  postMessage(world, 'trophy', { competition });
+}
+
+/**
+ * Club trophies (Phase 1.4), recorded as each title is decided: the career player earns one
+ * for a competitive appearance for the winning club in the winning campaign, wherever they
+ * play when it is decided or at the end of the season. Joining afterwards earns nothing. Each
+ * title is recorded once, so a repeated week or award run cannot duplicate it.
+ */
+export function recordCareerTrophies(world: World): void {
+  const career = world.career;
+  const stats = world.seasonStats;
+  if (!career || !stats || !hasSeasonStatistics(world)) return;
+  for (const title of decidedTitles(world)) {
+    const id = `trophy:${world.date.season}:${title.competitionId}`;
+    if (world.trophies.some((trophy) => trophy.id === id)) continue;
+    const played = title.campaign.some(
+      (competitionId) =>
+        (stats.competitions[competitionId]?.[title.clubId]?.[career.playerId]?.[0] ?? 0) > 0,
+    );
+    if (!played) continue;
+    addTrophy(world, {
+      id,
+      competitionId: title.competitionId,
+      season: world.date.season,
+      clubId: title.clubId,
+      playerIds: [career.playerId],
+      name: title.name,
+    });
+  }
+}
+
+/**
+ * Club trophies for a world saved before Phase 1.4, for the rest of that season: titles won
+ * by the career player's club at the end of the season.
+ */
 function clubTrophies(world: World): void {
+  if (hasSeasonStatistics(world)) return;
   const career = world.career!;
   const player = world.players[career.playerId]!;
   const summary = world.history.at(-1);
@@ -165,19 +273,13 @@ function clubTrophies(world: World): void {
   for (const [competitionId] of won) {
     const id = `trophy:${world.date.season}:${competitionId}`;
     if (world.trophies.some((trophy) => trophy.id === id)) continue;
-    world.trophies.push({
+    addTrophy(world, {
       id,
       competitionId,
       season: world.date.season,
       clubId: player.clubId,
       playerIds: [player.id],
     });
-    const name =
-      world.leagues[competitionId]?.name ??
-      world.competitions[competitionId]?.name ??
-      competitionId;
-    chronicle(world, 'trophy', { competition: name, club: world.clubs[player.clubId]!.name });
-    postMessage(world, 'trophy', { competition: name });
   }
 }
 
@@ -213,9 +315,10 @@ export function seasonAwards(world: World): void {
   if (!state || !career) return;
   clubTrophies(world);
   const season = world.date.season;
+  const totals = hasSeasonStatistics(world) ? allCompetitionTotals(world) : null;
   const all = candidates(world).map((player) => ({
     player,
-    line: since(player, state.seasonStart[player.id]),
+    line: totals ? fromTotals(totals.get(player.id)) : since(player, state.seasonStart[player.id]),
   }));
   const qualified = all.filter((entry) => entry.line.apps >= A.seasonMinimumApps);
   const league = careerLeague(world);
@@ -228,16 +331,16 @@ export function seasonAwards(world: World): void {
     return { rank: index + 1, tier };
   };
   if (league) {
-    const inLeague = (entry: (typeof all)[number]) =>
-      league.clubIds.includes(entry.player.clubId ?? '');
-    const scorers = all
-      .filter(inLeague)
-      .sort(
-        (a, b) =>
-          b.line.goals - a.line.goals ||
-          b.line.rating - a.line.rating ||
-          (a.player.id < b.player.id ? -1 : 1),
-      );
+    // League awards: the league's own matches, or (before complete statistics) its members.
+    const members = totals
+      ? leagueEntries(world, league)
+      : all.filter((entry) => league.clubIds.includes(entry.player.clubId ?? ''));
+    const scorers = [...members].sort(
+      (a, b) =>
+        b.line.goals - a.line.goals ||
+        b.line.rating - a.line.rating ||
+        (a.player.id < b.player.id ? -1 : 1),
+    );
     if (scorers[0]?.line.goals)
       celebrate(
         world,
@@ -252,8 +355,8 @@ export function seasonAwards(world: World): void {
         }),
         A.fame.season,
       );
-    const mvp = qualified
-      .filter(inLeague)
+    const mvp = members
+      .filter((entry) => entry.line.apps >= A.seasonMinimumApps)
       .sort((a, b) => score(b.line) - score(a.line) || (a.player.id < b.player.id ? -1 : 1));
     if (mvp[0])
       celebrate(

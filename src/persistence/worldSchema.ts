@@ -22,6 +22,7 @@ import { validateMarket } from './marketValidation';
 import { validateSocial } from './socialValidation';
 import { validateLifestyle } from './lifestyleValidation';
 import { validateHonours } from './honoursValidation';
+import { validateSeasonStatistics } from './statisticsValidation';
 import { validateEdits } from './editsValidation';
 
 // This module validates imported data; it never imports the heavy generation/simulation code.
@@ -136,6 +137,7 @@ export function validateWorld(value: unknown): World {
   validateLifestyle(w);
   validateHonours(w);
   validateEdits(w);
+  validateSeasonStatistics(w);
   for (const cup of Object.values(competitions)) {
     text(cup.name);
     requireValue(
@@ -318,6 +320,7 @@ export function validateWorld(value: unknown): World {
       ref(key, leagues);
       ref(clubId, clubs);
     }
+    requireValue(summary.divisionChampions === undefined);
     requireValue(
       Object.keys(object(summary.champions)).length === 24 &&
         Object.keys(object(summary.cupWinners)).length === 6,
@@ -368,6 +371,7 @@ export function validateWorld(value: unknown): World {
     id(trophy.id);
     ref(trophy.clubId, clubs);
     number(trophy.season, 1800, Number(season.year), true);
+    if (trophy.name !== undefined) text(trophy.name);
     requireValue(
       Object.hasOwn(leagues, String(trophy.competitionId)) ||
         Object.hasOwn(competitions, String(trophy.competitionId)),

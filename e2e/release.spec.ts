@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { isBrowserNoise, skipTutorial } from './support';
+import { siteUrl } from '../site';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
@@ -14,11 +15,23 @@ test.afterEach(async ({ page }) => {
   expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 
-const SITE = 'https://pitch-to-glory.pages.dev';
+/**
+ * The address this build was configured with (`SITE_URL`, or the default), read from the
+ * configuration rather than from the page, so a build that ignored it would fail.
+ */
+const SITE = siteUrl();
 
 test('share tags point at absolute URLs and a real PNG card', async ({ page, request }) => {
   await page.goto('/');
   const meta = (selector: string) => page.locator(selector).getAttribute('content');
+  // Every absolute address on the page is the configured site.
+  const absolute = await page.evaluate(() =>
+    [...document.querySelectorAll('link[href], meta[content]')]
+      .map((node) => node.getAttribute('href') ?? node.getAttribute('content') ?? '')
+      .filter((value) => /^https?:\/\//.test(value)),
+  );
+  expect(absolute.length).toBeGreaterThanOrEqual(4);
+  for (const value of absolute) expect(value.startsWith(`${SITE}/`), value).toBe(true);
   expect(await meta('meta[property="og:image"]')).toBe(`${SITE}/share.png`);
   expect(await meta('meta[name="twitter:image"]')).toBe(`${SITE}/share.png`);
   expect(await meta('meta[property="og:url"]')).toBe(`${SITE}/`);

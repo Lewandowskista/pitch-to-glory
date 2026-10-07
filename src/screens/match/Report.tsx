@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { MatchSession } from '../../engine/match';
-import type { CareerMatchOutcome } from '../../engine/career/matches';
+import type { CareerMatchFinal, CareerMatchOutcome } from '../../engine/career/matches';
 import { CONFIG } from '../../engine/config';
 import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
 import { careerText as c } from '../../i18n/career';
@@ -70,6 +70,48 @@ function LevelUp({ outcome, reduced }: { outcome: CareerMatchOutcome; reduced: b
   );
 }
 
+/** The deciding result of a recorded career match: score, extra time and penalties. */
+function FinalResult({ final }: { final: CareerMatchFinal }) {
+  const pair = ([own, opposition]: [number, number]) => ({ own, opposition });
+  return (
+    <div className="mt-4 rounded-control bg-surface-soft p-4" data-testid="final-result">
+      <p className="text-xs font-bold uppercase tracking-wider text-muted">{c.report.finalTitle}</p>
+      <p className="font-display text-4xl leading-none">
+        {format(c.report.finalScore, pair(final.score))}
+      </p>
+      {final.extraTime && (
+        <>
+          <p className="mt-2 text-sm">{c.report.afterExtraTime}</p>
+          <p className="text-sm text-muted">
+            {format(c.report.extraTimeScore, pair(final.extraTime))}
+          </p>
+        </>
+      )}
+      {final.penalties && (
+        <p className="mt-1 text-sm font-semibold">
+          {format(
+            final.penalties[0] > final.penalties[1]
+              ? c.report.penaltiesWon
+              : c.report.penaltiesLost,
+            pair(final.penalties),
+          )}
+        </p>
+      )}
+      {final.extraTime && (
+        <p className="mt-1 text-sm">
+          {final.extraTimeMinutes
+            ? format(c.report.extraTimeYou, {
+                minutes: final.extraTimeMinutes,
+                goals: final.extraTimeGoals,
+                assists: final.extraTimeAssists,
+              })
+            : c.report.extraTimeOff}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function Report({
   session,
   onAgain,
@@ -86,8 +128,15 @@ export function Report({
   const systemReduced = useReducedMotion();
   const reduced = useAppStore((store) => store.settings.reducedMotion) || Boolean(systemReduced);
   const outcome = career?.outcome ?? null;
+  // A recorded career match reports its finalized values, simulated extra time included.
+  const final = outcome?.final;
+  const rating = final?.rating ?? report.rating;
+  const fame = final?.fame ?? report.fameDelta;
+  const performance = final?.xp ?? report.xp;
+  const objectives = final?.objectives ?? report.objectives;
+  const extraTimeRating = Math.round((rating - report.rating) * 100) / 100;
   const importance = setup.fixture?.importance ?? 1;
-  const opposition = outcome && report.xp ? outcome.record.xp / (report.xp * importance) : 1;
+  const opposition = outcome && performance ? outcome.record.xp / (performance * importance) : 1;
   return (
     <div className="match-report">
       <h2>{m.report}</h2>
@@ -102,7 +151,7 @@ export function Report({
           transition={{ duration: 0.4, delay: 0.1 }}
         >
           <div>
-            <strong>{report.rating.toFixed(1)}</strong>
+            <strong>{rating.toFixed(1)}</strong>
             <span>{m.rating}</span>
           </div>
           <div data-testid={outcome ? 'career-xp' : undefined}>
@@ -111,19 +160,20 @@ export function Report({
           </div>
           <div>
             <strong>
-              {report.fameDelta >= 0 ? '+' : ''}
-              {report.fameDelta}
+              {fame >= 0 ? '+' : ''}
+              {fame}
             </strong>
             <span>{m.fame}</span>
           </div>
         </motion.div>
         {!career ? (
           <p className="muted">{m.friendlyRewards}</p>
-        ) : outcome ? (
+        ) : outcome && final ? (
           <>
+            <FinalResult final={final} />
             <p className="muted">
               {format(c.report.breakdown, {
-                xp: report.xp,
+                xp: performance,
                 opposition: `×${opposition.toFixed(2)}`,
                 importance: `×${importance.toFixed(2)}`,
               })}
@@ -176,10 +226,19 @@ export function Report({
                 </strong>
               </li>
             ))}
+            {extraTimeRating !== 0 && (
+              <li>
+                <span>{c.report.extraTimeRating}</span>
+                <strong>
+                  {extraTimeRating >= 0 ? '+' : ''}
+                  {extraTimeRating.toFixed(2)}
+                </strong>
+              </li>
+            )}
             {[
-              [m.minutes, state.selectedPlayerMinutes],
-              [m.goals, state.stats.goals],
-              [m.assists, state.stats.assists],
+              [m.minutes, outcome ? outcome.record.minutes : state.selectedPlayerMinutes],
+              [m.goals, outcome ? outcome.record.goals : state.stats.goals],
+              [m.assists, outcome ? outcome.record.assists : state.stats.assists],
               [m.passes, `${state.stats.passesCompleted}/${state.stats.passesAttempted}`],
               [m.tackles, state.stats.tackles],
               [m.saves, state.stats.saves],
@@ -195,7 +254,7 @@ export function Report({
         <section className="match-panel">
           <h2>{m.objectives}</h2>
           <ul className="match-objectives">
-            {report.objectives.map((objective) => (
+            {objectives.map((objective) => (
               <li key={objective.id}>
                 <div>
                   {m.objectiveNames[objective.kind]}

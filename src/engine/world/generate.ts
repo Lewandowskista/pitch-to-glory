@@ -231,6 +231,8 @@ export function generateWorld(
     fixtures: {},
     matches: {},
     results: {},
+    // New worlds keep complete competition statistics from their first fixture.
+    seasonStats: { version: 1, season: year, competitions: {} },
     history: [],
     agents: {},
     scouting: [],

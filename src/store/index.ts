@@ -69,6 +69,35 @@ interface MatchSlice {
   setCareerResult: (result: MatchSlice['careerResult']) => void;
 }
 export type AppStore = SettingsSlice & GallerySlice & SessionSlice & WorldSlice & MatchSlice;
+/**
+ * A retained report belongs to a world only while that world's career has the report's match
+ * as its latest record: loading another save, a later state of the same career or a new world
+ * drops it, while edits and saving the same career elsewhere keep it.
+ */
+function reportFor(
+  result: MatchSlice['careerResult'],
+  world: World | null,
+): MatchSlice['careerResult'] {
+  if (!result) return null;
+  const career = world?.career;
+  const last = career?.matches.at(-1);
+  const record = result.outcome.record;
+  const same =
+    career &&
+    last &&
+    career.playerId === result.session.setup.selectedPlayerId &&
+    last.fixtureId === record.fixtureId &&
+    last.season === record.season &&
+    last.week === record.week &&
+    last.minutes === record.minutes &&
+    last.rating === record.rating &&
+    last.goals === record.goals &&
+    last.assists === record.assists &&
+    last.xp === record.xp &&
+    last.score[0] === record.score[0] &&
+    last.score[1] === record.score[1];
+  return same ? result : null;
+}
 let preferences: Settings;
 try {
   preferences = validateSettings(platform.readPreferences());
@@ -125,6 +154,10 @@ const sessionSlice: StateCreator<AppStore, [], [], SessionSlice> = (set) => ({
       activeSave: save,
       saveNotice: recovery ?? null,
       world: save.payload.kind === 'world' ? save.payload.world : null,
+      careerResult: reportFor(
+        state.careerResult,
+        save.payload.kind === 'world' ? save.payload.world : null,
+      ),
       matchSession: save.payload.kind === 'world' ? (save.payload.matchSession ?? null) : null,
       gallery: save.payload.gallery,
       settings: withDeviceTutorial(save.payload.settings, state.settings),
@@ -146,7 +179,13 @@ const worldSlice: StateCreator<AppStore, [], [], WorldSlice> = (set) => ({
   worldJob: null,
   worldNotice: null,
   worldError: null,
-  setWorld: (world) => set((state) => ({ world, matchSession: null, change: state.change + 1 })),
+  setWorld: (world) =>
+    set((state) => ({
+      world,
+      matchSession: null,
+      careerResult: reportFor(state.careerResult, world),
+      change: state.change + 1,
+    })),
   setWorldJob: (worldJob) => set({ worldJob }),
   worldFeedback: (worldNotice, worldError) => set({ worldNotice, worldError: worldError ?? null }),
 });

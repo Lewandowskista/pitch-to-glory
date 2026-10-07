@@ -377,7 +377,8 @@ describe('career fixtures', () => {
         },
       ],
       minutes: { home: xi(fixture.homeId), away: xi(fixture.awayId) },
-      ratings: {},
+      onPitch: { home: Object.keys(xi(fixture.homeId)), away: Object.keys(xi(fixture.awayId)) },
+      selected: { playerId: world.clubs[fixture.homeId]!.playerIds[10]!, rating: 7 },
     });
     const result = world.results[fixture.id]!;
     expect(result.penalties).not.toBeNull();
@@ -388,7 +389,8 @@ describe('career fixtures', () => {
         score: [0, 0],
         goals: [],
         minutes: { home: {}, away: {} },
-        ratings: {},
+        onPitch: { home: [], away: [] },
+        selected: { playerId: world.clubs[fixture.homeId]!.playerIds[10]!, rating: 7 },
       }),
     ).toThrow();
   });

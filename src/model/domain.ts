@@ -893,10 +893,14 @@ export interface Award {
 }
 export interface Trophy {
   id: Id;
+  /** A league, cup, or (for a multi-phase division) its deciding phase or final. */
   competitionId: Id;
   season: number;
   clubId: Id;
+  /** The career player(s) eligible when the title was decided. */
   playerIds: Id[];
+  /** The title's name when decided (Phase 1.4); older trophies are named by competition. */
+  name?: string;
 }
 export type RecordKind = 'season-goals' | 'career-goals' | 'golden-balls';
 export interface RecordEntry {
@@ -1190,6 +1194,12 @@ export interface World {
   international?: InternationalState;
   /** Season statistics baselines for awards (milestone 8). */
   awardState?: AwardState;
+  /**
+   * This season's statistics by competition and club (Phase 1.3). Present from a world's first
+   * season, or from the next season for worlds saved before it; awards use it when it covers
+   * the current season.
+   */
+  seasonStats?: SeasonStatistics;
   /** Edit mode changes (milestone 9), with the original values for reverting and export. */
   edits?: WorldEdits;
 }
@@ -1213,6 +1223,14 @@ export interface WorldEdits {
 }
 /** Lifetime appearances, goals, assists and rating total at a baseline. */
 export type StatLine = [number, number, number, number];
+/** Appearances, minutes, goals, assists, clean sheets and rating total. */
+export type CompetitionLine = [number, number, number, number, number, number];
+export interface SeasonStatistics {
+  version: 1;
+  season: number;
+  /** Competition → club → player → line. A loan or transfer starts a new club line. */
+  competitions: Record<Id, Record<Id, Record<Id, CompetitionLine>>>;
+}
 export interface AwardState {
   season: number;
   /** Baselines at the start of the season, for players awards can consider. */
@@ -1239,6 +1257,12 @@ export interface SeasonSummary {
   champions: Record<Id, Id>;
   cupWinners: Record<Id, Id>;
   movements: Movement[];
+  /**
+   * Champions of divisions whose first-phase groups only qualify clubs (Portugal's Liga 3 and
+   * Campeonato de Portugal), from the deciding phase or final. `champions` keeps each group's
+   * table winner. Absent in seasons archived before Phase 1.4.
+   */
+  divisionChampions?: Record<string, { competitionId: Id; clubId: Id }>;
   phases?: Record<Id, LeaguePhase>;
   ties?: Record<Id, PostseasonTie>;
 }
@@ -1278,7 +1302,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 13;
+  schemaVersion: 14;
   engineVersion: string;
   slot: SlotId;
   name: string;

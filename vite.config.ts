@@ -3,9 +3,10 @@ import react from '@vitejs/plugin-react';
 import tailwind from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { readFileSync } from 'node:fs';
+import { siteUrl as configuredSiteUrl } from './site';
 
 /** The public address, for share tags and the canonical link. Override with SITE_URL. */
-const siteUrl = (process.env.SITE_URL ?? 'https://pitch-to-glory.pages.dev').replace(/\/$/, '');
+const siteUrl = configuredSiteUrl();
 
 const escapeRegExp = (text: string) => text.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
 

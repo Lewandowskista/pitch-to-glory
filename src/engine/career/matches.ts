@@ -1,4 +1,11 @@
-import type { CareerMatchRecord, Fixture, Injury, Tactics, World } from '../../model/domain';
+import type {
+  CareerMatchRecord,
+  Fixture,
+  Injury,
+  Objective,
+  Tactics,
+  World,
+} from '../../model/domain';
 import { CONFIG } from '../config';
 import { createRng } from '../rng';
 import {
@@ -11,6 +18,7 @@ import {
   type MatchSetup,
 } from '../match';
 import { expectedImpact } from '../match/decisions';
+import { performanceFame, performanceXp } from '../match/rewards';
 import { rolesForPosition } from '../match/roles';
 import { commitPlayedFixture, type PlayedFixture } from '../world/simulate';
 import { addXp } from './progression';
@@ -47,8 +55,27 @@ export function defaultTactics(world: World): Tactics {
   return { role: rolesForPosition(position)[0]!, risk: 'balanced', mentality: 'balanced' };
 }
 
+/**
+ * The career player's finalized match, own side first: what the report shows and what every
+ * reward was derived from. Extra time is simulated after the interactive 90 minutes.
+ */
+export interface CareerMatchFinal {
+  score: [number, number];
+  regulation: [number, number];
+  extraTime: [number, number] | null;
+  penalties: [number, number] | null;
+  /** Performance XP before the opposition and importance multipliers. */
+  xp: number;
+  fame: number;
+  rating: number;
+  objectives: Objective[];
+  extraTimeMinutes: number;
+  extraTimeGoals: number;
+  extraTimeAssists: number;
+}
 export interface CareerMatchOutcome {
   record: CareerMatchRecord;
+  final: CareerMatchFinal;
   previousLevel: number;
   levelsGained: number;
   injury: Injury | null;
@@ -113,11 +140,39 @@ export function commitCareerMatch(
       home: minutes(state.match.home.starterIds),
       away: minutes(state.match.away.starterIds),
     },
-    ratings: { [playerId]: state.report.rating },
+    onPitch: {
+      home: [...state.match.home.starterIds],
+      away: [...state.match.away.starterIds],
+    },
+    selected: { playerId, rating: state.report.rating },
   };
-  commitPlayedFixture(world, fixture.id, played);
+  const finalized = commitPlayedFixture(world, fixture.id, played);
   const result = world.results[fixture.id]!;
   const own = ownHome ? 0 : 1;
+  const ownSide = <T>(pair: [T, T]): [T, T] => [pair[own]!, pair[1 - own]!];
+  // Every reward below is derived from the finalized contributions, extra time included.
+  const me = finalized.participants.find((participant) => participant.playerId === playerId)!;
+  const conceded = (me.extraTimeMinutes ? finalized.score : finalized.regulation)[1 - own]!;
+  const objectives = state.report.objectives.map((objective) => ({
+    ...objective,
+    progress:
+      objective.kind === 'rating'
+        ? me.rating
+        : objective.kind === 'clean-sheet'
+          ? conceded === 0
+            ? 1
+            : 0
+          : objective.progress,
+  }));
+  const minutesPlayed = me.minutes + me.extraTimeMinutes;
+  const performance = performanceXp({
+    minutes: minutesPlayed,
+    rating: me.rating,
+    goals: me.goals,
+    assists: me.assists,
+    objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
+  });
+  const fame = performanceFame(me.rating, me.goals);
   const opponentId = ownHome ? fixture.awayId : fixture.homeId;
   const outcome =
     result.winnerId === player.clubId ? 'win' : result.winnerId === opponentId ? 'loss' : 'draw';
@@ -133,10 +188,10 @@ export function commitCareerMatch(
     ),
   );
   const importance = session.setup.fixture!.importance;
-  const xp = Math.round(state.report.xp * opposition * importance);
+  const xp = Math.round(performance * opposition * importance);
   const previousLevel = career.level;
   const levelsGained = addXp(career, xp);
-  career.fame += state.report.fameDelta;
+  career.fame += fame;
   const record: CareerMatchRecord = {
     fixtureId: fixture.id,
     season: world.date.season,
@@ -151,10 +206,10 @@ export function commitCareerMatch(
       : result.extraTime
         ? { decided: 'extra-time' as const }
         : {}),
-    minutes: state.selectedPlayerMinutes,
-    rating: state.report.rating,
-    goals: state.stats.goals,
-    assists: state.stats.assists,
+    minutes: minutesPlayed,
+    rating: me.rating,
+    goals: me.goals,
+    assists: me.assists,
     cleanSheet: result.score[1 - own] === 0,
     xp,
     auto: Boolean(options.auto),
@@ -175,7 +230,20 @@ export function commitCareerMatch(
   else if (rng.next() < CONFIG.career.injuries.matchChance * injuryFactor(career, player))
     injury = injure(world, 'match', rng);
   revealHidden(player);
-  return { record, previousLevel, levelsGained, injury, celebrationFame: signature };
+  const final: CareerMatchFinal = {
+    score: ownSide(finalized.score),
+    regulation: ownSide(finalized.regulation),
+    extraTime: finalized.extraTime && ownSide(finalized.extraTime),
+    penalties: finalized.penalties && ownSide(finalized.penalties),
+    xp: performance,
+    fame,
+    rating: me.rating,
+    objectives,
+    extraTimeMinutes: me.extraTimeMinutes,
+    extraTimeGoals: me.extraTimeGoals,
+    extraTimeAssists: me.extraTimeAssists,
+  };
+  return { record, final, previousLevel, levelsGained, injury, celebrationFame: signature };
 }
 
 /** Headless decision policy for simulated career matches: best expected goal difference. */

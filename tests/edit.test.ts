@@ -322,7 +322,7 @@ describe('settings and saves', () => {
       },
     };
     const save = createSave(1, 'Edited', payload);
-    expect(save.schemaVersion).toBe(13);
+    expect(save.schemaVersion).toBe(14);
     expect(parseSave(JSON.stringify(save))).toEqual(save);
     const oldSettings = Object.fromEntries(
       Object.entries(DEFAULT_SETTINGS).filter(([key]) => key !== 'audio' && key !== 'tutorial'),
@@ -332,7 +332,7 @@ describe('settings and saves', () => {
       schemaVersion: 12,
       payload: { ...payload, world, settings: oldSettings },
     });
-    expect(migrated.schemaVersion).toBe(13);
+    expect(migrated.schemaVersion).toBe(14);
     expect(migrated.payload.settings).toEqual(DEFAULT_SETTINGS);
   });
 });

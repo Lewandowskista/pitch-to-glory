@@ -168,7 +168,7 @@ Tests enforce: 2.5–2.9 goals, home advantage, 18–35 % draws, close-gap upset
 
   Their expected value is anchored to the moment budget like every other choice. Tests assert each is never weaker than its situation's average and that its advantage over the mean stays below 0.35 of the budget.
 
-- **Assists.** A goal created by the selected player's choice is tagged with `assistId`, so a committed career fixture credits the assist to the right player. Other assists in committed fixtures are assigned with the background resolver's 78% rule.
+- **Assists.** A goal created by the selected player's choice is tagged with `assistId`, so a committed career fixture credits the assist to the right player. Other goals in committed fixtures receive an assist with the background resolver's 78% rule, drawn from the scorer's outfield teammates on the pitch at that minute and never from the selected player, whose assists come only from the session. Each assister is fixed once in the finalized fixture (Phase 1.2).
 - **Calibration.** Because generation changed (development version 2), the 10,000-match gate was re-measured: 2.758 goals per match, equal-team home/away goals 1.521/1.225, draws 25.1%, away underdog wins 26.1% at a 15-point and 17.7% at a 45-point reputation gap. All within the asserted bands.
 
 ## Morale factor (milestone 6, `match-6`)

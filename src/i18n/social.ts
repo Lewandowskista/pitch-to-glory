@@ -250,6 +250,7 @@ export const socialText = {
       careerGoals: 'Career goals',
       fees: 'Highest transfer fee',
     },
+    scope: 'Season totals count all club competitions. Internationals are not included.',
     headToHead: 'Meetings on the pitch',
     record: '{won} won · {drawn} drawn · {lost} lost',
     noMeetings: 'Your clubs have not met while you played.',

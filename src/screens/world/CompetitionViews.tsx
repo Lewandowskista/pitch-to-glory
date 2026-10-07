@@ -572,6 +572,9 @@ export function SeasonReview({
   if (!summary) return null;
   const championId = summary.champions[league.id] ?? summary.tables[league.id]?.[0]?.clubId;
   const champion = championId ? world.clubs[championId] : undefined;
+  // In a qualifying group the table winner is not the champion; the deciding phase names it.
+  const division = league.divisionId ? summary.divisionChampions?.[league.divisionId] : undefined;
+  const divisionChampion = division ? world.clubs[division.clubId] : undefined;
   const movements = summary.movements.filter(
     (movement) => movement.fromLeagueId === league.id || movement.toLeagueId === league.id,
   );
@@ -579,10 +582,20 @@ export function SeasonReview({
     <section className="season-summary">
       {champion && (
         <>
-          <p className="eyebrow">{t.world.champions}</p>
+          <p className="eyebrow">{division ? t.world.groupWinner : t.world.champions}</p>
           <div className="champion">
             <Artwork svg={renderCrest(champion.crest)} alt="" />
             <h3>{champion.name}</h3>
+          </div>
+        </>
+      )}
+      {divisionChampion && (
+        <>
+          <p className="table-note">{t.world.groupWinnerNote}</p>
+          <p className="eyebrow">{t.world.divisionChampion}</p>
+          <div className="champion">
+            <Artwork svg={renderCrest(divisionChampion.crest)} alt="" />
+            <h3>{divisionChampion.name}</h3>
           </div>
         </>
       )}

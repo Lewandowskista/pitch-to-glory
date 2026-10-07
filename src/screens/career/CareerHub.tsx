@@ -20,7 +20,13 @@ import {
   ui,
   useEditBlock,
 } from './shared';
-import { competitionName, leaguePosition, recentForm, seasonLine } from './selectors';
+import {
+  competitionName,
+  leagueSeasonLine,
+  leaguePosition,
+  recentForm,
+  seasonLine,
+} from './selectors';
 import { continueToMatchday, simulateCareerSeason, startNextCareerSeason } from './actions';
 import { useUrlDialog } from './useUrlDialog';
 import { careerContract, windowState } from '../../engine/career/market';
@@ -412,6 +418,7 @@ function LastResult({ world, career }: { world: World; career: Career }) {
 
 function SeasonStats({ world, career, player }: { world: World; career: Career; player: Player }) {
   const line = seasonLine(career, world.date.season);
+  const league = leagueSeasonLine(world, career, world.date.season);
   const keeper = player.primaryPosition === 'GK';
   const stats: [string, string | number][] = [
     [c.hub.stats.apps, line.apps],
@@ -425,6 +432,7 @@ function SeasonStats({ world, career, player }: { world: World; career: Career; 
       <h2 id="season-stats-heading" className={ui.heading}>
         {format(c.hub.season, { season: world.date.season })}
       </h2>
+      <p className="mt-1 text-xs text-muted">{c.hub.scope}</p>
       <dl className="mt-4 grid grid-cols-2 gap-3">
         {stats.map(([label, value], index) => (
           <div
@@ -436,6 +444,9 @@ function SeasonStats({ world, career, player }: { world: World; career: Career; 
           </div>
         ))}
       </dl>
+      {league.apps > 0 && (
+        <p className="mt-3 text-sm text-muted">{format(c.hub.leagueLine, league)}</p>
+      )}
     </section>
   );
 }

@@ -5,11 +5,11 @@ import { postMessage } from '../market/records';
 import { chronicle } from './chronicle';
 import { captureMoments } from './moments';
 import { createInternational, internationalWindow, playTournament } from './international';
-import { monthlyAward, seasonAwards, startAwardSeason } from './awards';
+import { monthlyAward, recordCareerTrophies, seasonAwards, startAwardSeason } from './awards';
 import { retireCareer, retirementAge } from './retirement';
 import { CONFIG } from '../../config';
 
-export { startAwardSeason };
+export { recordCareerTrophies, startAwardSeason };
 
 const H = CONFIG.career.honours;
 

@@ -24,6 +24,8 @@ import { validateMarket } from './marketValidation';
 import { validateSocial } from './socialValidation';
 import { validateLifestyle } from './lifestyleValidation';
 import { validateHonours } from './honoursValidation';
+import { validateSeasonStatistics } from './statisticsValidation';
+import { QUALIFYING_DIVISIONS } from '../engine/world/titles';
 import { validateEdits } from './editsValidation';
 
 // Bounds apply before traversing imported graphs. Rules are frozen by profile version.
@@ -335,6 +337,7 @@ export function validateNationalWorld(value: unknown): World {
   validateLifestyle(w);
   validateHonours(w);
   validateEdits(w);
+  validateSeasonStatistics(w);
   for (const club of Object.values(clubs)) {
     const identity = object(club.identity);
     requireValue(identity.counterpart === countries[String(club.countryId)]!.counterpart);
@@ -884,6 +887,25 @@ export function validateNationalWorld(value: unknown): World {
     array(summary.movements, 2000).forEach(validateMovement);
     const archivedPhases = map(summary.phases, 80),
       archivedTies = map(summary.ties, 1000);
+    // Division champions come from the deciding phase or final of a qualifying division.
+    for (const [divisionId, entryValue] of Object.entries(
+      object(summary.divisionChampions ?? {}),
+    )) {
+      requireValue(Object.hasOwn(QUALIFYING_DIVISIONS, divisionId));
+      const entry = object(entryValue);
+      ref(entry.clubId, clubs);
+      const tie = archivedTies[String(entry.competitionId)];
+      const phase = archivedPhases[String(entry.competitionId)];
+      requireValue(
+        tie
+          ? tie.winnerId === entry.clubId
+          : Boolean(
+              phase &&
+              phase.divisionId === divisionId &&
+              (phase.clubIds as string[]).includes(String(entry.clubId)),
+            ),
+      );
+    }
     for (const phase of Object.values(archivedPhases)) {
       ref(phase.countryId, countries);
       text(phase.name);
@@ -1005,16 +1027,25 @@ export function validateNationalWorld(value: unknown): World {
       if (typeof v === 'number') number(v, -1e12);
       else requireValue(typeof v === 'string' && v.length <= 200);
   }
+  // A trophy may name a phase or tie of an earlier, archived season.
+  const archivedDeciders = new Set(
+    history.flatMap((summary) => [
+      ...Object.keys(object(object(summary).phases ?? {})),
+      ...Object.keys(object(object(summary).ties ?? {})),
+    ]),
+  );
   for (const trophyValue of array(w.trophies, 10000)) {
     const trophy = object(trophyValue);
     id(trophy.id);
     ref(trophy.clubId, clubs);
     number(trophy.season, 1800, Number(season.year), true);
+    if (trophy.name !== undefined) text(trophy.name);
     requireValue(
       Object.hasOwn(leagues, String(trophy.competitionId)) ||
         Object.hasOwn(competitions, String(trophy.competitionId)) ||
         Object.hasOwn(ties, String(trophy.competitionId)) ||
-        Object.hasOwn(phases, String(trophy.competitionId)),
+        Object.hasOwn(phases, String(trophy.competitionId)) ||
+        archivedDeciders.has(String(trophy.competitionId)),
     );
     ids(trophy.playerIds, 40).forEach((key) => ref(key, object(w.players)));
   }

@@ -3,6 +3,7 @@ import { m } from 'framer-motion';
 import type { Award, Player, World } from '../../model/domain';
 import { CONTINENTAL_IDS, groupTable } from '../../engine/world/continental';
 import { rivalOf } from '../../engine/career/social';
+import { trophyName } from '../../engine/career/honours/trophies';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
 import { CareerPage, CrestImage, ui } from './shared';
@@ -185,10 +186,7 @@ function Cabinet({ world, player }: { world: World; player: Player }) {
           <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
             {trophies.map((trophy) => {
               const club = world.clubs[trophy.clubId]!;
-              const name =
-                world.leagues[trophy.competitionId]?.name ??
-                world.competitions[trophy.competitionId]?.name ??
-                trophy.competitionId;
+              const name = trophyName(world, trophy);
               return (
                 <li
                   key={trophy.id}
@@ -261,6 +259,14 @@ function Cabinet({ world, player }: { world: World; player: Player }) {
   );
 }
 
+/** An award's deciding number, named by what it counts. */
+const awardValue = (award: Award) =>
+  award.kind === 'golden-boot'
+    ? format(h.awards.values.goals, { value: award.value })
+    : award.kind === 'team-season'
+      ? ''
+      : format(h.awards.values.points, { value: award.value });
+
 function SeasonAwards({ world, player }: { world: World; player: Player }) {
   const awards = world.awards
     .filter((award) => award.kind !== 'month')
@@ -287,8 +293,11 @@ function SeasonAwards({ world, player }: { world: World; player: Player }) {
                 <th scope="col" className="py-1 pr-2">
                   {h.awards.columns.award}
                 </th>
-                <th scope="col" className="py-1">
+                <th scope="col" className="py-1 pr-2">
                   {h.awards.columns.winner}
+                </th>
+                <th scope="col" className="py-1 text-right">
+                  {h.awards.columns.value}
                 </th>
               </tr>
             </thead>
@@ -310,7 +319,8 @@ function SeasonAwards({ world, player }: { world: World; player: Player }) {
                   <tr key={award.id} className={winner ? 'font-bold text-accent' : ''}>
                     <td className="py-1 pr-2">{award.season}</td>
                     <td className="py-1 pr-2">{awardName(award)}</td>
-                    <td className="py-1">{name}</td>
+                    <td className="py-1 pr-2">{name}</td>
+                    <td className="py-1 text-right text-muted">{awardValue(award)}</td>
                   </tr>
                 );
               })}
@@ -320,6 +330,7 @@ function SeasonAwards({ world, player }: { world: World; player: Player }) {
       ) : (
         <p className={`${ui.muted} mt-4`}>{h.awards.seasonEmpty}</p>
       )}
+      <p className="mt-3 text-xs text-muted">{h.awards.scope}</p>
     </section>
   );
 }

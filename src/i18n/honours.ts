@@ -89,6 +89,9 @@ export const honoursText = {
     season: 'Season awards',
     seasonEmpty: 'Season awards are presented at the end of the season.',
     columns: { season: 'Season', award: 'Award', winner: 'Winner', value: 'Value' },
+    values: { goals: '{value} league goals', points: '{value} pts' },
+    scope:
+      'League awards count matches in that league only, even after a player moves on. Young player of the year and the Golden Ball count all club competitions.',
   },
   cabinet: {
     title: 'Your cabinet',

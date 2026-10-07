@@ -36,7 +36,9 @@ Pull requests run the checks but never deploy.
 Share tags and the canonical link need the absolute address. It defaults to `https://pitch-to-glory.pages.dev` and comes from `SITE_URL` at build time (`vite.config.ts`). To use a custom domain:
 
 1. Add the domain to the Pages project in Cloudflare (**Custom domains**); Cloudflare guides the DNS step.
-2. Set `SITE_URL` for the build step in the workflow (`env: SITE_URL: https://your.domain`) and update the `environment.url` of the deploy job.
+2. Add a repository variable `SITE_URL` (**Settings → Secrets and variables → Actions → Variables**) with the address, for example `https://your.domain`. The workflow passes it to the build, to the browser journeys (whose release check compares every share tag and the canonical link with it) and to the deploy job's environment URL. Leave it unset for the default address.
+
+Locally, build with `SITE_URL=https://your.domain npm run build` then run `npx playwright test e2e/release.spec.ts` with the same variable set. `npm run test:release:custom` builds a separate custom-domain copy into `dist-custom` (on preview port 4174) and runs the release journey against it, without touching `dist`; set `CUSTOM_SITE_URL` to try another address. CI runs it on every push.
 
 ## What the host serves
 

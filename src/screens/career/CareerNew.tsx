@@ -17,7 +17,7 @@ import type { Avatar, Club, Foot, Position, SlotId, World } from '../../model/do
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
-import { CrestImage, JobProgress, ui } from './shared';
+import { CrestImage, JobProgress, ui, useRestoredWorld } from './shared';
 import { POSITIONS } from './selectors';
 
 const STEPS = ['identity', 'appearance', 'position', 'world', 'trial', 'confirm'] as const;
@@ -76,6 +76,12 @@ function writeDraft(draft: WizardDraft | null): void {
     // Non-essential convenience.
   }
 }
+/** The current wizard query with another step, keeping `save` and `parent`. */
+const withStep = (params: URLSearchParams, step: Step) => {
+  const next = new URLSearchParams(params);
+  next.set('step', step);
+  return next.toString();
+};
 const familyOf = (position: Position) => (position === 'GK' ? 'keeper' : 'outfield');
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
@@ -88,6 +94,11 @@ export default function CareerNew() {
   const worldError = useAppStore((s) => s.worldError);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
+  // A wizard opened from a saved world (`?save=`) continues that world after a refresh; it
+  // never falls back to generating a replacement while the save is still being opened.
+  const restore = useRestoredWorld();
+  const savedSlot = params.get('save');
+  const waiting = restore.loading || Boolean(restore.error && savedSlot && !world);
   const [draft, setDraft] = useState<WizardDraft>(readDraft);
   const [error, setError] = useState('');
   const creating = useRef(false);
@@ -147,17 +158,15 @@ export default function CareerNew() {
   const step: Step = creating.current ? 'confirm' : reachable;
   const index = STEPS.indexOf(step);
   useEffect(() => {
-    if (step !== requested && !job) {
+    if (step !== requested && !job && !waiting) {
       const next = new URLSearchParams(params);
       next.set('step', step);
       setParams(next, { replace: true });
     }
-  }, [step, requested, job, params, setParams]);
+  }, [step, requested, job, waiting, params, setParams]);
   const go = (target: Step) => {
     setError('');
-    const next = new URLSearchParams(params);
-    next.set('step', target);
-    setParams(next);
+    setParams(withStep(params, target));
   };
   // After signing: save to the chosen slot (if any) and open the career hub.
   useEffect(() => {
@@ -249,9 +258,9 @@ export default function CareerNew() {
             );
             return (
               <li key={item}>
-                {(done || reachableStep) && position !== index && !job ? (
+                {(done || reachableStep) && position !== index && !job && !waiting ? (
                   <Link
-                    to={`?step=${item}`}
+                    to={`?${withStep(params, item)}`}
                     className="block min-h-11 rounded-md pt-1 hover:opacity-80"
                     aria-label={`${position + 1}. ${c.wizard.steps[item]}`}
                   >
@@ -270,62 +279,91 @@ export default function CareerNew() {
           })}
         </ol>
       </nav>
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <form
-          onSubmit={submit}
-          className={`${ui.panel} @container/wizard flex flex-col gap-6`}
-          noValidate
-        >
-          {step === 'identity' && (
-            <IdentityStep
-              draft={draft}
-              update={update}
-              countries={countries}
-              parentName={parent?.name}
-            />
-          )}
-          {step === 'appearance' && <AppearanceStep draft={draft} update={update} />}
-          {step === 'position' && <PositionStep draft={draft} update={update} />}
-          {step === 'world' && <WorldStep draft={draft} update={update} />}
-          {step === 'trial' && usable && (
-            <TrialStep draft={draft} update={update} world={usable} offers={offers} />
-          )}
-          {step === 'confirm' && usable && (
-            <ConfirmStep draft={draft} update={update} world={usable} club={club} />
-          )}
-          {(step === 'trial' || step === 'confirm') && !usable && (
+      {waiting ? (
+        <section className={`${ui.panel} flex flex-col gap-4`} aria-live="polite">
+          {restore.loading ? (
             <p role="status" className="font-display text-3xl">
-              {c.wizard.signing}
+              {c.wizard.restoring}
             </p>
+          ) : (
+            <>
+              <h2 className="font-display text-[2.2rem] leading-none">{c.wizard.restoreFailed}</h2>
+              <p role="alert" className="inline-error">
+                {restore.error}
+              </p>
+              <p className={`${ui.muted} max-w-prose`}>
+                {format(c.wizard.restoreFailedBody, { slot: savedSlot ?? '' })}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="button" onClick={restore.retry}>
+                  <Icon name="refresh" />
+                  {c.wizard.restoreRetry}
+                </button>
+                <Link className="button secondary" to="/saves">
+                  {c.common.openSaves}
+                </Link>
+              </div>
+            </>
           )}
-          {(error || (worldError && !creating.current && step !== 'world')) && (
-            <p role="alert" className="inline-error">
-              {error || errorText(worldError!)}
-            </p>
-          )}
-          <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-            {index > 0 ? (
-              <button
-                type="button"
-                className="button secondary"
-                disabled={Boolean(job)}
-                onClick={() => go(STEPS[index - 1]!)}
-              >
-                {c.common.back}
-              </button>
-            ) : (
-              <span />
+        </section>
+      ) : (
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <form
+            onSubmit={submit}
+            className={`${ui.panel} @container/wizard flex flex-col gap-6`}
+            noValidate
+          >
+            {step === 'identity' && (
+              <IdentityStep
+                draft={draft}
+                update={update}
+                countries={countries}
+                parentName={parent?.name}
+              />
             )}
-            <button className="button min-w-44" disabled={!valid[step] || Boolean(job)}>
-              {step === 'confirm' && club
-                ? format(c.wizard.sign, { name: club.name, club: club.name })
-                : c.common.next}
-              <Icon name="arrow" />
-            </button>
-          </div>
-        </form>
-        <Summary draft={draft} club={club} countries={countries} />
-      </div>
+            {step === 'appearance' && <AppearanceStep draft={draft} update={update} />}
+            {step === 'position' && <PositionStep draft={draft} update={update} />}
+            {step === 'world' && <WorldStep draft={draft} update={update} />}
+            {step === 'trial' && usable && (
+              <TrialStep draft={draft} update={update} world={usable} offers={offers} />
+            )}
+            {step === 'confirm' && usable && (
+              <ConfirmStep draft={draft} update={update} world={usable} club={club} />
+            )}
+            {(step === 'trial' || step === 'confirm') && !usable && (
+              <p role="status" className="font-display text-3xl">
+                {c.wizard.signing}
+              </p>
+            )}
+            {(error || (worldError && !creating.current && step !== 'world')) && (
+              <p role="alert" className="inline-error">
+                {error || errorText(worldError!)}
+              </p>
+            )}
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
+              {index > 0 ? (
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={Boolean(job)}
+                  onClick={() => go(STEPS[index - 1]!)}
+                >
+                  {c.common.back}
+                </button>
+              ) : (
+                <span />
+              )}
+              <button className="button min-w-44" disabled={!valid[step] || Boolean(job)}>
+                {step === 'confirm' && club
+                  ? format(c.wizard.sign, { name: club.name, club: club.name })
+                  : c.common.next}
+                <Icon name="arrow" />
+              </button>
+            </div>
+          </form>
+          <Summary draft={draft} club={club} countries={countries} />
+        </div>
+      )}
     </Page>
   );
 }

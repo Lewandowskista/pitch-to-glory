@@ -22,6 +22,7 @@ import {
   type RatingPart,
 } from './types';
 import { MATCH_CONFIG as C } from './tuning';
+import { performanceFame, performanceXp } from './rewards';
 import { validateSetup, validateTactics, validateCommand, validateJson } from './validation';
 import { SITUATION_BY_ID, type ChoiceTemplate, type Situation } from './situations';
 import { halftimeRole, roleEffect, shiftMentality } from './roles';
@@ -658,17 +659,14 @@ function report(session: MatchSession): MatchReport {
     playerId: id,
     rating,
     ratingFactors,
-    xp: Math.round(
-      s.selectedPlayerMinutes * C.xp.perMinute +
-        Math.max(0, rating - C.xp.ratingThreshold) * C.xp.perRating +
-        s.stats.goals * C.xp.perGoal +
-        s.stats.assists * C.xp.perAssist +
-        objectives.filter((o) => o.progress >= o.target).length * C.xp.perObjective,
-    ),
-    fameDelta: Math.round(
-      Math.max(0, rating - C.fame.ratingThreshold) * C.fame.perRating +
-        s.stats.goals * C.fame.perGoal,
-    ),
+    xp: performanceXp({
+      minutes: s.selectedPlayerMinutes,
+      rating,
+      goals: s.stats.goals,
+      assists: s.stats.assists,
+      objectives: objectives.filter((o) => o.progress >= o.target).length,
+    }),
+    fameDelta: performanceFame(rating, s.stats.goals),
     heatmap: s.frames.flatMap((f) => {
       const p = f.players.find((p) => p.id === id);
       return p ? [p.point] : [];

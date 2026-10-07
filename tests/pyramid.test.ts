@@ -7,6 +7,8 @@ import { advanceItaly } from '../src/engine/world/italy';
 import { advanceGermany } from '../src/engine/world/germany';
 import { rankStandings } from '../src/engine/world/ranking';
 import { resolvePostseasonTie } from '../src/engine/world/postseason';
+import { decidedTitles } from '../src/engine/world/titles';
+import { validateNationalWorld } from '../src/persistence/nationalWorldSchema';
 
 function completeCountry(world: World, countryId: string): void {
   for (const league of Object.values(world.leagues).filter(
@@ -422,6 +424,23 @@ describe('postseason aggregate rules', () => {
     );
   }, 120000);
 
+  it('waits for Italian deciders before naming a level Serie D group champion', async () => {
+    const { simulateWeek } = await import('../src/engine/world/simulate');
+    let world = generateWorld('italy-title-timing');
+    const italy = Object.values(world.countries).find((c) => c.counterpart === 'Italy')!;
+    const leagues = italy.leagueIds.map((id) => world.leagues[id]!);
+    const done = (id: string) => world.leagues[id]!.fixtureIds.every((f) => world.results[f]);
+    const serieD = leagues.filter((league) => league.tier === 4).map((league) => league.id);
+    // Play until a Serie D group has finished while the other Italian leagues have not.
+    while (!serieD.some(done)) world = simulateWeek(world);
+    expect(leagues.every((league) => done(league.id))).toBe(false);
+    const group = world.leagues[serieD.find(done)!]!;
+    // Level at the top: only the neutral decider, created later, can name the champion.
+    const [first, second] = rankStandings(world, group.standings);
+    second!.points = first!.points;
+    expect(decidedTitles(world).some((title) => title.competitionId === group.id)).toBe(false);
+  }, 240000);
+
   it('resolves every national playoff before archive and conserves memberships into another season', async () => {
     const { simulateWeek, startNextSeason } = await import('../src/engine/world/simulate');
     let world = generateWorld('national-full-season');
@@ -435,7 +454,55 @@ describe('postseason aggregate rules', () => {
       true,
     );
     expect(world.history[0]!.movements).toEqual(world.pyramid!.movements);
+    // Portugal's first-phase groups only qualify clubs: the promotion league and the
+    // Campeonato final crown the champions, and at least one of them did not win its group.
+    const summary = world.history[0]!;
+    const key = (suffix: string) => `country:5:${world.date.season}:${suffix}`;
+    const liga3 = world.pyramid!.phases[key('liga-3-promotion')]!;
+    const final = world.pyramid!.ties[key('campeonato-championship')]!;
+    expect(summary.divisionChampions).toEqual({
+      'portugal:3': {
+        competitionId: liga3.id,
+        clubId: rankStandings(world, liga3.standings)[0]!.clubId,
+      },
+      'portugal:4': { competitionId: final.id, clubId: final.winnerId },
+    });
+    const groupWinners = (divisionId: string) =>
+      Object.values(world.leagues)
+        .filter((league) => league.divisionId === divisionId)
+        .map((league) => summary.champions[league.id]);
+    expect(
+      ['portugal:3', 'portugal:4'].some(
+        (divisionId) =>
+          !groupWinners(divisionId).includes(summary.divisionChampions![divisionId]!.clubId),
+      ),
+    ).toBe(true);
+    const titles = decidedTitles(world);
+    for (const league of Object.values(world.leagues).filter((l) =>
+      ['portugal:3', 'portugal:4'].includes(l.divisionId ?? ''),
+    ))
+      expect(titles.some((title) => title.competitionId === league.id)).toBe(false);
+    expect(titles.find((title) => title.competitionId === final.id)).toMatchObject({
+      clubId: final.winnerId,
+      divisionId: 'portugal:4',
+    });
+    expect(() => validateNationalWorld(JSON.parse(JSON.stringify(world)))).not.toThrow();
+    const forged = JSON.parse(JSON.stringify(world)) as World;
+    forged.history[0]!.divisionChampions!['portugal:4']!.clubId = final.clubIds.find(
+      (id) => id !== final.winnerId,
+    )!;
+    expect(() => validateNationalWorld(forged)).toThrow();
     let next = startNextSeason(world);
+    // A trophy for last season's deciding phase stays valid once the phase is archived.
+    next.trophies.push({
+      id: `trophy:${world.date.season}:${liga3.id}`,
+      competitionId: liga3.id,
+      season: world.date.season,
+      clubId: summary.divisionChampions!['portugal:3']!.clubId,
+      playerIds: [next.clubs[summary.divisionChampions!['portugal:3']!.clubId]!.playerIds[0]!],
+      name: 'Liga 3',
+    });
+    expect(() => validateNationalWorld(JSON.parse(JSON.stringify(next)))).not.toThrow();
     expect(next.format).toBe('national-v1');
     expect(next.pyramid!.phases).toEqual({});
     expect(next.pyramid!.ties).toEqual({});

@@ -287,6 +287,64 @@ test('celebrates a career, shares a moment, retires and starts the next generati
   await expect(page.getByText('Child of Robin Vale')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Player name' })).toHaveValue('Vale');
   await expect(page.getByRole('group', { name: 'Nationality' }).getByRole('radio')).toHaveCount(1);
+
+  // The child wizard continues this saved world through refreshes and history moves.
+  await expect(page).toHaveURL(/save=1/);
+  const childStep = (step: string) => {
+    const url = new URL(page.url());
+    url.searchParams.set('step', step);
+    return url.toString();
+  };
+  const trialUrl = childStep('trial');
+  const confirmUrl = childStep('confirm');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page).toHaveURL(/step=appearance/);
+  await page.reload();
+  await expect(page).toHaveURL(/step=appearance/);
+  await expect(page.getByRole('button', { name: 'Randomise look', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page).toHaveURL(/step=position/);
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page).toHaveURL(/step=world/);
+  await expect(page.getByText('Use the loaded world')).toBeVisible();
+  await expect(page.getByText(/It autosaves to slot 1\./)).toBeVisible();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  const trialHeading = page.getByRole('heading', { name: 'Three clubs want a look at you.' });
+  await expect(trialHeading).toBeVisible();
+  await page.reload();
+  await expect(trialHeading).toBeVisible({ timeout: 30000 });
+  await expect(page).toHaveURL(/step=trial/);
+  await expect(page).toHaveURL(/parent=/);
+
+  // Another tab holding the slot sees a recoverable error, never a replacement world.
+  const other = await page.context().newPage();
+  await other.goto(trialUrl);
+  await expect(other.getByRole('alert')).toContainText('open in another tab');
+  await expect(other.getByRole('button', { name: 'Try again' })).toBeVisible();
+  await expect(other.getByRole('button', { name: 'Build world' })).toHaveCount(0);
+  await other.close();
+
+  await page.locator('input[name="trial"]').first().check({ force: true });
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  const confirm = page.getByRole('heading', { name: 'Ready to sign?' });
+  await expect(confirm).toBeVisible();
+  await page.reload();
+  await expect(confirm).toBeVisible({ timeout: 30000 });
+  await page.goBack();
+  await expect(trialHeading).toBeVisible();
+  await page.goForward();
+  await expect(confirm).toBeVisible();
+  await page.getByRole('button', { name: /^Sign for / }).click();
+  await expect(page).toHaveURL(/\/career\?save=1$/, { timeout: 60000 });
+  await expect(page.getByRole('heading', { name: 'Career hub', exact: true })).toBeVisible();
+
+  // The child joined the parent's world; the wizard cannot sign them a second time.
+  await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 30000 });
+  await page.goto('/career/legacy?save=1');
+  await expect(page.getByText('Their child is already playing.')).toBeVisible();
+  await page.goto(confirmUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Sign for / })).toHaveCount(0);
 });
 
 /** The season of the latest Golden Ball, read from the cabinet's ceremony button target. */

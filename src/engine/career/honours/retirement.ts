@@ -43,7 +43,11 @@ export function hallOfFameScore(
   );
 }
 
-/** Rank a score among every player the world remembers, active, retired or archived. */
+/**
+ * Rank a score among every player the world remembers, active, retired or archived, each
+ * once. A former career is compared by its saved honour-inclusive legacy score, the same
+ * criteria the new score uses, never by its club numbers alone.
+ */
 export function hallOfFameRank(
   world: World,
   score: number,
@@ -51,20 +55,18 @@ export function hallOfFameRank(
 ): { rank: number; of: number } {
   let better = 0;
   let of = 1;
-  for (const player of Object.values(world.players)) {
-    if (player.id === excludeId) continue;
+  const counted = new Set<string>([excludeId]);
+  const compare = (id: string, value: number) => {
+    if (counted.has(id)) return;
+    counted.add(id);
     of++;
-    if (hallOfFameScore(player.stats) > score) better++;
-  }
-  for (const record of Object.values(world.archive?.players ?? {})) {
-    of++;
-    if (hallOfFameScore(record.stats) > score) better++;
-  }
-  for (const legacy of world.legacies) {
-    if (legacy.playerId === excludeId || world.players[legacy.playerId]) continue;
-    of++;
-    if (legacy.hallOfFame.score > score) better++;
-  }
+    if (value > score) better++;
+  };
+  for (const legacy of world.legacies) compare(legacy.playerId, legacy.hallOfFame.score);
+  for (const player of Object.values(world.players))
+    compare(player.id, hallOfFameScore(player.stats));
+  for (const [id, record] of Object.entries(world.archive?.players ?? {}))
+    compare(id, hallOfFameScore(record.stats));
   return { rank: better + 1, of };
 }
 

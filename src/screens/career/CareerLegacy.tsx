@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Legacy, World } from '../../model/domain';
 import { renderAvatar } from '../../engine/assets/avatar';
+import { trophyName } from '../../engine/career/honours/trophies';
 import { useAppStore } from '../../store';
 import { Page } from '../../ui/Page';
 import { Icon } from '../../ui/Icon';
@@ -9,7 +10,15 @@ import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
-import { CareerEmpty, CareerNav, CrestImage, plural, ui, useRestoredWorld } from './shared';
+import {
+  CareerEmpty,
+  CareerNav,
+  CrestImage,
+  plural,
+  ui,
+  useRestoredWorld,
+  useSaveLink,
+} from './shared';
 
 const integer = new Intl.NumberFormat('en');
 import { money } from './marketUi';
@@ -52,6 +61,7 @@ export default function CareerLegacy() {
 
 function LegacyContent({ world }: { world: World }) {
   const [params, setParams] = useSearchParams();
+  const link = useSaveLink();
   const legacies = [...world.legacies].reverse();
   const selected = legacies.find((legacy) => legacy.id === params.get('legacy')) ?? legacies[0];
   if (!selected)
@@ -61,7 +71,7 @@ function LegacyContent({ world }: { world: World }) {
         <p className={ui.muted}>{h.legacy.none}</p>
         {!world.career && (
           <div>
-            <Link className="button" to="/career/new">
+            <Link className="button" to={link('/career/new')}>
               {h.legacy.newCareer}
               <Icon name="arrow" />
             </Link>
@@ -125,6 +135,7 @@ function LegacyDetail({
   const trophies = world.trophies.filter((trophy) => legacy.trophyIds.includes(trophy.id));
   const awards = world.awards.filter((award) => legacy.awardIds.includes(award.id));
   const child = legacy.childPlayerId ? world.players[legacy.childPlayerId] : undefined;
+  const link = useSaveLink();
   const stats: [string, number][] = [
     [h.legacy.apps, legacy.stats.appearances],
     [h.legacy.goals, legacy.stats.goals],
@@ -162,12 +173,15 @@ function LegacyDetail({
           {!world.career && (
             <div className="flex flex-wrap gap-2">
               {!legacy.childPlayerId && (
-                <Link className="button" to={`/career/new?parent=${encodeURIComponent(legacy.id)}`}>
+                <Link
+                  className="button"
+                  to={link(`/career/new?parent=${encodeURIComponent(legacy.id)}`)}
+                >
                   {format(h.legacy.child, { name: legacy.name })}
                   <Icon name="arrow" />
                 </Link>
               )}
-              <Link className="button secondary" to="/career/new">
+              <Link className="button secondary" to={link('/career/new')}>
                 {h.legacy.newCareer}
               </Link>
             </div>
@@ -227,10 +241,7 @@ function LegacyDetail({
               {trophies.map((trophy) => (
                 <li key={trophy.id} className={ui.chip}>
                   <span aria-hidden="true">★</span>
-                  {world.leagues[trophy.competitionId]?.name ??
-                    world.competitions[trophy.competitionId]?.name ??
-                    trophy.competitionId}{' '}
-                  · {trophy.season}
+                  {trophyName(world, trophy)} · {trophy.season}
                 </li>
               ))}
               {awards.map((award) => (
