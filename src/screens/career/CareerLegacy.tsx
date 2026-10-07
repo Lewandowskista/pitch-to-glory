@@ -35,28 +35,30 @@ export default function CareerLegacy() {
   const world = useAppStore((s) => s.world);
   const { loading, error } = useRestoredWorld();
   return (
-    <Page>
+    <Page className="career-page">
       {world?.career && !loading && <CareerNav />}
-      <header className="page-heading">
-        <h1>{h.titles.legacy}</h1>
-        <p>{h.legacy.body}</p>
-      </header>
-      {error && (
-        <p role="alert" className="inline-error">
-          {error}
-        </p>
-      )}
-      {loading ? (
-        <p role="status" className={ui.muted}>
-          {c.common.loading}
-        </p>
-      ) : !world ? (
-        <CareerEmpty />
-      ) : (
-        <>
-          <LegacyContent world={world} />
-        </>
-      )}
+      <div className="page-body">
+        <header className="page-heading">
+          <h1>{h.titles.legacy}</h1>
+          <p>{h.legacy.body}</p>
+        </header>
+        {error && (
+          <p role="alert" className="inline-error">
+            {error}
+          </p>
+        )}
+        {loading ? (
+          <p role="status" className={ui.muted}>
+            {c.common.loading}
+          </p>
+        ) : !world ? (
+          <CareerEmpty />
+        ) : (
+          <>
+            <LegacyContent world={world} />
+          </>
+        )}
+      </div>
     </Page>
   );
 }

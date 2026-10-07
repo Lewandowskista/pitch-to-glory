@@ -217,10 +217,15 @@
   padding: 2.5rem clamp(1.5rem, 3vw, 3.2rem);
   max-width: 1600px;
   margin: 0 auto;
+  /* Starts visible, so the first paint never waits for the entrance (keyframes below). */
+  animation: page-in 0.18s ease-out both;
 }
-/* Starts visible, so the first paint never waits for the entrance (keyframes below). The
-   career tabs stay still: only what changes between pages moves. */
-.page > :not(.career-tabs) {
+/* Career pages keep their tabs still: only the body, present from the first render, enters,
+   so content that arrives after a save restores never replays the entrance. */
+.page.career-page {
+  animation: none;
+}
+.career-page > .page-body {
   animation: page-in 0.18s ease-out both;
 }
 .page-heading {

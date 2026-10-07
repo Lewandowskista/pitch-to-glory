@@ -178,37 +178,39 @@ export function CareerPage({
   const { loading, error } = useRestoredWorld();
   const player = world?.career ? world.players[world.career.playerId] : undefined;
   return (
-    <Page>
+    <Page className="career-page">
       {world?.career && player && !loading && <CareerNav />}
-      <header className="page-heading">
-        <h1>{title}</h1>
-        {description && <p>{description}</p>}
-      </header>
-      {error && (
-        <p role="alert" className="inline-error">
-          {error}
-        </p>
-      )}
-      {loading ? (
-        <p role="status" className={ui.muted}>
-          {c.common.loading}
-        </p>
-      ) : !world ? (
-        <CareerEmpty />
-      ) : !world.career || !player ? (
-        <NoCareerInWorld />
-      ) : (
-        <>
-          <UnsavedCareer />
-          {children({
-            world,
-            career: world.career,
-            player,
-            club: player.clubId ? world.clubs[player.clubId] : undefined,
-            age: world.date.season - player.birthSeason,
-          })}
-        </>
-      )}
+      <div className="page-body">
+        <header className="page-heading">
+          <h1>{title}</h1>
+          {description && <p>{description}</p>}
+        </header>
+        {error && (
+          <p role="alert" className="inline-error">
+            {error}
+          </p>
+        )}
+        {loading ? (
+          <p role="status" className={ui.muted}>
+            {c.common.loading}
+          </p>
+        ) : !world ? (
+          <CareerEmpty />
+        ) : !world.career || !player ? (
+          <NoCareerInWorld />
+        ) : (
+          <>
+            <UnsavedCareer />
+            {children({
+              world,
+              career: world.career,
+              player,
+              club: player.clubId ? world.clubs[player.clubId] : undefined,
+              age: world.date.season - player.birthSeason,
+            })}
+          </>
+        )}
+      </div>
     </Page>
   );
 }
