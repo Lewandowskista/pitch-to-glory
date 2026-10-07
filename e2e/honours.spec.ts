@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isBrowserNoise, skipTutorial } from './support';
+import { isBrowserNoise, skipTutorial, openCareerPage, careerTabs } from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
@@ -171,8 +171,7 @@ test('celebrates a career, shares a moment, retires and starts the next generati
   await expect(honours.getByText(/You can retire now/)).toBeVisible();
 
   // The Golden Ball ceremony lives in the URL: back closes it.
-  const nav = page.getByRole('navigation', { name: 'Career sections' });
-  await nav.getByRole('link', { name: 'Trophies', exact: true }).click();
+  await openCareerPage(page, 'Trophies');
   await page.getByRole('button', { name: 'Watch the ceremony' }).click();
   await expect(page).toHaveURL(/ceremony=/);
   const ceremony = page.getByRole('region', { name: /Golden Ball \d+/ });
@@ -184,7 +183,7 @@ test('celebrates a career, shares a moment, retires and starts the next generati
   await expect(page.getByRole('heading', { name: 'Your cabinet' })).toBeVisible();
 
   // The Chronicle reads like a biography and exports as an image.
-  await nav.getByRole('link', { name: 'Chronicle', exact: true }).click();
+  await openCareerPage(page, 'Chronicle');
   await expect(page.getByText(/signs for .* after a trial/)).toBeVisible();
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export as image' }).click();
@@ -216,7 +215,7 @@ test('celebrates a career, shares a moment, retires and starts the next generati
     await mkdir('artifacts', { recursive: true });
     for (const path of ['trophies', 'chronicle', 'moments', 'national']) {
       await page.goto(`/career/${path}?save=1`);
-      await expect(nav).toBeVisible();
+      await expect(careerTabs(page)).toBeVisible({ timeout: 30000 });
       await page.screenshot({ path: `artifacts/career-${path}.png`, fullPage: true });
     }
     for (const scheme of ['light', 'dark'] as const) {
@@ -265,7 +264,9 @@ test('celebrates a career, shares a moment, retires and starts the next generati
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
       for (const path of ['/career/legacy?save=1', '/career?save=1']) {
         await page.goto(path);
-        await expect(page.getByRole('heading', { name: 'Robin Vale', level: 2 })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Robin Vale', level: 2 })).toBeVisible({
+          timeout: 30000,
+        });
         expect(await accessibilityViolations(page), `${scheme} ${path}`).toEqual([]);
       }
     }

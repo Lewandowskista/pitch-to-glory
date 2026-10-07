@@ -50,7 +50,7 @@ const ROLE_ORDER: ContractTerms['role'][] = ['key', 'rotation', 'youth', 'backup
 
 export default function CareerTransfers() {
   return (
-    <CareerPage eyebrow={m.eyebrow} title={m.titles.transfers}>
+    <CareerPage title={m.titles.transfers}>
       {(context) => <TransfersContent {...context} />}
     </CareerPage>
   );
@@ -77,17 +77,23 @@ function TransfersContent({
       </div>
     );
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
+    // Below the offers, two independent columns on wide screens so short panels never stretch
+    // to match a long neighbour; on phones the columns dissolve and `order` sets the sequence.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
       <div className="lg:col-span-12">
         <WindowBanner world={world} />
       </div>
       <Offers world={world} onOpen={(id) => talks.open(id)} />
-      <ContractCard world={world} player={player} />
-      <PlayingTime world={world} career={career} player={player} club={club} />
-      <Requests world={world} career={career} />
-      <Earnings career={career} />
-      <Interest world={world} />
-      <Moves world={world} career={career} />
+      <div className="contents lg:col-span-7 lg:flex lg:flex-col lg:gap-5">
+        <ContractCard world={world} player={player} />
+        <Earnings career={career} />
+        <Interest world={world} />
+      </div>
+      <div className="contents lg:col-span-5 lg:flex lg:flex-col lg:gap-5">
+        <PlayingTime world={world} career={career} player={player} club={club} />
+        <Requests world={world} career={career} />
+        <Moves world={world} career={career} />
+      </div>
     </div>
   );
 }
@@ -98,7 +104,7 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
   const loan = activeLoan(world, player.id);
   const final = contract.end.season <= world.date.season;
   return (
-    <section aria-labelledby="contract-heading" className={`${ui.panel} lg:col-span-7`}>
+    <section aria-labelledby="contract-heading" className={`${ui.panel} order-1 lg:order-none`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 id="contract-heading" className={ui.heading}>
           {m.contract.title}
@@ -160,28 +166,24 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
               : m.contract.noClause
           }
         />
-        <Stat label={m.contract.loyalty} value={money(contract.loyaltyBonus)} />
+        <Stat
+          label={m.contract.loyalty}
+          value={money(contract.loyaltyBonus)}
+          note={m.contract.loyaltyBody}
+        />
       </dl>
       <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
         {m.contract.bonuses}
       </h3>
-      <dl className="mt-2 grid grid-cols-3 gap-2 text-center">
-        {[
-          [m.contract.appearance, contract.appearanceBonus],
-          [m.contract.goal, contract.goalBonus],
-          [m.contract.cleanSheet, contract.cleanSheetBonus],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-control bg-surface-soft p-2">
-            <dt className="text-[0.68rem] font-bold uppercase tracking-wider text-muted">
-              {label}
-            </dt>
-            <dd className="font-display text-xl leading-tight">{money(Number(value))}</dd>
-          </div>
-        ))}
+      <dl className="mt-2 grid grid-cols-3 gap-2">
+        <Stat label={m.contract.appearance} value={money(contract.appearanceBonus)} />
+        <Stat label={m.contract.goal} value={money(contract.goalBonus)} />
+        <Stat
+          label={m.contract.cleanSheet}
+          value={money(contract.cleanSheetBonus)}
+          note={m.contract.cleanSheetNote}
+        />
       </dl>
-      <p className="mt-2 text-xs text-muted">
-        {m.contract.cleanSheetNote} · {m.contract.loyaltyBody}
-      </p>
     </section>
   );
 }
@@ -203,7 +205,7 @@ function PlayingTime({
   const line = lineOf(player.primaryPosition);
   const manager = club ? world.managers[club.managerId] : undefined;
   return (
-    <section aria-labelledby="playing-heading" className={`${ui.panel} lg:col-span-5`}>
+    <section aria-labelledby="playing-heading" className={`${ui.panel} order-2 lg:order-none`}>
       <h2 id="playing-heading" className={ui.heading}>
         {m.playing.title}
       </h2>
@@ -269,7 +271,7 @@ function Requests({ world, career }: { world: World; career: Career }) {
   const onLoan = Boolean(activeLoan(world, career.playerId));
   const T = MK.transferRequest;
   return (
-    <section aria-labelledby="requests-heading" className={`${ui.panel} lg:col-span-5`}>
+    <section aria-labelledby="requests-heading" className={`${ui.panel} order-3 lg:order-none`}>
       <h2 id="requests-heading" className={ui.heading}>
         {m.requests.title}
       </h2>
@@ -386,14 +388,14 @@ function Requests({ world, career }: { world: World; career: Career }) {
 function Earnings({ career }: { career: Career }) {
   const finances = career.market.finances;
   return (
-    <section aria-labelledby="earnings-heading" className={`${ui.panel} lg:col-span-7`}>
+    <section aria-labelledby="earnings-heading" className={`${ui.panel} order-4 lg:order-none`}>
       <h2 id="earnings-heading" className={ui.heading}>
         {m.earnings.title}
       </h2>
-      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Stat label={m.earnings.cash} value={money(finances.cash)} />
-        <Stat label={m.earnings.lifetime} value={money(finances.lifetimeEarnings)} />
-        <Stat label={m.earnings.agentFees} value={money(finances.agentFees)} />
+      <dl className="mt-4 grid gap-2 sm:grid-cols-3 sm:gap-3">
+        <Stat row label={m.earnings.cash} value={money(finances.cash)} />
+        <Stat row label={m.earnings.lifetime} value={money(finances.lifetimeEarnings)} />
+        <Stat row label={m.earnings.agentFees} value={money(finances.agentFees)} />
       </dl>
       <p className="mt-4 text-sm">
         {finances.lastPay ? (
@@ -451,13 +453,50 @@ function OfferSummary({ world, offer }: { world: World; offer: TransferOffer }) 
   );
 }
 
+const EARLIER_SHOWN = 3;
+
+/** One closed offer: crest, club and fee on the first line; kind, outcome and date below. */
+function EarlierOffer({
+  world,
+  offer,
+  onOpen,
+}: {
+  world: World;
+  offer: TransferOffer;
+  onOpen: (id: string) => void;
+}) {
+  const club = world.clubs[offer.clubId]!;
+  return (
+    <li className="flex items-center gap-3 py-2.5">
+      <CrestImage crest={club.crest} alt="" className="h-9 w-9 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+          <span className="min-w-0 font-semibold break-words">{club.name}</span>
+          {offer.fee > 0 && <span className="font-semibold tabular-nums">{money(offer.fee)}</span>}
+        </p>
+        <p className="text-xs text-muted">
+          {m.kinds[offer.kind]} · {m.statuses[offer.status]} ·{' '}
+          {format(c.common.seasonWeek, { season: offer.created.season, week: offer.created.week })}
+        </p>
+      </div>
+      {offer.negotiationId && (
+        <button className="text-button shrink-0" onClick={() => onOpen(offer.id)}>
+          {m.offers.view}
+          <span className="sr-only"> — {club.name}</span>
+        </button>
+      )}
+    </li>
+  );
+}
+
 function Offers({ world, onOpen }: { world: World; onOpen: (id: string) => void }) {
   const open = world.offers.filter(
     (offer) => offer.status === 'terms' || offer.status === 'agreed',
   );
+  const [showAll, setShowAll] = useState(false);
   const earlier = world.offers
     .filter((offer) => offer.status !== 'terms' && offer.status !== 'agreed')
-    .slice(-6)
+    .slice(-20)
     .reverse();
   return (
     <section aria-labelledby="offers-heading" className={`${ui.panel} lg:col-span-12`}>
@@ -482,7 +521,7 @@ function Offers({ world, onOpen }: { world: World; onOpen: (id: string) => void 
                     </p>
                   </div>
                   {offer.fee > 0 && (
-                    <span className="font-display text-2xl leading-none">{money(offer.fee)}</span>
+                    <span className="text-lg font-bold tabular-nums">{money(offer.fee)}</span>
                   )}
                 </div>
                 <p className="text-sm">
@@ -510,28 +549,21 @@ function Offers({ world, onOpen }: { world: World; onOpen: (id: string) => void 
       )}
       {earlier.length > 0 && (
         <>
-          <h3 className="mt-6 text-xs font-bold uppercase tracking-wider text-muted">
-            {m.offers.history}
-          </h3>
+          <h3 className="mt-6 text-base font-bold">{m.offers.history}</h3>
           <ul className="mt-2 divide-y divide-line">
-            {earlier.map((offer) => (
-              <li
-                key={offer.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm"
-              >
-                <span className="font-semibold">{world.clubs[offer.clubId]!.name}</span>
-                <span className="text-muted">
-                  {m.kinds[offer.kind]} · {m.statuses[offer.status]}
-                  {offer.fee > 0 ? ` · ${money(offer.fee)}` : ''}
-                </span>
-                {offer.negotiationId && (
-                  <button className="text-button ml-auto" onClick={() => onOpen(offer.id)}>
-                    {m.offers.view}
-                  </button>
-                )}
-              </li>
+            {(showAll ? earlier : earlier.slice(0, EARLIER_SHOWN)).map((offer) => (
+              <EarlierOffer key={offer.id} world={world} offer={offer} onOpen={onOpen} />
             ))}
           </ul>
+          {!showAll && earlier.length > EARLIER_SHOWN && (
+            <button className="text-button -ml-3 mt-1" onClick={() => setShowAll(true)}>
+              {plural(
+                earlier.length - EARLIER_SHOWN,
+                m.offers.showEarlierOne,
+                m.offers.showEarlier,
+              )}
+            </button>
+          )}
         </>
       )}
     </section>
@@ -542,7 +574,7 @@ function Interest({ world }: { world: World }) {
   const entries = [...world.scouting].sort((a, b) => b.confidence - a.confidence);
   const parent = world.clubs[careerContract(world).clubId]!;
   return (
-    <section aria-labelledby="interest-heading" className={`${ui.panel} lg:col-span-7`}>
+    <section aria-labelledby="interest-heading" className={`${ui.panel} order-5 lg:order-none`}>
       <h2 id="interest-heading" className={ui.heading}>
         {m.interest.title}
       </h2>
@@ -572,7 +604,8 @@ function Interest({ world }: { world: World }) {
                 </div>
                 <div className="mt-3">
                   <Meter
-                    label={`${m.interest.confidence} · ${club.name}`}
+                    label={m.interest.confidence}
+                    ariaLabel={`${m.interest.confidence} · ${club.name}`}
                     value={interest.confidence}
                     tone={interest.stage === 'offer' ? 'gold' : 'accent'}
                   />
@@ -594,7 +627,7 @@ function Interest({ world }: { world: World }) {
 function Moves({ world, career }: { world: World; career: Career }) {
   const moves = [...career.market.moves].reverse();
   return (
-    <section aria-labelledby="moves-heading" className={`${ui.panel} lg:col-span-5`}>
+    <section aria-labelledby="moves-heading" className={`${ui.panel} order-6 lg:order-none`}>
       <h2 id="moves-heading" className={ui.heading}>
         {m.moves.title}
       </h2>

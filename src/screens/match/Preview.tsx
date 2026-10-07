@@ -131,7 +131,7 @@ export function Preview({
             </select>
           </label>
         </div>
-        <button className="button match-kickoff" data-tour="kickoff" onClick={onKickoff}>
+        <button className="button play match-kickoff" data-tour="kickoff" onClick={onKickoff}>
           {m.kickoff}
         </button>
         {/* On phones the tour's kick-off step appears here, in the page. */}

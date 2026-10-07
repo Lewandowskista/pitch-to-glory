@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isBrowserNoise, skipTutorial } from './support';
+import { isBrowserNoise, skipTutorial, openCareerPage, careerTabs } from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
@@ -126,8 +126,7 @@ test('signs a sponsor, buys a car, dresses up and picks a celebration', async ({
   await expect(owned.getByText('27,500 Cr')).toBeVisible();
 
   // Wardrobe: today's challenges arrive, a free hairstyle, long sleeves and a celebration.
-  const nav = page.getByRole('navigation', { name: 'Career sections' });
-  await nav.getByRole('link', { name: 'Wardrobe', exact: true }).click();
+  await openCareerPage(page, 'Wardrobe');
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Challenges' }).getByRole('listitem')).toHaveCount(
     6,
@@ -162,21 +161,21 @@ test('signs a sponsor, buys a car, dresses up and picks a celebration', async ({
     await mkdir('artifacts', { recursive: true });
     for (const path of ['lifestyle', 'wardrobe']) {
       await page.goto(`/career/${path}?save=1`);
-      await expect(nav).toBeVisible();
+      await expect(careerTabs(page)).toBeVisible();
       await page.screenshot({ path: `artifacts/career-${path}.png`, fullPage: true });
     }
     for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
       for (const path of ['/career/lifestyle', '/career/wardrobe', '/career']) {
         await page.goto(`${path}?save=1`);
-        await expect(nav).toBeVisible();
+        await expect(careerTabs(page)).toBeVisible();
         expect(await accessibilityViolations(page), `${scheme} ${path}`).toEqual([]);
       }
     }
     await page.setViewportSize({ width: 390, height: 844 });
     for (const path of ['/career/lifestyle', '/career/wardrobe', '/career']) {
       await page.goto(`${path}?save=1`);
-      await expect(nav).toBeVisible();
+      await expect(careerTabs(page)).toBeVisible();
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );

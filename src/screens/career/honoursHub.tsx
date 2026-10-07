@@ -12,7 +12,14 @@ import { useUrlDialog } from './useUrlDialog';
 const R = CONFIG.career.honours.retirement;
 
 /** Hub card: caps, honours and, late in a career, the choice to retire. */
-export function HonoursSummary({ world }: { world: World }) {
+export function HonoursSummary({
+  world,
+  className = 'lg:col-span-6',
+}: {
+  world: World;
+  /** Placement in the surrounding grid. */
+  className?: string;
+}) {
   const career = world.career!;
   const navigate = useNavigate();
   const dialog = useUrlDialog('retire');
@@ -40,7 +47,7 @@ export function HonoursSummary({ world }: { world: World }) {
   return (
     <section
       aria-labelledby="honours-summary-heading"
-      className={`${ui.panel} flex flex-col gap-4 lg:col-span-6`}
+      className={`${ui.panel} flex flex-col gap-4 ${className}`}
     >
       <div className="flex flex-wrap items-start gap-4">
         <span

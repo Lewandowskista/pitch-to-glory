@@ -84,7 +84,7 @@ export function WindowBanner({ world }: { world: World }) {
           : m.window.closed;
   return (
     <p
-      className={`flex min-h-11 items-center gap-2 rounded-control px-4 text-sm font-semibold ${
+      className={`flex min-h-11 items-center gap-2 rounded-control px-4 py-2 text-sm font-semibold text-balance ${
         state.open && world.phase !== 'complete'
           ? 'bg-accent text-on-accent'
           : 'border border-line bg-surface-soft text-muted'
@@ -132,11 +132,29 @@ export function BlockNote({ block }: { block: string | null }) {
   return <p className="rounded-control bg-surface-soft p-3 text-sm">{block}</p>;
 }
 
-export function Stat({ label, value }: { label: string; value: string | number }) {
+/**
+ * A labelled figure. Values use the body font with tabular numbers, so money reads "204 Cr /
+ * week" exactly as in running text. `note` explains this one figure; `row` lays label and value
+ * side by side on phones, for short lists of totals.
+ */
+export function Stat({
+  label,
+  value,
+  note,
+  row = false,
+}: {
+  label: string;
+  value: string | number;
+  note?: string;
+  row?: boolean;
+}) {
   return (
-    <div className="rounded-control bg-surface-soft p-3">
+    <div
+      className={`rounded-control bg-surface-soft p-3 ${row ? 'flex flex-wrap items-baseline justify-between gap-x-3 sm:block' : ''}`}
+    >
       <dt className="text-xs font-semibold text-muted">{label}</dt>
-      <dd className="mt-0.5 font-display text-2xl leading-tight break-words">{value}</dd>
+      <dd className="mt-0.5 text-lg leading-tight font-bold tabular-nums break-words">{value}</dd>
+      {note && <dd className="mt-1 text-xs text-muted">{note}</dd>}
     </div>
   );
 }

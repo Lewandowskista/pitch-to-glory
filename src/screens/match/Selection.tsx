@@ -121,7 +121,7 @@ export function Selection({
           {m.seed}
           <input value={seed} maxLength={128} onChange={(event) => setSeed(event.target.value)} />
         </label>
-        <button className="button" type="submit">
+        <button className="button play" type="submit">
           {m.prepare}
         </button>
       </form>

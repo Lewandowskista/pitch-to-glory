@@ -29,7 +29,7 @@ test('title, URLs, route refresh and keyboard navigation', async ({ page }) => {
   await page.getByRole('link', { name: 'Explore the gallery' }).click();
   await expect(page).toHaveURL(/\/gallery$/);
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('The identity of the game.');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Asset gallery');
   await page.goBack();
   await expect(page).toHaveURL(/\/$/);
   await page.keyboard.press('?');
@@ -74,7 +74,9 @@ test('preferences persist and system preferences are respected', async ({ page }
   await expect(page.getByRole('radio', { name: 'Light', exact: true })).toBeChecked();
   await expect(page.getByRole('switch', { name: 'Reduced motion' })).toBeChecked();
   await expect(page.locator('html')).toHaveCSS('font-size', '20px');
+  // Restoring every preference asks first; the dialog's own button confirms.
   await page.getByRole('button', { name: 'Restore defaults' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Restore defaults' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
@@ -212,7 +214,14 @@ test('mobile shell, large text and dark gallery fit the viewport', async ({ page
   await page.getByRole('radio', { name: 'Dark', exact: true }).check();
   await page.getByLabel('Text size', { exact: true }).focus();
   await page.keyboard.press('End');
-  await page.locator('.bottom-nav').getByRole('link', { name: 'Gallery', exact: true }).click();
+  // Five destinations on a phone; the gallery is one tap away in More.
+  await expect(page.locator('.bottom-nav').locator('a, button')).toHaveCount(5);
+  await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click();
+  await page
+    .getByRole('dialog', { name: 'More' })
+    .getByRole('link', { name: 'Asset gallery' })
+    .click();
+  await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
   await expect(page.locator('.bottom-nav')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
@@ -263,7 +272,7 @@ test('production PWA precaches unvisited routes for offline use', async ({
   await page.goto('/gallery');
   await expect(page.locator('.crest-card')).toHaveCount(15);
   await page.goto('/settings');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Make yourself at home.');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
   await context.setOffline(false);
 });
 

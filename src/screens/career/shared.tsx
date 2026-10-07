@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { careerGroupOf } from './navigation';
+import { navigationText as n } from '../../i18n/navigation';
 import { useAppStore } from '../../store';
 import { Page } from '../../ui/Page';
 import { Icon } from '../../ui/Icon';
@@ -15,15 +17,13 @@ import { cancelWorldJob } from '../../workers/client';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
-import { socialText } from '../../i18n/social';
-import { lifestyleText } from '../../i18n/lifestyle';
 import { honoursText } from '../../i18n/honours';
 
 /** Shared Tailwind class strings, so every career card reads as one family. */
 export const ui = {
   panel: 'rounded-panel border border-line bg-surface p-5 shadow-surface sm:p-6',
   heading: 'font-display text-[1.75rem] leading-none tracking-[0.02em] text-ink',
-  eyebrow: 'text-[0.68rem] font-bold uppercase tracking-[0.14em] text-accent',
+  eyebrow: 'text-xs font-bold uppercase tracking-[0.12em] text-accent',
   muted: 'text-sm text-muted',
   chip: 'inline-flex min-h-7 items-center gap-1 rounded-full bg-accent-soft px-3 text-xs font-bold text-accent',
   focus: 'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent',
@@ -109,133 +109,51 @@ export interface CareerContext {
   age: number;
 }
 
-type Section = { to: string; label: string; end: boolean };
-const groups: { label: string; sections: Section[] }[] = [
-  {
-    label: honoursText.groups.career,
-    sections: [
-      { to: '/career', label: c.sectionNames.hub, end: true },
-      { to: '/career/inbox', label: m.sectionNames.inbox, end: false },
-      { to: '/career/profile', label: c.sectionNames.profile, end: false },
-      { to: '/career/skills', label: c.sectionNames.skills, end: false },
-      { to: '/career/training', label: c.sectionNames.training, end: false },
-    ],
-  },
-  {
-    label: honoursText.groups.club,
-    sections: [
-      { to: '/career/club', label: socialText.sectionNames.club, end: false },
-      { to: '/career/transfers', label: m.sectionNames.transfers, end: false },
-      { to: '/career/agent', label: m.sectionNames.agent, end: false },
-      { to: '/career/rival', label: socialText.sectionNames.rival, end: false },
-    ],
-  },
-  {
-    label: honoursText.groups.life,
-    sections: [
-      { to: '/career/media', label: socialText.sectionNames.media, end: false },
-      { to: '/career/lifestyle', label: lifestyleText.sectionNames.lifestyle, end: false },
-      { to: '/career/wardrobe', label: lifestyleText.sectionNames.wardrobe, end: false },
-    ],
-  },
-  {
-    label: honoursText.groups.honours,
-    sections: [
-      { to: '/career/national', label: honoursText.sectionNames.national, end: false },
-      { to: '/career/trophies', label: honoursText.sectionNames.trophies, end: false },
-      { to: '/career/chronicle', label: honoursText.sectionNames.chronicle, end: false },
-      { to: '/career/moments', label: honoursText.sectionNames.moments, end: false },
-      { to: '/career/legacy', label: honoursText.sectionNames.legacy, end: false },
-    ],
-  },
-];
 /**
- * Career sections in four labelled groups. Groups wrap on wide screens and scroll as one row
- * on narrow ones; arrow keys move across every link.
+ * The pages of the current career group as one row of tabs, first on every career page so it
+ * never moves between them. The sidebar (desktop) and bottom bar (phones) switch groups.
+ * Arrow keys move along the tabs.
  */
 export function CareerNav() {
   const [params] = useSearchParams();
   const { pathname } = useLocation();
-  const navigation = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const nav = navigation.current;
-    if (!nav) return;
-    const revealActive = () => {
-      const active = nav.querySelector<HTMLAnchorElement>('[aria-current="page"]');
-      if (!active || nav.scrollWidth <= nav.clientWidth) return;
-      const bounds = nav.getBoundingClientRect();
-      const link = active.getBoundingClientRect();
-      if (link.left < bounds.left) nav.scrollLeft += link.left - bounds.left;
-      else if (link.right > bounds.right) nav.scrollLeft += link.right - bounds.right;
-    };
-    revealActive();
-    const resize = new ResizeObserver(revealActive);
-    resize.observe(nav);
-    return () => resize.disconnect();
-  }, [pathname]);
-  const save = params.get('save');
+  const group = careerGroupOf(pathname);
   const unread = useAppStore((s) => s.world?.inbox.filter((message) => !message.read).length ?? 0);
+  if (!group) return null;
+  const save = params.get('save');
   return (
     <nav
-      ref={navigation}
-      aria-label={c.sections}
-      data-tour="career-nav"
-      className="mb-6 overflow-x-auto lg:overflow-visible"
+      aria-label={format(n.tabs, { group: group.label })}
+      className="career-tabs"
+      style={{ '--tabs': group.pages.length } as CSSProperties}
     >
-      <ul className="flex min-w-max gap-2 rounded-control border border-line bg-surface p-1.5 shadow-surface lg:min-w-0 lg:flex-wrap">
-        {groups.map((group) => (
-          <li key={group.label} className="flex items-center gap-1">
-            <span
-              aria-hidden="true"
-              className="px-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-muted"
+      <ul>
+        {group.pages.map((page) => (
+          <li key={page.path}>
+            <NavLink
+              to={save ? `${page.path}?save=${save}` : page.path}
+              end
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+                event.preventDefault();
+                const links = Array.from(
+                  event.currentTarget.closest('ul')?.querySelectorAll<HTMLAnchorElement>('a') ?? [],
+                );
+                const index = links.indexOf(event.currentTarget);
+                const step = event.key === 'ArrowRight' ? 1 : links.length - 1;
+                links[(index + step) % links.length]?.focus();
+              }}
             >
-              {group.label}
-            </span>
-            <ul aria-label={group.label} className="flex gap-1">
-              {group.sections.map((section) => (
-                <li key={section.to}>
-                  <NavLink
-                    to={save ? `${section.to}?save=${save}` : section.to}
-                    end={section.end}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-                      event.preventDefault();
-                      const links = Array.from(
-                        event.currentTarget
-                          .closest('nav')
-                          ?.querySelectorAll<HTMLAnchorElement>('a') ?? [],
-                      );
-                      const index = links.indexOf(event.currentTarget);
-                      const step = event.key === 'ArrowRight' ? 1 : links.length - 1;
-                      links[(index + step) % links.length]?.focus();
-                    }}
-                    className={({ isActive }) =>
-                      `relative flex min-h-11 items-center rounded-[0.6rem] px-4 text-sm font-semibold transition-colors ${
-                        isActive
-                          ? 'bg-accent text-on-accent'
-                          : 'text-muted hover:bg-surface-soft hover:text-ink'
-                      }`
-                    }
-                  >
-                    {section.label}
-                    {section.to === '/career/inbox' && unread > 0 && (
-                      <>
-                        <span
-                          aria-hidden="true"
-                          className="ml-2 grid min-w-6 place-items-center rounded-full bg-gold px-1.5 text-xs font-bold text-on-gold"
-                        >
-                          {unread}
-                        </span>
-                        <span className="sr-only">
-                          {' '}
-                          · {format(m.inbox.unread, { count: unread })}
-                        </span>
-                      </>
-                    )}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
+              <span>{page.label}</span>
+              {page.path === '/career/inbox' && unread > 0 && (
+                <>
+                  <span aria-hidden="true" className="nav-badge">
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                  <span className="sr-only"> · {format(m.inbox.unread, { count: unread })}</span>
+                </>
+              )}
+            </NavLink>
           </li>
         ))}
       </ul>
@@ -243,14 +161,15 @@ export function CareerNav() {
   );
 }
 
-/** Page frame for every career screen: heading, section links and the career gate. */
+/**
+ * Page frame for every career screen: the group's page tabs, the screen's name and the career
+ * gate. The tabs and the top bar say where the player is, so there is no eyebrow.
+ */
 export function CareerPage({
-  eyebrow,
   title,
   description,
   children,
 }: {
-  eyebrow: string;
   title: string;
   description?: string;
   children: (context: CareerContext) => ReactNode;
@@ -260,8 +179,8 @@ export function CareerPage({
   const player = world?.career ? world.players[world.career.playerId] : undefined;
   return (
     <Page>
+      {world?.career && player && !loading && <CareerNav />}
       <header className="page-heading">
-        <p className={ui.eyebrow}>{eyebrow}</p>
         <h1>{title}</h1>
         {description && <p>{description}</p>}
       </header>
@@ -280,7 +199,6 @@ export function CareerPage({
         <NoCareerInWorld />
       ) : (
         <>
-          <CareerNav />
           <UnsavedCareer />
           {children({
             world,
@@ -484,15 +402,19 @@ export function CrestImage({
 
 export function Meter({
   label,
+  ariaLabel,
   value,
   tone = 'accent',
 }: {
+  /** Shown above the bar: keep it short when the card already names the subject. */
   label: string;
+  /** The full name for screen readers, when the visible label relies on the card title. */
+  ariaLabel?: string;
   value: number;
   tone?: 'accent' | 'danger' | 'gold';
 }) {
   const bounded = Math.max(0, Math.min(100, Math.round(value)));
-  const fill = tone === 'danger' ? 'bg-danger' : tone === 'gold' ? 'bg-gold' : 'bg-accent';
+  const fill = tone === 'danger' ? 'bg-danger' : tone === 'gold' ? 'bg-meter-gold' : 'bg-accent';
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-2 text-sm">
@@ -501,12 +423,12 @@ export function Meter({
       </div>
       <div
         role="meter"
-        aria-label={label}
+        aria-label={ariaLabel ?? label}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={bounded}
         aria-valuetext={format(c.common.meterValue, { value: bounded })}
-        className="h-2.5 overflow-hidden rounded-full bg-surface-soft"
+        className="h-2.5 overflow-hidden rounded-full bg-line"
       >
         <span className={`block h-full rounded-full ${fill}`} style={{ width: `${bounded}%` }} />
       </div>

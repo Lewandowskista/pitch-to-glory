@@ -28,35 +28,107 @@
   display: block;
 }
 .brand-caption {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--muted);
-  padding: 1.2rem 0.5rem 2rem;
+  padding: 0.9rem 0.5rem 1.4rem;
 }
+/* Scrolls on its own if a short window cannot fit every destination. */
 .sidebar nav {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.2rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -0.25rem;
+  padding: 0 0.25rem;
 }
 .sidebar nav a {
   display: flex;
-  gap: 0.85rem;
-  padding: 0.9rem 1rem;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 44px;
+  padding: 0.55rem 0.9rem;
   border-radius: var(--radius-control);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--muted);
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+.sidebar nav a:hover {
+  background: var(--surface-soft);
+  color: var(--ink);
 }
 .sidebar nav a.active {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 700;
 }
-.sidebar nav a:hover {
-  background: var(--surface-soft);
+/* On a career page the group carries the highlight; Career stays lit, without the fill. */
+.sidebar nav a.active.parent {
+  background: transparent;
+}
+.sidebar nav svg {
+  flex-shrink: 0;
+}
+.sidebar-groups {
+  list-style: none;
+  margin: 0.1rem 0 0.35rem 1.45rem;
+  padding: 0 0 0 0.6rem;
+  border-left: 1px solid var(--line);
+  display: grid;
+  gap: 0.15rem;
+}
+.sidebar .sidebar-groups a {
+  min-height: 40px;
+  padding: 0.45rem 0.75rem;
+  gap: 0.65rem;
+  font-size: 0.85rem;
+}
+.sidebar .sidebar-groups svg {
+  width: 17px;
+  height: 17px;
+}
+.sidebar-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 0.6rem 0.9rem;
+  flex-shrink: 0;
+}
+/* Unread count on Overview and Inbox. */
+.nav-badge {
+  display: inline-grid;
+  white-space: nowrap;
+  place-items: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.4rem;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--color-gold);
+  color: var(--color-on-gold);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+/* Shorter windows: drop the tagline so every destination fits without scrolling. */
+@media (max-height: 960px) {
+  .sidebar {
+    padding-top: 1.5rem;
+  }
+  .brand-caption {
+    display: none;
+  }
+  .sidebar nav {
+    margin-top: 1.25rem;
+  }
 }
 .sidebar-bottom {
   margin-top: auto;
-  padding: 1.5rem 0.5rem 0;
+  padding: 1rem 0.5rem 0;
+  flex-shrink: 0;
 }
 .local-save {
   display: flex;
@@ -74,7 +146,7 @@
 }
 .local-save span {
   display: block;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   color: var(--muted);
   margin-top: 0.2rem;
 }
@@ -145,7 +217,10 @@
   padding: 2.5rem clamp(1.5rem, 3vw, 3.2rem);
   max-width: 1600px;
   margin: 0 auto;
-  /* Starts visible, so the first paint never waits for the entrance (keyframes below). */
+}
+/* Starts visible, so the first paint never waits for the entrance (keyframes below). The
+   career tabs stay still: only what changes between pages moves. */
+.page > :not(.career-tabs) {
   animation: page-in 0.18s ease-out both;
 }
 .page-heading {
@@ -158,7 +233,8 @@
   line-height: 1.05;
   letter-spacing: 0.005em;
 }
-.page-heading p {
+/* The description under a title (eyebrows carry their own classes). */
+.page-heading p:not([class]) {
   font-size: 0.9rem;
   color: var(--muted);
   max-width: 660px;
@@ -168,13 +244,138 @@
   display: flex;
   gap: 1rem;
   justify-content: space-between;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   color: var(--muted);
   padding: 1.5rem clamp(1.5rem, 3vw, 3.2rem);
   border-top: 1px solid var(--line);
 }
 .bottom-nav {
   display: none;
+}
+/* The current career group's pages: first on every career page, so they never move. */
+.career-tabs {
+  margin-bottom: 1.75rem;
+}
+.career-tabs ul {
+  list-style: none;
+  margin: 0;
+  display: inline-grid;
+  grid-template-columns: repeat(var(--tabs), minmax(8.5rem, auto));
+  gap: 0.25rem;
+  padding: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius-control) + 0.3rem);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+}
+.career-tabs a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  height: 100%;
+  padding: 0.5rem 1.1rem;
+  border-radius: var(--radius-control);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--muted);
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+.career-tabs a:hover {
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+.career-tabs a.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.career-tabs .nav-badge {
+  margin-left: 0;
+}
+.career-tabs a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Phones: More, as a sheet rising from the bottom bar. */
+.more-sheet {
+  margin: auto 0 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 88dvh;
+  border: 0;
+  border-radius: 1.25rem 1.25rem 0 0;
+  padding: 0;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 -12px 40px rgb(0 0 0 / 0.25);
+}
+.more-sheet::backdrop {
+  background: rgb(8 20 14 / 0.55);
+}
+.more-sheet-inner {
+  display: grid;
+  gap: 1.1rem;
+  padding: 1rem 1.2rem calc(1.25rem + env(safe-area-inset-bottom));
+}
+.more-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.more-sheet h2 {
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 400;
+  line-height: 1;
+}
+.more-sheet h3 {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 0 0 0.45rem;
+}
+.more-sheet ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.more-sheet a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 48px;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-control);
+  background: var(--surface-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.more-sheet a[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.more-sheet svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduced-motion='true']) .more-sheet[open] {
+    animation: sheet-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(32px);
+    opacity: 0.5;
+  }
 }
 @keyframes page-in {
   from {

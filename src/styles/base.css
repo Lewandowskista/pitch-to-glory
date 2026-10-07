@@ -13,6 +13,8 @@
     color: var(--ink);
     font-family: var(--font-sans);
     line-height: 1.55;
+    /* Bebas Neue has one weight: never let the browser smear a fake bold. */
+    font-synthesis-weight: none;
   }
   button,
   input,
@@ -116,6 +118,18 @@ input:not([type='radio']):not([type='range']):not([type='checkbox']):not([type='
   border-color: var(--line);
   color: var(--ink);
 }
+/* The one "go and play" colour: kick off, play a matchday, continue to it. */
+.button.play {
+  background: var(--color-gold);
+  color: var(--color-on-gold);
+}
+/* Clearly unavailable rather than a faded copy of an available button. */
+.button:disabled {
+  opacity: 1;
+  background: var(--surface-soft);
+  border-color: var(--line);
+  color: var(--muted);
+}
 .button.secondary:hover:not(:disabled) {
   background: var(--surface-soft);
 }
@@ -152,7 +166,7 @@ input:not([type='radio']):not([type='range']):not([type='checkbox']):not([type='
 
 /* Small labels above headings, as on the career screens; the title hero restyles its own. */
 .eyebrow {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;

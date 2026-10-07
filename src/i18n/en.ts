@@ -58,6 +58,7 @@ export const en = {
     retry: 'Retry save',
     help: 'Keyboard shortcuts',
     close: 'Close',
+    cancel: 'Cancel',
     helpNav:
       'Tab: move between controls. Enter: activate. Space: play or pause a live match. 1–4: choose a key-moment action. Arrow keys: move between navigation links, tabs and match choices. Escape: close a dialog or go back. ?: open this guide.',
     offline: 'Your clubhouse is ready offline.',
@@ -85,6 +86,12 @@ export const en = {
     continueCareer: 'Continue as {name}',
     careerSave: 'Career',
     careerSummary: '{name} · Level {level}',
+    statusLabel: 'Your career',
+    statusMeta: 'Level {level} · {club}',
+    statusWhere: 'Season {season}, week {week}. Your next fixture is waiting in the career hub.',
+    statusComplete: 'Season {season} is over. Start the next one from your career hub.',
+    statusMatch: 'Your match is in progress. Pick it up where you left off.',
+    moreTitle: 'More to explore',
     world: 'Explore the world',
     explore: 'Explore the gallery',
     collections: 'Your collections',
@@ -121,7 +128,7 @@ export const en = {
       'Free in your browser. No account and no ads. Your saves stay on your device, and the game plays offline after your first visit.',
   },
   gallery: {
-    title: 'The identity of the game.',
+    title: 'Asset gallery',
     description:
       'Every badge, shirt and player starts with a seed. Find a collection that feels like yours.',
     seed: 'Collection seed',
@@ -145,7 +152,6 @@ export const en = {
     avatarAlt: '{name}, aged {age}',
     colors: 'Club colours',
     save: 'Save this collection',
-    count: '{count} designs',
     generation: 'Collection {number}',
     patterns: {
       solid: 'Solid',
@@ -159,14 +165,19 @@ export const en = {
     },
   },
   saves: {
-    title: 'Keep your favourites.',
+    title: 'Save collections',
     description:
       'Three places for worlds and gallery collections. Keep a local save and download a backup to carry it with you.',
     name: 'Collection name',
     defaultName: 'My club collection',
     slot: 'Slot {slot}',
     empty: 'A fresh start.',
-    emptyBody: 'Keep a collection of badges, shirts and players here.',
+    emptyBody: 'An empty slot. Save your career, your world or a gallery collection here.',
+    current: 'Save what you are playing',
+    currentCareer: 'Your career as {name}, with its whole world.',
+    currentWorld: 'Your football world, {season} · Week {week}.',
+    currentGallery: 'Your gallery collection of crests, kits and portraits.',
+    nameHint: 'Name it, then choose a slot below.',
     save: 'Save collection',
     replace: 'Replace collection',
     load: 'Load collection',
@@ -201,6 +212,7 @@ export const en = {
     importBody:
       'The imported collection will replace “{name}” in slot {slot}. Your other slots stay as they are.',
     cancel: 'Keep collection',
+    keepSettings: 'Keep my settings',
     confirmDelete: 'Delete collection',
     confirmReplace: 'Replace collection',
     confirmImport: 'Import collection',
@@ -220,7 +232,7 @@ export const en = {
       'This slot was saved by a newer version of Pitch to Glory. Update the game to open it.',
   },
   settings: {
-    title: 'Make yourself at home.',
+    title: 'Settings',
     description: 'Set up your clubhouse for the way you like to play.',
     appearance: 'Appearance',
     appearanceBody: 'Follow your device or choose a permanent look.',
@@ -239,9 +251,10 @@ export const en = {
     simulationBody: 'Read match commentary and make decisions without the animated pitch.',
     backups: 'Backup reminders',
     backupsBody: 'Show a reminder to download a backup when an in-game season finishes.',
-    preview: 'Your clubhouse, your colours.',
-    previewBody: 'Bold badges. Clear text. Space to focus on the game.',
     reset: 'Restore defaults',
+    resetTitle: 'Restore the default settings?',
+    resetBody:
+      'Theme, text size, motion, sound and tutorial preferences go back to how they started. Your careers, worlds and saved collections are not touched.',
     resetDone: 'Default preferences restored.',
     saved: 'Preferences save automatically on this device.',
     sound: 'Sound',
@@ -253,7 +266,7 @@ export const en = {
     effects: 'Effects and interface',
     crowd: 'Crowd',
     volumeValue: '{percent}%',
-    previewSounds: 'Try the sounds',
+    previewSounds: 'Preview a sound',
     previews: {
       tap: 'Interface',
       whistle: 'Whistle',
@@ -281,7 +294,7 @@ export const en = {
     reload: 'Reload page',
   },
   world: {
-    title: 'A world of football.',
+    title: 'World',
     description: 'Explore six football pyramids, follow every club and watch the seasons unfold.',
     createTitle: 'Build your football world.',
     createBody:
@@ -291,6 +304,7 @@ export const en = {
     regenerate: 'Create another world',
     seedHint: 'All results and world events can be replayed from this seed.',
     facts: 'World at a glance',
+    yourClub: '{club} · {league}',
     countries: 'Countries',
     divisions: 'Divisions',
     clubs: 'Clubs',

@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { AnimatePresence, m } from 'framer-motion';
-import type { Avatar, Career, Challenge, Club, Player, World } from '../../model/domain';
+import type { Avatar, Career, Challenge, Club, Kit, Player, World } from '../../model/domain';
 import {
   availability,
   challengeDone,
@@ -15,18 +15,21 @@ import { renderDressedKit, renderSocksAndBoots } from '../../engine/assets/gear'
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
-import { CareerPage, ui } from './shared';
+import { CareerPage, plural, ui } from './shared';
 import { ActionError, BlockNote } from './marketUi';
 import { CelebrationPreview, useChallengeRefresh, useLifestyleAction } from './lifestyleUi';
+import { Glyph } from './honoursUi';
 import { audio } from '../../audio';
 
 type Action = ReturnType<typeof useLifestyleAction>;
 const W = l.wardrobe;
+/** Facial hair fades in with age, so its options are previewed on an older face. */
+const FACIAL_HAIR_PREVIEW_AGE = 26;
 
 export default function CareerWardrobe() {
   useChallengeRefresh();
   return (
-    <CareerPage eyebrow={l.eyebrow} title={l.titles.wardrobe}>
+    <CareerPage title={l.titles.wardrobe}>
       {({ world, career, player, club, age }) =>
         club ? (
           <WardrobeContent world={world} career={career} player={player} club={club} age={age} />
@@ -50,15 +53,22 @@ function WardrobeContent({
   age: number;
 }) {
   const action = useLifestyleAction();
+  // The preview spans every row of the left column and stays in view while choosing.
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
       <Preview career={career} player={player} club={club} age={age} />
       <Challenges world={world} action={action} />
       <Look world={world} player={player} age={age} action={action} />
-      <KitOptions world={world} career={career} action={action} />
+      <KitOptions world={world} career={career} kit={club.kits.home} action={action} />
       <Celebrations world={world} career={career} action={action} />
     </div>
   );
+}
+
+/** Plain shorts in the kit colours, joining the shirt to the socks in the preview figure. */
+function shortsSvg(kit: Kit): string {
+  const [base, accent] = kit.colors;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40" fill="none"><path d="M4 0H96L100 36H56L50 18L44 36H0Z" fill="${base}" stroke="#182a35" stroke-opacity=".25" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 3L5 33M92 3L95 33" stroke="${accent}" stroke-width="3"/></svg>`;
 }
 
 function Preview({
@@ -73,42 +83,58 @@ function Preview({
   age: number;
 }) {
   const equipped = career.style.equipped;
+  const kit = club.kits.home;
   const armband = COSMETIC_BY_ID[equipped.armband]?.colors ?? null;
   const portrait = useMemo(() => renderAvatar(player.avatar, age), [player.avatar, age]);
   const shirt = useMemo(
-    () => renderDressedKit(club.kits.home, equipped.sleeves, armband),
-    [club.kits.home, equipped.sleeves, armband],
+    () => renderDressedKit(kit, equipped.sleeves, armband),
+    [kit, equipped.sleeves, armband],
   );
+  const shorts = useMemo(() => shortsSvg(kit), [kit]);
   const feet = useMemo(
     () =>
       renderSocksAndBoots(
-        club.kits.home,
+        kit,
         equipped.socks,
         COSMETIC_BY_ID[equipped.boots]?.colors ?? ['#1d1d1f', '#ffffff'],
       ),
-    [club.kits.home, equipped.socks, equipped.boots],
+    [kit, equipped.socks, equipped.boots],
   );
+  const tokens = career.style.tokens;
+  // One figure built from the head, shirt, shorts and socks/boots artwork. Percentage margins
+  // resolve against the figure's width, so the pieces overlap the same way at every size:
+  // the shirt collar covers the neck, the shirt hem the shorts, the shorts the sock tops.
   return (
-    <section aria-labelledby="preview-heading" className={`${ui.panel} bg-art-blue lg:col-span-5`}>
+    <section
+      aria-labelledby="preview-heading"
+      className={`${ui.panel} bg-art-blue lg:sticky lg:top-6 lg:col-span-4 lg:row-span-4`}
+    >
       <h2 id="preview-heading" className={ui.heading}>
         {W.preview}
       </h2>
-      <div className="mt-4 flex flex-col items-center gap-2">
-        <Artwork svg={portrait} alt={player.name} className="h-36 w-36 rounded-full bg-surface" />
-        <Artwork svg={shirt} alt={club.name} className="h-40 w-40" />
-        <Artwork
-          svg={feet}
-          alt={format(W.previewAlt, {
-            boots: W.bootNames[equipped.boots] ?? '',
-            socks: W.sockNames[equipped.socks] ?? '',
-          })}
-          className="h-20 w-36"
+      <div
+        role="img"
+        aria-label={`${player.name}. ${format(W.previewAlt, {
+          boots: W.bootNames[equipped.boots] ?? '',
+          socks: W.sockNames[equipped.socks] ?? '',
+        })}`}
+        className="mx-auto mt-4 w-36 sm:w-44 lg:w-48"
+      >
+        <div className="relative z-0 mx-auto w-[95%] overflow-hidden [aspect-ratio:200/166]">
+          <Artwork svg={portrait} alt="" className="block w-full" />
+        </div>
+        <Artwork svg={shirt} alt="" className="relative z-20 -mt-[22.5%] block w-full" />
+        <Artwork svg={shorts} alt="" className="relative z-10 mx-auto -mt-[15%] block w-[52%]" />
+        <Artwork svg={feet} alt="" className="relative z-0 -mt-[6%] ml-[23%] block w-[61%]" />
+        <span
+          aria-hidden="true"
+          className="mx-auto -mt-[3%] block h-3 w-3/4 rounded-[50%] bg-ink/10"
         />
       </div>
-      <p className="mt-4 text-center text-sm font-semibold">
-        {format(W.tokens, { count: career.style.tokens })}
+      <p className="mt-4 text-center font-display text-2xl leading-none">
+        {plural(tokens, W.tokensOne, W.tokens)}
       </p>
-      <p className="text-center text-xs text-muted">{W.tokensBody}</p>
+      <p className="mx-auto mt-1 max-w-xs text-center text-xs text-muted">{W.tokensBody}</p>
     </section>
   );
 }
@@ -121,11 +147,15 @@ function stateLabel(item: CosmeticItem, state: Availability): string {
   return item.brandId ? W.states.lockedSponsor : format(W.states.locked, { level: item.fameLevel });
 }
 
-/** A choice tile: equips when usable, offers a token unlock when for sale. */
+/**
+ * A choice tile: equips when usable, offers a token unlock when for sale. Only the selected
+ * tile and locked tiles carry a status line; locked tiles show a lock and what opens them.
+ */
 function Tile({
   item,
   world,
   selected,
+  selectedLabel = W.equipped,
   label,
   children,
   onSelect,
@@ -134,6 +164,7 @@ function Tile({
   item: CosmeticItem | null;
   world: World;
   selected: boolean;
+  selectedLabel?: string;
   label: string;
   children: ReactNode;
   onSelect: () => void;
@@ -142,6 +173,21 @@ function Tile({
   const state = item ? availability(world, item) : 'owned';
   const usable = state === 'owned' || state === 'fame' || state === 'sponsor';
   const affordable = state === 'tokens' && world.career!.style.tokens >= (item?.tokens ?? Infinity);
+  const status = selected ? (
+    <span className="inline-flex items-center gap-1 text-xs font-bold text-accent">
+      <Glyph name="check" className="h-3.5 w-3.5" />
+      {selectedLabel}
+    </span>
+  ) : usable || !item ? null : (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs leading-tight font-bold ${
+        affordable ? 'bg-accent text-on-accent' : 'bg-surface text-muted'
+      }`}
+    >
+      <Glyph name="lock" className="h-3.5 w-3.5" />
+      {state === 'tokens' ? format(W.price, { tokens: item.tokens! }) : stateLabel(item, state)}
+    </span>
+  );
   return (
     <li>
       <button
@@ -153,24 +199,29 @@ function Tile({
           else if (item && affordable && action.run({ type: 'buy-cosmetic', id: item.id }))
             audio.play('confirm');
         }}
-        className={`flex min-h-24 w-full flex-col items-center justify-center gap-1 rounded-control border p-2 text-center transition ${
+        className={`group flex h-full min-h-24 w-full flex-col items-center justify-center gap-1 rounded-control border-2 p-2 text-center transition disabled:cursor-not-allowed ${
           selected
             ? 'border-accent bg-accent-soft'
-            : 'border-line bg-surface-soft hover:border-accent'
-        } ${usable || affordable ? '' : 'opacity-60'}`}
+            : usable || affordable
+              ? 'border-transparent bg-surface-soft hover:border-accent'
+              : 'border-dashed border-line bg-surface-soft'
+        }`}
       >
         {children}
-        <span className="text-[0.68rem] font-bold leading-tight">
-          {selected ? W.equipped : item ? stateLabel(item, state) : ''}
-        </span>
+        {status}
       </button>
     </li>
   );
 }
 
-function AvatarOption({ avatar, age, label }: { avatar: Avatar; age: number; label: string }) {
-  const svg = useMemo(() => renderAvatar(avatar, age), [avatar, age]);
-  return <Artwork svg={svg} alt={label} className="h-14 w-14 rounded-full bg-art-blue" />;
+/** The lower face, where facial hair differs: a whole head hides it at thumbnail size. */
+const LOWER_FACE = 'viewBox="46 74 108 108"';
+function AvatarOption({ avatar, age, face }: { avatar: Avatar; age: number; face?: boolean }) {
+  const svg = useMemo(() => {
+    const art = renderAvatar(avatar, age);
+    return face ? art.replace(/viewBox="[^"]*"/, LOWER_FACE) : art;
+  }, [avatar, age, face]);
+  return <Artwork svg={svg} alt="" className="h-14 w-14 rounded-full bg-art-blue" />;
 }
 
 function Look({
@@ -190,8 +241,9 @@ function Look({
     { slot: 'facialHair', label: W.facialHair, option: W.facialHairOption, gated: false },
     { slot: 'accessory', label: W.accessory, option: W.accessoryOption, gated: true },
   ] as const;
+  const beardAge = Math.max(age, FACIAL_HAIR_PREVIEW_AGE);
   return (
-    <section aria-labelledby="look-heading" className={`${ui.panel} lg:col-span-7`}>
+    <section aria-labelledby="look-heading" className={`${ui.panel} lg:col-span-8`}>
       <h2 id="look-heading" className={ui.heading}>
         {W.look}
       </h2>
@@ -202,6 +254,11 @@ function Look({
       {slots.map(({ slot, label, option, gated }) => (
         <div key={slot} className="mt-4">
           <h3 className="text-sm font-semibold">{label}</h3>
+          {slot === 'facialHair' && beardAge > age && (
+            <p className="mt-0.5 text-xs text-muted">
+              {format(W.facialHairNote, { age: beardAge })}
+            </p>
+          )}
           <ul className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-8" aria-label={label}>
             {Array.from({ length: 8 }, (_, value) => {
               const item = gated ? (COSMETIC_BY_ID[`${slot}:${value}`] ?? null) : null;
@@ -216,7 +273,11 @@ function Look({
                   action={action}
                   onSelect={() => action.run({ type: 'wardrobe', change: { slot, value } })}
                 >
-                  <AvatarOption avatar={{ ...player.avatar, [slot]: value }} age={age} label="" />
+                  <AvatarOption
+                    avatar={{ ...player.avatar, [slot]: value }}
+                    age={slot === 'facialHair' ? beardAge : age}
+                    face={slot === 'facialHair'}
+                  />
                 </Tile>
               );
             })}
@@ -239,16 +300,54 @@ function Swatch({ colors }: { colors: [string, string] }) {
   );
 }
 
-function KitOptions({ world, career, action }: { world: World; career: Career; action: Action }) {
+/** A small sock in the club's colours showing the option's style, sized like a swatch. */
+function SockGlyph({ id, kit }: { id: string; kit: Kit }) {
+  const [base, accent] = kit.colors;
+  const pattern: Record<string, ReactNode> = {
+    'socks:rolled': <path d="M19 15H37" stroke={base} strokeWidth="5" />,
+    'socks:taped': <path d="M21 22H35M21 26H35" stroke="#f5f5f5" strokeWidth="2.5" />,
+    'socks:high': <path d="M21 1H35V6H21Z" fill={base} />,
+    'socks:striped': <path d="M21 9H35M21 15H35M21 21H35" stroke={base} strokeWidth="2.5" />,
+  };
+  return (
+    <span
+      aria-hidden="true"
+      className="grid h-10 w-14 place-items-center overflow-hidden rounded-control border border-line bg-surface"
+    >
+      <svg viewBox="0 0 56 40" className="h-10 w-14">
+        <path
+          d="M21 3H35V27Q35 31 39 32L45 34Q49 35 49 38V40H21Z"
+          fill={accent}
+          stroke="#182a35"
+          strokeOpacity=".3"
+          strokeWidth="1"
+        />
+        {pattern[id] ?? null}
+      </svg>
+    </span>
+  );
+}
+
+function KitOptions({
+  world,
+  career,
+  kit,
+  action,
+}: {
+  world: World;
+  career: Career;
+  kit: Kit;
+  action: Action;
+}) {
   const equipped = career.style.equipped;
   const group = (
     kind: 'boots' | 'socks' | 'armband',
     label: string,
     names: Record<string, string>,
   ) => (
-    <div className="mt-4">
+    <div className="mt-5">
       <h3 className="text-sm font-semibold">{label}</h3>
-      <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label={label}>
+      <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-5" aria-label={label}>
         {COSMETICS.filter(
           (item) =>
             item.kind === kind && (!item.brandId || availability(world, item) === 'sponsor'),
@@ -262,21 +361,25 @@ function KitOptions({ world, career, action }: { world: World; career: Career; a
             action={action}
             onSelect={() => action.run({ type: 'wardrobe', change: { slot: kind, id: item.id } })}
           >
-            {item.colors ? <Swatch colors={item.colors} /> : null}
-            <span className="text-xs font-semibold">{names[item.id]}</span>
+            {item.colors ? (
+              <Swatch colors={item.colors} />
+            ) : kind === 'socks' ? (
+              <SockGlyph id={item.id} kit={kit} />
+            ) : null}
+            <span className="text-xs leading-tight font-semibold">{names[item.id]}</span>
           </Tile>
         ))}
       </ul>
     </div>
   );
   return (
-    <section aria-labelledby="kit-heading" className={`${ui.panel} lg:col-span-5`}>
+    <section aria-labelledby="kit-heading" className={`${ui.panel} lg:col-span-8`}>
       <h2 id="kit-heading" className={ui.heading}>
         {W.kit}
       </h2>
       <fieldset className="mt-4" disabled={Boolean(action.block)}>
         <legend className="text-sm font-semibold">{W.sleeves}</legend>
-        <div className="mt-2 grid grid-cols-2 gap-1 rounded-control bg-surface-soft p-1">
+        <div className="mt-2 grid max-w-sm grid-cols-2 gap-1 rounded-control bg-surface-soft p-1">
           {(['short', 'long'] as const).map((value) => (
             <label
               key={value}
@@ -306,34 +409,41 @@ function KitOptions({ world, career, action }: { world: World; career: Career; a
 function Celebrations({ world, career, action }: { world: World; career: Career; action: Action }) {
   const C = l.celebrations;
   return (
-    <section aria-labelledby="celebrations-heading" className={`${ui.panel} lg:col-span-12`}>
+    <section aria-labelledby="celebrations-heading" className={`${ui.panel} lg:col-span-8`}>
       <h2 id="celebrations-heading" className={ui.heading}>
         {C.title}
       </h2>
       <p className={`${ui.muted} mt-1 max-w-prose`}>{C.body}</p>
       <p className="mt-2 text-sm font-semibold">
-        {format(C.uses, { count: career.style.signatureUses })}
+        {plural(career.style.signatureUses, C.usesOne, C.uses)}
       </p>
       <ul
-        className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
+        className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4"
         aria-label={C.title}
       >
         {COSMETICS.filter((item) => item.kind === 'celebration').map((item) => {
           const name = C.names[item.id] ?? item.id;
+          const selected = career.style.equipped.celebration === item.id;
           return (
             <Tile
               key={item.id}
               item={item}
               world={world}
-              selected={career.style.equipped.celebration === item.id}
+              selected={selected}
+              selectedLabel={C.signature}
               label={name}
               action={action}
               onSelect={() =>
                 action.run({ type: 'wardrobe', change: { slot: 'celebration', id: item.id } })
               }
             >
-              <CelebrationPreview motion={item.motion!} label={format(C.preview, { name })} />
-              <span className="text-xs font-semibold">{name}</span>
+              <CelebrationPreview
+                motion={item.motion!}
+                label={format(C.preview, { name })}
+                onHover={!selected}
+              />
+              <span className="text-sm leading-tight font-semibold">{name}</span>
+              <span className="text-xs leading-snug text-muted">{C.descriptions[item.id]}</span>
             </Tile>
           );
         })}
@@ -353,37 +463,45 @@ function ChallengeRow({
 }) {
   const [celebrate, setCelebrate] = useState(false);
   const done = challengeDone(world, challenge);
-  const progress = challengeProgress(world, challenge);
+  const progress = Math.min(challengeProgress(world, challenge), challenge.target);
+  const left = challenge.target - progress;
   const reward = challenge.rewardCosmeticId
     ? format(l.challenges.rewardCosmetic, {
         tokens: challenge.rewardTokens,
         item: cosmeticName(challenge.rewardCosmeticId),
       })
     : format(l.challenges.reward, { tokens: challenge.rewardTokens });
+  const ready = done && !challenge.claimed;
   return (
-    <li className="relative flex flex-col gap-2 rounded-control border border-line bg-surface-soft p-3">
+    <li
+      className={`relative flex flex-col gap-2 rounded-control border p-3 ${
+        ready ? 'border-accent bg-accent-soft' : 'border-line bg-surface-soft'
+      }`}
+    >
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm font-semibold">
-          {format(l.challenges.kinds[challenge.kind], { target: challenge.target })}
+          {format(
+            challenge.target === 1
+              ? l.challenges.kindsOne[challenge.kind]
+              : l.challenges.kinds[challenge.kind],
+            { target: challenge.target },
+          )}
         </span>
         <span className="shrink-0 text-xs font-bold text-muted">
           {format(l.challenges.progress, { progress, target: challenge.target })}
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-surface" aria-hidden="true">
-        <span
-          className={`block h-full rounded-full ${done ? 'bg-accent' : 'bg-gold'}`}
-          style={{ width: `${(progress / challenge.target) * 100}%` }}
-        />
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <span className="text-xs text-muted">{reward}</span>
         {challenge.claimed ? (
-          <span className={ui.chip}>{l.challenges.claimed}</span>
-        ) : (
+          <span className={ui.chip}>
+            <Glyph name="check" className="h-3.5 w-3.5" />
+            {l.challenges.claimed}
+          </span>
+        ) : done ? (
           <button
             className="button"
-            disabled={!done || Boolean(action.block)}
+            disabled={Boolean(action.block)}
             onClick={() => {
               if (action.run({ type: 'claim-challenge', id: challenge.id })) {
                 setCelebrate(true);
@@ -393,8 +511,20 @@ function ChallengeRow({
           >
             {l.challenges.claim}
           </button>
+        ) : (
+          <span className="text-xs font-bold">
+            {plural(left, l.challenges.toGoOne, l.challenges.toGo)}
+          </span>
         )}
       </div>
+      {!done && (
+        <div className="h-2 overflow-hidden rounded-full bg-line" aria-hidden="true">
+          <span
+            className="block h-full rounded-full bg-meter-gold"
+            style={{ width: `${(progress / challenge.target) * 100}%` }}
+          />
+        </div>
+      )}
       <AnimatePresence>
         {celebrate && (
           <m.p
@@ -430,30 +560,30 @@ function cosmeticName(id: string): string {
 
 function Challenges({ world, action }: { world: World; action: Action }) {
   return (
-    <section aria-labelledby="challenges-heading" className={`${ui.panel} lg:col-span-7`}>
+    <section aria-labelledby="challenges-heading" className={`${ui.panel} lg:col-span-8`}>
       <h2 id="challenges-heading" className={ui.heading}>
         {l.challenges.title}
       </h2>
       <p className={`${ui.muted} mt-1`}>{l.challenges.body}</p>
-      {(['daily', 'weekly'] as const).map((cadence) => (
-        <div key={cadence} className="mt-4">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-muted">
-            {l.challenges[cadence]}
-          </h3>
-          <ul className="mt-2 grid gap-2">
-            {world.challenges
-              .filter((challenge) => challenge.cadence === cadence)
-              .map((challenge) => (
-                <ChallengeRow
-                  key={challenge.id}
-                  world={world}
-                  challenge={challenge}
-                  action={action}
-                />
-              ))}
-          </ul>
-        </div>
-      ))}
+      <div className="grid gap-x-4 xl:grid-cols-2">
+        {(['daily', 'weekly'] as const).map((cadence) => (
+          <div key={cadence} className="mt-4">
+            <h3 className="text-sm font-semibold">{l.challenges[cadence]}</h3>
+            <ul className="mt-2 grid gap-2">
+              {world.challenges
+                .filter((challenge) => challenge.cadence === cadence)
+                .map((challenge) => (
+                  <ChallengeRow
+                    key={challenge.id}
+                    world={world}
+                    challenge={challenge}
+                    action={action}
+                  />
+                ))}
+            </ul>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { m } from 'framer-motion';
-import type { Award, Player, World } from '../../model/domain';
+import type { Award, Crest, Player, World } from '../../model/domain';
 import { CONTINENTAL_IDS, groupTable } from '../../engine/world/continental';
 import { rivalOf } from '../../engine/career/social';
 import { trophyName } from '../../engine/career/honours/trophies';
@@ -8,20 +8,19 @@ import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
 import { CareerPage, CrestImage, ui } from './shared';
 import { useUrlDialog } from './useUrlDialog';
+import { Glyph, type GlyphName } from './honoursUi';
 import { audio } from '../../audio';
 
 export default function CareerTrophies() {
   return (
-    <CareerPage eyebrow={h.eyebrow} title={h.titles.trophies}>
+    <CareerPage title={h.titles.trophies}>
       {({ world, player }) => <TrophiesContent world={world} player={player} />}
     </CareerPage>
   );
 }
 
-const awardName = (award: Award) =>
-  award.kind === 'month'
-    ? `${h.awards.kinds.month} · ${format(h.awards.monthLabel, { month: award.month ?? 0 })}`
-    : h.awards.kinds[award.kind];
+const playerName = (world: World, id: string | undefined) =>
+  id ? (world.players[id]?.name ?? world.archive?.players[id]?.name ?? '') : '';
 
 function TrophiesContent({ world, player }: { world: World; player: Player }) {
   const ceremony = useUrlDialog('ceremony');
@@ -33,27 +32,92 @@ function TrophiesContent({ world, player }: { world: World; player: Player }) {
     return <Ceremony world={world} award={shown} player={player} onClose={ceremony.close} />;
   const latest = balls.at(-1);
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
-      <section aria-labelledby="ball-heading" className={`${ui.panel} bg-art-gold lg:col-span-12`}>
-        <p className={ui.eyebrow}>{h.awards.kinds['golden-ball']}</p>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
+      <GoldenBall world={world} player={player} award={latest} onOpen={ceremony.open} />
+      {/* Two independent columns: the player's honours and the world's, the season's awards. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:col-span-7">
+        <Cabinet world={world} player={player} />
+        <WorldRecords world={world} player={player} />
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:col-span-5">
+        <SeasonAwards world={world} player={player} />
+      </div>
+      <Continental world={world} player={player} />
+    </div>
+  );
+}
+
+/** The latest Golden Ball: who won, where the player finished, and the ceremony replay. */
+function GoldenBall({
+  world,
+  player,
+  award,
+  onOpen,
+}: {
+  world: World;
+  player: Player;
+  award: Award | undefined;
+  onOpen: (value: string) => void;
+}) {
+  const winner = award?.shortlist[0];
+  const club = winner ? world.clubs[winner.clubId] : undefined;
+  const rank = award ? award.shortlist.findIndex((entry) => entry.playerId === player.id) + 1 : 0;
+  const won = rank === 1;
+  return (
+    <section
+      aria-labelledby="ball-heading"
+      className={`${ui.panel} grid grid-cols-[minmax(0,1fr)] gap-5 bg-art-gold md:grid-cols-2 md:items-center lg:col-span-12`}
+    >
+      <div>
         <h2 id="ball-heading" className="font-display text-[2.2rem] leading-none">
-          {latest
-            ? format(h.awards.ceremony, { season: latest.season })
+          {award
+            ? format(h.awards.ceremony, { season: award.season })
             : h.awards.kinds['golden-ball']}
         </h2>
         <p className={`${ui.muted} mt-2 max-w-prose`}>
-          {latest ? h.awards.ceremonyBody : h.awards.none}
+          {award ? h.awards.ceremonyBody : h.awards.none}
         </p>
-        {latest && (
-          <button className="button mt-4" onClick={() => ceremony.open(String(latest.season))}>
+        {award && (
+          <button className="button mt-4" onClick={() => onOpen(String(award.season))}>
             {h.awards.ceremonyOpen}
           </button>
         )}
-      </section>
-      <Cabinet world={world} player={player} />
-      <SeasonAwards world={world} player={player} />
-      <Continental world={world} player={player} />
-    </div>
+      </div>
+      {award && winner && (
+        <div className="grid gap-3">
+          <div
+            className={`flex items-center gap-3 rounded-control p-4 ${won ? 'bg-gold text-on-gold' : 'bg-surface'}`}
+          >
+            <span
+              aria-hidden="true"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gold text-on-gold"
+            >
+              <Glyph name="star" className="h-7 w-7" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-semibold">{h.awards.ballWinner}</span>
+              <strong className="block truncate font-display text-2xl leading-none">
+                {playerName(world, winner.playerId)}
+              </strong>
+              <span className="flex min-w-0 items-center gap-1.5 text-xs">
+                {club && <CrestImage crest={club.crest} alt="" className="h-5 w-5 shrink-0" />}
+                <span className="truncate">{club?.name}</span>
+              </span>
+            </span>
+            <span className="shrink-0 text-sm font-bold">
+              {format(h.awards.score, { score: winner.score })}
+            </span>
+          </div>
+          <p className="text-sm font-semibold">
+            {won
+              ? h.awards.ballYou
+              : rank
+                ? format(h.awards.yourRank, { rank })
+                : h.awards.notRanked}
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -77,7 +141,6 @@ function Ceremony({
     <section aria-labelledby="ceremony-heading" className={`${ui.panel} bg-art-gold`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className={ui.eyebrow}>{h.awards.kinds['golden-ball']}</p>
           <h2 id="ceremony-heading" className="font-display text-[2.8rem] leading-none">
             {format(h.awards.ceremony, { season: award.season })}
           </h2>
@@ -94,10 +157,7 @@ function Ceremony({
           const position = ranked.length - index;
           const winner = position === 1;
           if (winner && !revealed) return null;
-          const name =
-            world.players[entry.playerId]?.name ??
-            world.archive?.players[entry.playerId]?.name ??
-            '';
+          const name = playerName(world, entry.playerId);
           const club = world.clubs[entry.clubId];
           const mine = entry.playerId === player.id;
           const theirs = entry.playerId === rival?.id;
@@ -164,97 +224,141 @@ function Ceremony({
   );
 }
 
+/** A medal tile in the cabinet: club trophies, individual awards and international honours. */
+function Medal({
+  glyph,
+  title,
+  meta,
+  crest,
+}: {
+  glyph: GlyphName;
+  title: string;
+  meta: string;
+  crest?: Crest;
+}) {
+  return (
+    <li className="flex min-w-0 items-center gap-3 rounded-control bg-surface-soft p-3">
+      <span
+        aria-hidden="true"
+        className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gold text-on-gold shadow-surface"
+      >
+        <Glyph name={glyph} className="h-6 w-6" />
+        {crest && (
+          <CrestImage
+            crest={crest}
+            alt=""
+            className="absolute -right-1.5 -bottom-1.5 h-6 w-6 rounded-full bg-surface p-0.5"
+          />
+        )}
+      </span>
+      <span className="min-w-0">
+        <strong className="block text-sm leading-tight">{title}</strong>
+        <span className="block truncate text-xs text-muted">{meta}</span>
+      </span>
+    </li>
+  );
+}
+
 function Cabinet({ world, player }: { world: World; player: Player }) {
   const trophies = world.trophies.filter((trophy) => trophy.playerIds.includes(player.id));
   const awards = world.awards.filter((award) => award.winnerIds.includes(player.id));
   const tournaments = (world.international?.tournaments ?? []).filter(
     (t) => t.career?.inSquad && t.career.stage === 'winner',
   );
-  const records = world.records;
   const nothing = !trophies.length && !awards.length && !tournaments.length;
+  const group = (title: string, items: ReactNode[]) =>
+    items.length > 0 && (
+      <>
+        <h3 className="mt-5 text-sm font-semibold">{title}</h3>
+        <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">{items}</ul>
+      </>
+    );
   return (
-    <section aria-labelledby="cabinet-heading" className={`${ui.panel} lg:col-span-7`}>
+    <section aria-labelledby="cabinet-heading" className={ui.panel}>
       <h2 id="cabinet-heading" className={ui.heading}>
         {h.cabinet.title}
       </h2>
-      {nothing && <p className={`${ui.muted} mt-3`}>{h.cabinet.empty}</p>}
-      {trophies.length > 0 && (
-        <>
-          <h3 className="mt-4 text-xs font-bold uppercase tracking-wider text-muted">
-            {h.cabinet.club}
-          </h3>
-          <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
-            {trophies.map((trophy) => {
-              const club = world.clubs[trophy.clubId]!;
-              const name = trophyName(world, trophy);
-              return (
-                <li
-                  key={trophy.id}
-                  className="flex items-center gap-3 rounded-control bg-surface-soft p-3"
+      {nothing && <p className={`${ui.muted} mt-3 max-w-prose`}>{h.cabinet.empty}</p>}
+      {group(
+        h.cabinet.club,
+        trophies.map((trophy) => {
+          const club = world.clubs[trophy.clubId];
+          return (
+            <Medal
+              key={trophy.id}
+              glyph="trophy"
+              title={trophyName(world, trophy)}
+              meta={`${club?.name ?? ''} · ${trophy.season}`}
+              crest={club?.crest}
+            />
+          );
+        }),
+      )}
+      {group(
+        h.cabinet.individual,
+        awards.map((award) => (
+          <Medal
+            key={award.id}
+            glyph={award.kind === 'golden-ball' || award.kind === 'golden-boot' ? 'star' : 'medal'}
+            title={h.awards.kinds[award.kind]}
+            meta={
+              award.kind === 'month' && award.month
+                ? `${format(h.awards.monthLabel, { month: award.month })} · ${award.season}`
+                : String(award.season)
+            }
+          />
+        )),
+      )}
+      {group(
+        h.cabinet.international,
+        tournaments.map((t) => (
+          <Medal key={t.id} glyph="flag" title={t.name} meta={String(t.year)} />
+        )),
+      )}
+    </section>
+  );
+}
+
+function WorldRecords({ world, player }: { world: World; player: Player }) {
+  return (
+    <section aria-labelledby="records-heading" className={ui.panel}>
+      <h2 id="records-heading" className={ui.heading}>
+        {h.cabinet.worldRecords}
+      </h2>
+      <p className={`${ui.muted} mt-1`}>{h.cabinet.worldRecordsBody}</p>
+      {world.records.length ? (
+        <ul className="mt-4 grid gap-2">
+          {world.records.map((record) => {
+            const mine = record.playerId === player.id;
+            return (
+              <li
+                key={record.id}
+                className={`flex items-center gap-3 rounded-control p-3 ${mine ? 'bg-accent-soft' : 'bg-surface-soft'}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${mine ? 'bg-gold text-on-gold' : 'bg-surface text-accent'}`}
                 >
-                  <span
-                    aria-hidden="true"
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gold text-lg"
-                  >
-                    ★
+                  <Glyph name="record" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">
+                    {h.cabinet.recordKinds[record.kind]}
                   </span>
-                  <span className="min-w-0">
-                    <strong className="block truncate text-sm">{name}</strong>
-                    <span className="block truncate text-xs text-muted">
-                      {club.name} · {trophy.season}
-                    </span>
+                  <span className="block truncate text-xs text-muted">
+                    {format(h.cabinet.recordHolder, {
+                      name: mine ? h.cabinet.yours : record.playerName,
+                    })}
                   </span>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-      {awards.length > 0 && (
-        <>
-          <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
-            {h.cabinet.individual}
-          </h3>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {awards.map((award) => (
-              <li key={award.id} className={ui.chip}>
-                {awardName(award)} · {award.season}
+                </span>
+                <span className="shrink-0 font-display text-2xl leading-none">{record.value}</span>
               </li>
-            ))}
-          </ul>
-        </>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className={`${ui.muted} mt-4`}>{h.cabinet.noRecords}</p>
       )}
-      {tournaments.length > 0 && (
-        <>
-          <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
-            {h.cabinet.international}
-          </h3>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {tournaments.map((t) => (
-              <li key={t.id} className={ui.chip}>
-                {t.name} {t.year}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
-        {h.cabinet.records}
-      </h3>
-      <ul className="mt-2 grid gap-1 text-sm">
-        {records.map((record) => (
-          <li
-            key={record.id}
-            className={record.playerId === player.id ? 'font-bold text-accent' : ''}
-          >
-            {format(h.cabinet.held, {
-              kind: h.cabinet.recordKinds[record.kind],
-              value: record.value,
-              name: record.playerId === player.id ? h.cabinet.yours : record.playerName,
-            })}
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
@@ -262,75 +366,64 @@ function Cabinet({ world, player }: { world: World; player: Player }) {
 /** An award's deciding number, named by what it counts. */
 const awardValue = (award: Award) =>
   award.kind === 'golden-boot'
-    ? format(h.awards.values.goals, { value: award.value })
-    : award.kind === 'team-season'
-      ? ''
-      : format(h.awards.values.points, { value: award.value });
+    ? award.value === 1
+      ? h.awards.values.goalsOne
+      : format(h.awards.values.goals, { value: award.value })
+    : format(h.awards.values.points, { value: award.value });
 
 function SeasonAwards({ world, player }: { world: World; player: Player }) {
-  const awards = world.awards
-    .filter((award) => award.kind !== 'month')
-    .slice(-24)
-    .reverse();
+  const awards = world.awards.filter((award) => award.kind !== 'month').slice(-24);
+  const seasons = [...new Set(awards.map((award) => award.season))].reverse();
   return (
-    <section aria-labelledby="season-awards-heading" className={`${ui.panel} lg:col-span-5`}>
+    <section aria-labelledby="season-awards-heading" className={ui.panel}>
       <h2 id="season-awards-heading" className={ui.heading}>
         {h.awards.season}
       </h2>
-      {awards.length ? (
-        <div
-          className="relative mt-4 overflow-x-auto"
-          tabIndex={0}
-          role="region"
-          aria-label={h.awards.season}
-        >
-          <table className="w-full min-w-[18rem] text-left text-sm">
-            <thead>
-              <tr className="text-xs uppercase tracking-wider text-muted">
-                <th scope="col" className="py-1 pr-2">
-                  {h.awards.columns.season}
-                </th>
-                <th scope="col" className="py-1 pr-2">
-                  {h.awards.columns.award}
-                </th>
-                <th scope="col" className="py-1 pr-2">
-                  {h.awards.columns.winner}
-                </th>
-                <th scope="col" className="py-1 text-right">
-                  {h.awards.columns.value}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {awards.map((award) => {
-                const winner =
-                  award.kind === 'team-season'
-                    ? award.winnerIds.includes(player.id)
-                    : award.winnerIds[0] === player.id;
-                const name =
-                  award.kind === 'team-season'
-                    ? award.winnerIds.includes(player.id)
-                      ? h.awards.teamIn
-                      : h.awards.teamOut
-                    : (world.players[award.winnerIds[0]!]?.name ??
-                      world.archive?.players[award.winnerIds[0]!]?.name ??
-                      '');
-                return (
-                  <tr key={award.id} className={winner ? 'font-bold text-accent' : ''}>
-                    <td className="py-1 pr-2">{award.season}</td>
-                    <td className="py-1 pr-2">{awardName(award)}</td>
-                    <td className="py-1 pr-2">{name}</td>
-                    <td className="py-1 text-right text-muted">{awardValue(award)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className={`${ui.muted} mt-4`}>{h.awards.seasonEmpty}</p>
-      )}
-      <p className="mt-3 text-xs text-muted">{h.awards.scope}</p>
+      {!seasons.length && <p className={`${ui.muted} mt-4`}>{h.awards.seasonEmpty}</p>}
+      {seasons.map((season) => {
+        const own = awards.filter((award) => award.season === season);
+        const team = own.find((award) => award.kind === 'team-season');
+        const picked = Boolean(team?.winnerIds.includes(player.id));
+        return (
+          <div key={season} className="mt-4">
+            <h3 className="font-display text-xl leading-none">
+              {format(h.awards.seasonGroup, { season })}
+            </h3>
+            <ul className="mt-1 divide-y divide-line">
+              {own
+                .filter((award) => award.kind !== 'team-season')
+                .map((award) => {
+                  const mine = award.winnerIds[0] === player.id;
+                  return (
+                    <li key={award.id} className="flex items-end gap-3 py-2 text-sm">
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs text-muted">
+                          {h.awards.kinds[award.kind]}
+                        </span>
+                        <span className={`block font-semibold ${mine ? 'text-accent' : ''}`}>
+                          {playerName(world, award.winnerIds[0])}
+                          {mine ? ` · ${h.awards.you}` : ''}
+                        </span>
+                      </span>
+                      <span className="shrink-0 whitespace-nowrap text-xs text-muted">
+                        {awardValue(award)}
+                      </span>
+                    </li>
+                  );
+                })}
+            </ul>
+            {team && (
+              <p
+                className={`mt-1 flex items-center gap-2 text-sm ${picked ? 'font-semibold text-accent' : 'text-muted'}`}
+              >
+                {picked && <Glyph name="check" className="h-4 w-4" />}
+                {picked ? h.awards.teamLineIn : h.awards.teamLineOut}
+              </p>
+            )}
+          </div>
+        );
+      })}
+      <p className="mt-4 text-xs text-muted">{h.awards.scope}</p>
     </section>
   );
 }

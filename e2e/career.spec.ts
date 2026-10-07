@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isBrowserNoise, skipTutorial } from './support';
+import { isBrowserNoise, skipTutorial, openCareerPage } from './support';
 import { mkdir } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
@@ -152,10 +152,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await expect(page.getByRole('status').filter({ hasText: 'Finishing raised to' })).toBeAttached();
 
   // Unlock an available skill with confirmation; arrow keys move through the tree.
-  await page
-    .getByRole('navigation', { name: 'Career sections' })
-    .getByRole('link', { name: 'Skills' })
-    .click();
+  await openCareerPage(page, 'Skills');
   await expect(page).toHaveURL(/\/career\/skills/);
   const firstNode = page.locator('[data-skill]').first();
   await firstNode.focus();
@@ -173,20 +170,14 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   }
 
   // Change a training session and save the plan.
-  await page
-    .getByRole('navigation', { name: 'Career sections' })
-    .getByRole('link', { name: 'Training' })
-    .click();
+  await openCareerPage(page, 'Training');
   await page.locator('#focus-0').selectOption('finishing');
   await page.getByRole('radio', { name: 'High' }).first().check({ force: true });
   await page.getByRole('button', { name: 'Save training plan', exact: true }).click();
   await expect(page.getByText('Training plan saved.', { exact: false })).toBeVisible();
 
   // Back on the hub, advance the world to the next matchday with live progress.
-  await page
-    .getByRole('navigation', { name: 'Career sections' })
-    .getByRole('link', { name: 'Overview' })
-    .click();
+  await openCareerPage(page, 'Hub');
   await expect(page.getByRole('link', { name: /attribute points?/ })).toContainText(
     String(before - 1),
   );
@@ -212,10 +203,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await expect(page.getByRole('heading', { name: 'Robin Vale' })).toBeVisible({ timeout: 60000 });
   await expect(page.getByRole('heading', { name: 'Career hub', exact: true })).toBeVisible();
   // The training change and the raised attribute survived the save.
-  await page
-    .getByRole('navigation', { name: 'Career sections' })
-    .getByRole('link', { name: 'Training' })
-    .click();
+  await openCareerPage(page, 'Training');
   await expect(page.locator('#focus-0')).toHaveValue('finishing');
   if (browserName === 'chromium') {
     // Visual record: dark theme at phone width for every career page (motion reduced so
@@ -226,12 +214,9 @@ test('creates a career, plays matchdays, develops the player and restores the hu
       ['training', 'Training'],
       ['skills', 'Skills'],
       ['profile', 'Profile'],
-      ['hub', 'Overview'],
+      ['hub', 'Hub'],
     ] as const) {
-      await page
-        .getByRole('navigation', { name: 'Career sections' })
-        .getByRole('link', { name: label })
-        .click();
+      await openCareerPage(page, label);
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
       await page.screenshot({ path: `artifacts/career-${name}-mobile-dark.png`, fullPage: true });
       const overflow = await page.evaluate(

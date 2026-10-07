@@ -20,9 +20,12 @@ import {
   useSaveLink,
 } from './shared';
 
-const integer = new Intl.NumberFormat('en');
+import { CONFIG } from '../../engine/config';
 import { money } from './marketUi';
 import { ChronicleView } from './ChronicleView';
+
+const integer = new Intl.NumberFormat('en');
+const R = CONFIG.career.honours.retirement;
 
 /**
  * Legacies of every career that ended in this world (AGENTS.md §8, §9.2). Works with or
@@ -33,8 +36,8 @@ export default function CareerLegacy() {
   const { loading, error } = useRestoredWorld();
   return (
     <Page>
+      {world?.career && !loading && <CareerNav />}
       <header className="page-heading">
-        <p className={ui.eyebrow}>{h.eyebrow}</p>
         <h1>{h.titles.legacy}</h1>
         <p>{h.legacy.body}</p>
       </header>
@@ -51,7 +54,6 @@ export default function CareerLegacy() {
         <CareerEmpty />
       ) : (
         <>
-          {world.career && <CareerNav />}
           <LegacyContent world={world} />
         </>
       )}
@@ -66,17 +68,29 @@ function LegacyContent({ world }: { world: World }) {
   const selected = legacies.find((legacy) => legacy.id === params.get('legacy')) ?? legacies[0];
   if (!selected)
     return (
-      <section className={`${ui.panel} flex flex-col gap-4`}>
-        <h2 className={ui.heading}>{h.legacy.title}</h2>
-        <p className={ui.muted}>{h.legacy.none}</p>
-        {!world.career && (
-          <div>
+      <section
+        aria-labelledby="legacy-empty-heading"
+        className={`${ui.panel} flex max-w-3xl flex-col gap-4`}
+      >
+        <h2 id="legacy-empty-heading" className={ui.heading}>
+          {h.legacy.emptyTitle}
+        </h2>
+        <p className="max-w-prose text-sm">
+          {format(h.legacy.emptyBody, { age: R.optionalAge, forced: R.forcedAge })}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {world.career ? (
+            <Link className="button" to={link('/career/chronicle')}>
+              {h.legacy.chronicle}
+              <Icon name="arrow" />
+            </Link>
+          ) : (
             <Link className="button" to={link('/career/new')}>
               {h.legacy.newCareer}
               <Icon name="arrow" />
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </section>
     );
   return (

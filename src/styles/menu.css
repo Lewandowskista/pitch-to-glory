@@ -17,7 +17,7 @@
   width: 55%;
 }
 .hero .eyebrow {
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-hero-eyebrow);
@@ -128,10 +128,26 @@
   justify-content: space-between;
   align-items: center;
   margin-top: 1.1rem;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--accent);
   font-weight: 600;
 }
 .discovery span svg {
   width: 17px;
+}
+/* A returning player: the career card replaces the pitch line, and on phones the stadium
+   art steps aside so the way back into the career sits in the first screen. */
+.hero--returning .hero-copy {
+  padding-bottom: 2.4rem;
+}
+@media (max-width: 700px) {
+  .hero.hero--returning {
+    min-height: 0;
+  }
+  .hero--returning .stadium {
+    display: none;
+  }
+  .hero--returning .hero-copy {
+    padding-bottom: 1.6rem;
+  }
 }

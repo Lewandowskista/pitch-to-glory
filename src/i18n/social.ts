@@ -52,6 +52,7 @@ export const socialText = {
     members: '{count} players',
     leader: 'Led by {name}',
     affinity: 'How they see you',
+    affinityFull: 'How they see you: {group}',
     influence: 'Influence',
     behaviour:
       'Your answers to the press, your performances and any transfer request move these groups. Seniors who rate you speak up for you with the manager.',
@@ -60,6 +61,7 @@ export const socialText = {
     title: 'Key teammates',
     body: 'Chemistry grows while you share a club, faster when you play together, and follows how their group sees you.',
     chemistry: 'Chemistry with {name}',
+    chemistryShort: 'Chemistry',
     reasons: {
       clique: 'Same group',
       nationality: 'Same nationality',
@@ -74,6 +76,7 @@ export const socialText = {
     trust: 'Manager’s trust',
     fans: 'Fan affection',
     manager: '{name} · prefers {formation}',
+    world: 'Squad and league table',
   },
   fit: {
     title: 'Club culture fit',
@@ -119,6 +122,11 @@ export const socialText = {
     deadline: 'Answer by week {week}, or the silence costs a little fame.',
     choose: 'Your answer',
     answered: 'You answered: {answer}',
+    earlier: 'Earlier questions',
+    showEarlier: 'Show {count} earlier questions',
+    showEarlierOne: 'Show 1 earlier question',
+    showMore: 'Show more posts',
+    showing: 'Showing {shown} of {total} posts',
     silence: 'You stayed silent.',
     effects: 'What it changes',
     effectNames: {
@@ -143,6 +151,8 @@ export const socialText = {
     coverageBody: 'Recent coverage feeds your morale. It fades week by week.',
     kinds: { press: 'Press conference', interview: 'Interview' },
     answeredCount: '{count} questions answered',
+    answeredOne: '1 question answered',
+    coverageLevel: 'Coverage',
     keyHint: 'Press 1–3 to choose an answer.',
     authorKinds: {
       fan: 'Fan',
@@ -231,6 +241,7 @@ export const socialText = {
     intensity: 'Rivalry intensity',
     compare: 'Head to head',
     you: 'You',
+    better: 'better',
     columns: {
       measure: 'Measure',
       you: 'You',

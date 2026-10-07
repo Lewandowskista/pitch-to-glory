@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Club, Hex, League, Player, World } from '../model/domain';
 import { useAppStore } from '../store';
@@ -21,7 +29,7 @@ import {
   type EditAction,
 } from '../engine/world/edits';
 import { platform } from '../platform';
-import { format } from '../i18n';
+import { format, t } from '../i18n';
 import { careerText as c } from '../i18n/career';
 import { editText as e } from '../i18n/edit';
 import { plural, ui, useEditBlock, useRestoredWorld } from './career/shared';
@@ -56,8 +64,7 @@ export default function EditMode() {
   return (
     <Page>
       <header className="page-heading">
-        <p className={ui.eyebrow}>{e.eyebrow}</p>
-        <h1>{e.title}</h1>
+        <h1>{t.app.edit}</h1>
         <p>{e.description}</p>
       </header>
       {error && (
@@ -87,6 +94,21 @@ export default function EditMode() {
         </section>
       )}
     </Page>
+  );
+}
+
+const WIDE = '(min-width: 80rem)';
+function subscribeWide(change: () => void) {
+  const query = window.matchMedia(WIDE);
+  query.addEventListener('change', change);
+  return () => query.removeEventListener('change', change);
+}
+/** True when the editor sits beside the list (Tailwind `xl`). */
+function useWide(): boolean {
+  return useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia(WIDE).matches,
+    () => false,
   );
 }
 
@@ -147,8 +169,9 @@ function Editor({ world }: { world: World }) {
   const [query, setQuery] = useState(() => params.get('q') ?? '');
   const country = params.get('country') ?? '';
   const [editedOnly, setEditedOnly] = useState(() => params.get('edited') === '1');
-  const selected = params.get('id');
   const { block } = useEdit();
+  // Beside the list (wide screens), open the first result instead of an empty pane.
+  const wide = useWide();
   const set = (patch: Record<string, string | null>, push = false) => {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(patch))
@@ -165,6 +188,17 @@ function Editor({ world }: { world: World }) {
       (!editedOnly || row.edited),
   );
   const shown = matches.slice(0, LIMIT);
+  const firstId = shown[0]?.id ?? null;
+  const selected = params.get('id') ?? (wide ? firstId : null);
+  // Pin the opened item in the URL, so a rename that re-sorts the list keeps it open.
+  const pinned = Boolean(params.get('id'));
+  useEffect(() => {
+    if (wide && !pinned && firstId) {
+      const next = new URLSearchParams(params);
+      next.set('id', firstId);
+      setParams(next, { replace: true });
+    }
+  }, [wide, pinned, firstId, params, setParams]);
   const tabs = useRef<HTMLDivElement>(null);
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -206,7 +240,7 @@ function Editor({ world }: { world: World }) {
           ref={tabs}
           role="tablist"
           aria-label={e.kindsLabel}
-          className="grid grid-cols-3 gap-1 rounded-control bg-surface-soft p-1"
+          className="segmented-tabs segmented-tabs-fill"
         >
           {KINDS.map((k) => (
             <button
@@ -218,9 +252,6 @@ function Editor({ world }: { world: World }) {
               tabIndex={kind === k ? 0 : -1}
               onKeyDown={onTabKey}
               onClick={() => set({ kind: k, id: null }, true)}
-              className={`min-h-11 rounded-[0.6rem] text-sm font-semibold transition-colors ${ui.focus} ${
-                kind === k ? 'bg-accent text-on-accent' : 'text-muted hover:text-ink'
-              }`}
             >
               {e.kinds[k]}
             </button>

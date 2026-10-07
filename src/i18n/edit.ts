@@ -1,7 +1,5 @@
 /** Edit mode copy (milestone 9). */
 export const editText = {
-  eyebrow: 'Edit mode',
-  title: 'Make the world yours',
   description:
     'Rename clubs, leagues and players, repaint club colours and draw new crests. Edits change names and looks only, never results, and you can revert each one.',
   empty: {

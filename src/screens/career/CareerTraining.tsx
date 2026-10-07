@@ -21,7 +21,7 @@ import type {
 } from '../../model/domain';
 import { format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
-import { CareerPage, PlayerPortrait, ui, useEditBlock } from './shared';
+import { CareerPage, PlayerPortrait, plural, ui, useEditBlock } from './shared';
 import { POSITIONS, samePlan, withTraining } from './selectors';
 
 const T = CONFIG.career.training;
@@ -36,7 +36,7 @@ function sessionFatigue(focus: TrainingFocus, intensity: Intensity): number {
 
 export default function CareerTraining() {
   return (
-    <CareerPage eyebrow={c.training.eyebrow} title={c.training.title} description={c.training.body}>
+    <CareerPage title={c.titles.training} description={c.training.body}>
       {(context) => (
         <TrainingPlanner world={context.world} career={context.career} player={context.player} />
       )}
@@ -178,6 +178,15 @@ function TrainingPlanner({
     setStatus(c.training.saved);
   };
   const percent = (value: number) => (value * 100).toFixed(value < 0.01 ? 1 : 0);
+  const noMentor = Boolean(plan.extra && !mentor);
+  // Why saving is or is not available, next to the button.
+  const saveHint = block
+    ? ''
+    : noMentor
+      ? c.training.noMentor
+      : dirty
+        ? c.training.unsaved
+        : status || c.training.noChanges;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 2xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
@@ -267,57 +276,57 @@ function TrainingPlanner({
             />
             {c.training.extraEnable}
           </label>
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
-            <div>
-              <label htmlFor="extra-focus" className="mb-1.5 block">
-                {c.training.focus}
-              </label>
-              <FocusSelect
-                id="extra-focus"
-                player={player}
-                value={plan.extra?.focus ?? extraFocus}
-                allowRecovery={false}
-                onChange={(focus) => {
-                  setStatus('');
-                  setExtraFocus(focus);
-                  setPlan((current) =>
-                    current.extra ? { ...current, extra: { ...current.extra, focus } } : current,
-                  );
-                }}
-              />
-              <p className="mt-2 text-xs text-muted">
-                {format(c.training.extraEffects, {
-                  fatigue: T.fatigue.extra,
-                  risk: percent(T.injuryRisk.extra),
-                })}
-              </p>
-            </div>
-            <div className="rounded-control bg-surface-soft p-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-muted">
-                {c.training.mentor}
-              </p>
-              {mentor ? (
-                <div className="mt-2 flex items-center gap-3">
-                  <PlayerPortrait
-                    player={mentor}
-                    age={world.date.season - mentor.birthSeason}
-                    className="h-12 w-12 shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <strong className="block break-words">{mentor.name}</strong>
-                    <span className="text-xs text-muted">
-                      {format(c.training.mentorValue, {
-                        position: c.positions[mentor.primaryPosition]!,
-                        rating: mentorRating(mentor, player, plan.extra?.focus ?? extraFocus),
-                      })}
-                    </span>
+          {plan.extra && (
+            <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
+              <div>
+                <label htmlFor="extra-focus" className="mb-1.5 block">
+                  {c.training.focus}
+                </label>
+                <FocusSelect
+                  id="extra-focus"
+                  player={player}
+                  value={plan.extra.focus}
+                  allowRecovery={false}
+                  onChange={(focus) => {
+                    setStatus('');
+                    setExtraFocus(focus);
+                    setPlan((current) =>
+                      current.extra ? { ...current, extra: { ...current.extra, focus } } : current,
+                    );
+                  }}
+                />
+                <p className="mt-2 text-xs text-muted">
+                  {format(c.training.extraEffects, {
+                    fatigue: T.fatigue.extra,
+                    risk: percent(T.injuryRisk.extra),
+                  })}
+                </p>
+              </div>
+              <div className="rounded-control bg-surface-soft p-3">
+                <p className="text-sm font-semibold text-muted">{c.training.mentor}</p>
+                {mentor ? (
+                  <div className="mt-2 flex items-center gap-3">
+                    <PlayerPortrait
+                      player={mentor}
+                      age={world.date.season - mentor.birthSeason}
+                      className="h-12 w-12 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <strong className="block break-words">{mentor.name}</strong>
+                      <span className="text-xs text-muted">
+                        {format(c.training.mentorValue, {
+                          position: c.positions[mentor.primaryPosition]!,
+                          rating: mentorRating(mentor, player, plan.extra.focus),
+                        })}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <p className="mt-2 text-sm">{c.training.noMentor}</p>
-              )}
+                ) : (
+                  <p className="mt-2 text-sm">{c.training.noMentor}</p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
           {mentorLeft && <p className="mt-3 text-sm text-danger">{c.training.mentorLeft}</p>}
         </section>
         <section
@@ -325,17 +334,19 @@ function TrainingPlanner({
           className="flex flex-wrap items-center gap-4 rounded-panel border border-line bg-surface p-4 shadow-surface sm:p-5"
         >
           <div className="min-w-0 flex-1 basis-56">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted">
-              {c.training.weekly}
-            </p>
+            <p className="text-sm font-semibold text-muted">{c.training.weekly}</p>
             <p className="text-sm">
               {format(c.training.weeklyFatigue, {
                 value: `${fatigue > 0 ? '+' : ''}${Math.round(fatigue)}`,
               })}{' '}
               · {format(c.training.weeklyRisk, { value: percent(risk) })}
             </p>
-            <p role="status" className="mt-1 text-sm font-semibold text-accent">
-              {status || (dirty ? c.training.unsaved : '')}
+            <p
+              id="save-hint"
+              role="status"
+              className={`mt-1 text-sm font-semibold ${dirty || status ? 'text-accent' : 'text-muted'}`}
+            >
+              {saveHint}
             </p>
           </div>
           <button
@@ -350,7 +361,8 @@ function TrainingPlanner({
           </button>
           <button
             className="button"
-            disabled={Boolean(block) || !dirty || Boolean(plan.extra && !mentor)}
+            disabled={Boolean(block) || !dirty || noMentor}
+            aria-describedby="save-hint"
             onClick={save}
           >
             {c.training.save}
@@ -399,30 +411,40 @@ function TrainingReport({
             </p>
             <dl className="mt-4 grid gap-4 text-sm">
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-                  {c.training.gains}
-                </dt>
+                <dt className="text-sm font-semibold text-muted">{c.training.gains}</dt>
                 <dd className="mt-1">
                   {Object.keys(report.gains).length ? (
-                    <ul className="flex flex-wrap gap-2">
-                      {Object.entries(report.gains)
-                        .sort((a, b) => b[1] - a[1])
-                        .map(([key, value]) => (
-                          <li key={key} className={ui.chip}>
-                            {attributeName(key)}{' '}
-                            {format(c.training.gainValue, { value: value.toFixed(2) })}
-                          </li>
-                        ))}
-                    </ul>
+                    <>
+                      <p className="font-semibold">
+                        {plural(
+                          Object.keys(report.gains).length,
+                          c.training.gainsCountOne,
+                          c.training.gainsCount,
+                        )}
+                      </p>
+                      <details className="mt-1">
+                        <summary className="inline-flex min-h-11 cursor-pointer items-center font-semibold text-accent underline underline-offset-4">
+                          {c.training.details}
+                        </summary>
+                        <ul className="mt-2 flex flex-wrap gap-2">
+                          {Object.entries(report.gains)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([key, value]) => (
+                              <li key={key} className={ui.chip}>
+                                {attributeName(key)}{' '}
+                                {format(c.training.gainValue, { value: value.toFixed(2) })}
+                              </li>
+                            ))}
+                        </ul>
+                      </details>
+                    </>
                   ) : (
                     c.training.none
                   )}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-                  {c.training.improved}
-                </dt>
+                <dt className="text-sm font-semibold text-muted">{c.training.improved}</dt>
                 <dd className="mt-1 font-semibold">
                   {report.improved.length
                     ? report.improved.map(attributeName).join(', ')
@@ -430,9 +452,7 @@ function TrainingReport({
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-                  {c.training.declined}
-                </dt>
+                <dt className="text-sm font-semibold text-muted">{c.training.declined}</dt>
                 <dd className="mt-1 font-semibold">
                   {report.declined.length
                     ? report.declined.map(attributeName).join(', ')
@@ -441,9 +461,7 @@ function TrainingReport({
               </div>
               {report.familiarity && (
                 <div>
-                  <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-                    {c.training.positions}
-                  </dt>
+                  <dt className="text-sm font-semibold text-muted">{c.training.positions}</dt>
                   <dd className="mt-1 font-semibold">
                     {format(c.training.familiarityGain, {
                       position: c.positions[report.familiarity.position]!,
@@ -455,18 +473,14 @@ function TrainingReport({
             </dl>
             <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-sm">
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-                  {c.training.fatigueChange}
-                </dt>
+                <dt className="text-sm font-semibold text-muted">{c.training.fatigueChange}</dt>
                 <dd className="font-display text-2xl leading-tight">
                   {report.fatigue > 0 ? '+' : ''}
                   {report.fatigue}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-                  {c.training.injury}
-                </dt>
+                <dt className="text-sm font-semibold text-muted">{c.training.injury}</dt>
                 <dd className={`font-semibold ${report.injuryId ? 'text-danger' : ''}`}>
                   {report.injuryId
                     ? (c.injuries[career.injury?.kind ?? ''] ?? c.hub.trainingInjury)

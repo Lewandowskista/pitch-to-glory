@@ -56,12 +56,28 @@ export function useChallengeRefresh(): void {
 
 export const fameName = (level: number) => l.fame.names[level - 1] ?? '';
 
-/** An animated token performing a celebration, for previews (static under reduced motion). */
-export function CelebrationPreview({ motion, label }: { motion: string; label: string }) {
+/**
+ * An animated token performing a celebration, for previews (static under reduced motion).
+ * With `onHover`, it holds still until the surrounding `group` is hovered or focused, so a
+ * grid of previews does not loop all at once.
+ */
+export function CelebrationPreview({
+  motion,
+  label,
+  onHover = false,
+}: {
+  motion: string;
+  label: string;
+  onHover?: boolean;
+}) {
   return (
     <svg
       viewBox="0 0 60 40"
-      className="celebration-preview h-16 w-24"
+      className={`celebration-preview h-16 w-24 ${
+        onHover
+          ? '[&_.celebrate]:[animation-play-state:paused] group-hover:[&_.celebrate]:[animation-play-state:running]! group-focus-visible:[&_.celebrate]:[animation-play-state:running]!'
+          : ''
+      }`}
       role="img"
       aria-label={label}
     >

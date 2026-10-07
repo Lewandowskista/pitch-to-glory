@@ -24,6 +24,7 @@ import { errorText } from '../i18n';
 import { matchText as m, matchLabel, matchFormat } from '../i18n/match';
 import { careerText as c } from '../i18n/career';
 import { Page } from '../ui/Page';
+import { Icon } from '../ui/Icon';
 import { Selection } from './match/Selection';
 import { Preview } from './match/Preview';
 import { Report } from './match/Report';
@@ -369,27 +370,23 @@ export default function MatchScreen() {
   };
   return (
     <Page className="match-page">
-      <header className="page-heading">
+      <header className="page-heading match-heading">
         <div>
-          <span className="eyebrow">
-            {careerFixture && world
-              ? competitionName(world, careerFixture.competitionId)
-              : world?.career
-                ? c.hub.matchday
+          {/* The competition (or a friendly); never a repeat of the title. */}
+          {(careerFixture || !world?.career) && (
+            <span className="eyebrow">
+              {careerFixture && world
+                ? competitionName(world, careerFixture.competitionId)
                 : m.friendly}
-          </span>
+            </span>
+          )}
           <h1>{m.title}</h1>
           <p>{m.description}</p>
         </div>
-        {world?.career ? (
-          <Link className="button secondary" to="/career">
-            {c.report.hub}
-          </Link>
-        ) : (
-          <Link className="button secondary" to="/world">
-            {m.backWorld}
-          </Link>
-        )}
+        <Link className="match-back" to={world?.career ? '/career' : '/world'}>
+          <Icon name="arrow" />
+          {world?.career ? c.report.hub : m.backWorld}
+        </Link>
       </header>
       <span
         className="sr-only"

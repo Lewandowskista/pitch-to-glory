@@ -4,7 +4,7 @@ import { useAppStore } from '../../store';
 import { CONFIG } from '../../engine/config';
 import { careerCap, type AnyAttribute } from '../../engine/ageing';
 import { attributeCost, attributeValue, raiseAttribute } from '../../engine/career/progression';
-import type { Career, Club, Player, World } from '../../model/domain';
+import type { Career, CareerMatchRecord, Club, Player, World } from '../../model/domain';
 import { format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { CareerPage, CrestImage, PlayerPortrait, XpBar, plural, ui, useEditBlock } from './shared';
@@ -16,15 +16,15 @@ const PAGE = 20;
 
 export default function CareerProfile() {
   return (
-    <CareerPage eyebrow={c.hub.eyebrow} title={c.titles.profile}>
+    <CareerPage title={c.titles.profile}>
       {(context) => (
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+        // Phones read who the player is first, then the attributes; on wide screens the
+        // attributes take the left column beside the summary.
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] xl:grid-rows-[auto_auto_1fr_auto]">
+          <Summary {...context} />
+          <Positions player={context.player} />
           <Attributes {...context} />
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
-            <Summary {...context} />
-            <Positions player={context.player} />
-            <Hidden player={context.player} />
-          </div>
+          <Hidden player={context.player} />
           <History world={context.world} career={context.career} />
         </div>
       )}
@@ -62,20 +62,31 @@ function Attributes({
     setFlash(`${key}:${value}`);
   };
   return (
-    <section aria-labelledby="attributes-heading" className={`${ui.panel} xl:row-span-3`}>
+    <section
+      aria-labelledby="attributes-heading"
+      className={`${ui.panel} xl:col-start-1 xl:row-span-3 xl:row-start-1`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1 basis-64">
           <h2 id="attributes-heading" className={ui.heading}>
             {c.profile.attributes}
           </h2>
-          <p className={`${ui.muted} mt-2 max-w-prose`}>{c.profile.attributesBody}</p>
+          <p className={`${ui.muted} mt-2 max-w-prose`}>
+            {format(c.profile.attributesBody, {
+              below: CONFIG.career.costs.belowCap,
+              near: CONFIG.career.costs.nearCap,
+              beyond: CONFIG.career.costs.beyondCap,
+              surcharge: CONFIG.career.costs.physicalSurcharge,
+              age: CONFIG.career.costs.physicalAge,
+            })}
+          </p>
         </div>
         <div
           className={`rounded-control px-4 py-2 text-center ${
             career.attributePoints ? 'bg-gold text-[#1d3127]' : 'bg-surface-soft text-muted'
           }`}
         >
-          <span className="block text-[0.65rem] font-bold uppercase tracking-wider">
+          <span className="block text-xs font-bold uppercase tracking-wider">
             {c.profile.available}
           </span>
           <strong className="font-display text-3xl leading-none" data-testid="attribute-points">
@@ -110,10 +121,7 @@ function Attributes({
             aria-labelledby={`group-${group}`}
             className="mb-6 break-inside-avoid"
           >
-            <h3
-              id={`group-${group}`}
-              className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-muted"
-            >
+            <h3 id={`group-${group}`} className="mb-2 text-sm font-bold text-muted">
               {c.profile.groups[group]}
             </h3>
             <ul className="grid gap-1.5">
@@ -172,14 +180,14 @@ function Attributes({
                           style={{ left: `calc(${Math.min(99, cap)}% - 1px)` }}
                         />
                       </div>
-                      <span className="mt-0.5 block text-[0.68rem] text-muted">
+                      <span className="mt-0.5 block text-xs text-muted">
                         {format(c.profile.cap, { cap })}
                         {status ? ` · ${status}` : ''}
                       </span>
                     </div>
                     <button
                       data-attribute={key}
-                      className="flex min-h-11 min-w-16 flex-col items-center justify-center rounded-control border border-line bg-surface px-2 text-sm font-bold transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-45"
+                      className="flex min-h-11 min-w-12 flex-col items-center justify-center rounded-control border border-line bg-surface px-2 text-sm font-bold transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-45"
                       disabled={!affordable || Boolean(block)}
                       aria-label={
                         cost === null
@@ -193,10 +201,13 @@ function Attributes({
                       aria-describedby={reason ? `reason-${key}` : undefined}
                       onClick={() => raise(key)}
                     >
-                      <span>{c.profile.raiseShort}</span>
-                      <span className="text-[0.65rem] font-semibold text-muted">
-                        {cost === null ? '—' : format(c.profile.cost, { cost })}
-                      </span>
+                      <span aria-hidden="true">{cost === null ? '—' : c.profile.raiseShort}</span>
+                      {/* The usual price is in the helper text; only a dearer point says so. */}
+                      {cost !== null && cost > CONFIG.career.costs.belowCap && (
+                        <span aria-hidden="true" className="text-xs font-semibold text-muted">
+                          {format(c.profile.cost, { cost })}
+                        </span>
+                      )}
                     </button>
                     {reason && (
                       <span id={`reason-${key}`} className="sr-only">
@@ -243,7 +254,10 @@ function Summary({
   const contract = player.contractId ? world.contracts[player.contractId] : undefined;
   const band = potentialBand(player.potential);
   return (
-    <section aria-labelledby="summary-heading" className={ui.panel}>
+    <section
+      aria-labelledby="summary-heading"
+      className={`${ui.panel} xl:col-start-2 xl:row-start-1`}
+    >
       <div className="flex flex-wrap items-center gap-4">
         <PlayerPortrait player={player} age={age} className="h-20 w-20 shrink-0" />
         <div className="min-w-0 flex-1 basis-40">
@@ -309,7 +323,10 @@ function Positions({ player }: { player: Player }) {
       .map((entry) => ({ ...entry, primary: false })),
   ];
   return (
-    <section aria-labelledby="positions-heading" className={ui.panel}>
+    <section
+      aria-labelledby="positions-heading"
+      className={`${ui.panel} xl:col-start-2 xl:row-start-2`}
+    >
       <h2 id="positions-heading" className={ui.heading}>
         {c.profile.positions}
       </h2>
@@ -360,7 +377,10 @@ function Positions({ player }: { player: Player }) {
 function Hidden({ player }: { player: Player }) {
   const { appearances, order } = CONFIG.career.reveal;
   return (
-    <section aria-labelledby="hidden-heading" className={ui.panel}>
+    <section
+      aria-labelledby="hidden-heading"
+      className={`${ui.panel} xl:col-start-2 xl:row-start-3 xl:self-start`}
+    >
       <h2 id="hidden-heading" className={ui.heading}>
         {c.profile.hidden}
       </h2>
@@ -389,13 +409,56 @@ function Hidden({ player }: { player: Player }) {
   );
 }
 
+const resultTone = (result: CareerMatchRecord['result']) =>
+  result === 'win'
+    ? 'bg-accent text-on-accent'
+    : result === 'loss'
+      ? 'bg-danger-soft text-danger'
+      : 'bg-surface-soft';
+
+function ResultScore({ match }: { match: CareerMatchRecord }) {
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className={`mr-2 inline-grid h-6 w-6 shrink-0 place-items-center rounded-full font-display ${resultTone(match.result)}`}
+      >
+        {c.hub.results[match.result]}
+      </span>
+      <span className="sr-only">{c.hub.resultNames[match.result]} </span>
+      {match.score[0]}–{match.score[1]}
+      {match.decided && (
+        <span className="ml-1 text-xs text-muted">{c.profile.decided[match.decided]}</span>
+      )}
+    </>
+  );
+}
+
+function AutoTag({ match }: { match: CareerMatchRecord }) {
+  if (!match.auto) return null;
+  return (
+    <span
+      className="ml-2 rounded-full bg-surface-soft px-2 py-0.5 text-xs font-bold uppercase text-muted"
+      title={c.profile.autoLabel}
+    >
+      {c.profile.auto}
+      <span className="sr-only">: {c.profile.autoLabel}</span>
+    </span>
+  );
+}
+
 function History({ world, career }: { world: World; career: Career }) {
   const [shown, setShown] = useState(PAGE);
   const matches = [...career.matches].reverse();
   const lines = seasonLines(career);
   const cols = c.profile.columns;
+  const visible = matches.slice(0, shown);
+  const cell = 'px-1.5 py-2 sm:px-2';
   return (
-    <section aria-labelledby="history-heading" className={`${ui.panel} xl:col-span-2`}>
+    <section
+      aria-labelledby="history-heading"
+      className={`${ui.panel} xl:col-span-2 xl:col-start-1 xl:row-start-4`}
+    >
       <h2 id="history-heading" className={ui.heading}>
         {c.profile.history}
       </h2>
@@ -403,11 +466,9 @@ function History({ world, career }: { world: World; career: Career }) {
         <p className={`${ui.muted} mt-3`}>{c.profile.historyEmpty}</p>
       ) : (
         <>
-          <h3 className="mt-5 text-xs font-bold uppercase tracking-[0.14em] text-muted">
-            {c.profile.seasons}
-          </h3>
+          <h3 className="mt-5 text-sm font-semibold text-muted">{c.profile.seasons}</h3>
           <div className="relative mt-2 overflow-x-auto">
-            <table className="w-full min-w-[34rem] border-collapse text-sm">
+            <table className="w-full border-collapse text-sm sm:min-w-[34rem]">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
                   {[
@@ -419,7 +480,7 @@ function History({ world, career }: { world: World; career: Career }) {
                     cols.cleanSheets,
                     cols.xp,
                   ].map((label) => (
-                    <th key={label} scope="col" className="px-2 py-2 font-semibold">
+                    <th key={label} scope="col" className={`${cell} align-bottom font-semibold`}>
                       {label}
                     </th>
                   ))}
@@ -428,24 +489,60 @@ function History({ world, career }: { world: World; career: Career }) {
               <tbody>
                 {lines.map((line) => (
                   <tr key={line.season} className="border-b border-line/60">
-                    <th scope="row" className="px-2 py-2 text-left font-semibold">
+                    <th scope="row" className={`${cell} text-left font-semibold`}>
                       {line.season}
                     </th>
-                    <td className="px-2 py-2">{line.apps}</td>
-                    <td className="px-2 py-2">{line.goals}</td>
-                    <td className="px-2 py-2">{line.assists}</td>
-                    <td className="px-2 py-2">{line.rating.toFixed(2)}</td>
-                    <td className="px-2 py-2">{line.cleanSheets}</td>
-                    <td className="px-2 py-2">{line.xp}</td>
+                    <td className={cell}>{line.apps}</td>
+                    <td className={cell}>{line.goals}</td>
+                    <td className={cell}>{line.assists}</td>
+                    <td className={cell}>{line.rating.toFixed(2)}</td>
+                    <td className={cell}>{line.cleanSheets}</td>
+                    <td className={cell}>{line.xp}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-muted">
-            {c.profile.history}
-          </h3>
-          <div className="relative mt-2 overflow-x-auto">
+          <h3 className="mt-6 text-sm font-semibold text-muted">{c.profile.matches}</h3>
+          {/* Phones: one stacked row per match, so score, rating and XP are never cut off. */}
+          <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] sm:hidden">
+            {visible.map((match) => {
+              const opponent = world.clubs[match.opponentId];
+              return (
+                <li key={match.fixtureId} className="border-b border-line/60 py-2.5">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="flex shrink-0 items-center font-semibold whitespace-nowrap">
+                      <ResultScore match={match} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-semibold">
+                      {opponent?.name ?? match.opponentId}
+                      <span className="ml-1 text-xs font-normal text-muted">
+                        ({match.home ? c.common.home : c.common.away})
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-display text-lg leading-none">
+                      <span className="sr-only">{cols.rating} </span>
+                      {match.rating.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 pl-8 text-xs text-muted">
+                    <span className="min-w-0">
+                      {format(c.profile.matchLine, {
+                        competition: competitionName(world, match.competitionId),
+                        season: match.season,
+                        week: match.week,
+                      })}
+                    </span>
+                    <span className="whitespace-nowrap">
+                      {cols.ga} {match.goals}/{match.assists} · {cols.xp} +{match.xp}
+                      <AutoTag match={match} />
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="relative mt-2 hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[44rem] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
@@ -465,7 +562,7 @@ function History({ world, career }: { world: World; career: Career }) {
                 </tr>
               </thead>
               <tbody>
-                {matches.slice(0, shown).map((match) => {
+                {visible.map((match) => {
                   const opponent = world.clubs[match.opponentId];
                   return (
                     <tr key={match.fixtureId} className="border-b border-line/60">
@@ -493,24 +590,7 @@ function History({ world, career }: { world: World; career: Career }) {
                         {competitionName(world, match.competitionId)}
                       </td>
                       <td className="px-2 py-2 whitespace-nowrap">
-                        <span
-                          className={`mr-2 inline-grid h-6 w-6 place-items-center rounded-full font-display ${
-                            match.result === 'win'
-                              ? 'bg-accent text-on-accent'
-                              : match.result === 'loss'
-                                ? 'bg-danger-soft text-danger'
-                                : 'bg-surface-soft'
-                          }`}
-                          aria-label={c.hub.resultNames[match.result]}
-                        >
-                          {c.hub.results[match.result]}
-                        </span>
-                        {match.score[0]}–{match.score[1]}
-                        {match.decided && (
-                          <span className="ml-1 text-xs text-muted">
-                            {c.profile.decided[match.decided]}
-                          </span>
-                        )}
+                        <ResultScore match={match} />
                       </td>
                       <td className="px-2 py-2">{match.rating.toFixed(1)}</td>
                       <td className="px-2 py-2">
@@ -518,15 +598,7 @@ function History({ world, career }: { world: World; career: Career }) {
                       </td>
                       <td className="px-2 py-2 whitespace-nowrap">
                         +{match.xp}
-                        {match.auto && (
-                          <span
-                            className="ml-2 rounded-full bg-surface-soft px-2 py-0.5 text-[0.65rem] font-bold uppercase text-muted"
-                            title={c.profile.autoLabel}
-                          >
-                            {c.profile.auto}
-                            <span className="sr-only">: {c.profile.autoLabel}</span>
-                          </span>
-                        )}
+                        <AutoTag match={match} />
                       </td>
                     </tr>
                   );

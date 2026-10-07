@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { InboxMessage, World } from '../../model/domain';
 import { format } from '../../i18n';
@@ -7,11 +7,23 @@ import { marketText as m } from '../../i18n/market';
 import { CareerPage, ui } from './shared';
 import { ActionError, BlockNote, messageText, useMarketAction } from './marketUi';
 
+/** The two-pane inbox, with the list and the reader side by side (Tailwind `lg`). */
+const WIDE = '(min-width: 1024px)';
+function useWide(): boolean {
+  return useSyncExternalStore(
+    (change) => {
+      const list = window.matchMedia(WIDE);
+      list.addEventListener('change', change);
+      return () => list.removeEventListener('change', change);
+    },
+    () => window.matchMedia(WIDE).matches,
+    () => false,
+  );
+}
+
 export default function CareerInbox() {
   return (
-    <CareerPage eyebrow={m.eyebrow} title={m.titles.inbox}>
-      {({ world }) => <InboxContent world={world} />}
-    </CareerPage>
+    <CareerPage title={m.titles.inbox}>{({ world }) => <InboxContent world={world} />}</CareerPage>
   );
 }
 
@@ -80,15 +92,22 @@ function InboxContent({ world }: { world: World }) {
       setParams(next, { replace: true });
     }
   };
+  const wide = useWide();
   const messages = [...world.inbox].reverse();
   const selected = selectedId ? world.inbox.find((entry) => entry.id === selectedId) : undefined;
+  // Beside the list there is room to read: with nothing chosen, the newest unread message (or
+  // the newest one) is shown. It stays out of the URL and history, and stays unread until the
+  // player opens it from the list.
+  const shown =
+    selected ??
+    (wide && !selectedId ? (messages.find((message) => !message.read) ?? messages[0]) : undefined);
   const unread = world.inbox.filter((message) => !message.read).length;
   // Opening a message marks it as read.
   useEffect(() => {
     if (selected && !selected.read && !block) run({ type: 'read', messageId: selected.id });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id, selected?.read, block]);
-  const link = selected ? messageLink(world, selected, params.get('save')) : null;
+  const link = shown ? messageLink(world, shown, params.get('save')) : null;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
       <section
@@ -117,10 +136,13 @@ function InboxContent({ world }: { world: World }) {
           )}
         </div>
         {messages.length ? (
-          <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-1.5" aria-label={m.inbox.list}>
+          <ul
+            className="-mx-1 mt-2 grid grid-cols-[minmax(0,1fr)] gap-1.5 px-1 py-1 lg:max-h-[calc(100dvh-18rem)] lg:min-h-80 lg:overflow-y-auto lg:overscroll-contain"
+            aria-label={m.inbox.list}
+          >
             {messages.map((message) => {
               const text = messageText(message);
-              const active = message.id === selected?.id;
+              const active = message.id === shown?.id;
               return (
                 <li key={message.id}>
                   <button
@@ -151,7 +173,9 @@ function InboxContent({ world }: { world: World }) {
                       }`}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className={`block truncate text-sm ${message.read ? '' : 'font-bold'}`}>
+                      <span
+                        className={`block text-sm line-clamp-2 ${message.read ? '' : 'font-bold'}`}
+                      >
                         {text.subject}
                       </span>
                       <span className="block text-xs text-muted">
@@ -159,7 +183,9 @@ function InboxContent({ world }: { world: World }) {
                           season: message.date.season,
                           week: message.date.week,
                         })}
-                        {message.read ? '' : ` · ${format(m.inbox.unread, { count: 1 })}`}
+                        {!message.read && (
+                          <span className="sr-only"> · {format(m.inbox.unread, { count: 1 })}</span>
+                        )}
                       </span>
                     </span>
                   </button>
@@ -173,23 +199,23 @@ function InboxContent({ world }: { world: World }) {
       </section>
       <section
         aria-labelledby="inbox-reader-heading"
-        className={`${ui.panel} lg:col-span-7 ${selected ? '' : 'hidden lg:block'}`}
+        className={`${ui.panel} lg:sticky lg:top-6 lg:col-span-7 lg:self-start ${selected ? '' : 'hidden lg:block'}`}
       >
-        {selected ? (
+        {shown ? (
           <article className="flex flex-col gap-4">
             <button className="button secondary self-start lg:hidden" onClick={closeReader}>
               {m.inbox.back}
             </button>
             <p className="text-xs text-muted">
               {format(c.common.seasonWeek, {
-                season: selected.date.season,
-                week: selected.date.week,
+                season: shown.date.season,
+                week: shown.date.week,
               })}
             </p>
             <h2 id="inbox-reader-heading" className="font-display text-[2.2rem] leading-none">
-              {messageText(selected).subject}
+              {messageText(shown).subject}
             </h2>
-            <p className="max-w-prose">{messageText(selected).body}</p>
+            <p className="max-w-prose">{messageText(shown).body}</p>
             {link && (
               <div>
                 <Link className="button" to={link.to}>

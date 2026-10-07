@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isBrowserNoise, skipTutorial } from './support';
+import { isBrowserNoise, skipTutorial, openCareerPage, careerTabs } from './support';
 import { readFileSync } from 'node:fs';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
@@ -140,8 +140,7 @@ test('answers the press, reads club life and compares with the rival', async ({
   ).toBeVisible();
 
   // Club life: morale history, its breakdown, the groups and culture fit.
-  const nav = page.getByRole('navigation', { name: 'Career sections' });
-  await nav.getByRole('link', { name: 'Club life', exact: true }).click();
+  await openCareerPage(page, 'Club life');
   await expect(page.getByRole('img', { name: /Morale and form, week by week/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: /This week’s target/ })).toBeVisible();
   await expect(
@@ -152,7 +151,7 @@ test('answers the press, reads club life and compares with the rival', async ({
   await expect(page.getByRole('region', { name: 'Morale and form by week' })).toBeVisible();
 
   // The rival page compares the two careers and tells the story so far.
-  await nav.getByRole('link', { name: 'Rival', exact: true }).click();
+  await openCareerPage(page, 'Rival');
   await expect(page.getByRole('img', { name: `Portrait of ${rival}` })).toBeVisible();
   await expect(page.getByRole('meter', { name: 'Rivalry intensity' })).toHaveAttribute(
     'aria-valuenow',
@@ -176,14 +175,14 @@ test('answers the press, reads club life and compares with the rival', async ({
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
       for (const path of ['/career/club', '/career/media', '/career/rival', '/career']) {
         await page.goto(`${path}?save=1`);
-        await expect(nav).toBeVisible();
+        await expect(careerTabs(page)).toBeVisible();
         expect(await accessibilityViolations(page), `${scheme} ${path}`).toEqual([]);
       }
     }
     await page.setViewportSize({ width: 390, height: 844 });
     for (const path of ['/career/club', '/career/media', '/career/rival', '/career']) {
       await page.goto(`${path}?save=1`);
-      await expect(nav).toBeVisible();
+      await expect(careerTabs(page)).toBeVisible();
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );

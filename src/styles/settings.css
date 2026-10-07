@@ -1,8 +1,6 @@
 /* Settings screen. */
 .settings-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.8fr);
-  gap: 4rem;
+  max-width: 46rem;
 }
 .setting-section {
   padding: 1.75rem 0;
@@ -80,7 +78,21 @@ input[type='range'] {
   display: flex;
   align-items: center;
   gap: 1.75rem;
-  margin-bottom: 1.75rem;
+}
+/* The text takes the room; every switch lines up on the right edge. */
+.motion-setting > div {
+  flex: 1;
+  min-width: 0;
+}
+.setting-action {
+  margin-top: 1rem;
+}
+.settings-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin-top: 2rem;
 }
 .switch {
   appearance: none;
@@ -114,54 +126,25 @@ input[type='range'] {
   transform: translateX(22px);
 }
 .settings-status {
-  font-size: 0.7rem;
-  color: var(--muted);
-  margin-top: 1rem;
-}
-.settings-preview {
-  background: var(--surface);
-  border-radius: var(--radius-panel);
-  align-self: start;
-  overflow: hidden;
-  padding-bottom: 1.8rem;
-}
-.preview-art {
-  height: 260px;
-  background: var(--art-green);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 1.8rem;
-}
-.preview-art img {
-  width: 41%;
-  max-height: 190px;
-  transform: rotate(-10deg);
-}
-.preview-art img:last-child {
-  transform: rotate(10deg);
-  margin-left: -1.5rem;
-  margin-top: 2rem;
-}
-.settings-preview h2 {
-  font-family: var(--font-display);
-  font-size: 2rem;
-  line-height: 1.1;
-  font-weight: 400;
-  padding: 0 1.6rem;
-}
-.settings-preview p {
   font-size: 0.75rem;
-  margin-top: 0.75rem;
   color: var(--muted);
-  padding: 0 1.6rem;
+  margin: 0;
 }
 .volume-setting + .volume-setting {
   margin-top: 1rem;
+}
+.setting-section .sound-previews-label {
+  margin-top: 1.5rem;
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 .sound-previews {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 1.25rem;
+  margin-top: 0.6rem;
+}
+.sound-previews .button {
+  gap: 0.45rem;
 }

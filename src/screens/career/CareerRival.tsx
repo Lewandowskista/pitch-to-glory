@@ -6,6 +6,7 @@ import { rivalOf, rivalryOf, seasonLines } from '../../engine/career/social';
 import { renderAvatar } from '../../engine/assets/avatar';
 import { Artwork } from '../../ui/Artwork';
 import { HeadToHead } from '../../ui/HeadToHead';
+import { Icon } from '../../ui/Icon';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { socialText as s } from '../../i18n/social';
@@ -14,7 +15,7 @@ import { money } from './marketUi';
 
 export default function CareerRival() {
   return (
-    <CareerPage eyebrow={s.eyebrow} title={s.titles.rival}>
+    <CareerPage title={s.titles.rival}>
       {({ world, player }) => {
         const rivalry = rivalryOf(world);
         const rival = rivalOf(world);
@@ -41,6 +42,22 @@ function Portrait({ player, age }: { player: Player; age: number }) {
   );
 }
 
+/** A compared value; the side ahead gets a marked pill, never colour alone. */
+function Value({ value, lead }: { value: string | number; lead: 'you' | 'rival' | null }) {
+  if (!lead) return <>{value}</>;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 font-bold tabular-nums ${
+        lead === 'you' ? 'bg-accent-soft text-accent' : 'bg-gold text-on-gold'
+      }`}
+    >
+      <Icon name="check" className="h-3.5 w-3.5 shrink-0" />
+      {value}
+      <span className="sr-only"> ({s.rival.better})</span>
+    </span>
+  );
+}
+
 function RivalContent({
   world,
   player,
@@ -61,35 +78,82 @@ function RivalContent({
     .filter((entry) => entry.kind === 'transfer')
     .map((entry) => Number(entry.params.fee));
   const careerGoals = world.career!.matches.reduce((sum, m) => sum + m.goals, 0);
-  const rows: [string, string | number, string | number][] = [
-    [s.rival.rows.age, age(player), age(rival)],
-    [s.rival.rows.club, club(player).name, club(rival).name],
-    [s.rival.rows.division, division(player), division(rival)],
-    [
-      s.rival.rows.position,
-      c.positions[player.primaryPosition]!,
-      c.positions[rival.primaryPosition]!,
-    ],
-    [s.rival.rows.ability, Math.round(playerAbility(player)), Math.round(playerAbility(rival))],
-    [s.rival.rows.value, money(marketValue(world, player)), money(marketValue(world, rival))],
-    [s.rival.rows.apps, lines.career.appearances, lines.rival.appearances],
-    [s.rival.rows.goals, lines.career.goals, lines.rival.goals],
-    [s.rival.rows.assists, lines.career.assists, lines.rival.assists],
-    [
-      s.rival.rows.rating,
-      lines.career.appearances ? lines.career.rating.toFixed(2) : '–',
-      lines.rival.appearances ? lines.rival.rating.toFixed(2) : '–',
-    ],
-    [s.rival.rows.careerGoals, careerGoals, rival.stats.goals],
-    [
-      s.rival.rows.fees,
-      careerFees.length ? money(Math.max(...careerFees)) : '–',
-      rivalFees.length ? money(Math.max(...rivalFees)) : '–',
-    ],
+  const careerRating = lines.career.appearances ? lines.career.rating : null;
+  const rivalRating = lines.rival.appearances ? lines.rival.rating : null;
+  const bestFee = (fees: number[]) => (fees.length ? Math.max(...fees) : null);
+  const myValue = marketValue(world, player);
+  const rivalValue = marketValue(world, rival);
+  const myAbility = Math.round(playerAbility(player));
+  const rivalAbility = Math.round(playerAbility(rival));
+  const myFee = bestFee(careerFees);
+  const rivalFee = bestFee(rivalFees);
+  /** Label, both shown values and, where higher is better, both raw numbers to compare. */
+  const rows: {
+    label: string;
+    mine: string | number;
+    theirs: string | number;
+    compare?: [number | null, number | null];
+  }[] = [
+    { label: s.rival.rows.age, mine: age(player), theirs: age(rival) },
+    { label: s.rival.rows.club, mine: club(player).name, theirs: club(rival).name },
+    { label: s.rival.rows.division, mine: division(player), theirs: division(rival) },
+    {
+      label: s.rival.rows.position,
+      mine: c.positions[player.primaryPosition]!,
+      theirs: c.positions[rival.primaryPosition]!,
+    },
+    {
+      label: s.rival.rows.ability,
+      mine: myAbility,
+      theirs: rivalAbility,
+      compare: [myAbility, rivalAbility],
+    },
+    {
+      label: s.rival.rows.value,
+      mine: money(myValue),
+      theirs: money(rivalValue),
+      compare: [myValue, rivalValue],
+    },
+    {
+      label: s.rival.rows.apps,
+      mine: lines.career.appearances,
+      theirs: lines.rival.appearances,
+      compare: [lines.career.appearances, lines.rival.appearances],
+    },
+    {
+      label: s.rival.rows.goals,
+      mine: lines.career.goals,
+      theirs: lines.rival.goals,
+      compare: [lines.career.goals, lines.rival.goals],
+    },
+    {
+      label: s.rival.rows.assists,
+      mine: lines.career.assists,
+      theirs: lines.rival.assists,
+      compare: [lines.career.assists, lines.rival.assists],
+    },
+    {
+      label: s.rival.rows.rating,
+      mine: careerRating?.toFixed(2) ?? '–',
+      theirs: rivalRating?.toFixed(2) ?? '–',
+      compare: [careerRating, rivalRating],
+    },
+    {
+      label: s.rival.rows.careerGoals,
+      mine: careerGoals,
+      theirs: rival.stats.goals,
+      compare: [careerGoals, rival.stats.goals],
+    },
+    {
+      label: s.rival.rows.fees,
+      mine: myFee === null ? '–' : money(myFee),
+      theirs: rivalFee === null ? '–' : money(rivalFee),
+      compare: [myFee, rivalFee],
+    },
   ];
   const h2h = rivalry.headToHead;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
       <section aria-labelledby="rival-heading" className={`${ui.panel} lg:col-span-12`}>
         <h2 id="rival-heading" className="sr-only">
           {s.rival.title}
@@ -107,7 +171,7 @@ function RivalContent({
                 <span className="min-w-0 break-words text-balance">{club(p).name}</span>
               </span>
             ),
-            label: index === 0 && <span className={ui.chip}>{s.rival.you}</span>,
+            badge: index === 0 && <span className={ui.chip}>{s.rival.you}</span>,
           }))}
         />
         <p className={`${ui.muted} mx-auto mt-4 max-w-prose text-center`}>{s.rival.body}</p>
@@ -119,53 +183,48 @@ function RivalContent({
         <h2 id="compare-heading" className={ui.heading}>
           {s.rival.compare}
         </h2>
-        <div
-          className="relative mt-4 overflow-x-auto"
-          tabIndex={0}
-          role="region"
-          aria-label={s.rival.compare}
-        >
-          <table className="w-full min-w-[20rem] text-left text-sm">
-            <thead>
-              <tr className="text-xs uppercase tracking-wider text-muted">
-                <th scope="col" className="py-2 pr-3">
-                  {s.rival.columns.measure}
-                </th>
-                <th scope="col" className="py-2 pr-3 text-right">
-                  {s.rival.columns.you}
-                </th>
-                <th scope="col" className="py-2 text-right">
-                  {s.rival.columns.rival}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {rows.map(([label, mine, theirs]) => {
-                const better =
-                  typeof mine === 'number' &&
-                  typeof theirs === 'number' &&
-                  label !== s.rival.rows.age
-                    ? Math.sign(mine - theirs)
-                    : 0;
-                return (
-                  <tr key={label}>
-                    <th scope="row" className="py-2 pr-3 font-normal text-muted">
-                      {label}
-                    </th>
-                    <td
-                      className={`py-2 pr-3 text-right ${better > 0 ? 'font-bold text-accent' : ''}`}
-                    >
-                      {mine}
-                    </td>
-                    <td className={`py-2 text-right ${better < 0 ? 'font-bold text-danger' : ''}`}>
-                      {theirs}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <table className="mt-4 w-full table-fixed text-left text-sm">
+          <colgroup>
+            <col className="w-[34%] sm:w-[40%]" />
+            <col className="w-[33%] sm:w-[30%]" />
+            <col className="w-[33%] sm:w-[30%]" />
+          </colgroup>
+          <thead>
+            <tr className="text-xs text-muted">
+              <th scope="col" className="py-2 pr-2 font-bold">
+                <span className="sr-only sm:not-sr-only">{s.rival.columns.measure}</span>
+              </th>
+              <th scope="col" className="py-2 pr-2 text-right font-bold">
+                {s.rival.columns.you}
+              </th>
+              <th scope="col" className="py-2 text-right font-bold">
+                {s.rival.columns.rival}
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {rows.map(({ label, mine, theirs, compare }) => {
+              const [a, b] = compare ?? [null, null];
+              const better = a !== null && b !== null ? Math.sign(a - b) : 0;
+              return (
+                <tr key={label}>
+                  <th
+                    scope="row"
+                    className="py-2 pr-2 align-top font-normal break-words text-muted"
+                  >
+                    {label}
+                  </th>
+                  <td className="py-2 pr-2 text-right align-top break-words">
+                    <Value value={mine} lead={better > 0 ? 'you' : null} />
+                  </td>
+                  <td className="py-2 text-right align-top break-words">
+                    <Value value={theirs} lead={better < 0 ? 'rival' : null} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
         <p className="mt-3 text-xs text-muted">{s.rival.scope}</p>
       </section>
       <section aria-labelledby="h2h-heading" className={`${ui.panel} lg:col-span-5`}>

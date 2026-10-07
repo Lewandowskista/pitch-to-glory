@@ -1,9 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { LazyMotion, MotionConfig } from 'framer-motion';
 
 const motionFeatures = () => import('./motionFeatures').then((module) => module.default);
-import { t, errorText } from '../i18n';
+import { t, errorText, format } from '../i18n';
 import { useAppStore } from '../store';
 import { useAutosave } from '../hooks/useAutosave';
 import { errorCode } from '../persistence/errors';
@@ -14,18 +20,35 @@ import { Dialog } from './Dialog';
 import { PwaPrompt } from './PwaPrompt';
 import { audio } from '../audio';
 import type { AudioSettings } from '../model/domain';
-const items: { path: string; label: string; icon: IconName }[] = [
-  { path: '/', label: t.app.menu, icon: 'home' },
-  { path: '/career', label: t.app.career, icon: 'career' },
-  { path: '/world', label: t.app.world, icon: 'globe' },
+import { navigationText as n } from '../i18n/navigation';
+import { CAREER_GROUPS, careerGroupOf, groupHome } from '../screens/career/navigation';
+type Item = { path: string; label: string; icon: IconName };
+const home: Item = { path: '/', label: t.app.menu, icon: 'home' };
+const careerItem: Item = { path: '/career', label: t.app.career, icon: 'career' };
+const matchItem: Item = { path: '/match', label: t.app.match, icon: 'ball' };
+const worldItem: Item = { path: '/world', label: t.app.world, icon: 'globe' };
+/** Game utilities, set apart from the football in the sidebar and in More on phones. */
+const utilities: Item[] = [
   { path: '/edit', label: t.app.edit, icon: 'edit' },
-  { path: '/match', label: t.app.match, icon: 'ball' },
   { path: '/gallery', label: t.app.gallery, icon: 'gallery' },
   { path: '/saves', label: t.app.saves, icon: 'save' },
   { path: '/settings', label: t.app.settings, icon: 'settings' },
 ];
-const pageLabel = (pathname: string) =>
-  t.app.careerPages[pathname] ?? items.find((item) => item.path === pathname)?.label;
+const items: Item[] = [home, careerItem, matchItem, worldItem, ...utilities];
+const pageLabel = (pathname: string) => {
+  const group = careerGroupOf(pathname);
+  const label = t.app.careerPages[pathname] ?? items.find((item) => item.path === pathname)?.label;
+  return group && label ? `${group.label} · ${label}` : label;
+};
+/** Arrow keys move along a list of links, wrapping at the ends. */
+function arrowKeys(event: ReactKeyboardEvent<HTMLElement>, container: HTMLElement | null) {
+  if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) return;
+  event.preventDefault();
+  const links = Array.from(container?.querySelectorAll<HTMLElement>('a, button') ?? []);
+  const index = links.indexOf(event.currentTarget);
+  const step = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : links.length - 1;
+  links[(index + step) % links.length]?.focus();
+}
 export function Shell() {
   const settings = useAppStore((s) => s.settings);
   const active = useAppStore((s) => s.activeSave);
@@ -86,16 +109,12 @@ export function Shell() {
     void loadedPersistence()
       ?.autosave.flush()
       .catch(() => {});
-    // On narrow screens with large text the bottom bar scrolls: keep the current tab in view.
-    const bar = document.querySelector<HTMLElement>('.bottom-nav');
-    const current = bar?.querySelector<HTMLElement>('a.active');
-    if (bar && current && bar.scrollWidth > bar.clientWidth)
-      bar.scrollLeft = current.offsetLeft - (bar.clientWidth - current.offsetWidth) / 2;
   }, [location.pathname, location.search]);
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       if (
+        event.defaultPrevented ||
         target.closest('input,textarea,select,[contenteditable="true"]') ||
         document.querySelector('dialog[open]')
       )
@@ -116,38 +135,76 @@ export function Shell() {
     window.addEventListener('keydown', keyboard);
     return () => window.removeEventListener('keydown', keyboard);
   }, [location.pathname, location.search, navigate, setParams]);
-  const links = (compact: boolean) =>
-    items.map((item) => (
-      <NavLink
-        end={item.path === '/'}
-        to={item.path}
-        key={item.path}
-        // The accessible name is the visible short label (WCAG 2.5.3); the full name is a tooltip.
-        title={compact ? item.label : undefined}
-        onKeyDown={(event) => {
-          if (
-            event.key === 'ArrowDown' ||
-            event.key === 'ArrowRight' ||
-            event.key === 'ArrowUp' ||
-            event.key === 'ArrowLeft'
-          ) {
-            event.preventDefault();
-            const links = Array.from(
-              event.currentTarget.parentElement?.querySelectorAll<HTMLAnchorElement>('a') ?? [],
-            );
-            const index = links.indexOf(event.currentTarget);
-            links[
-              (index +
-                (event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : links.length - 1)) %
-                links.length
-            ]?.focus();
-          }
-        }}
-      >
-        <Icon name={item.icon} />
-        <span>{compact ? (t.app.short[item.path] ?? item.label) : item.label}</span>
-      </NavLink>
-    ));
+  const hasCareer = useAppStore((s) => Boolean(s.world?.career));
+  const unread = useAppStore((s) =>
+    s.world?.career ? s.world.inbox.filter((message) => !message.read).length : 0,
+  );
+  const group = careerGroupOf(location.pathname);
+  const sidebarNav = useRef<HTMLElement>(null);
+  const bottomNav = useRef<HTMLElement>(null);
+  // The visible count and its spoken form are separate, so the count is always announced
+  // after the destination's name ("Overview, 2 unread") wherever the badge sits.
+  const badgeMark = (count: number) =>
+    count > 0 && (
+      <span aria-hidden="true" className="nav-badge">
+        {count > 99 ? '99+' : count}
+      </span>
+    );
+  const unreadText = (count: number) =>
+    count > 0 && <span className="sr-only">, {format(n.unread, { count })}</span>;
+  const badge = (count: number) => (
+    <>
+      {badgeMark(count)}
+      {unreadText(count)}
+    </>
+  );
+  const sidebarLink = (item: Item) => (
+    <NavLink
+      end={item.path === '/'}
+      to={item.path}
+      key={item.path}
+      // On a career page its group link carries the highlight; Career itself stays quieter.
+      className={({ isActive }) => (isActive ? (group ? 'active parent' : 'active') : '')}
+      onKeyDown={(event) => arrowKeys(event, sidebarNav.current)}
+    >
+      <Icon name={item.icon} />
+      <span>{item.label}</span>
+    </NavLink>
+  );
+  // Phones: five destinations. With a career, its groups (History sits in More); without
+  // one, the main places. Everything else is one tap away in More.
+  const moreOpen = params.get('more') === '1';
+  const bottomItems = hasCareer
+    ? CAREER_GROUPS.filter((entry) => entry.id !== 'history').map((entry) => ({
+        path: groupHome(entry),
+        label: entry.label,
+        icon: entry.icon,
+        current: group?.id === entry.id,
+        count: entry.id === 'overview' ? unread : 0,
+      }))
+    : [home, careerItem, matchItem, worldItem].map((item) => ({
+        ...item,
+        label: t.app.short[item.path] ?? item.label,
+        current:
+          item.path === '/'
+            ? location.pathname === '/'
+            : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`),
+        count: 0,
+      }));
+  const moreCurrent = !moreOpen && !bottomItems.some((item) => item.current);
+  const openMore = () => {
+    const next = new URLSearchParams(params);
+    next.set('more', '1');
+    setParams(next);
+  };
+  const closeMore = () => {
+    if (window.history.state?.idx > 0) navigate(-1);
+    else {
+      const next = new URLSearchParams(params);
+      next.delete('more');
+      setParams(next, { replace: true });
+    }
+  };
   return (
     <LazyMotion features={motionFeatures} strict>
       <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
@@ -163,7 +220,32 @@ export function Shell() {
             </span>
           </Link>
           <p className="brand-caption">{t.app.tagline}</p>
-          <nav aria-label={t.app.navigation}>{links(false)}</nav>
+          <nav aria-label={t.app.navigation} ref={sidebarNav}>
+            {sidebarLink(home)}
+            {sidebarLink(careerItem)}
+            {hasCareer && (
+              <ul className="sidebar-groups" data-tour="career-nav">
+                {CAREER_GROUPS.map((entry) => (
+                  <li key={entry.id}>
+                    <Link
+                      to={groupHome(entry)}
+                      className={group?.id === entry.id ? 'active' : undefined}
+                      aria-current={group?.id === entry.id ? 'true' : undefined}
+                      onKeyDown={(event) => arrowKeys(event, sidebarNav.current)}
+                    >
+                      <Icon name={entry.icon} />
+                      <span>{entry.label}</span>
+                      {entry.id === 'overview' && badge(unread)}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {sidebarLink(matchItem)}
+            {sidebarLink(worldItem)}
+            <span className="sidebar-divider" aria-hidden="true" />
+            {utilities.map((item) => sidebarLink(item))}
+          </nav>
           <div className="sidebar-bottom">
             <div className="local-save">
               <Icon name="save" />
@@ -180,7 +262,20 @@ export function Shell() {
         </aside>
         <div className="workspace">
           <header className="topbar">
-            <span className="breadcrumb">{pageLabel(location.pathname) ?? t.app.name}</span>
+            <span className="breadcrumb">
+              {group ? (
+                <>
+                  {group.label}
+                  {/* Phones show the group; the page title below names the page. */}
+                  <span className="breadcrumb-page">
+                    {' · '}
+                    {t.app.careerPages[location.pathname]}
+                  </span>
+                </>
+              ) : (
+                (pageLabel(location.pathname) ?? t.app.name)
+              )}
+            </span>
             {worldJob && (
               <Link className="simulation-link" to="/world">
                 {t.world.advancing}
@@ -275,9 +370,47 @@ export function Shell() {
             <span>{t.app.tagline}</span>
           </footer>
         </div>
-        <nav className="bottom-nav" aria-label={t.app.navigation}>
-          {links(true)}
+        <nav
+          className="bottom-nav"
+          aria-label={t.app.navigation}
+          ref={bottomNav}
+          data-tour={hasCareer ? 'career-nav' : undefined}
+        >
+          {bottomItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={item.current ? 'active' : undefined}
+              aria-current={item.current ? 'page' : undefined}
+              onKeyDown={(event) => arrowKeys(event, bottomNav.current)}
+            >
+              <span className="bottom-nav-icon">
+                <Icon name={item.icon} />
+                {badgeMark(item.count)}
+              </span>
+              <span>
+                {item.label}
+                {unreadText(item.count)}
+              </span>
+            </Link>
+          ))}
+          <button
+            type="button"
+            className={moreCurrent ? 'active' : undefined}
+            aria-haspopup="dialog"
+            aria-expanded={moreOpen}
+            onClick={moreOpen ? closeMore : openMore}
+            onKeyDown={(event) => arrowKeys(event, bottomNav.current)}
+          >
+            <span className="bottom-nav-icon">
+              <Icon name="more" />
+            </span>
+            <span>{n.more}</span>
+          </button>
         </nav>
+        {moreOpen && (
+          <MoreSheet hasCareer={hasCareer} pathname={location.pathname} onClose={closeMore} />
+        )}
         <PwaPrompt />
         {params.get('help') === '1' && (
           <Dialog title={t.app.help} body={t.app.helpNav} onClose={closeHelp} />
@@ -337,4 +470,89 @@ function useAudio(settings: AudioSettings): void {
       window.removeEventListener('click', click, true);
     };
   }, []);
+}
+
+/**
+ * Phones: everything the bottom bar does not hold, as a sheet over the page. It lives in the
+ * URL (`?more=1`), so Back and Escape close it; its links replace that entry, so Back from a
+ * destination returns to the page the sheet was opened from.
+ */
+function MoreSheet({
+  hasCareer,
+  pathname,
+  onClose,
+}: {
+  hasCareer: boolean;
+  pathname: string;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+  const history = CAREER_GROUPS.find((entry) => entry.id === 'history')!;
+  const sections: { title: string; links: Item[] }[] = [
+    ...(hasCareer
+      ? [
+          {
+            title: history.label,
+            links: history.pages.map((page) => ({ ...page, icon: history.icon })),
+          },
+          { title: n.play, links: [matchItem, worldItem, home] },
+        ]
+      : []),
+    { title: n.app, links: utilities },
+  ];
+  return (
+    <dialog
+      ref={ref}
+      className="more-sheet"
+      aria-labelledby="more-title"
+      // Escape is handled here and stopped, so it closes the sheet exactly once: WebKit can close
+      // the dialog before the shell's own Escape shortcut ("back") sees the key.
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="more-sheet-inner">
+        <div className="more-sheet-head">
+          <h2 id="more-title">{n.moreTitle}</h2>
+          <button type="button" className="text-button" onClick={onClose}>
+            {n.close}
+          </button>
+        </div>
+        {sections.map((section) => (
+          <section key={section.title} aria-label={section.title}>
+            <h3>{section.title}</h3>
+            <ul>
+              {section.links.map((item) => (
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    replace
+                    aria-current={pathname === item.path ? 'page' : undefined}
+                  >
+                    <Icon name={item.icon} />
+                    <span>{item.label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </dialog>
+  );
 }

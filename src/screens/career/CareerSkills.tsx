@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { m, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../../store';
@@ -26,6 +26,8 @@ const attributeName = (key: string) =>
 const skillName = (id: string) => c.skillNames[id] ?? id;
 const choiceName = (id: string) => matchLabel(`match.choice.${id}`);
 const percent = (value: number) => Math.round(Math.abs(value) * 100);
+/** Tailwind `xl`: the skill detail sits beside the tree and stays in view. */
+const SIDE_BY_SIDE = '(min-width: 1280px)';
 
 /** Key-moment choices a skill unlocks (choices requiring it as a trait). */
 const UNLOCKED_CHOICES: Readonly<Record<string, string[]>> = (() => {
@@ -68,7 +70,7 @@ const stateMark: Record<SkillState, string> = {
 
 export default function CareerSkills() {
   return (
-    <CareerPage eyebrow={c.skills.eyebrow} title={c.skills.title} description={c.skills.body}>
+    <CareerPage title={c.titles.skills} description={c.skills.body}>
       {(context) => (
         <SkillTree world={context.world} career={context.career} player={context.player} />
       )}
@@ -102,11 +104,23 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
       : columns[0]!.skills[0]!.id;
   const [focusId, setFocusId] = useState(selectedId);
   const tree = useRef<HTMLDivElement>(null);
+  const detail = useRef<HTMLHeadingElement>(null);
+  const behavior: ScrollBehavior = reduced ? 'auto' : 'smooth';
   const select = (id: string) => {
     const next = new URLSearchParams(params);
     next.set('skill', id);
     setParams(next, { replace: true });
     setFocusId(id);
+    // Below xl the detail sits under the whole tree: bring it to the player.
+    if (!window.matchMedia(SIDE_BY_SIDE).matches) {
+      detail.current?.scrollIntoView({ behavior, block: 'start' });
+      detail.current?.focus({ preventScroll: true });
+    }
+  };
+  const backToTree = () => {
+    const node = tree.current?.querySelector<HTMLButtonElement>(`[data-skill="${selectedId}"]`);
+    node?.scrollIntoView({ behavior, block: 'center' });
+    node?.focus({ preventScroll: true });
   };
   const move = (event: KeyboardEvent<HTMLButtonElement>, id: string) => {
     const column = columns.findIndex(({ skills }) => skills.some((skill) => skill.id === id));
@@ -141,17 +155,15 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
   };
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-      <section aria-labelledby="tree-heading" className={ui.panel}>
+      <section aria-label={c.titles.skills} className={ui.panel}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="tree-heading" className={ui.heading}>
-            {c.titles.skills}
-          </h2>
+          <p className="min-w-0 flex-1 basis-48 text-sm text-muted">{c.skills.keyboard}</p>
           <div
             className={`rounded-control px-4 py-2 text-center ${
               career.skillPoints ? 'bg-gold text-[#1d3127]' : 'bg-surface-soft text-muted'
             }`}
           >
-            <span className="block text-[0.65rem] font-bold uppercase tracking-wider">
+            <span className="block text-xs font-bold uppercase tracking-wider">
               {c.skills.points}
             </span>
             <strong className="font-display text-3xl leading-none" data-testid="skill-points">
@@ -159,20 +171,24 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
             </strong>
           </div>
         </div>
-        <p className="mt-2 text-xs text-muted">{c.skills.keyboard}</p>
         <p className="sr-only" role="status" aria-live="polite">
           {announcement}
         </p>
         <div
           ref={tree}
-          className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(11.5rem,1fr))]"
+          className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 2xl:grid-cols-4"
         >
-          {columns.map(({ branch, skills }) => (
+          {columns.map(({ branch, skills }, index) => (
             <div
               key={branch}
               role="group"
               aria-labelledby={`branch-${branch}`}
-              className="rounded-control border border-line bg-bg/60 p-3"
+              className={`rounded-control border border-line bg-bg/60 p-3 ${
+                // An odd last branch spans the row in two columns instead of sitting alone.
+                index === columns.length - 1 && columns.length % 2 === 1
+                  ? 'sm:col-span-2 2xl:col-span-1'
+                  : ''
+              }`}
             >
               <h3
                 id={`branch-${branch}`}
@@ -187,7 +203,7 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
                   return (
                     <li key={skill.id}>
                       {newTier && (
-                        <span className="mb-1 block text-[0.62rem] font-bold uppercase tracking-[0.14em] text-muted">
+                        <span className="mb-1 block text-xs font-bold uppercase tracking-[0.14em] text-muted">
                           {format(c.skills.tier, { tier: skill.tier })}
                         </span>
                       )}
@@ -238,6 +254,8 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
         career={career}
         skill={selected}
         block={block}
+        headingRef={detail}
+        onBack={backToTree}
         onUnlock={() => dialog.open(selected.id)}
       />
       {unlocking && (
@@ -265,12 +283,16 @@ function SkillDetail({
   career,
   skill,
   block,
+  headingRef,
+  onBack,
   onUnlock,
 }: {
   world: World;
   career: Career;
   skill: Skill;
   block: string | null;
+  headingRef: RefObject<HTMLHeadingElement>;
+  onBack: () => void;
   onUnlock: () => void;
 }) {
   const state = skillState(world, skill.id);
@@ -300,10 +322,18 @@ function SkillDetail({
       aria-labelledby="skill-detail-heading"
       className={`${ui.panel} self-start xl:sticky xl:top-6`}
     >
-      <p className={ui.eyebrow}>
+      <button className="text-button -mt-2 -ml-3 mb-2 xl:hidden" onClick={onBack}>
+        ← {c.skills.backToTree}
+      </button>
+      <p className="text-sm font-semibold text-accent">
         {c.branches[skill.branch]} · {format(c.skills.tier, { tier: skill.tier })}
       </p>
-      <h2 id="skill-detail-heading" className="mt-1 font-display text-[2.2rem] leading-none">
+      <h2
+        id="skill-detail-heading"
+        ref={headingRef}
+        tabIndex={-1}
+        className="mt-1 scroll-mt-6 font-display text-[2.2rem] leading-none focus:outline-none"
+      >
         {skillName(skill.id)}
       </h2>
       <span
@@ -314,9 +344,7 @@ function SkillDetail({
       <p className="mt-3 text-sm">{c.skillBodies[skill.id]}</p>
       <dl className="mt-4 grid gap-3 text-sm">
         <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-            {c.skills.effects}
-          </dt>
+          <dt className="text-sm font-semibold text-muted">{c.skills.effects}</dt>
           <dd className="mt-1 grid gap-1">
             {boosts.length > 0 && (
               <p>
@@ -335,9 +363,7 @@ function SkillDetail({
           </dd>
         </div>
         <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-            {c.skills.bonuses}
-          </dt>
+          <dt className="text-sm font-semibold text-muted">{c.skills.bonuses}</dt>
           <dd className="mt-1 flex flex-wrap gap-2">
             {Object.entries(skill.attributeBonuses).map(([key, value]) => (
               <span key={key} className={ui.chip}>
@@ -347,9 +373,7 @@ function SkillDetail({
           </dd>
         </div>
         <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-muted">
-            {c.skills.prerequisites}
-          </dt>
+          <dt className="text-sm font-semibold text-muted">{c.skills.prerequisites}</dt>
           <dd className="mt-1">
             {skill.prerequisites.length ? (
               <ul className="grid gap-1">

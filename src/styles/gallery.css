@@ -39,35 +39,7 @@
   margin-top: 0.55rem;
 }
 .gallery-navigation {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
   margin-top: 2.2rem;
-  border-bottom: 1px solid var(--line);
-}
-.gallery-tabs {
-  display: flex;
-  gap: 1.75rem;
-}
-.gallery-tabs button {
-  background: transparent;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  padding: 0.75rem 0;
-  min-height: 48px;
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-.gallery-tabs button[aria-selected='true'] {
-  border-bottom-color: var(--accent);
-  color: var(--accent);
-}
-.design-count {
-  font-size: 0.7rem;
-  color: var(--muted);
-  flex-shrink: 0;
 }
 .gallery-note {
   font-size: 0.75rem;
@@ -92,7 +64,7 @@
   top: 0.8rem;
   left: 0.9rem;
   color: var(--muted);
-  font-size: 0.6rem;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
 }
 .crest-card img {
@@ -173,7 +145,7 @@
   font-weight: 600;
 }
 .kit-trio p {
-  font-size: 0.6rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 .avatar-club h2 {
@@ -188,7 +160,7 @@
   width: 100%;
 }
 .age-trio p {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   padding: 0.6rem 0.1rem;
   background: var(--surface-soft);
 }

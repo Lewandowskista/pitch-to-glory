@@ -24,6 +24,7 @@ export const matchText = {
   footballer: 'Your footballer',
   seed: 'Match seed',
   prepare: 'Prepare match',
+  fixtureTable: '{rank} of {total} · {points} pts',
   selected: 'Your footballer',
   age: 'Age {age}',
   captain: 'Captain',

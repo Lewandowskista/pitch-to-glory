@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { errorCode } from '../persistence/errors';
 import { mayHaveSaves, persistence } from '../persistence/lazy';
-import type { SlotId } from '../model/domain';
+import type { Crest, SlotId } from '../model/domain';
 import { errorText } from '../i18n';
 import { format, t } from '../i18n';
 import { Page } from '../ui/Page';
@@ -15,9 +15,20 @@ import { renderKit } from '../engine/assets/kit';
 import { renderAvatar } from '../engine/assets/avatar';
 import stadium from '../assets/stadium.svg';
 const sample = generateGallery('pitch-to-glory');
+
+/** What the clubhouse shows about a career the player can return to. */
+interface CareerStatus {
+  name: string;
+  level: number;
+  club: string;
+  crest: Crest | null;
+  /** Where the career stands, and so what happens next. */
+  next: string;
+}
+
 /** The most recently saved career, offered as "Continue" from the clubhouse. */
 function useSavedCareer(skip: boolean) {
-  const [saved, setSaved] = useState<{ slot: SlotId; name: string } | null>(null);
+  const [saved, setSaved] = useState<(CareerStatus & { slot: SlotId }) | null>(null);
   useEffect(() => {
     if (skip) return;
     let current = true;
@@ -26,7 +37,20 @@ function useSavedCareer(skip: boolean) {
       .then((list) => {
         const careers = list.flatMap((entry) =>
           entry.status === 'ready' && entry.world?.career
-            ? [{ slot: entry.slot, name: entry.world.career.name, updatedAt: entry.updatedAt }]
+            ? [
+                {
+                  slot: entry.slot,
+                  name: entry.world.career.name,
+                  level: entry.world.career.level,
+                  club: entry.world.career.clubName,
+                  crest: entry.world.career.crest,
+                  next: format(t.menu.statusWhere, {
+                    season: entry.world.season,
+                    week: entry.world.week,
+                  }),
+                  updatedAt: entry.updatedAt,
+                },
+              ]
             : [],
         );
         careers.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -39,83 +63,147 @@ function useSavedCareer(skip: boolean) {
   }, [skip]);
   return saved;
 }
-export default function Menu() {
+
+/** The career loaded in this tab, if any. */
+function useLoadedCareer(): CareerStatus | null {
   const world = useAppStore((s) => s.world);
-  const loaded = world?.career ? world.players[world.career.playerId] : undefined;
+  const session = useAppStore((s) => s.matchSession);
+  const player = world?.career ? world.players[world.career.playerId] : undefined;
+  if (!world?.career || !player) return null;
+  const club = player.clubId ? world.clubs[player.clubId] : undefined;
+  return {
+    name: player.name,
+    level: world.career.level,
+    club: club?.name ?? '',
+    crest: club?.crest ?? null,
+    next: session
+      ? t.menu.statusMatch
+      : world.phase === 'complete'
+        ? format(t.menu.statusComplete, { season: world.date.season })
+        : format(t.menu.statusWhere, { season: world.date.season, week: world.date.week }),
+  };
+}
+
+/** A returning player's career at a glance, with the way back in. */
+function CareerStatusCard({ status, children }: { status: CareerStatus; children: ReactNode }) {
+  const crest = useMemo(() => (status.crest ? renderCrest(status.crest) : null), [status.crest]);
+  return (
+    <section
+      aria-labelledby="career-status-heading"
+      className="relative z-[2] mt-6 max-w-[30rem] rounded-panel bg-black/25 p-4 ring-1 ring-white/15 sm:p-5"
+    >
+      <h2 id="career-status-heading" className="text-sm font-semibold text-hero-eyebrow">
+        {t.menu.statusLabel}
+      </h2>
+      <div className="mt-2 flex items-center gap-3">
+        {crest && <Artwork svg={crest} alt="" className="h-12 w-12 shrink-0" />}
+        <div className="min-w-0">
+          <p className="font-display text-[2rem] leading-none break-words">{status.name}</p>
+          <p className="mt-1 text-sm text-hero-muted">
+            {format(t.menu.statusMeta, { level: status.level, club: status.club })}
+          </p>
+        </div>
+      </div>
+      <p className="mt-3 text-sm text-hero-muted">{status.next}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">{children}</div>
+    </section>
+  );
+}
+
+const exploreLink =
+  'inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold underline underline-offset-4 transition-colors';
+
+export default function Menu() {
+  const loaded = useLoadedCareer();
   const saved = useSavedCareer(Boolean(loaded));
+  const status = loaded ?? saved;
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const start = (
+    <Link className={`button ${status ? 'secondary' : 'hero-button'}`} to="/career/new">
+      {t.menu.startCareer}
+      <Icon name="arrow" />
+    </Link>
+  );
+  const explore = (tone: string) => (
+    <>
+      <Link className={`${exploreLink} ${tone}`} to="/gallery">
+        {t.menu.explore}
+        <Icon name="arrow" />
+      </Link>
+      <Link className={`${exploreLink} ${tone}`} to="/world">
+        {t.menu.world}
+        <Icon name="ball" />
+      </Link>
+      <Link className={`${exploreLink} ${tone}`} to="/match">
+        {t.app.match}
+        <Icon name="arrow" />
+      </Link>
+    </>
+  );
   return (
     <Page className="menu-page">
-      <section className="hero">
+      <section className={`hero ${status ? 'hero--returning' : ''}`}>
         <div className="hero-copy">
           <p className="eyebrow">{t.menu.eyebrow}</p>
           <h1>{t.menu.headline}</h1>
-          <p className="hero-description">{t.menu.body}</p>
-          <div className="relative z-[2] mt-6 flex flex-wrap items-center gap-3">
-            {loaded ? (
-              <Link className="button hero-button" to="/career">
-                {format(t.menu.continueCareer, { name: loaded.name })}
-                <Icon name="career" />
-              </Link>
-            ) : saved ? (
-              <button
-                className="button hero-button"
-                disabled={busy}
-                onClick={() => {
-                  setBusy(true);
-                  setError('');
-                  void persistence()
-                    .then((p) => p.loadSlot(saved.slot))
-                    .then(() => navigate(`/career?save=${saved.slot}`))
-                    .catch((cause: unknown) => setError(errorText(errorCode(cause))))
-                    .finally(() => setBusy(false));
-                }}
-              >
-                {format(t.menu.continueCareer, { name: saved.name })}
-                <Icon name="career" />
-              </button>
-            ) : null}
-            <Link
-              className={`button ${loaded || saved ? 'secondary' : 'hero-button'}`}
-              to="/career/new"
-            >
-              {t.menu.startCareer}
-              <Icon name="arrow" />
-            </Link>
-          </div>
+          {status ? (
+            <CareerStatusCard status={status}>
+              {loaded ? (
+                <Link className="button hero-button" to="/career">
+                  {format(t.menu.continueCareer, { name: loaded.name })}
+                  <Icon name="career" />
+                </Link>
+              ) : saved ? (
+                <button
+                  className="button hero-button"
+                  disabled={busy}
+                  onClick={() => {
+                    setBusy(true);
+                    setError('');
+                    void persistence()
+                      .then((p) => p.loadSlot(saved.slot))
+                      .then(() => navigate(`/career?save=${saved.slot}`))
+                      .catch((cause: unknown) => setError(errorText(errorCode(cause))))
+                      .finally(() => setBusy(false));
+                  }}
+                >
+                  {format(t.menu.continueCareer, { name: saved.name })}
+                  <Icon name="career" />
+                </button>
+              ) : null}
+              {start}
+            </CareerStatusCard>
+          ) : (
+            <>
+              <p className="hero-description">{t.menu.body}</p>
+              <div className="relative z-[2] mt-6 flex flex-wrap items-center gap-3">{start}</div>
+            </>
+          )}
           {error && (
             <p role="alert" className="relative z-[2] mt-3 text-sm font-semibold text-gold">
               {error}
             </p>
           )}
-          <div className="relative z-[2] mt-3 flex flex-wrap items-center gap-x-1 gap-y-2">
-            <Link
-              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-hero-ink underline underline-offset-4 transition-colors hover:bg-white/10"
-              to="/gallery"
-            >
-              {t.menu.explore}
-              <Icon name="arrow" />
-            </Link>
-            <Link
-              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-hero-ink underline underline-offset-4 transition-colors hover:bg-white/10"
-              to="/world"
-            >
-              {t.menu.world}
-              <Icon name="ball" />
-            </Link>
-            <Link
-              className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold text-hero-ink underline underline-offset-4 transition-colors hover:bg-white/10"
-              to="/match"
-            >
-              {t.app.match}
-              <Icon name="arrow" />
-            </Link>
-          </div>
+          {!status && (
+            <div className="relative z-[2] mt-3 flex flex-wrap items-center gap-x-1 gap-y-2">
+              {explore('text-hero-ink hover:bg-white/10')}
+            </div>
+          )}
         </div>
         <img className="stadium" src={stadium} alt={t.menu.artLabel} />
       </section>
+      {status && (
+        <nav aria-labelledby="more-heading" className="mt-6">
+          <h2 id="more-heading" className="sr-only">
+            {t.menu.moreTitle}
+          </h2>
+          <div className="-ml-3 flex flex-wrap items-center gap-x-1 gap-y-2">
+            {explore('text-accent hover:bg-surface-soft')}
+          </div>
+        </nav>
+      )}
       <section aria-labelledby="pillars-heading" className="mt-10">
         <h2
           id="pillars-heading"

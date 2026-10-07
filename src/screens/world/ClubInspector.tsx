@@ -54,12 +54,14 @@ export function ClubInspector({
   ] as [string, string[]][];
   const attributes = { ...player.attributes, ...player.keeperAttributes };
   return (
-    <aside className="club-inspector" aria-label={t.world.inspect}>
+    <aside className="club-inspector" id="club-inspector" aria-label={t.world.inspect}>
       <header className="club-identity">
         <Artwork svg={renderCrest(club.crest)} alt="" />
         <div>
           <p className="eyebrow">{club.city}</p>
-          <h2>{club.name}</h2>
+          <h2 id="club-inspector-heading" tabIndex={-1}>
+            {club.name}
+          </h2>
           <p>
             {t.world.reputation} <strong>{club.reputation}</strong>
           </p>

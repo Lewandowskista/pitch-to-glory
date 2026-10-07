@@ -146,10 +146,12 @@ Keep the green/gold identity, existing country profiles and browser-first archit
 
 **Tests:** extend `e2e/foundation.spec.ts`, `e2e/career.spec.ts`, `e2e/accessibility.spec.ts`.
 
-- [ ] Use five career groups: Overview, Player, Club, Life and History. On desktop, show grouped destinations in the persistent sidebar and relevant local links within the active group.
-- [ ] On phones, use Overview, Player, Club, Life and More as the five bottom destinations; More gives History and utilities. Put inbox urgency in Overview and the hub instead of creating a sixth persistent tab.
-- [ ] Keep every existing route working, including bookmarks, `save` parameters and browser back/forward. Use a URL-backed, keyboard-accessible More dialog so browser back closes it.
-- [ ] Keep World accessible from Club and More; retain Gallery, Edit, Saves and Settings in utilities. The no-career landing flow keeps straightforward discovery links.
+- [x] Use five career groups: Overview, Player, Club, Life and History. On desktop, show grouped destinations in the persistent sidebar and relevant local links within the active group.
+- [x] On phones, use Overview, Player, Club, Life and More as the five bottom destinations; More gives History and utilities. Put inbox urgency in Overview and the hub instead of creating a sixth persistent tab.
+- [x] Keep every existing route working, including bookmarks, `save` parameters and browser back/forward. Use a URL-backed, keyboard-accessible More dialog so browser back closes it.
+- [x] Keep World accessible from Club and More; retain Gallery, Edit, Saves and Settings in utilities. The no-career landing flow keeps straightforward discovery links.
+
+**Done** in the UI/UX pass (see `docs/VERIFICATION.md`, Phase 3.1); tests live in `e2e/navigation.spec.ts` rather than the files listed above.
 
 **Accept:** players can reach every old destination without a long horizontal career-tab search; current-page naming, keyboard focus and unread indicators remain clear.
 

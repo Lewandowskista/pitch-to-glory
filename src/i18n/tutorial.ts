@@ -22,7 +22,7 @@ export const tutorialText = {
     },
     'career-nav': {
       title: 'Everything else',
-      body: 'Your profile, skills, club life, transfers, lifestyle and honours are all here. Arrow keys move along the bar.',
+      body: 'Your career has five sections: Overview, Player, Club, Life and History. Each opens with tabs for its pages, always in the same place. Arrow keys move along them.',
     },
     inbox: {
       title: 'Messages',

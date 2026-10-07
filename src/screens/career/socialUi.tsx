@@ -51,7 +51,7 @@ export function EffectChips({ effects }: { effects: MediaEffects }) {
       {effectList(effects).map(({ label, value }) => (
         <li
           key={label}
-          className={`inline-flex min-h-6 items-center rounded-full px-2 text-[0.7rem] font-bold ${
+          className={`inline-flex min-h-6 items-center rounded-full px-2 text-xs font-bold ${
             value > 0 ? 'bg-accent-soft text-accent' : 'bg-danger-soft text-danger'
           }`}
         >

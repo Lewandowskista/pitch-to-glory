@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { Icon } from '../../ui/Icon';
@@ -6,6 +7,7 @@ import { Dialog } from '../../ui/Dialog';
 import { CONFIG } from '../../engine/config';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import { chooseRecovery } from '../../engine/career/training';
+import { retirementState } from '../../engine/career/honours/retirement';
 import type { Career, CareerMatchRecord, Club, Player, World } from '../../model/domain';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
@@ -31,12 +33,13 @@ import { continueToMatchday, simulateCareerSeason, startNextCareerSeason } from 
 import { useUrlDialog } from './useUrlDialog';
 import { careerContract, windowState } from '../../engine/career/market';
 import { marketText as m } from '../../i18n/market';
-import { messageText, money, roleName, weekly, WindowBanner } from './marketUi';
+import { messageText, money, roleName, weekly } from './marketUi';
 import { rivalOf, seasonLines } from '../../engine/career/social';
 import { socialText as s } from '../../i18n/social';
 import { mediaText } from './socialUi';
 import { challengeDone, fameProgress } from '../../engine/career/lifestyle';
 import { lifestyleText as l } from '../../i18n/lifestyle';
+import { honoursText as h } from '../../i18n/honours';
 import { fameName, useChallengeRefresh } from './lifestyleUi';
 import { HonoursSummary } from './honoursHub';
 import { Tutorial } from '../../ui/Tutorial';
@@ -45,10 +48,28 @@ import { tutorialText as tt } from '../../i18n/tutorial';
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
 
+/** Large hub cards: a column so the footer link always sits at the bottom. */
+const card = `${ui.panel} flex flex-col`;
+/** Small summary tiles in the strip under the main cards. */
+const tile =
+  'flex min-w-0 flex-col rounded-panel border border-line bg-surface p-4 shadow-surface sm:p-5';
+const tileHeading = 'text-base font-bold leading-tight';
+
+/** The one card action style on the hub: a footer link to the card's single destination. */
+function CardLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <div className="mt-auto pt-3">
+      <Link className="text-button -ml-3 inline-flex items-center gap-1" to={to}>
+        {children}
+      </Link>
+    </div>
+  );
+}
+
 export default function CareerHub() {
   useChallengeRefresh();
   return (
-    <CareerPage eyebrow={c.hub.eyebrow} title={c.titles.hub}>
+    <CareerPage title={c.titles.hub}>
       {({ world, career, player, club, age }) => (
         <HubContent world={world} career={career} player={player} club={club} age={age} />
       )}
@@ -71,6 +92,8 @@ function HubContent({
 }) {
   const error = useAppStore((s) => s.worldError);
   const notice = useAppStore((s) => s.worldNotice);
+  // Late in a career the honours card carries the retirement decision, so it stays full size.
+  const retirement = retirementState(world) !== 'young';
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
       {error && (
@@ -86,17 +109,20 @@ function HubContent({
       </p>
       <NextMatch world={world} career={career} club={club} />
       <PlayerCard career={career} player={player} club={club} age={age} />
-      <SeasonStats world={world} career={career} player={player} />
       <LastResult world={world} career={career} />
+      <SeasonStats world={world} career={career} player={player} />
       <ClubStanding world={world} club={club} />
       <Condition career={career} player={player} />
-      <TrainingSummary career={career} />
-      <FameSummary world={world} />
-      <HonoursSummary world={world} />
-      <PressRoom world={world} />
-      <RivalWatch world={world} />
-      <MarketSummary world={world} />
       <InboxPreview world={world} />
+      {retirement && <HonoursSummary world={world} className="lg:col-span-12" />}
+      <PressRoom world={world} />
+      <MarketSummary world={world} />
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 lg:col-span-12 lg:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]">
+        <TrainingSummary career={career} />
+        <FameSummary world={world} />
+        {!retirement && <HonoursTile world={world} />}
+        <RivalWatch world={world} />
+      </div>
       <Tutorial
         track="week"
         enabled={world.phase === 'active' && career.matches.length === 0}
@@ -130,23 +156,23 @@ function NextMatch({
   const complete = world.phase === 'complete';
   const busy = Boolean(job);
   const action = session ? (
-    <Link className="button hero-button min-w-48" to="/match">
+    <Link className="button play min-w-48" to="/match">
       {session.state.match.status === 'finished' ? c.hub.record : c.hub.resume}
       <Icon name="arrow" />
     </Link>
   ) : complete ? (
-    <button className="button hero-button min-w-48" disabled={busy} onClick={startNextCareerSeason}>
+    <button className="button play min-w-48" disabled={busy} onClick={startNextCareerSeason}>
       {c.hub.nextSeason}
       <Icon name="arrow" />
     </button>
   ) : pending ? (
-    <Link className="button hero-button min-w-48" to="/match" data-tour="continue">
+    <Link className="button play min-w-48" to="/match" data-tour="continue">
       {c.hub.play}
       <Icon name="ball" />
     </Link>
   ) : (
     <button
-      className="button hero-button min-w-48"
+      className="button play min-w-48"
       disabled={busy || awaitingRecovery}
       aria-describedby={awaitingRecovery ? 'recovery-required' : undefined}
       data-tour="continue"
@@ -168,7 +194,7 @@ function NextMatch({
       />
       <div className="relative flex flex-col gap-5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-gold">
+          <span className="text-xs font-bold uppercase tracking-[0.16em] text-gold">
             {complete ? c.hub.seasonComplete : pending ? c.hub.matchday : c.hub.nextMatch}
           </span>
           {kind && !complete && (
@@ -183,7 +209,7 @@ function NextMatch({
         {complete ? (
           <div>
             <p className="font-display text-[2.6rem] leading-none">{c.hub.seasonComplete}</p>
-            <p className="mt-2 max-w-prose text-sm text-white/80">{c.hub.seasonCompleteBody}</p>
+            <p className="mt-2 max-w-prose text-sm text-white/85">{c.hub.seasonCompleteBody}</p>
           </div>
         ) : fixture && opponent && club ? (
           <HeadToHead
@@ -201,7 +227,7 @@ function NextMatch({
                 />
               ),
               label: side.id === club.id && (
-                <span className="block text-[0.65rem] font-bold uppercase tracking-wider text-gold">
+                <span className="block text-xs font-bold uppercase tracking-wider text-gold">
                   {c.hub.club}
                 </span>
               ),
@@ -210,7 +236,7 @@ function NextMatch({
         ) : (
           <div>
             <p className="font-display text-[2.2rem] leading-none">{c.hub.noFixture}</p>
-            <p className="mt-2 max-w-prose text-sm text-white/80">{c.hub.noFixtureBody}</p>
+            <p className="mt-2 max-w-prose text-sm text-white/85">{c.hub.noFixtureBody}</p>
           </div>
         )}
         {fixture && !complete && (
@@ -222,14 +248,14 @@ function NextMatch({
             · {fixture.neutral ? c.common.neutral : home ? c.common.home : c.common.away}
           </p>
         )}
-        <p className="max-w-prose text-sm text-white/80">
+        <p className="max-w-prose text-sm text-white/85 empty:hidden">
           {pending ? c.hub.matchdayBody : !complete && !session ? c.hub.continueBody : ''}
         </p>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           {action}
           {!complete && !session && (
             <button
-              className="button secondary"
+              className="inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-white underline underline-offset-4 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:text-white/60 disabled:no-underline"
               disabled={busy || awaitingRecovery}
               onClick={() => dialog.open('autoplay')}
             >
@@ -263,6 +289,41 @@ function NextMatch({
   );
 }
 
+/** Unspent points: a clear call to spend them, quiet when there is nothing to spend. */
+function PointsLink({
+  to,
+  count,
+  label,
+  action,
+}: {
+  to: string;
+  count: number;
+  label: string;
+  action: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className={`flex min-h-11 items-center justify-between gap-3 rounded-control px-4 text-sm font-bold transition-colors ${
+        count
+          ? 'border-2 border-gold bg-art-gold text-ink hover:bg-gold hover:text-on-gold'
+          : 'border border-line bg-surface-soft font-semibold text-muted hover:text-ink'
+      }`}
+    >
+      <span className="min-w-0">
+        {label}
+        <span className="sr-only"> — {action}</span>
+      </span>
+      {count > 0 && (
+        <span aria-hidden="true" className="flex shrink-0 items-center gap-1">
+          {c.hub.spend}
+          <Icon name="arrow" />
+        </span>
+      )}
+    </Link>
+  );
+}
+
 function PlayerCard({
   career,
   player,
@@ -278,11 +339,10 @@ function PlayerCard({
     <section
       aria-labelledby="player-card-heading"
       data-tour="player-card"
-      className={`${ui.panel} lg:col-span-4`}
+      className={`${card} lg:col-span-4`}
     >
-      <p className={ui.eyebrow}>{c.hub.player}</p>
-      <div className="mt-3 flex flex-wrap items-center gap-4">
-        <PlayerPortrait player={player} age={age} className="h-24 w-24 shrink-0" />
+      <div className="flex flex-wrap items-center gap-4">
+        <PlayerPortrait player={player} age={age} className="h-20 w-20 shrink-0 sm:h-24 sm:w-24" />
         <div className="min-w-0 flex-1 basis-40">
           <h2
             id="player-card-heading"
@@ -304,34 +364,20 @@ function PlayerCard({
       <div className="mt-5">
         <XpBar career={career} />
       </div>
-      <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">{c.hub.points}</h3>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <Link
+      <div className="mt-5 grid gap-2">
+        <PointsLink
           to="/career/profile"
-          className={`flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold ${
-            career.attributePoints
-              ? 'bg-gold text-on-gold'
-              : 'border border-line bg-surface-soft text-muted'
-          }`}
-        >
-          {plural(career.attributePoints, c.common.attributePoint, c.common.attributePoints)}
-          <span className="sr-only">— {c.hub.allocate}</span>
-        </Link>
-        <Link
+          count={career.attributePoints}
+          label={plural(career.attributePoints, c.common.attributePoint, c.common.attributePoints)}
+          action={c.hub.allocate}
+        />
+        <PointsLink
           to="/career/skills"
-          className={`flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold ${
-            career.skillPoints
-              ? 'bg-gold text-on-gold'
-              : 'border border-line bg-surface-soft text-muted'
-          }`}
-        >
-          {plural(career.skillPoints, c.common.skillPoint, c.common.skillPoints)}
-          <span className="sr-only">— {c.hub.unlock}</span>
-        </Link>
+          count={career.skillPoints}
+          label={plural(career.skillPoints, c.common.skillPoint, c.common.skillPoints)}
+          action={c.hub.unlock}
+        />
       </div>
-      <Link className="text-button mt-3 -ml-3 inline-flex" to="/career/profile">
-        {c.hub.profile}
-      </Link>
     </section>
   );
 }
@@ -358,26 +404,48 @@ function LastResult({ world, career }: { world: World; career: Career }) {
   const form = recentForm(career);
   const opponent = last ? world.clubs[last.opponentId] : undefined;
   return (
-    <section aria-labelledby="last-result-heading" className={`${ui.panel} lg:col-span-4`}>
+    <section aria-labelledby="last-result-heading" className={`${card} lg:col-span-4`}>
       <h2 id="last-result-heading" className={ui.heading}>
         {c.hub.lastResult}
       </h2>
       {last ? (
         <>
           <div className="mt-4 flex items-center gap-3">
-            {opponent && <CrestImage crest={opponent.crest} alt="" className="h-12 w-12" />}
+            <span
+              aria-hidden="true"
+              className={`grid h-12 w-12 shrink-0 place-items-center rounded-control font-display text-3xl ${
+                last.result === 'win'
+                  ? 'bg-accent text-on-accent'
+                  : last.result === 'loss'
+                    ? 'bg-danger-soft text-danger'
+                    : 'bg-surface-soft text-ink'
+              }`}
+            >
+              {c.hub.results[last.result]}
+            </span>
             <div className="min-w-0 flex-1">
-              <p className="break-words text-sm font-semibold">
-                {last.home ? c.common.home : c.common.away} · {opponent?.name}
+              <p className="font-display text-2xl leading-tight break-words">
+                {format(c.hub.resultLine[last.result], {
+                  score: `${last.score[0]}–${last.score[1]}`,
+                  opponent: opponent?.name ?? last.opponentId,
+                })}
+                {last.decided && (
+                  <span className="ml-1 font-sans text-sm text-muted">
+                    {c.profile.decided[last.decided]}
+                  </span>
+                )}
               </p>
               <p className="text-xs text-muted">
-                {competitionName(world, last.competitionId)} ·{' '}
-                {format(c.common.week, { week: last.week })}
+                {format(c.hub.resultMeta, {
+                  venue: last.home ? c.common.home : c.common.away,
+                  competition: competitionName(world, last.competitionId),
+                  week: last.week,
+                })}
               </p>
             </div>
-            <span className="font-display text-4xl leading-none">
-              {last.score[0]}–{last.score[1]}
-            </span>
+            {opponent && (
+              <CrestImage crest={opponent.crest} alt="" className="h-10 w-10 shrink-0" />
+            )}
           </div>
           <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
             {[
@@ -386,16 +454,12 @@ function LastResult({ world, career }: { world: World; career: Career }) {
               [c.profile.columns.xp, `+${last.xp}`],
             ].map(([label, value]) => (
               <div key={label} className="rounded-control bg-surface-soft p-2">
-                <dt className="text-[0.65rem] font-bold uppercase tracking-wider text-muted">
-                  {label}
-                </dt>
+                <dt className="text-xs font-semibold text-muted">{label}</dt>
                 <dd className="font-display text-2xl leading-tight">{value}</dd>
               </div>
             ))}
           </dl>
-          <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
-            {c.hub.form}
-          </h3>
+          <h3 className="mt-5 text-sm font-semibold text-muted">{c.hub.form}</h3>
           <div
             className="mt-2 flex gap-2"
             role="img"
@@ -428,24 +492,30 @@ function SeasonStats({ world, career, player }: { world: World; career: Career; 
     keeper ? [c.hub.stats.cleanSheets, line.cleanSheets] : [c.hub.stats.xp, line.xp],
   ];
   return (
-    <section aria-labelledby="season-stats-heading" className={`${ui.panel} lg:col-span-4`}>
+    <section aria-labelledby="season-stats-heading" className={`${card} lg:col-span-4`}>
       <h2 id="season-stats-heading" className={ui.heading}>
         {format(c.hub.season, { season: world.date.season })}
       </h2>
       <p className="mt-1 text-xs text-muted">{c.hub.scope}</p>
-      <dl className="mt-4 grid grid-cols-2 gap-3">
+      <dl className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-3">
         {stats.map(([label, value], index) => (
           <div
             key={label}
-            className={`rounded-control bg-surface-soft p-3 ${index === 0 ? 'col-span-2' : ''}`}
+            className={`rounded-control bg-surface-soft p-2.5 sm:p-3 ${index === 0 ? 'sm:col-span-2' : ''}`}
           >
             <dt className="text-xs font-semibold text-muted">{label}</dt>
-            <dd className="font-display text-3xl leading-tight">{value}</dd>
+            <dd className="font-display text-2xl leading-tight sm:text-3xl">{value}</dd>
           </div>
         ))}
       </dl>
       {league.apps > 0 && (
-        <p className="mt-3 text-sm text-muted">{format(c.hub.leagueLine, league)}</p>
+        <p className="mt-3 text-sm text-muted">
+          {format(c.hub.leagueLine, {
+            goals: plural(league.goals, c.hub.goal, c.hub.goals),
+            assists: plural(league.assists, c.hub.assist, c.hub.assists),
+            apps: plural(league.apps, c.hub.game, c.hub.games),
+          })}
+        </p>
       )}
     </section>
   );
@@ -455,7 +525,7 @@ function ClubStanding({ world, club }: { world: World; club: Club | undefined })
   const standing = club ? leaguePosition(world, club.id) : null;
   const league = club ? world.leagues[club.leagueId] : undefined;
   return (
-    <section aria-labelledby="club-heading" className={`${ui.panel} lg:col-span-4`}>
+    <section aria-labelledby="club-heading" className={`${card} lg:col-span-4`}>
       <h2 id="club-heading" className={ui.heading}>
         {c.hub.club}
       </h2>
@@ -482,12 +552,11 @@ function ClubStanding({ world, club }: { world: World; club: Club | undefined })
             <p className={`${ui.muted} mt-4`}>{c.hub.noLeague}</p>
           )}
           {league && (
-            <Link
-              className="text-button mt-2 -ml-3 inline-flex"
+            <CardLink
               to={`/world?country=${encodeURIComponent(club.countryId)}&tier=${league.tier}&group=${encodeURIComponent(league.id)}&club=${encodeURIComponent(club.id)}`}
             >
               {c.hub.viewTable}
-            </Link>
+            </CardLink>
           )}
         </>
       ) : (
@@ -511,7 +580,7 @@ function Condition({ career, player }: { career: Career; player: Player }) {
     useAppStore.getState().setWorld(chooseRecovery(current, recovery));
   };
   return (
-    <section aria-labelledby="condition-heading" className={`${ui.panel} lg:col-span-6`}>
+    <section aria-labelledby="condition-heading" className={`${card} lg:col-span-6`}>
       <h2 id="condition-heading" className={ui.heading}>
         {c.hub.condition}
       </h2>
@@ -527,7 +596,7 @@ function Condition({ career, player }: { career: Career; player: Player }) {
       </div>
       {injury && (
         <div className="mt-5 rounded-control border border-danger/40 bg-danger-soft p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-danger">{c.hub.injury}</p>
+          <p className="text-sm font-bold text-danger">{c.hub.injury}</p>
           <p className="mt-1 font-display text-2xl leading-tight">
             {c.injuries[injury.kind] ?? injury.kind}
           </p>
@@ -588,143 +657,38 @@ function Condition({ career, player }: { career: Career; player: Player }) {
   );
 }
 
-function TrainingSummary({ career }: { career: Career }) {
-  const report = career.lastTraining;
-  return (
-    <section
-      aria-labelledby="training-summary-heading"
-      data-tour="training"
-      className={`${ui.panel} lg:col-span-6`}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 id="training-summary-heading" className={ui.heading}>
-          {c.hub.training}
-        </h2>
-        <Link className="button secondary" to="/career/training">
-          {c.hub.editTraining}
-        </Link>
-      </div>
-      {report ? (
-        <div className="mt-4 grid gap-3">
-          <p className="text-xs text-muted">
-            {format(c.common.seasonWeek, { season: report.season, week: report.week })} ·{' '}
-            {format(c.hub.trainingFatigue, {
-              value: `${report.fatigue > 0 ? '+' : ''}${report.fatigue}`,
-            })}
-          </p>
-          {report.improved.length || report.declined.length ? (
-            <ul className="flex flex-wrap gap-2">
-              {report.improved.map((key) => (
-                <li key={`up-${key}`} className={ui.chip}>
-                  ▲ {attributeName(key)}
-                </li>
-              ))}
-              {report.declined.map((key) => (
-                <li
-                  key={`down-${key}`}
-                  className="inline-flex min-h-7 items-center gap-1 rounded-full bg-danger-soft px-3 text-xs font-bold text-danger"
-                >
-                  ▼ {attributeName(key)}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className={ui.muted}>{c.hub.trainingNone}</p>
-          )}
-          {report.familiarity && (
-            <p className="text-sm">
-              {format(c.training.familiarityGain, {
-                position: report.familiarity.position,
-                value: report.familiarity.familiarity,
-              })}
-            </p>
-          )}
-          {report.injuryId && (
-            <p className="text-sm font-semibold text-danger">{c.hub.trainingInjury}</p>
-          )}
-        </div>
-      ) : (
-        <p className={`${ui.muted} mt-4`}>{c.hub.trainingEmpty}</p>
-      )}
-    </section>
-  );
-}
-
-function MarketSummary({ world }: { world: World }) {
-  const contract = careerContract(world);
-  const waiting = world.offers.filter((offer) => offer.status === 'terms').length;
-  const following = world.scouting.length;
-  const open = windowState(world).open && world.phase !== 'complete';
-  return (
-    <section aria-labelledby="market-summary-heading" className={`${ui.panel} lg:col-span-6`}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 id="market-summary-heading" className={ui.heading}>
-          {m.hub.market}
-        </h2>
-        <Link className="button secondary" to="/career/transfers">
-          {m.hub.seeMarket}
-        </Link>
-      </div>
-      <div className="mt-4 grid gap-3">
-        <WindowBanner world={world} />
-        <p className={`text-sm font-semibold ${waiting && open ? 'text-accent' : ''}`}>
-          {format(m.hub.marketBody, { interest: following, offers: waiting })}
-        </p>
-        <dl className="grid grid-cols-2 gap-3">
-          <div className="rounded-control bg-surface-soft p-3">
-            <dt className="text-xs font-semibold text-muted">{m.contract.wage}</dt>
-            <dd className="font-display text-2xl leading-tight">{weekly(contract.weeklyWage)}</dd>
-          </div>
-          <div className="rounded-control bg-surface-soft p-3">
-            <dt className="text-xs font-semibold text-muted">{m.contract.role}</dt>
-            <dd className="font-display text-2xl leading-tight">{roleName(contract.role)}</dd>
-          </div>
-          <div className="col-span-2 rounded-control bg-surface-soft p-3">
-            <dt className="text-xs font-semibold text-muted">{m.earnings.cash}</dt>
-            <dd className="font-display text-2xl leading-tight">
-              {money(world.career!.market.finances.cash)}
-            </dd>
-          </div>
-        </dl>
-      </div>
-    </section>
-  );
-}
-
 function InboxPreview({ world }: { world: World }) {
   const latest = [...world.inbox].reverse().slice(0, 4);
   return (
     <section
       aria-labelledby="inbox-preview-heading"
       data-tour="inbox"
-      className={`${ui.panel} lg:col-span-6`}
+      className={`${card} lg:col-span-6`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 id="inbox-preview-heading" className={ui.heading}>
-          {m.hub.inbox}
-        </h2>
-        <Link className="button secondary" to="/career/inbox">
-          {m.hub.seeAll}
-        </Link>
-      </div>
+      <h2 id="inbox-preview-heading" className={ui.heading}>
+        {m.hub.inbox}
+      </h2>
       {latest.length ? (
-        <ul className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-2">
+        <ul className="-mx-3 mt-3 grid grid-cols-[minmax(0,1fr)] gap-1">
           {latest.map((message) => (
             <li key={message.id}>
               <Link
                 to={`/career/inbox?message=${encodeURIComponent(message.id)}`}
-                className="flex min-h-11 items-center gap-3 rounded-control px-3 py-2 transition hover:bg-surface-soft"
+                className="flex min-h-11 items-start gap-3 rounded-control px-3 py-2 transition hover:bg-surface-soft"
               >
                 <span
                   aria-hidden="true"
-                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${message.read ? 'bg-line' : 'bg-accent'}`}
+                  className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${message.read ? 'bg-line' : 'bg-accent'}`}
                 />
                 <span
-                  className={`min-w-0 flex-1 truncate text-sm ${message.read ? '' : 'font-bold'}`}
+                  className={`min-w-0 flex-1 text-sm line-clamp-2 ${message.read ? '' : 'font-bold'}`}
                 >
                   {messageText(message).subject}
+                  {!message.read && (
+                    <span className="sr-only"> · {format(m.inbox.unread, { count: 1 })}</span>
+                  )}
                 </span>
-                <span className="shrink-0 text-xs text-muted">
+                <span className="mt-0.5 shrink-0 text-xs text-muted">
                   {format(c.common.week, { week: message.date.week })}
                 </span>
               </Link>
@@ -734,6 +698,7 @@ function InboxPreview({ world }: { world: World }) {
       ) : (
         <p className={`${ui.muted} mt-4`}>{m.inbox.empty}</p>
       )}
+      <CardLink to="/career/inbox">{m.hub.seeAll}</CardLink>
     </section>
   );
 }
@@ -744,19 +709,16 @@ function PressRoom({ world }: { world: World }) {
   return (
     <section
       aria-labelledby="press-room-heading"
-      className={`${ui.panel} lg:col-span-6 ${pending ? 'border-gold' : ''}`}
+      className={`${card} lg:col-span-6 ${pending ? 'border-gold' : ''}`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 id="press-room-heading" className={ui.heading}>
-          {s.hub.press}
-        </h2>
-        <Link className="button secondary" to="/career/media">
-          {s.hub.seeMedia}
-        </Link>
-      </div>
+      <h2 id="press-room-heading" className={ui.heading}>
+        {s.hub.press}
+      </h2>
       {pending ? (
         <div className="mt-4 grid gap-3">
-          <p className={ui.eyebrow}>{format(s.hub.pressWaiting, { outlet: pending.authorName })}</p>
+          <p className="text-sm font-semibold text-accent">
+            {format(s.hub.pressWaiting, { outlet: pending.authorName })}
+          </p>
           <p className="font-display text-2xl leading-tight">{mediaText(pending)}</p>
           <div>
             <Link className="button" to="/career/media">
@@ -770,44 +732,111 @@ function PressRoom({ world }: { world: World }) {
       )}
       {headline && (
         <div className="mt-4 border-t border-line pt-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted">{s.hub.latest}</p>
+          <p className="text-sm font-semibold text-muted">{s.hub.latest}</p>
           <p className="mt-1 font-display text-xl leading-tight">{mediaText(headline)}</p>
         </div>
       )}
+      {!pending && <CardLink to="/career/media">{s.hub.seeMedia}</CardLink>}
     </section>
   );
 }
 
-function RivalWatch({ world }: { world: World }) {
-  const rival = rivalOf(world);
-  const lines = seasonLines(world);
-  if (!rival || !lines) return null;
+function MarketSummary({ world }: { world: World }) {
+  const contract = careerContract(world);
+  const waiting = world.offers.filter((offer) => offer.status === 'terms').length;
+  const following = world.scouting.length;
+  const state = windowState(world);
+  const open = state.open && world.phase !== 'complete';
+  const windowText =
+    world.phase === 'complete'
+      ? m.window.between
+      : state.open
+        ? format(m.window.open, { week: state.closes! })
+        : state.opens
+          ? format(m.window.opens, { week: state.opens })
+          : m.window.closed;
   return (
-    <section aria-labelledby="rival-watch-heading" className={`${ui.panel} lg:col-span-6`}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 id="rival-watch-heading" className={ui.heading}>
-          {s.hub.rival}
-        </h2>
-        <Link className="button secondary" to="/career/rival">
-          {s.hub.seeRival}
-        </Link>
-      </div>
-      <p className="mt-4 flex items-center gap-2 font-semibold">
-        <CrestImage crest={world.clubs[rival.clubId!]!.crest} alt="" className="h-8 w-8 shrink-0" />
-        <span className="min-w-0 break-words">
-          {format(s.hub.rivalLine, { rival: rival.name, club: world.clubs[rival.clubId!]!.name })}
-        </span>
+    <section aria-labelledby="market-summary-heading" className={`${card} lg:col-span-6`}>
+      <h2 id="market-summary-heading" className={ui.heading}>
+        {m.hub.market}
+      </h2>
+      <p
+        className={`mt-4 flex items-start gap-2 rounded-control px-4 py-2.5 text-sm font-semibold text-balance ${
+          open ? 'bg-accent text-on-accent' : 'border border-line bg-surface-soft text-muted'
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${open ? 'bg-gold' : 'bg-muted'}`}
+        />
+        <span className="min-w-0">{windowText}</span>
       </p>
-      <p className="mt-2 text-sm text-muted">
-        {format(s.hub.rivalSeason, {
-          goals: lines.career.goals,
-          rival: rival.name,
-          rivalGoals: lines.rival.goals,
-        })}
+      <p className={`mt-3 text-sm font-semibold ${waiting && open ? 'text-accent' : ''}`}>
+        {format(m.hub.marketBody, { interest: following, offers: waiting })}
       </p>
-      <Link className="text-button mt-2 -ml-3 inline-flex" to="/career/club">
-        {s.hub.seeClub}
-      </Link>
+      <dl className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2">
+        {[
+          [m.contract.wage, weekly(contract.weeklyWage)],
+          [m.contract.role, roleName(contract.role)],
+          [m.earnings.cash, money(world.career!.market.finances.cash)],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-control bg-surface-soft p-2.5">
+            <dt className="text-xs font-semibold text-muted">{label}</dt>
+            <dd className="font-display text-xl leading-tight">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <CardLink to="/career/transfers">{m.hub.seeMarket}</CardLink>
+    </section>
+  );
+}
+
+function TrainingSummary({ career }: { career: Career }) {
+  const report = career.lastTraining;
+  return (
+    <section aria-labelledby="training-summary-heading" data-tour="training" className={tile}>
+      <h2 id="training-summary-heading" className={tileHeading}>
+        {c.hub.training}
+      </h2>
+      {report ? (
+        <div className="mt-1 grid gap-1 text-sm">
+          <p className="text-xs text-muted">
+            {format(c.common.seasonWeek, { season: report.season, week: report.week })} ·{' '}
+            {format(c.hub.trainingFatigue, {
+              value: `${report.fatigue > 0 ? '+' : ''}${report.fatigue}`,
+            })}
+          </p>
+          {report.improved.length > 0 && (
+            <p className="font-semibold text-accent">
+              {format(c.hub.trainingImprovedList, {
+                attributes: report.improved.map(attributeName).join(', '),
+              })}
+            </p>
+          )}
+          {report.declined.length > 0 && (
+            <p className="font-semibold text-danger">
+              {format(c.hub.trainingDeclinedList, {
+                attributes: report.declined.map(attributeName).join(', '),
+              })}
+            </p>
+          )}
+          {!report.improved.length && !report.declined.length && (
+            <p className="text-muted">{c.hub.trainingNone}</p>
+          )}
+          {report.familiarity && (
+            <p>
+              {format(c.training.familiarityGain, {
+                position: report.familiarity.position,
+                value: report.familiarity.familiarity,
+              })}
+            </p>
+          )}
+          {report.injuryId && <p className="font-semibold text-danger">{c.hub.trainingInjury}</p>}
+        </div>
+      ) : (
+        <p className={`${ui.muted} mt-1`}>{c.hub.trainingEmpty}</p>
+      )}
+      <CardLink to="/career/training">{c.hub.editTraining}</CardLink>
     </section>
   );
 }
@@ -819,38 +848,109 @@ function FameSummary({ world }: { world: World }) {
     (challenge) => challenge.claimed || challengeDone(world, challenge),
   ).length;
   return (
-    <section aria-labelledby="fame-summary-heading" className={`${ui.panel} lg:col-span-6`}>
-      <div className="flex flex-wrap items-center gap-4">
+    <section aria-labelledby="fame-summary-heading" className={tile}>
+      <div className="flex items-start gap-3">
         <span
           aria-hidden="true"
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gold font-display text-3xl text-on-gold"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gold font-display text-2xl text-on-gold"
         >
           {progress.level}
         </span>
-        <div className="min-w-0 flex-1 basis-56">
-          <h2 id="fame-summary-heading" className={ui.heading}>
+        <div className="min-w-0">
+          <h2 id="fame-summary-heading" className={tileHeading}>
             {l.hub.title}
           </h2>
           <p className="text-sm text-muted">
-            {format(l.fame.level, { level: progress.level })} · {fameName(progress.level)} ·{' '}
-            {progress.needed
-              ? format(l.fame.progress, { into: progress.into, needed: progress.needed })
-              : l.fame.max}
+            {format(c.hub.fameLine, { level: progress.level, name: fameName(progress.level) })}
           </p>
-          <p className="text-sm">
-            {format(l.hub.challenges, { done: ready, total: world.challenges.length })} ·{' '}
-            {format(l.wardrobe.tokens, { count: career.style.tokens })}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link className="button secondary" to="/career/wardrobe">
-            {l.hub.open}
-          </Link>
-          <Link className="button secondary" to="/career/lifestyle">
-            {l.hub.lifestyle}
-          </Link>
         </div>
       </div>
+      <p className="mt-2 text-sm">
+        {progress.needed
+          ? format(l.fame.progressTowards, {
+              into: progress.into,
+              needed: progress.needed,
+              level: progress.level + 1,
+            })
+          : l.fame.max}
+      </p>
+      <p className="text-sm">
+        {format(l.hub.challenges, { done: ready, total: world.challenges.length })} ·{' '}
+        {format(l.wardrobe.tokens, { count: career.style.tokens })}
+      </p>
+      <CardLink to="/career/wardrobe">{l.hub.open}</CardLink>
+    </section>
+  );
+}
+
+/** Compact honours tile while retirement is still years away. */
+function HonoursTile({ world }: { world: World }) {
+  const career = world.career!;
+  const caps = Object.values(career.honours.caps).reduce((sum, value) => sum + value, 0);
+  const goals = Object.values(career.honours.internationalGoals).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+  const trophies = world.trophies.filter((trophy) =>
+    trophy.playerIds.includes(career.playerId),
+  ).length;
+  const awards = world.awards.filter((award) => award.winnerIds.includes(career.playerId)).length;
+  return (
+    <section aria-labelledby="honours-summary-heading" className={tile}>
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gold text-xl text-on-gold"
+        >
+          ★
+        </span>
+        <div className="min-w-0">
+          <h2 id="honours-summary-heading" className={tileHeading}>
+            {h.hub.honours}
+          </h2>
+          <p className="text-sm text-muted">
+            {format(c.hub.honoursLine, {
+              trophies: plural(trophies, h.legacy.trophy, h.legacy.trophies),
+              awards: plural(awards, h.legacy.award, h.legacy.awards),
+            })}
+          </p>
+        </div>
+      </div>
+      <p className="mt-2 text-sm">
+        {format(c.hub.capsLine, {
+          caps: plural(caps, h.hub.cap, h.hub.caps),
+          goals: plural(goals, h.hub.goal, h.hub.goals),
+        })}
+      </p>
+      <CardLink to="/career/trophies">{h.hub.open}</CardLink>
+    </section>
+  );
+}
+
+function RivalWatch({ world }: { world: World }) {
+  const rival = rivalOf(world);
+  const lines = seasonLines(world);
+  if (!rival || !lines) return null;
+  const club = world.clubs[rival.clubId!]!;
+  return (
+    <section aria-labelledby="rival-watch-heading" className={tile}>
+      <h2 id="rival-watch-heading" className={tileHeading}>
+        {s.hub.rival}
+      </h2>
+      <p className="mt-2 flex items-center gap-2 text-sm font-semibold">
+        <CrestImage crest={club.crest} alt="" className="h-7 w-7 shrink-0" />
+        <span className="min-w-0 break-words">
+          {format(s.hub.rivalLine, { rival: rival.name, club: club.name })}
+        </span>
+      </p>
+      <p className="mt-1 text-sm text-muted">
+        {format(s.hub.rivalSeason, {
+          goals: lines.career.goals,
+          rival: rival.name,
+          rivalGoals: lines.rival.goals,
+        })}
+      </p>
+      <CardLink to="/career/rival">{s.hub.seeRival}</CardLink>
     </section>
   );
 }

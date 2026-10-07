@@ -42,3 +42,55 @@ export function isBrowserNoise(message: ConsoleMessage): boolean {
     /\{file: "chrome:\/\/juggler\//.test(message.text())
   );
 }
+
+/** The career group each page tab belongs to (src/screens/career/navigation.ts). */
+const CAREER_GROUP: Record<string, string> = {
+  Hub: 'Overview',
+  Inbox: 'Overview',
+  Profile: 'Player',
+  Skills: 'Player',
+  Training: 'Player',
+  'National team': 'Player',
+  'Club life': 'Club',
+  Transfers: 'Club',
+  Agent: 'Club',
+  Media: 'Life',
+  Rival: 'Life',
+  Lifestyle: 'Life',
+  Wardrobe: 'Life',
+  Trophies: 'History',
+  Chronicle: 'History',
+  Moments: 'History',
+  Legacy: 'History',
+};
+/** A career group's link; Overview's name also carries its unread count ("Overview, 2 unread"). */
+export const groupLinkName = (group: string) => new RegExp(`^${group}\\s*(,|$)`);
+/** The page tabs of the current career group, such as "Player pages". */
+export const careerTabs = (page: Page, group?: string) =>
+  page.getByRole('navigation', { name: group ? `${group} pages` : /pages$/ });
+/**
+ * Open a career page the way a player would: its group in the sidebar (desktop) or the bottom
+ * bar or More sheet (phones), then its tab.
+ */
+export async function openCareerPage(page: Page, name: string): Promise<void> {
+  const group = CAREER_GROUP[name];
+  if (!group) throw new Error(`Unknown career page ${name}`);
+  const tabs = careerTabs(page, group);
+  if (!(await tabs.isVisible())) {
+    const bar = page.locator('.bottom-nav');
+    if (await bar.isVisible()) {
+      if (group === 'History') {
+        await bar.getByRole('button', { name: 'More' }).click();
+        await page.getByRole('dialog', { name: 'More' }).getByRole('link', { name }).click();
+        return;
+      }
+      await bar.getByRole('link', { name: groupLinkName(group) }).click();
+    } else
+      await page
+        .getByRole('navigation', { name: 'Main navigation' })
+        .first()
+        .getByRole('link', { name: groupLinkName(group) })
+        .click();
+  }
+  await tabs.getByRole('link', { name, exact: true }).click();
+}

@@ -10,18 +10,12 @@ import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
 import { ui } from './shared';
-import { chronicleSentence } from './honoursUi';
+import { CHRONICLE_GLYPH, chronicleSentence, counted, Glyph } from './honoursUi';
 
-const MARK: Partial<Record<ChronicleEntry['kind'], string>> = {
-  trophy: '★',
-  award: '✦',
-  record: '◆',
-  tournament: '★',
-  move: '→',
-  injury: '+',
-  retirement: '■',
-};
-const HIGHLIGHT = new Set([
+const HIGHLIGHT = new Set<ChronicleEntry['kind']>([
+  'start',
+  'debut',
+  'first-goal',
   'trophy',
   'award',
   'record',
@@ -31,8 +25,9 @@ const HIGHLIGHT = new Set([
   'goal-milestone',
   'cap',
   'retirement',
-  'debut',
 ]);
+/** Gold badges for silverware and records; the rest use the accent. */
+const GOLD = new Set<ChronicleEntry['kind']>(['trophy', 'award', 'record', 'tournament']);
 
 const escape = (text: string) =>
   text.replace(
@@ -52,7 +47,7 @@ function posterSvg(world: World, player: Player, entries: ChronicleEntry[]): str
         `<text x="96" y="${760 + index * 56}" font-size="30" fill="#f9f5e9">${escape(`${entry.date.season} · ${chronicleSentence(world, entry)}`).slice(0, 120)}</text>`,
     )
     .join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><rect width="1080" height="1350" fill="#0b3d2c"/><rect x="40" y="40" width="1000" height="1270" rx="40" fill="#075e45"/><image href="${portrait}" x="96" y="96" width="300" height="300"/><text x="440" y="200" font-family="sans-serif" font-size="76" font-weight="800" fill="#f1cf58">${escape(player.name)}</text><text x="440" y="260" font-family="sans-serif" font-size="34" fill="#f9f5e9">${escape(`${c.positions[player.primaryPosition]} · ${nation}`)}</text><text x="440" y="330" font-family="sans-serif" font-size="34" fill="#f9f5e9">${escape(format(h.chronicle.poster.stats, { apps: player.stats.appearances, goals: player.stats.goals, caps: entries.filter((e) => e.kind === 'cap').length }))}</text><text x="96" y="690" font-family="sans-serif" font-size="40" font-weight="800" fill="#f1cf58">${escape(h.chronicle.poster.highlights)}</text><g font-family="sans-serif">${lines}</g><text x="96" y="1270" font-family="sans-serif" font-size="30" fill="#f1cf58">${escape(h.chronicle.poster.footer)}</text></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><rect width="1080" height="1350" fill="#0b3d2c"/><rect x="40" y="40" width="1000" height="1270" rx="40" fill="#075e45"/><image href="${portrait}" x="96" y="96" width="300" height="300"/><text x="440" y="200" font-family="sans-serif" font-size="76" font-weight="800" fill="#f1cf58">${escape(player.name)}</text><text x="440" y="260" font-family="sans-serif" font-size="34" fill="#f9f5e9">${escape(`${c.positions[player.primaryPosition]} · ${nation}`)}</text><text x="440" y="330" font-family="sans-serif" font-size="34" fill="#f9f5e9">${escape(format(h.chronicle.poster.stats, { apps: counted(player.stats.appearances, h.chronicle.counts.apps), goals: counted(player.stats.goals, h.chronicle.counts.goals), caps: counted(entries.filter((e) => e.kind === 'cap').length, h.chronicle.counts.caps) }))}</text><text x="96" y="690" font-family="sans-serif" font-size="40" font-weight="800" fill="#f1cf58">${escape(h.chronicle.poster.highlights)}</text><g font-family="sans-serif">${lines}</g><text x="96" y="1270" font-family="sans-serif" font-size="30" fill="#f1cf58">${escape(h.chronicle.poster.footer)}</text></svg>`;
 }
 
 async function posterPng(svg: string): Promise<Blob> {
@@ -68,25 +63,34 @@ async function posterPng(svg: string): Promise<Blob> {
   );
 }
 
-function EntryArt({
-  world,
-  entry,
-  player,
-}: {
-  world: World;
-  entry: ChronicleEntry;
-  player: Player;
-}) {
-  const age = entry.date.season - player.birthSeason;
+/** The entry's club crest for signings and moves, otherwise an icon for its kind. */
+function EntryArt({ world, entry }: { world: World; entry: ChronicleEntry }) {
   const crest = entry.clubId ? world.clubs[entry.clubId]?.crest : undefined;
   const svg = useMemo(
-    () =>
-      crest && ['move', 'trophy', 'start'].includes(entry.kind)
-        ? renderCrest(crest)
-        : renderAvatar(player.avatar, Math.max(16, age)),
-    [crest, entry.kind, player.avatar, age],
+    () => (crest && (entry.kind === 'move' || entry.kind === 'start') ? renderCrest(crest) : ''),
+    [crest, entry.kind],
   );
-  return <Artwork svg={svg} alt="" className="h-12 w-12 shrink-0 rounded-full bg-art-blue" />;
+  if (svg)
+    return (
+      <Artwork
+        svg={svg}
+        alt=""
+        className="h-11 w-11 shrink-0 rounded-full bg-surface-soft p-1 ring-2 ring-accent"
+      />
+    );
+  const tone = GOLD.has(entry.kind)
+    ? 'bg-gold text-on-gold'
+    : HIGHLIGHT.has(entry.kind)
+      ? 'bg-accent text-on-accent'
+      : 'bg-surface-soft text-accent';
+  return (
+    <span
+      aria-hidden="true"
+      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${tone}`}
+    >
+      <Glyph name={CHRONICLE_GLYPH[entry.kind]} className="h-6 w-6" />
+    </span>
+  );
 }
 
 /** The Chronicle of one player, grouped by season, with export to an image. */
@@ -99,7 +103,7 @@ export function ChronicleView({ world, playerId }: { world: World; playerId: str
   const moments = new Map(world.moments.map((moment) => [moment.id, moment]));
   if (!player) return null;
   return (
-    <section aria-labelledby="chronicle-heading" className={`${ui.panel}`}>
+    <section aria-labelledby="chronicle-heading" className={`${ui.panel} max-w-5xl`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="chronicle-heading" className={ui.heading}>
@@ -135,32 +139,45 @@ export function ChronicleView({ world, playerId }: { world: World; playerId: str
       {seasons.map((season) => {
         const own = entries.filter((entry) => entry.date.season === season);
         const matches = career?.matches.filter((m) => m.season === season) ?? [];
+        const C = h.chronicle.counts;
         return (
-          <div key={season} className="mt-6">
-            <h3 className="font-display text-2xl leading-none">
-              {format(h.chronicle.season, { season })}
-            </h3>
-            {matches.length > 0 && (
-              <p className="mt-1 text-xs text-muted">
-                {format(h.chronicle.seasonLine, {
-                  apps: matches.length,
-                  goals: matches.reduce((sum, m) => sum + m.goals, 0),
-                  assists: matches.reduce((sum, m) => sum + m.assists, 0),
-                })}
-              </p>
-            )}
-            <ol className="mt-3 grid gap-3 border-l-2 border-line pl-4">
+          <div
+            key={season}
+            className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-3 border-t border-line pt-5 lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-8"
+          >
+            <div className="lg:sticky lg:top-6 lg:self-start">
+              <h3 className="font-display text-3xl leading-none">
+                {format(h.chronicle.season, { season })}
+              </h3>
+              {matches.length > 0 && (
+                <p className="mt-1 text-sm text-muted">
+                  {format(h.chronicle.seasonLine, {
+                    apps: counted(matches.length, C.apps),
+                    goals: counted(
+                      matches.reduce((sum, m) => sum + m.goals, 0),
+                      C.goals,
+                    ),
+                    assists: counted(
+                      matches.reduce((sum, m) => sum + m.assists, 0),
+                      C.assists,
+                    ),
+                  })}
+                </p>
+              )}
+            </div>
+            <ol className="relative grid max-w-3xl gap-4 before:absolute before:top-2 before:bottom-2 before:left-[1.35rem] before:w-0.5 before:bg-line">
               {own.map((entry) => (
-                <li key={entry.id} className="flex items-start gap-3">
-                  <EntryArt world={world} entry={entry} player={player} />
-                  <div className="min-w-0 flex-1">
+                <li key={entry.id} className="relative flex items-start gap-3">
+                  <EntryArt world={world} entry={entry} />
+                  <div className="min-w-0 flex-1 pt-0.5">
                     <p className="text-xs text-muted">
                       {format(c.common.week, { week: entry.date.week })}
-                      {MARK[entry.kind] ? (
-                        <span aria-hidden="true"> {MARK[entry.kind]}</span>
-                      ) : null}
                     </p>
-                    <p className={`text-sm ${HIGHLIGHT.has(entry.kind) ? 'font-semibold' : ''}`}>
+                    <p
+                      className={
+                        HIGHLIGHT.has(entry.kind) ? 'font-semibold text-ink' : 'text-sm text-ink'
+                      }
+                    >
                       {chronicleSentence(world, entry)}
                     </p>
                     {moments.has(entry.momentId ?? '') && (

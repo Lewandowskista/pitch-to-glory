@@ -149,16 +149,36 @@ export default function SavesContent() {
         : t.saves.replaceBody;
   return (
     <>
-      <div className="collection-name">
-        <label htmlFor="collection-name">{t.saves.name}</label>
-        <input
-          id="collection-name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          maxLength={60}
-          required
-        />
-      </div>
+      {/* What a save button stores, and the name it is stored under. */}
+      <section className="save-current" aria-labelledby="save-current-heading">
+        <div className="save-current-copy">
+          <h2 id="save-current-heading">{t.saves.current}</h2>
+          <p>
+            {world?.career
+              ? format(t.saves.currentCareer, {
+                  name: world.players[world.career.playerId]?.name ?? '',
+                })
+              : world
+                ? format(t.saves.currentWorld, {
+                    season: world.date.season,
+                    week: world.date.week,
+                  })
+                : t.saves.currentGallery}
+          </p>
+        </div>
+        <div className="collection-name">
+          <label htmlFor="collection-name">{t.saves.name}</label>
+          <input
+            id="collection-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={60}
+            required
+            aria-describedby="collection-name-hint"
+          />
+          <small id="collection-name-hint">{t.saves.nameHint}</small>
+        </div>
+      </section>
       {worldJob && (
         <p role="status" className="inline-error">
           {t.errors.busy}
@@ -186,7 +206,12 @@ export default function SavesContent() {
           const occupied = Boolean(collection || damaged);
           const current = active?.slot === target;
           return (
-            <article className={`slot-card ${current ? 'active-slot' : ''}`} key={target}>
+            <article
+              className={`slot-card ${current ? 'active-slot' : ''} ${
+                collections && !occupied ? 'empty-slot' : ''
+              }`}
+              key={target}
+            >
               <div className="slot-header">
                 <span>{format(t.saves.slot, { slot: target })}</span>
                 {current && (
@@ -202,7 +227,7 @@ export default function SavesContent() {
                     <Artwork
                       svg={renderCrest(collection.world.career.crest)}
                       alt={collection.world.career.clubName}
-                      className="h-24 w-24"
+                      className="slot-career-crest"
                     />
                     <span className="rounded-full bg-accent px-3 py-1 text-xs font-bold text-on-accent">
                       {t.menu.careerSave}
@@ -281,7 +306,7 @@ export default function SavesContent() {
                   </button>
                 )}
                 <button
-                  className={`button ${occupied ? 'secondary' : ''}`}
+                  className="button secondary"
                   disabled={blocked || !name.trim()}
                   onClick={() => {
                     if (occupied) void run(() => open('replace', target));
@@ -396,6 +421,7 @@ export default function SavesContent() {
       </section>
       {valid && ['delete', 'replace', 'import'].includes(action ?? '') && reviewed && (
         <Dialog
+          cancelLabel={t.saves.cancel}
           title={actionTitle}
           body={
             action === 'import' && !pending

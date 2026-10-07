@@ -4,6 +4,40 @@
 .match-page .page-heading .eyebrow {
   color: var(--accent);
 }
+/* Title on the left, a quiet way back on the right: never mistaken for the main action. */
+.match-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.match-heading > div {
+  min-width: 0;
+}
+.match-back {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+.match-back:hover {
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+.match-back svg {
+  width: 18px;
+  height: 18px;
+  transform: scaleX(-1);
+}
 .match-page h2 {
   font-family: var(--font-display);
   font-size: 1.85rem;
@@ -255,7 +289,7 @@
   font-size: 0.8rem;
 }
 .match-lineup li > span {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   color: var(--muted);
   width: 2rem;
   flex-shrink: 0;
@@ -269,7 +303,7 @@
 .match-lineup small {
   margin-left: auto;
   color: var(--accent);
-  font-size: 0.65rem;
+  font-size: 0.75rem;
 }
 .match-page details {
   margin-top: 0.7rem;
@@ -435,7 +469,7 @@
   color: var(--muted);
 }
 .match-choice-hint .match-tag {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
 }
 .match-factors li {
   font-size: 0.75rem;
@@ -577,9 +611,10 @@
   font-weight: 700;
 }
 .match-report blockquote {
-  margin: 1rem 0;
-  padding-left: 1rem;
-  border-left: 3px solid var(--accent);
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-control);
+  background: var(--surface-soft);
 }
 .match-report blockquote strong {
   font-size: 0.75rem;
@@ -591,7 +626,7 @@
 .match-page button:hover:not(:disabled) {
   filter: brightness(0.96);
 }
-.match-page button:disabled {
+.match-page button:not(.button):disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -658,7 +693,7 @@
     font-size: 3rem;
   }
   .match-score small {
-    font-size: 0.6rem;
+    font-size: 0.75rem;
   }
   .match-scoreboard .match-crest {
     width: 40px;
@@ -700,7 +735,7 @@
     font-size: 2.7rem;
   }
   .match-rewards span {
-    font-size: 0.66rem;
+    font-size: 0.75rem;
   }
   .match-live-aside {
     gap: 1rem;

@@ -32,6 +32,8 @@
   --color-art-green: var(--art-green);
   --color-art-gold: var(--art-gold);
   --color-art-blue: var(--art-blue);
+  /* Gold that still reads on a pale track: meter fills in the light theme. */
+  --color-meter-gold: var(--meter-gold);
   /* Use shadow-surface rather than shadow-panel: it follows the dark-theme shadow. */
   --shadow-surface: var(--shadow-panel);
 }
@@ -51,6 +53,7 @@
   --art-green: #e4eddd;
   --art-gold: #f4ead4;
   --art-blue: #e4ebee;
+  --meter-gold: #9a7612;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -68,6 +71,7 @@
   --art-green: #2d4636;
   --art-gold: #433e2e;
   --art-blue: #2d3e43;
+  --meter-gold: #efcf63;
   --shadow-panel: 0 8px 28px rgb(0 0 0 / 0.08);
 }
 /*
@@ -91,6 +95,7 @@
     --art-green: #2d4636;
     --art-gold: #433e2e;
     --art-blue: #2d3e43;
+    --meter-gold: #efcf63;
     --shadow-panel: 0 8px 28px rgb(0 0 0 / 0.08);
   }
 }

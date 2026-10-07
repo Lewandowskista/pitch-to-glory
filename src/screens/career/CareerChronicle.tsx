@@ -4,7 +4,7 @@ import { ChronicleView } from './ChronicleView';
 
 export default function CareerChronicle() {
   return (
-    <CareerPage eyebrow={h.eyebrow} title={h.titles.chronicle}>
+    <CareerPage title={h.titles.chronicle}>
       {({ world, career }) => <ChronicleView world={world} playerId={career.playerId} />}
     </CareerPage>
   );

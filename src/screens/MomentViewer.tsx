@@ -27,9 +27,7 @@ export default function MomentViewer() {
   return (
     <Page>
       <header className="page-heading">
-        <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-accent">
-          {h.eyebrow}
-        </p>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">{h.eyebrow}</p>
         <h1>{h.titles.moment}</h1>
         <p>{h.moments.viewerBody}</p>
       </header>

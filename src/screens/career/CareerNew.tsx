@@ -573,7 +573,7 @@ function AppearanceStep({ draft, update }: StepProps) {
                     alt={format(c.wizard.previewAlt, { age })}
                     className="h-14 w-14 rounded-full bg-surface-soft"
                   />
-                  <figcaption className="text-[0.65rem] text-muted">{age}</figcaption>
+                  <figcaption className="text-xs text-muted">{age}</figcaption>
                 </figure>
               ))}
             </div>
@@ -626,7 +626,7 @@ function AppearanceStep({ draft, update }: StepProps) {
                   </span>
                   <span
                     aria-hidden="true"
-                    className="absolute top-1 left-1 grid h-5 w-5 place-items-center rounded-full bg-surface text-[0.65rem] font-bold"
+                    className="absolute top-1 left-1 grid h-5 w-5 place-items-center rounded-full bg-surface text-xs font-bold"
                   >
                     {option + 1}
                   </span>

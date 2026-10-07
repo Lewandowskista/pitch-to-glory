@@ -4,6 +4,7 @@ export function Dialog({
   title,
   body,
   confirmLabel,
+  cancelLabel,
   onConfirm,
   onClose,
   busy = false,
@@ -12,6 +13,8 @@ export function Dialog({
   title: string;
   body: string;
   confirmLabel?: string;
+  /** The way out without acting; defaults to "Cancel" (or "Close" when there is no action). */
+  cancelLabel?: string;
   onConfirm?: () => void;
   onClose: () => void;
   busy?: boolean;
@@ -29,6 +32,13 @@ export function Dialog({
       className="dialog"
       aria-labelledby="dialog-title"
       aria-describedby="dialog-body"
+      // Escape closes here and stops, so the shell's Escape shortcut never adds a second "back".
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (!busy) onClose();
+      }}
       onCancel={(event) => {
         event.preventDefault();
         if (!busy) onClose();
@@ -42,7 +52,7 @@ export function Dialog({
         <p id="dialog-body">{body}</p>
         <div className="dialog-actions">
           <button className="button secondary" onClick={onClose} disabled={busy}>
-            {confirmLabel ? t.saves.cancel : t.app.close}
+            {cancelLabel ?? (confirmLabel ? t.app.cancel : t.app.close)}
           </button>
           {onConfirm && (
             <button

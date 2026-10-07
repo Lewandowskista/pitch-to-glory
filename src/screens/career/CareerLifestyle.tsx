@@ -20,7 +20,7 @@ import {
 } from '../../engine/career/lifestyle';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
-import { CareerPage, ui } from './shared';
+import { CareerPage, plural, ui } from './shared';
 import { ActionError, BlockNote, money, Stat, weekly } from './marketUi';
 import { fameName, useLifestyleAction } from './lifestyleUi';
 import { audio } from '../../audio';
@@ -29,7 +29,7 @@ const L = CONFIG.career.lifestyle;
 
 export default function CareerLifestyle() {
   return (
-    <CareerPage eyebrow={l.eyebrow} title={l.titles.lifestyle}>
+    <CareerPage title={l.titles.lifestyle}>
       {({ world, career }) => <LifestyleContent world={world} career={career} />}
     </CareerPage>
   );
@@ -38,7 +38,7 @@ export default function CareerLifestyle() {
 function LifestyleContent({ world, career }: { world: World; career: Career }) {
   const action = useLifestyleAction();
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
       <FameCard career={career} />
       <Sponsors world={world} action={action} />
       <Assets world={world} career={career} action={action} />
@@ -71,7 +71,6 @@ function FameCard({ career }: { career: Career }) {
           {progress.level}
         </m.div>
         <div className="min-w-0 flex-1 basis-64">
-          <p className={ui.eyebrow}>{l.fame.title}</p>
           <h2 id="fame-heading" className="font-display text-[2.4rem] leading-none">
             {format(l.fame.level, { level: progress.level })} · {fameName(progress.level)}
           </h2>
@@ -93,7 +92,11 @@ function FameCard({ career }: { career: Career }) {
           </div>
           <p className="mt-1 text-xs text-muted">
             {progress.needed
-              ? format(l.fame.progress, { into: progress.into, needed: progress.needed })
+              ? format(l.fame.progressTowards, {
+                  into: progress.into,
+                  needed: progress.needed,
+                  level: next,
+                })
               : l.fame.max}
           </p>
         </div>
@@ -105,7 +108,9 @@ function FameCard({ career }: { career: Career }) {
                 {(Object.keys(unlocks) as (keyof typeof unlocks)[])
                   .filter((key) => unlocks[key])
                   .map((key) => (
-                    <li key={key}>{format(l.fame.unlocks[key], { count: unlocks[key] })}</li>
+                    <li key={key}>
+                      {plural(unlocks[key], l.fame.unlocksOne[key], l.fame.unlocks[key])}
+                    </li>
                   ))}
               </ul>
             ) : (
@@ -131,7 +136,7 @@ function DealCard({ world, deal, action }: { world: World; deal: Sponsorship; ac
           {l.sponsors.categories[brand.category]} · {l.sponsors.statuses[deal.status]}
         </span>
       </div>
-      <p className="text-sm">
+      <p className="text-sm tabular-nums">
         {format(l.sponsors.fee, { fee: money(deal.weeklyFee) })} ·{' '}
         {format(l.sponsors.bonus, { bonus: money(deal.bonus) })} ·{' '}
         {format(l.sponsors.ends, { season: deal.endSeason })}
@@ -140,9 +145,11 @@ function DealCard({ world, deal, action }: { world: World; deal: Sponsorship; ac
         {deal.obligations.map((obligation) => {
           const progress = obligationProgress(world, deal, obligation);
           const met = obligationMet(world, deal, obligation);
-          const label = format(l.sponsors.obligations[obligation.kind], {
-            target: obligation.target,
-          });
+          const label = format(
+            (obligation.target === 1 && l.sponsors.obligationsOne[obligation.kind]) ||
+              l.sponsors.obligations[obligation.kind],
+            { target: obligation.target },
+          );
           return (
             <li key={obligation.kind} className="text-sm">
               {offered ? (
@@ -214,9 +221,12 @@ function Sponsors({ world, action }: { world: World; action: Action }) {
     .filter((deal) => !['offered', 'active'].includes(deal.status))
     .slice(-5)
     .reverse();
-  const max = L.maxDeals[careerFameLevel(world) - 1]!;
+  const level = careerFameLevel(world);
+  const max = L.maxDeals[level - 1]!;
+  // The first fame level any brand will talk to the player at.
+  const firstLevel = Math.min(...BRANDS.map((brand) => brand.fameLevel));
   return (
-    <section aria-labelledby="sponsors-heading" className={`${ui.panel} lg:col-span-7`}>
+    <section aria-labelledby="sponsors-heading" className={`${ui.panel} lg:col-span-5`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="sponsors-heading" className={ui.heading}>
           {l.sponsors.title}
@@ -229,7 +239,11 @@ function Sponsors({ world, action }: { world: World; action: Action }) {
         <ActionError error={action.error} />
       </div>
       {offers.length + active.length === 0 && (
-        <p className={`${ui.muted} mt-4`}>{l.sponsors.none}</p>
+        <p className={`${ui.muted} mt-4`}>
+          {level < firstLevel
+            ? format(l.sponsors.none, { level: firstLevel })
+            : l.sponsors.watching}
+        </p>
       )}
       {offers.length > 0 && (
         <>
@@ -278,67 +292,101 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
   const [amount, setAmount] = useState<number>(item.cost);
   const level = careerFameLevel(world);
   const cash = world.career!.market.finances.cash;
-  const price = item.kind === 'investment' ? amount : item.cost;
+  // Investments offer only the amounts the savings cover; the smallest one sets the lock.
+  const amounts: number[] = L.investmentAmounts.filter(
+    (value) => value >= item.cost && value <= cash,
+  );
+  const chosen = amounts.includes(amount) ? amount : (amounts.at(-1) ?? item.cost);
+  const price = item.kind === 'investment' ? chosen : item.cost;
   const name = l.lifestyle.items[item.id] ?? item.id;
-  const reason =
+  const lock =
     level < item.fameLevel
-      ? format(l.lifestyle.requires, { level: item.fameLevel })
-      : cash < price
-        ? l.lifestyle.afford
-        : '';
+      ? {
+          chip: format(l.lifestyle.lockedFame, { level: item.fameLevel }),
+          reason: format(l.lifestyle.requires, { level: item.fameLevel }),
+        }
+      : cash < item.cost
+        ? {
+            chip: format(l.lifestyle.lockedCash, { amount: money(item.cost) }),
+            reason: l.lifestyle.afford,
+          }
+        : null;
   return (
     <li className="flex flex-col gap-2 rounded-control border border-line bg-surface-soft p-3">
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2">
         <strong className="text-sm">{name}</strong>
-        <span className="font-display text-xl leading-none">{money(price)}</span>
+        <span className="text-base font-bold tabular-nums">{money(price)}</span>
       </div>
       <p className="text-xs text-muted">
         {item.kind === 'investment'
           ? l.lifestyle.returns[item.product!]
           : `${format(l.lifestyle.upkeepValue, { amount: money(item.weeklyUpkeep) })} · ${format(l.lifestyle.moraleValue, { value: item.morale })}`}
       </p>
-      {item.kind === 'investment' && (
+      {item.kind === 'investment' && !lock && (
         <div>
           <label htmlFor={`amount-${item.id}`} className="mb-1 block text-xs font-semibold">
             {l.lifestyle.amount}
           </label>
           <select
             id={`amount-${item.id}`}
-            value={amount}
+            value={chosen}
             onChange={(event) => setAmount(Number(event.target.value))}
             className="min-h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-semibold text-ink"
           >
-            {L.investmentAmounts
-              .filter((value) => value >= item.cost)
-              .map((value) => (
-                <option key={value} value={value}>
-                  {money(value)}
-                </option>
-              ))}
+            {amounts.map((value) => (
+              <option key={value} value={value}>
+                {money(value)}
+              </option>
+            ))}
           </select>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          className="button secondary"
-          disabled={Boolean(action.block) || Boolean(reason)}
-          onClick={() => {
-            if (
-              action.run({
-                type: 'buy-asset',
-                itemId: item.id,
-                ...(item.kind === 'investment' ? { amount } : {}),
-              })
-            )
-              audio.play('confirm');
-          }}
-        >
-          {item.kind === 'investment' ? l.lifestyle.invest : l.lifestyle.buy}
-          <span className="sr-only"> — {name}</span>
-        </button>
-        {reason && <span className="text-xs text-muted">{reason}</span>}
+      <div className="mt-auto pt-1">
+        {lock ? (
+          <p className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-bold text-muted">
+            <LockIcon />
+            {lock.chip}
+            <span className="sr-only"> · {lock.reason}</span>
+          </p>
+        ) : (
+          <button
+            className="button secondary"
+            disabled={Boolean(action.block)}
+            onClick={() => {
+              if (
+                action.run({
+                  type: 'buy-asset',
+                  itemId: item.id,
+                  ...(item.kind === 'investment' ? { amount: chosen } : {}),
+                })
+              )
+                audio.play('confirm');
+            }}
+          >
+            {item.kind === 'investment' ? l.lifestyle.invest : l.lifestyle.buy}
+            <span className="sr-only"> — {name}</span>
+          </button>
+        )}
       </div>
     </li>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="7" width="10" height="7" rx="1.5" />
+      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+    </svg>
   );
 }
 
@@ -347,17 +395,14 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
   const morale = lifestyleMorale(world);
   const overspending = upkeep > careerContract(world).weeklyWage * L.overspendShare;
   return (
-    <section aria-labelledby="lifestyle-heading" className={`${ui.panel} lg:col-span-5`}>
-      <h2 id="lifestyle-heading" className={ui.heading}>
-        {l.lifestyle.title}
-      </h2>
+    <section aria-label={l.lifestyle.title} className={`${ui.panel} lg:col-span-7`}>
+      <h2 className={ui.heading}>{l.lifestyle.heading}</h2>
       <p className={`${ui.muted} mt-1`}>{l.lifestyle.body}</p>
-      <dl className="mt-4 grid grid-cols-2 gap-3">
-        <Stat label={l.lifestyle.savings} value={money(career.market.finances.cash)} />
-        <Stat label={l.lifestyle.upkeep} value={weekly(upkeep)} />
-      </dl>
-      <dl className="mt-3">
+      <dl className="mt-4 grid gap-2 sm:grid-cols-3 sm:gap-3">
+        <Stat row label={l.lifestyle.savings} value={money(career.market.finances.cash)} />
+        <Stat row label={l.lifestyle.upkeep} value={weekly(upkeep)} />
         <Stat
+          row
           label={l.lifestyle.morale}
           value={`${morale > 0 ? '+' : morale < 0 ? '−' : '±'}${Math.abs(morale)}`}
         />
@@ -369,7 +414,7 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
         {l.lifestyle.owned}
       </h3>
       {career.style.assets.length ? (
-        <ul className="mt-2 grid gap-2">
+        <ul className="mt-2 grid gap-2 sm:grid-cols-2">
           {career.style.assets.map((asset) => {
             const name = l.lifestyle.items[asset.itemId] ?? asset.itemId;
             return (
@@ -404,7 +449,7 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
       {(['car', 'house', 'investment'] as const).map((kind) => (
         <div key={kind} className="mt-3">
           <h4 className="text-sm font-semibold">{l.lifestyle.kinds[kind]}</h4>
-          <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2">
+          <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
             {LIFESTYLE.filter((item) => item.kind === kind).map((item) => (
               <ShopItem
                 key={item.id}

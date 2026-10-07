@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import type { Career, Club, Player, World } from '../../model/domain';
 import { moraleMultiplier } from '../../engine/match/decisions';
 import {
@@ -21,7 +22,7 @@ import { cultureTraits, signed } from './socialUi';
 
 export default function CareerClub() {
   return (
-    <CareerPage eyebrow={s.eyebrow} title={s.titles.club}>
+    <CareerPage title={s.titles.club}>
       {({ world, career, player, club }) =>
         club ? <ClubContent world={world} career={career} player={player} club={club} /> : null
       }
@@ -41,13 +42,19 @@ function ClubContent({
   club: Club;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
-      <MoraleCard career={career} player={player} />
-      <MoraleBreakdown career={career} />
-      <DressingRoomCard world={world} player={player} />
-      <PeopleCard world={world} club={club} />
-      <Teammates world={world} player={player} club={club} />
-      <FitCard world={world} player={player} club={club} />
+    // Two independent columns on wide screens, so a short panel never stretches to match its
+    // neighbour; on phones the columns dissolve and `order` restores the reading order.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
+      <div className="contents lg:col-span-7 lg:flex lg:flex-col lg:gap-5">
+        <MoraleCard career={career} player={player} />
+        <DressingRoomCard world={world} player={player} />
+        <Teammates world={world} player={player} club={club} />
+      </div>
+      <div className="contents lg:col-span-5 lg:flex lg:flex-col lg:gap-5">
+        <MoraleBreakdown career={career} />
+        <PeopleCard world={world} club={club} />
+        <FitCard world={world} player={player} club={club} />
+      </div>
     </div>
   );
 }
@@ -139,7 +146,7 @@ function MoraleChart({ career }: { career: Career }) {
 function MoraleCard({ career, player }: { career: Career; player: Player }) {
   const effect = (moraleMultiplier(player.morale) - 1) * 100;
   return (
-    <section aria-labelledby="morale-heading" className={`${ui.panel} lg:col-span-7`}>
+    <section aria-labelledby="morale-heading" className={`${ui.panel} order-1 lg:order-none`}>
       <h2 id="morale-heading" className={ui.heading}>
         {s.morale.title}
       </h2>
@@ -161,7 +168,7 @@ function MoraleCard({ career, player }: { career: Career; player: Player }) {
 function MoraleBreakdown({ career }: { career: Career }) {
   const morale = career.social.morale;
   return (
-    <section aria-labelledby="breakdown-heading" className={`${ui.panel} lg:col-span-5`}>
+    <section aria-labelledby="breakdown-heading" className={`${ui.panel} order-2 lg:order-none`}>
       <h2 id="breakdown-heading" className={ui.heading}>
         {morale ? format(s.morale.target, { target: morale.target }) : s.morale.morale}
       </h2>
@@ -206,7 +213,7 @@ function DressingRoomCard({ world, player }: { world: World; player: Player }) {
   const room = careerRoom(world);
   const leader = room.leaderIds.includes(player.id);
   return (
-    <section aria-labelledby="room-heading" className={`${ui.panel} lg:col-span-7`}>
+    <section aria-labelledby="room-heading" className={`${ui.panel} order-3 lg:order-none`}>
       <h2 id="room-heading" className={ui.heading}>
         {s.room.title}
       </h2>
@@ -250,7 +257,8 @@ function DressingRoomCard({ world, player }: { world: World; player: Player }) {
               </p>
               <p className="text-xs">{s.room.cliqueBodies[clique.kind]}</p>
               <Meter
-                label={`${s.room.affinity} · ${s.room.cliqueNames[clique.kind]}`}
+                label={s.room.affinity}
+                ariaLabel={format(s.room.affinityFull, { group: s.room.cliqueNames[clique.kind] })}
                 value={clique.affinity}
               />
               <p className="text-xs text-muted">
@@ -267,8 +275,9 @@ function DressingRoomCard({ world, player }: { world: World; player: Player }) {
 
 function PeopleCard({ world, club }: { world: World; club: Club }) {
   const manager = world.managers[club.managerId];
+  const league = world.leagues[club.leagueId];
   return (
-    <section aria-labelledby="people-heading" className={`${ui.panel} lg:col-span-5`}>
+    <section aria-labelledby="people-heading" className={`${ui.panel} order-4 lg:order-none`}>
       <h2 id="people-heading" className={ui.heading}>
         {s.people.title}
       </h2>
@@ -285,6 +294,14 @@ function PeopleCard({ world, club }: { world: World; club: Club }) {
           tone="gold"
         />
       </div>
+      {league && (
+        <Link
+          className="text-button -ml-3 mt-3 inline-flex items-center gap-1"
+          to={`/world?country=${encodeURIComponent(club.countryId)}&tier=${league.tier}&group=${encodeURIComponent(league.id)}&club=${encodeURIComponent(club.id)}`}
+        >
+          {s.people.world}
+        </Link>
+      )}
     </section>
   );
 }
@@ -297,7 +314,7 @@ function TeammatePortrait({ player, age }: { player: Player; age: number }) {
 function Teammates({ world, player, club }: { world: World; player: Player; club: Club }) {
   const teammates = keyTeammates(world);
   return (
-    <section aria-labelledby="teammates-heading" className={`${ui.panel} lg:col-span-7`}>
+    <section aria-labelledby="teammates-heading" className={`${ui.panel} order-5 lg:order-none`}>
       <h2 id="teammates-heading" className={ui.heading}>
         {s.teammates.title}
       </h2>
@@ -330,7 +347,8 @@ function Teammates({ world, player, club }: { world: World; player: Player; club
                   </p>
                   <div className="mt-2">
                     <Meter
-                      label={format(s.teammates.chemistry, { name: teammate.name })}
+                      label={s.teammates.chemistryShort}
+                      ariaLabel={format(s.teammates.chemistry, { name: teammate.name })}
                       value={entry?.value ?? 50}
                     />
                   </div>
@@ -339,7 +357,7 @@ function Teammates({ world, player, club }: { world: World; player: Player; club
                       {reasons.map(([part, delta]) => (
                         <li
                           key={part}
-                          className={`inline-flex min-h-6 items-center rounded-full px-2 text-[0.7rem] font-bold ${delta > 0 ? 'bg-accent-soft text-accent' : 'bg-danger-soft text-danger'}`}
+                          className={`inline-flex min-h-6 items-center rounded-full px-2 text-xs font-bold ${delta > 0 ? 'bg-accent-soft text-accent' : 'bg-danger-soft text-danger'}`}
                         >
                           {s.teammates.reasons[part]} {signed(delta)}
                         </li>
@@ -361,7 +379,7 @@ function Teammates({ world, player, club }: { world: World; player: Player; club
 function FitCard({ world, player, club }: { world: World; player: Player; club: Club }) {
   const fit = cultureFit(world, player, club);
   return (
-    <section aria-labelledby="fit-heading" className={`${ui.panel} lg:col-span-5`}>
+    <section aria-labelledby="fit-heading" className={`${ui.panel} order-6 lg:order-none`}>
       <h2 id="fit-heading" className={ui.heading}>
         {s.fit.title}
       </h2>

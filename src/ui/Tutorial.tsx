@@ -74,7 +74,11 @@ export function Tutorial({
   // Highlight the target, bring it into view and place the card beside it.
   useLayoutEffect(() => {
     if (!active || !applies || !step) return;
-    const target = document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`);
+    // The first match that is on screen: a target can exist twice, as the sidebar on desktop
+    // and the bottom bar on phones.
+    const target = Array.from(
+      document.querySelectorAll<HTMLElement>(`[data-tour="${step.target}"]`),
+    ).find((element) => element.getClientRects().length > 0);
     target?.setAttribute('data-tour-active', '');
     const inline =
       step.action && window.matchMedia(PHONE).matches
@@ -195,7 +199,7 @@ export function Tutorial({
       style={style}
       className={`grid gap-3 rounded-panel border-2 border-accent bg-surface p-5 text-ink ${layout}`}
     >
-      <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-accent">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">
         {tt.label} · {format(tt.progress, { step: index + 1, total: steps.length })}
       </p>
       <h2

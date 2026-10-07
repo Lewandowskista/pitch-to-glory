@@ -4,17 +4,17 @@ import { DEFAULT_SETTINGS } from '../persistence/settings';
 import { format, t } from '../i18n';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
-import { Artwork } from '../ui/Artwork';
-import { generateGallery } from '../engine/assets/gallery';
-import { renderCrest } from '../engine/assets/crest';
+import { Dialog } from '../ui/Dialog';
 import { audio, type SoundName } from '../audio';
 import type { AudioSettings } from '../model/domain';
-const sample = generateGallery('settings');
+import { useUrlDialog } from './career/useUrlDialog';
 export default function Settings() {
   const settings = useAppStore((s) => s.settings);
   const update = useAppStore((s) => s.updateSettings);
   const stored = useAppStore((s) => s.preferencesStored);
   const [notice, setNotice] = useState('');
+  // Restoring defaults asks first; the question lives in the URL, so Back closes it.
+  const reset = useUrlDialog('reset');
   return (
     <Page>
       <div className="page-heading">
@@ -102,7 +102,7 @@ export default function Settings() {
             <h2>{t.settings.tutorial}</h2>
             <p>{t.settings.tutorialBody}</p>
             <button
-              className="button secondary"
+              className="button secondary setting-action"
               disabled={!settings.tutorial.week && !settings.tutorial.match}
               onClick={() => {
                 update({ tutorial: { week: false, match: false } });
@@ -112,33 +112,36 @@ export default function Settings() {
               {t.settings.tutorialReset}
             </button>
           </section>
-          <button
-            className="button secondary"
-            onClick={() => {
-              update({ ...DEFAULT_SETTINGS });
-              setNotice(t.settings.resetDone);
-            }}
-          >
-            {t.settings.reset}
-          </button>
-          <p className="settings-status" role="status">
-            {notice || t.settings.saved}
-          </p>
+          <div className="settings-footer">
+            <button className="button secondary" onClick={() => reset.open()}>
+              <Icon name="refresh" />
+              {t.settings.reset}
+            </button>
+            <p className="settings-status" role="status">
+              {notice || t.settings.saved}
+            </p>
+          </div>
           {!stored && (
             <p role="alert" className="inline-error">
               {t.app.preferencesError}
             </p>
           )}
         </div>
-        <aside className="settings-preview">
-          <div className="preview-art">
-            <Artwork svg={renderCrest(sample.clubs[0]!.crest)} alt="" />
-            <Artwork svg={renderCrest(sample.clubs[1]!.crest)} alt="" />
-          </div>
-          <h2>{t.settings.preview}</h2>
-          <p>{t.settings.previewBody}</p>
-        </aside>
       </div>
+      {reset.value === '1' && (
+        <Dialog
+          title={t.settings.resetTitle}
+          body={t.settings.resetBody}
+          confirmLabel={t.settings.reset}
+          cancelLabel={t.saves.keepSettings}
+          onClose={reset.close}
+          onConfirm={() => {
+            update({ ...DEFAULT_SETTINGS });
+            setNotice(t.settings.resetDone);
+            reset.close();
+          }}
+        />
+      )}
     </Page>
   );
 }
@@ -149,6 +152,23 @@ const PREVIEWS: { sound: SoundName | 'crowd'; label: string }[] = [
   { sound: 'roar', label: t.settings.previews.roar },
   { sound: 'crowd', label: t.settings.previews.crowd },
 ];
+/** A small play triangle: each chip plays a sample of that sound. */
+function PlayGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8 5.5V18.5L18.5 12Z" />
+    </svg>
+  );
+}
 let crowdPreview: ReturnType<typeof setTimeout> | undefined;
 function SoundSettings() {
   const sound = useAppStore((s) => s.settings.audio);
@@ -204,7 +224,10 @@ function SoundSettings() {
             </div>
           );
         })}
-        <div className="sound-previews" role="group" aria-label={t.settings.previewSounds}>
+        <p id="sound-previews-label" className="sound-previews-label">
+          {t.settings.previewSounds}
+        </p>
+        <div className="sound-previews" role="group" aria-labelledby="sound-previews-label">
           {PREVIEWS.map(({ sound: name, label }) => (
             <button
               key={name}
@@ -222,6 +245,7 @@ function SoundSettings() {
                 crowdPreview = setTimeout(() => audio.crowd(null), 4000);
               }}
             >
+              <PlayGlyph />
               {label}
             </button>
           ))}

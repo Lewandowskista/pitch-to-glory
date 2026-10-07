@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isBrowserNoise, skipTutorial } from './support';
+import { isBrowserNoise, skipTutorial, careerTabs, openCareerPage } from './support';
 import { readFileSync } from 'node:fs';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
@@ -118,12 +118,15 @@ test('negotiates a transfer from the inbox, hires an agent and survives a refres
   // The inbox shows the club's accepted bid; opening a message marks it read.
   await page.goto('/career/inbox?save=1');
   await expect(page.getByRole('heading', { name: 'Inbox', exact: true })).toBeVisible();
-  const nav = page.getByRole('navigation', { name: 'Career sections' });
-  await expect(nav.getByRole('link', { name: /Inbox · 1 unread/ })).toBeVisible();
+  await expect(
+    careerTabs(page, 'Overview').getByRole('link', { name: /Inbox · 1 unread/ }),
+  ).toBeVisible();
   await page.getByRole('button', { name: new RegExp(`${buyer} agree a fee`) }).click();
   await expect(page.getByRole('heading', { name: `${buyer} agree a fee` })).toBeVisible();
   await expect(page.getByText(new RegExp(`${parent} accepted`))).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Inbox', exact: true })).toBeVisible();
+  await expect(
+    careerTabs(page, 'Overview').getByRole('link', { name: 'Inbox', exact: true }),
+  ).toBeVisible();
 
   // Talks: a demand above the club's budget is met halfway, with the reason shown.
   await page.getByRole('link', { name: 'Go to the talks' }).click();
@@ -163,7 +166,7 @@ test('negotiates a transfer from the inbox, hires an agent and survives a refres
   await expect(page.getByRole('dialog')).not.toBeVisible();
 
   // Hire the first agent who will take the player on.
-  await nav.getByRole('link', { name: 'Agent', exact: true }).click();
+  await openCareerPage(page, 'Agent');
   await expect(page).toHaveURL(/\/career\/agent/);
   await page
     .getByRole('button', { name: /^Hire / })
@@ -178,7 +181,7 @@ test('negotiates a transfer from the inbox, hires an agent and survives a refres
   await expect(current.getByRole('button', { name: 'Release agent' })).toBeVisible({
     timeout: 30000,
   });
-  await nav.getByRole('link', { name: 'Transfers', exact: true }).click();
+  await openCareerPage(page, 'Transfers');
   await expect(contract.getByText(buyer, { exact: true })).toBeVisible();
 
   // The populated market pages have no serious accessibility violations, in both themes.
@@ -187,7 +190,7 @@ test('negotiates a transfer from the inbox, hires an agent and survives a refres
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
       for (const path of ['/career/transfers', '/career/agent', '/career/inbox', '/career']) {
         await page.goto(`${path}?save=1`);
-        await expect(page.getByRole('navigation', { name: 'Career sections' })).toBeVisible();
+        await expect(careerTabs(page)).toBeVisible();
         expect(await accessibilityViolations(page), `${scheme} ${path}`).toEqual([]);
       }
     }
@@ -197,7 +200,7 @@ test('negotiates a transfer from the inbox, hires an agent and survives a refres
     await page.setViewportSize({ width: 390, height: 844 });
     for (const path of ['/career/transfers', '/career/agent', '/career/inbox', '/career']) {
       await page.goto(`${path}?save=1`);
-      await expect(page.getByRole('navigation', { name: 'Career sections' })).toBeVisible();
+      await expect(careerTabs(page)).toBeVisible();
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );

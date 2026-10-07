@@ -50,12 +50,12 @@ export default function Gallery() {
               onChange={(event) => setDraft(event.target.value)}
               aria-describedby="seed-hint"
             />
-            <button className="button secondary" type="submit">
+            <button className="button" type="submit">
               {t.gallery.apply}
             </button>
           </div>
         </form>
-        <button className="button" onClick={reseed}>
+        <button className="button secondary" onClick={reseed}>
           <Icon name="refresh" />
           {t.gallery.reseed}
         </button>
@@ -68,7 +68,7 @@ export default function Gallery() {
         {t.gallery.seedHint}
       </p>
       <div className="gallery-navigation">
-        <div className="gallery-tabs" role="tablist" aria-label={t.gallery.tabs}>
+        <div className="segmented-tabs" role="tablist" aria-label={t.gallery.tabs}>
           {views.map((v) => (
             <button
               key={v}
@@ -97,9 +97,6 @@ export default function Gallery() {
             </button>
           ))}
         </div>
-        <span className="design-count">
-          {format(t.gallery.count, { count: view === 'avatars' ? 24 : view === 'kits' ? 45 : 15 })}
-        </span>
       </div>
       <section role="tabpanel" id={`panel-${view}`} aria-labelledby={`tab-${view}`} tabIndex={0}>
         <p className="gallery-note">

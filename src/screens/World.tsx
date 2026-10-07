@@ -14,6 +14,8 @@ import {
   SeasonReview,
 } from './world/CompetitionViews';
 import { ClubInspector } from './world/ClubInspector';
+import { Artwork } from '../ui/Artwork';
+import { renderCrest } from '../engine/assets/crest';
 import stadium from '../assets/stadium.svg';
 import { errorCode } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
@@ -28,6 +30,14 @@ const legacyViews = ['table', 'fixtures', 'cup', 'history'] as const;
 function queryInteger(value: string | null, fallback: number, min: number, max: number): number {
   const parsed = value === null ? fallback : Number(value);
   return Math.min(max, Math.max(min, Number.isInteger(parsed) ? parsed : fallback));
+}
+/** On one column the club inspector sits below the table: bring the chosen club into view. */
+function revealInspector() {
+  if (!window.matchMedia('(max-width: 900px)').matches) return;
+  requestAnimationFrame(() => {
+    document.getElementById('club-inspector')?.scrollIntoView({ block: 'start' });
+    document.getElementById('club-inspector-heading')?.focus({ preventScroll: true });
+  });
 }
 export default function WorldScreen() {
   const world = useAppStore((s) => s.world);
@@ -147,6 +157,7 @@ export default function WorldScreen() {
     setParams(next, { flushSync: true });
   };
   const selectClub = (id: string) => {
+    revealInspector();
     const selected = world!.clubs[id]!;
     const selectedLeague = world!.leagues[selected.leagueId];
     update({
@@ -163,6 +174,9 @@ export default function WorldScreen() {
   };
   const pending = world?.career ? pendingCareerFixture(world) : null;
   const awaitingRecovery = Boolean(world?.career?.injury && world.career.injury.recovery === null);
+  const matchdayBanner = Boolean(world?.career && (pending || notice === 'matchday'));
+  const careerPlayer = world?.career ? world.players[world.career.playerId] : undefined;
+  const careerClub = careerPlayer?.clubId ? world!.clubs[careerPlayer.clubId] : undefined;
   const create = () => {
     if (world) update({ new: '1' });
     else void startWorldJob('generate', { seed });
@@ -183,8 +197,9 @@ export default function WorldScreen() {
           )}
         </div>
       )}
+      {/* Always present, so announcements are read; collapses to nothing while empty. */}
       <p className="world-notice notice" role="status">
-        {notice ? t.world.notices[notice] : ''}
+        {notice ? t.world.notices[notice] : null}
       </p>
       {job && (
         <section className="simulation-progress" aria-label={t.world.advancing}>
@@ -247,13 +262,21 @@ export default function WorldScreen() {
         <>
           <section className="world-season">
             <div>
-              <p className="eyebrow">{world.seed}</p>
               <h2 className="world-date">
                 {format(world.phase === 'complete' ? t.world.complete : t.world.date, {
                   season: world.date.season,
                   week: world.date.week,
                 })}
               </h2>
+              {careerClub && (
+                <p className="world-career-club">
+                  <Artwork svg={renderCrest(careerClub.crest)} alt="" />
+                  {format(t.world.yourClub, {
+                    club: careerClub.name,
+                    league: world.leagues[careerClub.leagueId]?.name ?? '',
+                  })}
+                </p>
+              )}
             </div>
             <div className="simulation-actions">
               {world.phase === 'complete' ? (
@@ -267,14 +290,10 @@ export default function WorldScreen() {
                 </button>
               ) : world.career ? (
                 <>
-                  {pending ? (
-                    <Link className="button" to="/match">
-                      {c.hub.play}
-                      <Icon name="ball" />
-                    </Link>
-                  ) : (
+                  {/* While the matchday banner shows, its button is the one way to play. */}
+                  {!matchdayBanner && (
                     <button
-                      className="button"
+                      className="button play"
                       disabled={Boolean(job) || awaitingRecovery}
                       onClick={continueToMatchday}
                     >
@@ -314,7 +333,7 @@ export default function WorldScreen() {
               </Link>
             </div>
           </section>
-          {world.career && (pending || notice === 'matchday') && (
+          {matchdayBanner && (
             <div className="mb-6 flex flex-wrap items-center gap-4 rounded-panel bg-field p-4 text-white shadow-surface sm:p-5">
               <Icon name="ball" className="shrink-0 text-gold" />
               <div className="min-w-0 flex-1 basis-60">
@@ -323,8 +342,9 @@ export default function WorldScreen() {
                 </strong>
                 <p className="text-sm text-white/85">{c.hub.matchdayBody}</p>
               </div>
-              <Link className="button" to="/match">
+              <Link className="button play" to="/match">
                 {c.hub.play}
+                <Icon name="ball" />
               </Link>
             </div>
           )}
@@ -461,7 +481,11 @@ export default function WorldScreen() {
                 division={division}
                 rounds={fixtureWeeks.length}
               />
-              <div className="world-tabs" role="tablist" aria-label={t.world.tabs}>
+              <div
+                className="world-tabs segmented-tabs segmented-tabs-fill"
+                role="tablist"
+                aria-label={t.world.tabs}
+              >
                 {views.map((item, index) => (
                   <button
                     role="tab"
@@ -689,35 +713,6 @@ export default function WorldScreen() {
                   </div>
                 )}
               </div>
-              <section className="world-activity">
-                <h2>{t.world.activity}</h2>
-                {world.events.length ? (
-                  <ol>
-                    {world.events
-                      .slice(-12)
-                      .reverse()
-                      .map((event) => (
-                        <li key={event.id}>
-                          <span>
-                            {format(t.world.eventDate, {
-                              season: event.date.season,
-                              week: event.date.week,
-                            })}
-                          </span>
-                          <p>
-                            {format(
-                              t.world.events[event.kind as keyof typeof t.world.events] ??
-                                t.world.quiet,
-                              event.params,
-                            )}
-                          </p>
-                        </li>
-                      ))}
-                  </ol>
-                ) : (
-                  <p>{t.world.quiet}</p>
-                )}
-              </section>
             </section>
             <ClubInspector
               world={world}
@@ -725,6 +720,35 @@ export default function WorldScreen() {
               selectedPlayer={params.get('player') ?? undefined}
               onPlayer={(id) => update({ player: id })}
             />
+            <section className="world-activity">
+              <h2>{t.world.activity}</h2>
+              {world.events.length ? (
+                <ol>
+                  {world.events
+                    .slice(-12)
+                    .reverse()
+                    .map((event) => (
+                      <li key={event.id}>
+                        <span>
+                          {format(t.world.eventDate, {
+                            season: event.date.season,
+                            week: event.date.week,
+                          })}
+                        </span>
+                        <p>
+                          {format(
+                            t.world.events[event.kind as keyof typeof t.world.events] ??
+                              t.world.quiet,
+                            event.params,
+                          )}
+                        </p>
+                      </li>
+                    ))}
+                </ol>
+              ) : (
+                <p>{t.world.quiet}</p>
+              )}
+            </section>
           </div>
           <details className="new-world">
             <summary>{t.world.regenerate}</summary>
