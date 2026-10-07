@@ -48,6 +48,8 @@ try {
     ['world-mobile', '/world', 'mobile'],
     ['career-mobile', '/career', 'mobile'],
     ['career-new-mobile', '/career/new', 'mobile'],
+    ['edit-mobile', '/edit', 'mobile'],
+    ['moment-mobile', '/moment', 'mobile'],
   ]) {
     const output = `artifacts/lighthouse-${name}.json`;
     const args = [
@@ -73,17 +75,22 @@ try {
       name,
       performance,
       accessibility,
+      fcp: report.audits['first-contentful-paint'].displayValue,
       lcp: report.audits['largest-contentful-paint'].displayValue,
       tti: report.audits.interactive.displayValue,
+      tbt: report.audits['total-blocking-time'].displayValue,
+      bytes: report.audits['total-byte-weight'].displayValue,
+      passed: performance > (preset === 'desktop' ? 90 : 85) && accessibility > 95,
     };
     results.push(row);
     console.log(
-      `${name}: performance ${performance}, accessibility ${accessibility}, LCP ${row.lcp}, TTI ${row.tti}`,
+      `${name}: performance ${performance}, accessibility ${accessibility}, FCP ${row.fcp}, LCP ${row.lcp}, TTI ${row.tti}, TBT ${row.tbt}, ${row.bytes}`,
     );
-    if (performance <= (preset === 'desktop' ? 90 : 85) || accessibility <= 95)
-      throw new Error(`${name} does not meet the quality target`);
   }
   await writeFile('artifacts/lighthouse-summary.json', JSON.stringify(results, null, 2));
+  // Report every page first, then fail if any misses the targets (AGENTS.md §11).
+  const failed = results.filter((row) => !row.passed).map((row) => row.name);
+  if (failed.length) throw new Error(`Below the quality target: ${failed.join(', ')}`);
 } finally {
   server.kill();
 }

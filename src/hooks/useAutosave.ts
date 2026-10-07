@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { useAppStore } from '../store';
-import { autosave } from '../persistence/session';
-import { slotLocks } from '../persistence/runtime';
+import { loadedPersistence, persistence } from '../persistence/lazy';
+
+// A save only becomes active through the save system, so when there is one it is loaded.
+const save = () => loadedPersistence() ?? null;
 export function useAutosave(): void {
   useEffect(() => {
     const unsubscribe = useAppStore.subscribe((state, previous) => {
@@ -14,28 +16,34 @@ export function useAutosave(): void {
           state.matchSession?.state.match.status === 'finished' &&
           previous.matchSession?.state.match.status !== 'finished'
         ) {
-          void autosave.afterMatch().catch(() => {});
-        } else autosave.schedule();
+          void persistence()
+            .then((p) => p.autosave.afterMatch())
+            .catch(() => {});
+        } else void persistence().then((p) => p.autosave.schedule());
       }
     });
     const flush = () => {
-      void autosave.flush().catch(() => {});
+      void save()
+        ?.autosave.flush()
+        .catch(() => {});
     };
     const hide = () => {
       if (document.visibilityState === 'hidden') flush();
     };
     const leave = () => {
-      void autosave
+      const p = save();
+      if (!p) return;
+      void p.autosave
         .flush()
-        .then(() => slotLocks.releaseAll())
+        .then(() => p.slotLocks.releaseAll())
         .catch(() => {});
     };
     // A page restored from the back/forward cache released its locks on pagehide.
     const restore = (event: PageTransitionEvent) => {
       const active = useAppStore.getState().activeSave;
       if (!event.persisted || !active) return;
-      void slotLocks
-        .acquire(active.slot)
+      void persistence()
+        .then((p) => p.slotLocks.acquire(active.slot))
         .then((owned) => {
           if (!owned) useAppStore.getState().setSaveStatus('error', 'locked');
         })
@@ -60,7 +68,7 @@ export function useAutosave(): void {
       window.removeEventListener('pagehide', leave);
       window.removeEventListener('pageshow', restore);
       window.removeEventListener('beforeunload', preventDirtyExit);
-      autosave.dispose();
+      save()?.autosave.dispose();
     };
   }, []);
 }

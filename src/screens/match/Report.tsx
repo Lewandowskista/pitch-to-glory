@@ -9,7 +9,7 @@ import { lifestyleText } from '../../i18n/lifestyle';
 import { format } from '../../i18n';
 import { Footballer } from './Shared';
 import MatchMaps from './Maps';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m as motion, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../../store';
 import { audio } from '../../audio';
 

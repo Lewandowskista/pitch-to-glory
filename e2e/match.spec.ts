@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { skipTutorial } from './support';
+import { isBrowserNoise, skipTutorial } from './support';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
@@ -35,7 +35,7 @@ test.beforeEach(async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (entry) => {
-    if (entry.type() === 'error') errors.push(entry.text());
+    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
   });
   (page as Page & { errors: string[] }).errors = errors;
 });

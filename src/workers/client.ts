@@ -1,7 +1,7 @@
 import { getSeasonWeeks } from '../engine/world/calendar';
 import { useAppStore, type WorldJob } from '../store';
-import { autosave, errorCode } from '../persistence/session';
-import { slotLocks } from '../persistence/runtime';
+import { errorCode } from '../persistence/errors';
+import { loadedPersistence, persistence } from '../persistence/lazy';
 import type { WorkerRequest, WorkerResponse } from './protocol';
 import type { Id } from '../model/domain';
 import type { MatchSession } from '../engine/match/types';
@@ -43,9 +43,12 @@ export async function startWorldJob(
   cancelled = false;
   const requestId = `job-${++sequence}`;
   try {
-    startup = autosave.flush();
+    // Loading the save system is part of startup, assigned synchronously, so a cancellation
+    // during the load waits for it like any other startup work.
+    startup = persistence().then((p) => p.autosave.flush());
     await startup;
     if (cancelled) return;
+    const { autosave, slotLocks } = loadedPersistence()!;
     const instance = new Worker(new URL('./world.worker.ts', import.meta.url), { type: 'module' });
     worker = instance;
     const finish = (notice: Parameters<typeof state.worldFeedback>[0], error?: string) => {

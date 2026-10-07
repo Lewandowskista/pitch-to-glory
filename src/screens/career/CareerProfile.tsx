@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../../store';
 import { CONFIG } from '../../engine/config';
 import { careerCap, type AnyAttribute } from '../../engine/ageing';
@@ -142,7 +142,7 @@ function Attributes({
                     <div className="min-w-0">
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="truncate text-sm font-semibold">{attributeName(key)}</span>
-                        <motion.span
+                        <m.span
                           key={flash?.startsWith(`${key}:`) ? flash : 'static'}
                           initial={
                             reduced || !flash?.startsWith(`${key}:`) ? false : { scale: 1.6 }
@@ -152,7 +152,7 @@ function Attributes({
                           className="font-display text-xl leading-none"
                         >
                           {value}
-                        </motion.span>
+                        </m.span>
                       </div>
                       <div
                         className="relative mt-1 h-2 rounded-full bg-surface-soft"

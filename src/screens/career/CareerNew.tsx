@@ -11,8 +11,8 @@ import { REAL_COUNTRY_NAMES } from '../../engine/world/catalog';
 import { ARCHETYPES, ARCHETYPE_BY_ID } from '../../engine/career/catalogue';
 import { trialOffers, validateDraft, type CareerDraft } from '../../engine/career/create';
 import { startWorldJob } from '../../workers/client';
-import { saveSlot, errorCode } from '../../persistence/session';
-import { saves } from '../../persistence/runtime';
+import { errorCode } from '../../persistence/errors';
+import { persistence } from '../../persistence/lazy';
 import type { Avatar, Club, Foot, Position, SlotId, World } from '../../model/domain';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
@@ -167,7 +167,10 @@ export default function CareerNew() {
       const slot = draft.saveSlot;
       writeDraft(null);
       if (slot && !useAppStore.getState().activeSave) {
-        void saveSlot(slot, format(c.wizard.saveName, { name: draft.name.trim() }), null)
+        void persistence()
+          .then((p) =>
+            p.saveSlot(slot, format(c.wizard.saveName, { name: draft.name.trim() }), null),
+          )
           .then(() => navigate(`/career?save=${slot}`, { replace: true }))
           .catch((cause: unknown) => {
             useAppStore.getState().worldFeedback(null, errorCode(cause));
@@ -835,8 +838,8 @@ function ConfirmStep({
   useEffect(() => {
     if (active) return;
     let current = true;
-    void saves
-      .list()
+    void persistence()
+      .then((p) => p.saves.list())
       .then((list) => {
         if (!current) return;
         const slots = list.filter((slot) => slot.status === 'empty').map((slot) => slot.slot);

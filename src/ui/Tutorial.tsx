@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../store';
 import { format } from '../i18n';
 import { tutorialText as tt } from '../i18n/tutorial';
@@ -128,7 +128,7 @@ export function Tutorial({
       ? undefined
       : { top: `${position.top}px`, left: `${position.left}px` };
   return createPortal(
-    <motion.div
+    <m.div
       ref={card}
       role="dialog"
       aria-modal="false"
@@ -175,7 +175,7 @@ export function Tutorial({
           {tt.skip}
         </button>
       </div>
-    </motion.div>,
+    </m.div>,
     document.body,
   );
 }

@@ -236,3 +236,14 @@ Implementation decisions:
 - **Tooltips for every input.** A shared tooltip opens on hover, focus and touch long press and is always linked with `aria-describedby`. Hover titles that repeated visible text were removed rather than converted.
 - **A standing accessibility sweep.** All routes are checked with axe in both themes on a populated career, plus phone-width overflow and visible keyboard focus, so later milestones keep the bar.
 - **Versions.** File schema 13; match engine unchanged (`match-6`): kit choice and sound are presentation.
+
+## Milestone 10: web release
+
+- **Free hosting.** The user asked for a free pipeline. GitHub Actions is free without limits for the public repository, and Cloudflare Pages' free plan has unlimited bandwidth and allows commercial use. Deploys upload the CI-verified build directly (no Cloudflare build), so what is tested is what ships. `netlify.toml` stays as a fallback.
+- **Browser journeys on Windows runners.** Linux WebKit runners crash in WebGL (no GPU), and Linux Firefox logs internal navigation errors. The local baseline is Windows, and Windows minutes are free for public repositories; the three engines run as parallel jobs. The Firefox message is filtered only when it carries no script location, so real page errors still fail tests.
+- **A strict CSP, tested.** No `unsafe-eval` or inline scripts; Pixi's no-eval build makes that possible. `vite preview` applies `_headers`, so every journey enforces the policy. `style-src` keeps `'unsafe-inline'` because React and Framer Motion set inline styles; this does not allow script.
+- **Raster derivatives for platform metadata.** AGENTS.md requires SVG art, but Open Graph/X cards and iOS home-screen icons do not accept SVG. PNGs are rendered from the SVG sources by `npm run raster` (Playwright's Chromium, no new dependency) and committed; the SVGs remain the source of truth and the in-game art is unchanged.
+- **The save system loads on demand.** Startup no longer includes IndexedDB, validation, migrations or the engine code they need. A first-time visitor never downloads them on the landing page; a returning player preloads them when idle. Synchronous needs (error codes, settings) live in small modules.
+- **LazyMotion and a CSS page entrance.** Framer Motion (mandated) stays for reward and UI animations, loaded as lazy features; the page entrance is CSS and starts visible, so Largest Contentful Paint never waits for an animation library.
+- **One variable font.** Inter variable (Latin) replaces four static weights: same typeface, half the bytes, one request.
+- **Time to interactive.** Measured with Lighthouse's mobile preset (simulated slow 4G at 1.6 Mbps and 4× CPU slowdown), which is harsher than typical 4G. Routes that need engine or save code (career hub, Matchday, Saves) stay a little above 3 s there; they are recorded rather than hidden.

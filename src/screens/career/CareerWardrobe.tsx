@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, m } from 'framer-motion';
 import type { Avatar, Career, Challenge, Club, Player, World } from '../../model/domain';
 import {
   availability,
@@ -397,7 +397,7 @@ function ChallengeRow({
       </div>
       <AnimatePresence>
         {celebrate && (
-          <motion.p
+          <m.p
             role="status"
             initial={{ opacity: 0, y: 8, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -407,7 +407,7 @@ function ChallengeRow({
             className="text-sm font-bold text-accent"
           >
             {l.challenges.reward_got}
-          </motion.p>
+          </m.p>
         )}
       </AnimatePresence>
     </li>

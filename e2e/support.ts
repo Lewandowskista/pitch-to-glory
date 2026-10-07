@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { ConsoleMessage, Page } from '@playwright/test';
 
 /**
  * Mark the guided tour as seen on this device, so journeys that are not about the tutorial
@@ -24,4 +24,16 @@ export async function skipTutorial(page: Page): Promise<void> {
       // Storage may be unavailable; the tutorial then shows, as it would for a player.
     }
   });
+}
+
+/**
+ * Console errors that come from the browser itself rather than the game. Firefox on Linux
+ * reports an internal "Navigated away from page" error, with no script location, on ordinary
+ * navigations; anything with a location is still treated as a real error.
+ */
+export function isBrowserNoise(message: ConsoleMessage): boolean {
+  return (
+    message.text() === '[JavaScript Error: "InvalidStateError: Navigated away from page"]' &&
+    !message.location().url
+  );
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../store';
-import { DEFAULT_SETTINGS } from '../persistence/schema';
+import { DEFAULT_SETTINGS } from '../persistence/settings';
 import { format, t } from '../i18n';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';

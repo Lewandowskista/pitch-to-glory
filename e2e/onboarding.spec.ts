@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { isBrowserNoise } from './support';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
@@ -8,7 +9,7 @@ test.beforeEach(async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (entry) => {
-    if (entry.type() === 'error') errors.push(entry.text());
+    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
   });
   (page as Page & { errors: string[] }).errors = errors;
 });

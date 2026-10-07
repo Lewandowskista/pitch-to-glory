@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { MotionConfig } from 'framer-motion';
+import { LazyMotion, MotionConfig } from 'framer-motion';
+
+const motionFeatures = () => import('./motionFeatures').then((module) => module.default);
 import { t, errorText } from '../i18n';
 import { useAppStore } from '../store';
 import { useAutosave } from '../hooks/useAutosave';
-import { autosave, errorCode, reloadActiveSlot, snapshot } from '../persistence/session';
-import { saves } from '../persistence/runtime';
+import { errorCode } from '../persistence/errors';
+import { loadedPersistence, persistence, preloadPersistence } from '../persistence/lazy';
 import { platform } from '../platform';
 import { Icon, type IconName } from './Icon';
 import { Dialog } from './Dialog';
@@ -55,6 +57,8 @@ export function Shell() {
     }
   };
   useAutosave();
+  // The save system loads once the first screen is up, before anything needs it.
+  useEffect(preloadPersistence, []);
   useAudio(settings.audio);
   // Before paint, so a page never shows one theme and then animates into the other.
   useLayoutEffect(() => {
@@ -79,7 +83,9 @@ export function Shell() {
       main.current?.focus({ preventScroll: true });
       window.scrollTo(0, 0);
     }
-    void autosave.flush().catch(() => {});
+    void loadedPersistence()
+      ?.autosave.flush()
+      .catch(() => {});
     // On narrow screens with large text the bottom bar scrolls: keep the current tab in view.
     const bar = document.querySelector<HTMLElement>('.bottom-nav');
     const current = bar?.querySelector<HTMLElement>('a.active');
@@ -143,156 +149,166 @@ export function Shell() {
       </NavLink>
     ));
   return (
-    <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
-      <a href="#main" className="skip-link">
-        {t.app.skip}
-      </a>
-      <aside className="sidebar">
-        <Link to="/" className="brand">
-          <img src="/icon.svg" width="42" height="42" alt="" />
-          <span>
-            {t.app.brandFirst}
-            <span>{t.app.brandRest}</span>
-          </span>
-        </Link>
-        <p className="brand-caption">{t.app.tagline}</p>
-        <nav aria-label={t.app.navigation}>{links(false)}</nav>
-        <div className="sidebar-bottom">
-          <div className="local-save">
-            <Icon name="save" />
-            <div>
-              <strong>{active?.name ?? t.app.unsaved}</strong>
-              <span>{active ? t.app.local : t.app.edition}</span>
-            </div>
-          </div>
-          <button className="shortcut-button" onClick={showHelp}>
-            <span>?</span>
-            {t.app.help}
-          </button>
-        </div>
-      </aside>
-      <div className="workspace">
-        <header className="topbar">
-          <span className="breadcrumb">{pageLabel(location.pathname) ?? t.app.name}</span>
-          {worldJob && (
-            <Link className="simulation-link" to="/world">
-              {t.world.advancing}
-            </Link>
-          )}
-          <div className="save-indicator">
-            <Icon name={status === 'saved' && !dirty ? 'check' : 'save'} />
+    <LazyMotion features={motionFeatures} strict>
+      <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
+        <a href="#main" className="skip-link">
+          {t.app.skip}
+        </a>
+        <aside className="sidebar">
+          <Link to="/" className="brand">
+            <img src="/icon.svg" width="42" height="42" alt="" />
             <span>
-              {status === 'saving'
-                ? t.app.saving
-                : dirty
-                  ? t.app.dirty
-                  : active
-                    ? t.app.saved
-                    : t.app.local}
+              {t.app.brandFirst}
+              <span>{t.app.brandRest}</span>
             </span>
-          </div>
-          <Link
-            to="/settings"
-            aria-label={t.app.settings}
-            title={t.app.settings}
-            className="header-settings"
-          >
-            <Icon name="settings" />
           </Link>
-        </header>
-        {error && (
-          <div className="global-error" role="alert">
-            {errorText(error)}
-            <button className="text-button" onClick={() => void autosave.flush().catch(() => {})}>
-              {t.app.retry}
+          <p className="brand-caption">{t.app.tagline}</p>
+          <nav aria-label={t.app.navigation}>{links(false)}</nav>
+          <div className="sidebar-bottom">
+            <div className="local-save">
+              <Icon name="save" />
+              <div>
+                <strong>{active?.name ?? t.app.unsaved}</strong>
+                <span>{active ? t.app.local : t.app.edition}</span>
+              </div>
+            </div>
+            <button className="shortcut-button" onClick={showHelp}>
+              <span>?</span>
+              {t.app.help}
             </button>
-            {active && (
-              <>
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    // Validation and serialization of a large world run in the persistence worker.
-                    void saves
-                      .serialize(active.slot, active.name, snapshot())
-                      .then((file) =>
-                        platform.saveFile(
-                          'pitch-to-glory-unsaved.json',
-                          file.json,
-                          'application/json',
-                        ),
-                      )
-                      .catch((error) =>
-                        useAppStore.getState().setSaveStatus('error', errorCode(error)),
-                      );
-                  }}
-                >
-                  {t.app.exportUnsaved}
-                </button>
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    const next = new URLSearchParams(params);
-                    next.set('recover', '1');
-                    setParams(next);
-                  }}
-                >
-                  {t.app.reloadSave}
-                </button>
-              </>
+          </div>
+        </aside>
+        <div className="workspace">
+          <header className="topbar">
+            <span className="breadcrumb">{pageLabel(location.pathname) ?? t.app.name}</span>
+            {worldJob && (
+              <Link className="simulation-link" to="/world">
+                {t.world.advancing}
+              </Link>
             )}
-          </div>
-        )}
-        {saveNotice && (
-          <div className="global-notice" role="status">
-            {t.app.notices[saveNotice]}
-            <button
-              className="text-button"
-              onClick={() => useAppStore.getState().dismissSaveNotice()}
+            <div className="save-indicator">
+              <Icon name={status === 'saved' && !dirty ? 'check' : 'save'} />
+              <span>
+                {status === 'saving'
+                  ? t.app.saving
+                  : dirty
+                    ? t.app.dirty
+                    : active
+                      ? t.app.saved
+                      : t.app.local}
+              </span>
+            </div>
+            <Link
+              to="/settings"
+              aria-label={t.app.settings}
+              title={t.app.settings}
+              className="header-settings"
             >
-              {t.app.dismiss}
-            </button>
-          </div>
+              <Icon name="settings" />
+            </Link>
+          </header>
+          {error && (
+            <div className="global-error" role="alert">
+              {errorText(error)}
+              <button
+                className="text-button"
+                onClick={() =>
+                  void persistence()
+                    .then((p) => p.autosave.flush())
+                    .catch(() => {})
+                }
+              >
+                {t.app.retry}
+              </button>
+              {active && (
+                <>
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      // Validation and serialization of a large world run in the persistence worker.
+                      void persistence()
+                        .then((p) => p.saves.serialize(active.slot, active.name, p.snapshot()))
+                        .then((file) =>
+                          platform.saveFile(
+                            'pitch-to-glory-unsaved.json',
+                            file.json,
+                            'application/json',
+                          ),
+                        )
+                        .catch((error) =>
+                          useAppStore.getState().setSaveStatus('error', errorCode(error)),
+                        );
+                    }}
+                  >
+                    {t.app.exportUnsaved}
+                  </button>
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      const next = new URLSearchParams(params);
+                      next.set('recover', '1');
+                      setParams(next);
+                    }}
+                  >
+                    {t.app.reloadSave}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {saveNotice && (
+            <div className="global-notice" role="status">
+              {t.app.notices[saveNotice]}
+              <button
+                className="text-button"
+                onClick={() => useAppStore.getState().dismissSaveNotice()}
+              >
+                {t.app.dismiss}
+              </button>
+            </div>
+          )}
+          <main id="main" ref={main} tabIndex={-1}>
+            <Outlet />
+          </main>
+          <footer className="page-footer">
+            <span>{t.app.name}</span>
+            <span>{t.app.tagline}</span>
+          </footer>
+        </div>
+        <nav className="bottom-nav" aria-label={t.app.navigation}>
+          {links(true)}
+        </nav>
+        <PwaPrompt />
+        {params.get('help') === '1' && (
+          <Dialog title={t.app.help} body={t.app.helpNav} onClose={closeHelp} />
         )}
-        <main id="main" ref={main} tabIndex={-1}>
-          <Outlet />
-        </main>
-        <footer className="page-footer">
-          <span>{t.app.name}</span>
-          <span>{t.app.tagline}</span>
-        </footer>
-      </div>
-      <nav className="bottom-nav" aria-label={t.app.navigation}>
-        {links(true)}
-      </nav>
-      <PwaPrompt />
-      {params.get('help') === '1' && (
-        <Dialog title={t.app.help} body={t.app.helpNav} onClose={closeHelp} />
-      )}
-      {params.get('recover') === '1' && active && (
-        <Dialog
-          title={t.app.recoverTitle}
-          body={t.app.recoverBody}
-          confirmLabel={t.app.reloadSave}
-          busy={recoverBusy}
-          onClose={() => {
-            const next = new URLSearchParams(params);
-            next.delete('recover');
-            setParams(next, { replace: true });
-          }}
-          onConfirm={() => {
-            setRecoverBusy(true);
-            void reloadActiveSlot()
-              .then(() => {
-                const next = new URLSearchParams(params);
-                next.delete('recover');
-                setParams(next, { replace: true });
-              })
-              .catch((error) => useAppStore.getState().setSaveStatus('error', errorCode(error)))
-              .finally(() => setRecoverBusy(false));
-          }}
-        />
-      )}
-    </MotionConfig>
+        {params.get('recover') === '1' && active && (
+          <Dialog
+            title={t.app.recoverTitle}
+            body={t.app.recoverBody}
+            confirmLabel={t.app.reloadSave}
+            busy={recoverBusy}
+            onClose={() => {
+              const next = new URLSearchParams(params);
+              next.delete('recover');
+              setParams(next, { replace: true });
+            }}
+            onConfirm={() => {
+              setRecoverBusy(true);
+              void persistence()
+                .then((p) => p.reloadActiveSlot())
+                .then(() => {
+                  const next = new URLSearchParams(params);
+                  next.delete('recover');
+                  setParams(next, { replace: true });
+                })
+                .catch((error) => useAppStore.getState().setSaveStatus('error', errorCode(error)))
+                .finally(() => setRecoverBusy(false));
+            }}
+          />
+        )}
+      </MotionConfig>
+    </LazyMotion>
   );
 }
 

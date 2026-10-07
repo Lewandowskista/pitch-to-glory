@@ -2,16 +2,10 @@ import type { FoundationState, WorldState, SlotId } from '../model/domain';
 import { useAppStore } from '../store';
 import { saves, slotLocks } from './runtime';
 import { AutosaveQueue } from './autosave';
-import { SaveError } from './schema';
+import { errorCode, SaveError } from './errors';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
 
-export function errorCode(error: unknown): string {
-  return error instanceof SaveError
-    ? error.code
-    : error instanceof Error && error.message === 'large'
-      ? 'large'
-      : 'storage';
-}
+export { errorCode } from './errors';
 export function snapshot(): FoundationState | WorldState {
   const { gallery, settings, world, matchSession } = useAppStore.getState();
   const foundation = {

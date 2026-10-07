@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 const hook = vi.hoisted(() => ({
   onNeedReload: null as null | (() => void),
@@ -23,8 +23,11 @@ vi.mock('../src/persistence/session', () => ({
 }));
 import { useAppStore } from '../src/store';
 import { PwaPrompt } from '../src/ui/PwaPrompt';
+import { persistence } from '../src/persistence/lazy';
 import type { World } from '../src/model/domain';
 
+// The save system loads lazily in the app; load it once so timings match a warm session.
+beforeAll(() => persistence());
 afterEach(() => {
   useAppStore.setState({ world: null, activeSave: null, worldJob: null });
   vi.unstubAllGlobals();

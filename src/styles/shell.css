@@ -145,6 +145,8 @@
   padding: 2.5rem clamp(1.5rem, 3vw, 3.2rem);
   max-width: 1600px;
   margin: 0 auto;
+  /* Starts visible, so the first paint never waits for the entrance (keyframes below). */
+  animation: page-in 0.18s ease-out both;
 }
 .page-heading {
   margin-bottom: 2rem;
@@ -173,4 +175,10 @@
 }
 .bottom-nav {
   display: none;
+}
+@keyframes page-in {
+  from {
+    opacity: 0.6;
+    transform: translateY(10px);
+  }
 }

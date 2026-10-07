@@ -24,27 +24,50 @@ jobs:
       - run: npm test
       # The build script runs the strict typecheck and the per-route bundle budget.
       - run: npm run build
-      - run: npx playwright install --with-deps chromium firefox webkit
-      - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         with:
           name: web-build
           path: dist
+  # Browser journeys run on Windows, one job per engine, against the verified build. Linux
+  # WebKit runners have no GPU, and its WebGL crashes the browser during the match renderer.
+  browsers:
+    needs: verify
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: dist
+      - run: npx playwright install ${{ matrix.browser }}
+      - run: npx playwright test --project=${{ matrix.browser }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: browser-test-results
+          name: browser-test-results-${{ matrix.browser }}
           path: test-results
   deploy:
-    needs: verify
+    needs: [verify, browsers]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    environment: production
+    environment:
+      name: production
+      url: https://pitch-to-glory.pages.dev
     env:
-      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PROJECT: pitch-to-glory
+      WRANGLER: wrangler@4.148.0
     steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -52,6 +75,22 @@ jobs:
         with:
           name: web-build
           path: dist
-      - name: Deploy when hosting is configured
-        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''
-        run: npx --yes netlify-cli@27.11.2 deploy --dir=dist --prod --site "$NETLIFY_SITE_ID"
+      - name: Skip deployment until Cloudflare is configured
+        if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == ''
+        run: echo "::notice::Add the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets to deploy."
+      # Cloudflare Pages free tier: direct upload of the verified build (no Cloudflare build).
+      - name: Create the Pages project on first deploy
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        run: |
+          if npx --yes "$WRANGLER" pages project list | grep -q " $PROJECT "; then
+            echo "Pages project $PROJECT exists."
+          else
+            npx --yes "$WRANGLER" pages project create "$PROJECT" --production-branch=main
+          fi
+      - name: Deploy to Cloudflare Pages
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        env:
+          # Passed through the environment, never interpolated into the script.
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          npx --yes "$WRANGLER" pages deploy dist --project-name="$PROJECT" --branch=main --commit-hash="$GITHUB_SHA" --commit-message="$(printf '%s' "$COMMIT_MESSAGE" | head -n 1)"

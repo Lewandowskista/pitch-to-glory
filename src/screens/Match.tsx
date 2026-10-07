@@ -9,7 +9,8 @@ import {
   type MatchCommand,
 } from '../engine/match';
 import type { DecisionChoice, MatchEvent, SlotId } from '../model/domain';
-import { loadSlot, errorCode } from '../persistence/session';
+import { errorCode } from '../persistence/errors';
+import { persistence } from '../persistence/lazy';
 import { errorText, t } from '../i18n';
 import { matchText as m, matchLabel, matchFormat } from '../i18n/match';
 import { careerText as c } from '../i18n/career';
@@ -135,7 +136,8 @@ export default function MatchScreen() {
     ) {
       attemptedSlot.current = slot;
       setLoading(true);
-      void loadSlot(Number(slot) as SlotId)
+      void persistence()
+        .then((p) => p.loadSlot(Number(slot) as SlotId))
         .catch((cause: unknown) => setError(errorText(errorCode(cause))))
         .finally(() => setLoading(false));
     }

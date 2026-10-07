@@ -1,11 +1,4 @@
-import type {
-  FoundationState,
-  WorldState,
-  SaveFile,
-  Settings,
-  SlotId,
-  World,
-} from '../model/domain';
+import type { FoundationState, WorldState, SaveFile, SlotId, World } from '../model/domain';
 import type { MatchSession } from '../engine/match/types';
 import { attachMarket } from '../engine/career/market/agents';
 import { initialMarket } from '../engine/career/market/records';
@@ -15,16 +8,13 @@ import { attachHonours } from '../engine/career/honours/week';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
 import { validateWorld } from './worldSchema';
 import { validateMatchSession } from '../engine/match';
+import { SaveError } from './errors';
+import { DEFAULT_SETTINGS, validateSettings } from './settings';
 
-export const DEFAULT_SETTINGS: Settings = {
-  theme: 'system',
-  fontScale: 1,
-  reducedMotion: false,
-  backupReminder: true,
-  simulationOnly: false,
-  audio: { muted: false, master: 0.8, effects: 0.8, crowd: 0.6 },
-  tutorial: { week: false, match: false },
-};
+// Light modules the app shell uses directly; re-exported for existing importers.
+export { SaveError } from './errors';
+export { DEFAULT_SETTINGS, validateSettings } from './settings';
+
 export type FoundationSave = Omit<SaveFile, 'payload'> & { payload: FoundationState };
 export type AppSave = Omit<SaveFile, 'payload'> & {
   payload: FoundationState | WorldState;
@@ -32,13 +22,6 @@ export type AppSave = Omit<SaveFile, 'payload'> & {
   recovery?: SaveRecovery;
 };
 export type SaveRecovery = 'match-discarded';
-export class SaveError extends Error {
-  constructor(
-    public readonly code: 'invalid' | 'future' | 'conflict' | 'locked' | 'large' | 'busy',
-  ) {
-    super(code);
-  }
-}
 const invalid = (): never => {
   throw new SaveError('invalid');
 };
@@ -50,7 +33,6 @@ const text = (value: unknown, max: number): string =>
   typeof value === 'string' && value.trim().length > 0 && value.length <= max ? value : invalid();
 const integer = (value: unknown): number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : invalid();
-const boolean = (value: unknown): boolean => (typeof value === 'boolean' ? value : invalid());
 const date = (value: unknown): string => {
   const result = text(value, 40);
   return /^\d{4}-\d{2}-\d{2}T/.test(result) && Number.isFinite(Date.parse(result))
@@ -59,46 +41,6 @@ const date = (value: unknown): string => {
 };
 export function validateSlot(slot: number): asserts slot is SlotId {
   if (![1, 2, 3].includes(slot)) invalid();
-}
-export function validateSettings(value: unknown): Settings {
-  const s = object(value);
-  if (
-    !['system', 'light', 'dark'].includes(String(s.theme)) ||
-    typeof s.fontScale !== 'number' ||
-    !Number.isFinite(s.fontScale) ||
-    s.fontScale < CONFIG.accessibility.minFontScale ||
-    s.fontScale > CONFIG.accessibility.maxFontScale
-  )
-    invalid();
-  return {
-    theme: s.theme as Settings['theme'],
-    fontScale: s.fontScale as number,
-    reducedMotion: boolean(s.reducedMotion),
-    backupReminder: boolean(s.backupReminder),
-    simulationOnly: boolean(s.simulationOnly),
-    audio: validateAudio(s.audio),
-    tutorial: validateTutorial(s.tutorial),
-  };
-}
-/** Audio settings; preferences and saves from before milestone 9 get the defaults. */
-function validateAudio(value: unknown): Settings['audio'] {
-  if (value === undefined) return { ...DEFAULT_SETTINGS.audio };
-  const a = object(value);
-  const volume = (v: unknown) => {
-    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 1) invalid();
-    return v as number;
-  };
-  return {
-    muted: boolean(a.muted),
-    master: volume(a.master),
-    effects: volume(a.effects),
-    crowd: volume(a.crowd),
-  };
-}
-function validateTutorial(value: unknown): Settings['tutorial'] {
-  if (value === undefined) return { ...DEFAULT_SETTINGS.tutorial };
-  const t = object(value);
-  return { week: boolean(t.week), match: boolean(t.match) };
 }
 export function validateFoundation(value: unknown): FoundationState {
   const p = object(value);

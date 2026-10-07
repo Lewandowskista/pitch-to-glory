@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../../store';
 import { Dialog } from '../../ui/Dialog';
 import { CONFIG } from '../../engine/config';
@@ -191,7 +191,7 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
                           {format(c.skills.tier, { tier: skill.tier })}
                         </span>
                       )}
-                      <motion.button
+                      <m.button
                         data-skill={skill.id}
                         tabIndex={skill.id === focusId ? 0 : -1}
                         aria-pressed={skill.id === selectedId}
@@ -224,7 +224,7 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
                         <span aria-hidden="true" className="shrink-0 text-xs">
                           {format(c.skills.cost, { cost: skill.pointCost })}
                         </span>
-                      </motion.button>
+                      </m.button>
                     </li>
                   );
                 })}

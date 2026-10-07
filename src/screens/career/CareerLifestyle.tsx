@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import type { Career, Sponsorship, World } from '../../model/domain';
 import { CONFIG } from '../../engine/config';
 import { careerContract } from '../../engine/career/market';
@@ -60,7 +60,7 @@ function FameCard({ career }: { career: Career }) {
   return (
     <section aria-labelledby="fame-heading" className={`${ui.panel} bg-art-gold lg:col-span-12`}>
       <div className="flex flex-wrap items-center gap-5">
-        <motion.div
+        <m.div
           key={progress.level}
           initial={{ scale: 0.6, rotate: -12, opacity: 0 }}
           animate={{ scale: 1, rotate: 0, opacity: 1 }}
@@ -69,7 +69,7 @@ function FameCard({ career }: { career: Career }) {
           aria-hidden="true"
         >
           {progress.level}
-        </motion.div>
+        </m.div>
         <div className="min-w-0 flex-1 basis-64">
           <p className={ui.eyebrow}>{l.fame.title}</p>
           <h2 id="fame-heading" className="font-display text-[2.4rem] leading-none">

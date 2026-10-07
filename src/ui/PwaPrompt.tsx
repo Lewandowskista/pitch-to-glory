@@ -1,8 +1,8 @@
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { errorCode } from '../persistence/session';
-import { updateApplication, UnsavedWorldError } from '../persistence/update';
+import { errorCode, UnsavedWorldError } from '../persistence/errors';
+import { persistence } from '../persistence/lazy';
 import { useAppStore } from '../store';
 import { errorText, t } from '../i18n';
 export function PwaPrompt() {
@@ -29,7 +29,9 @@ export function PwaPrompt() {
     );
   }
   function reloadSafely(): void {
-    void updateApplication(async () => window.location.reload()).catch(reportFailure);
+    void persistence()
+      .then((p) => p.updateApplication(async () => window.location.reload()))
+      .catch(reportFailure);
   }
   if (!offline && !refresh && !error) return null;
   return (
@@ -50,7 +52,10 @@ export function PwaPrompt() {
           onClick={() => {
             setError('');
             if (activated) reloadSafely();
-            else void updateApplication(() => updateServiceWorker(true)).catch(reportFailure);
+            else
+              void persistence()
+                .then((p) => p.updateApplication(() => updateServiceWorker(true)))
+                .catch(reportFailure);
           }}
         >
           {t.app.updateAction}

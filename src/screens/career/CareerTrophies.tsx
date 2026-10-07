@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import type { Award, Player, World } from '../../model/domain';
 import { CONTINENTAL_IDS, groupTable } from '../../engine/world/continental';
 import { rivalOf } from '../../engine/career/social';
@@ -101,7 +101,7 @@ function Ceremony({
           const mine = entry.playerId === player.id;
           const theirs = entry.playerId === rival?.id;
           return (
-            <motion.li
+            <m.li
               key={entry.playerId}
               initial={{ opacity: 0, x: -24 }}
               animate={{ opacity: 1, x: 0 }}
@@ -129,7 +129,7 @@ function Ceremony({
               <span className="shrink-0 text-sm font-bold">
                 {format(h.awards.score, { score: entry.score })}
               </span>
-            </motion.li>
+            </m.li>
           );
         })}
       </ol>

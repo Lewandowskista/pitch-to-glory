@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { saves } from '../persistence/runtime';
-import { loadSlot, errorCode } from '../persistence/session';
+import { errorCode } from '../persistence/errors';
+import { mayHaveSaves, persistence } from '../persistence/lazy';
 import type { SlotId } from '../model/domain';
 import { errorText } from '../i18n';
 import { format, t } from '../i18n';
@@ -21,8 +21,8 @@ function useSavedCareer(skip: boolean) {
   useEffect(() => {
     if (skip) return;
     let current = true;
-    void saves
-      .list()
+    void mayHaveSaves()
+      .then((saves) => (saves ? persistence().then((p) => p.saves.list()) : []))
       .then((list) => {
         const careers = list.flatMap((entry) =>
           entry.status === 'ready' && entry.world?.career
@@ -66,7 +66,8 @@ export default function Menu() {
                 onClick={() => {
                   setBusy(true);
                   setError('');
-                  void loadSlot(saved.slot)
+                  void persistence()
+                    .then((p) => p.loadSlot(saved.slot))
                     .then(() => navigate(`/career?save=${saved.slot}`))
                     .catch((cause: unknown) => setError(errorText(errorCode(cause))))
                     .finally(() => setBusy(false));
@@ -114,6 +115,32 @@ export default function Menu() {
           </div>
         </div>
         <img className="stadium" src={stadium} alt={t.menu.artLabel} />
+      </section>
+      <section aria-labelledby="pillars-heading" className="mt-10">
+        <h2
+          id="pillars-heading"
+          className="font-display text-[2.2rem] leading-none tracking-[0.02em] text-ink"
+        >
+          {t.menu.pillarsTitle}
+        </h2>
+        <ol className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {t.menu.pillars.map((pillar, index) => (
+            <li
+              key={pillar.title}
+              className="rounded-panel border border-line bg-surface p-5 shadow-surface"
+            >
+              <span aria-hidden="true" className="font-display text-3xl leading-none text-accent">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              <h3 className="mt-2 text-base font-bold">{pillar.title}</h3>
+              <p className="mt-1 text-sm text-muted">{pillar.body}</p>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-4 flex items-start gap-2 text-sm font-semibold">
+          <Icon name="check" className="mt-0.5 shrink-0 text-accent" />
+          {t.menu.promise}
+        </p>
       </section>
       <section className="menu-intro">
         <h2>{t.menu.intro}</h2>

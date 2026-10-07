@@ -1699,3 +1699,10 @@ The shell calls `audio.configure(settings.audio)`, unlocks on the first pointer 
 `ui/Tutorial.tsx` renders a step list against `data-tour` anchors in a portal, marks the target with `data-tour-active`, and records completion in `Settings.tutorial`. The hub and the match screen supply their steps with `when`, `action` and `done` from their own state. `ui/Tooltip.tsx` is the shared hover, focus and long-press tooltip.
 
 Settings (device preferences and saves) gain `audio` and `tutorial`. When a save is applied, the device's tutorial flags are kept (`withDeviceTutorial` in the store).
+
+## Release structure (milestone 10)
+
+- **Lazy save system.** `persistence/lazy.ts` exposes `persistence()` (one shared dynamic import of `persistence/api.ts`, which re-exports the repository, session and update functions), `loadedPersistence()` for synchronous paths that only run once a save is active, `mayHaveSaves()` (via `indexedDB.databases()`), and `preloadPersistence()` (idle preload for returning players). `persistence/errors.ts` (`SaveError`, `UnsavedWorldError`, `errorCode`) and `persistence/settings.ts` (`DEFAULT_SETTINGS`, `validateSettings`) are light modules the shell and store import directly; `schema.ts` re-exports them. Only the Saves screen imports the save system statically.
+- **Motion.** The shell wraps the app in `LazyMotion` with `ui/motionFeatures.ts` (Framer's `domAnimation`) loaded lazily; components use `m` elements. `Page` is a plain element with a CSS entrance.
+- **Headers and preview.** `public/_headers` is the production header file (Cloudflare Pages format). `vite.config.ts` parses it and applies it in `vite preview`, and replaces `%SITE_URL%` in `index.html` from `SITE_URL`.
+- **Delivery.** `.github/workflows/ci.yml`: `verify` (Linux), `browsers` (Windows matrix), `deploy` (Cloudflare Pages via Wrangler). See `docs/DEPLOY.md`.

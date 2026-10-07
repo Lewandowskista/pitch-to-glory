@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { skipTutorial } from './support';
+import { isBrowserNoise, skipTutorial } from './support';
 import { readFileSync } from 'node:fs';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (entry) => {
-    if (entry.type() === 'error') errors.push(entry.text());
+    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
   });
   (page as Page & { errors: string[] }).errors = errors;
 });
@@ -24,7 +24,8 @@ test.use({ actionTimeout: 15000 });
 const axeSource = readFileSync('node_modules/axe-core/axe.min.js', 'utf8');
 /** Serious or critical WCAG A/AA violations on the current page, by rule id. */
 async function accessibilityViolations(page: Page): Promise<string[]> {
-  await page.addScriptTag({ content: axeSource });
+  // Evaluated rather than injected as a script tag, which the page's CSP blocks.
+  await page.evaluate(axeSource);
   return page.evaluate(async () => {
     const axe = (
       window as unknown as {

@@ -7,8 +7,8 @@ import { Artwork } from '../../ui/Artwork';
 import { renderAvatar } from '../../engine/assets/avatar';
 import { renderCrest } from '../../engine/assets/crest';
 import { levelProgress } from '../../engine/career/progression';
-import { loadSlot, errorCode } from '../../persistence/session';
-import { saves } from '../../persistence/runtime';
+import { errorCode } from '../../persistence/errors';
+import { mayHaveSaves, persistence } from '../../persistence/lazy';
 import type { SlotListing } from '../../persistence/localRepository';
 import type { Career, Club, Crest, Player, SlotId, World } from '../../model/domain';
 import { cancelWorldJob } from '../../workers/client';
@@ -60,7 +60,8 @@ export function useRestoredWorld(): { loading: boolean; error: string } {
     ) {
       attempted.current = slot;
       setLoading(true);
-      void loadSlot(Number(slot) as SlotId)
+      void persistence()
+        .then((p) => p.loadSlot(Number(slot) as SlotId))
         .catch((cause: unknown) => setError(errorText(errorCode(cause))))
         .finally(() => setLoading(false));
     }
@@ -278,8 +279,8 @@ export function CareerEmpty() {
   const navigate = useNavigate();
   useEffect(() => {
     let current = true;
-    void saves
-      .list()
+    void mayHaveSaves()
+      .then((saves) => (saves ? persistence().then((p) => p.saves.list()) : []))
       .then((list) => current && setSlots(list))
       .catch(() => current && setSlots([]));
     return () => {
@@ -327,7 +328,8 @@ export function CareerEmpty() {
                   onClick={() => {
                     setBusy(entry.slot);
                     setError('');
-                    void loadSlot(entry.slot)
+                    void persistence()
+                      .then((p) => p.loadSlot(entry.slot))
                       .then(() => navigate(`/career?save=${entry.slot}`, { replace: true }))
                       .catch((cause: unknown) => setError(errorText(errorCode(cause))))
                       .finally(() => setBusy(null));

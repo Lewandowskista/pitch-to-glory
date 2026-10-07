@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 vi.mock('../src/persistence/session', () => ({
   autosave: { flush: vi.fn(), afterWeek: vi.fn() },
   errorCode: () => 'storage',
@@ -9,12 +9,15 @@ vi.mock('../src/persistence/runtime', () => ({
 import { autosave } from '../src/persistence/session';
 import { useAppStore } from '../src/store';
 import { cancelWorldJob, startWorldJob } from '../src/workers/client';
+import { persistence } from '../src/persistence/lazy';
 import { slotLocks } from '../src/persistence/runtime';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
 import type { WorkerResponse } from '../src/workers/protocol';
 import { createChunkReceiver } from '../src/workers/transport';
 
+// The save system loads lazily in the app; load it once so timings match a warm session.
+beforeAll(() => persistence());
 afterEach(async () => {
   cancelWorldJob();
   await new Promise((resolve) => setTimeout(resolve, 0));

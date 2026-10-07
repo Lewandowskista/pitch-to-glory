@@ -15,7 +15,8 @@ import {
 } from './world/CompetitionViews';
 import { ClubInspector } from './world/ClubInspector';
 import stadium from '../assets/stadium.svg';
-import { loadSlot, errorCode } from '../persistence/session';
+import { errorCode } from '../persistence/errors';
+import { persistence } from '../persistence/lazy';
 import type { SlotId } from '../model/domain';
 import { pendingCareerFixture } from '../engine/career/fixtures';
 import { careerText as c } from '../i18n/career';
@@ -58,9 +59,9 @@ export default function WorldScreen() {
       attemptedSlot.current !== slot
     ) {
       attemptedSlot.current = slot;
-      void loadSlot(Number(slot) as SlotId).catch((error) =>
-        useAppStore.getState().worldFeedback(null, errorCode(error)),
-      );
+      void persistence()
+        .then((p) => p.loadSlot(Number(slot) as SlotId))
+        .catch((error) => useAppStore.getState().worldFeedback(null, errorCode(error)));
     }
   }, [world, active, job, params, setParams]);
   const country =

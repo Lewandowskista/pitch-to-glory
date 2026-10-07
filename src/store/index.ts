@@ -1,11 +1,7 @@
 import { create, type StateCreator } from 'zustand';
 import type { GalleryState, Settings, World } from '../model/domain';
-import {
-  DEFAULT_SETTINGS,
-  validateSettings,
-  type AppSave,
-  type SaveRecovery,
-} from '../persistence/schema';
+import { DEFAULT_SETTINGS, validateSettings } from '../persistence/settings';
+import type { AppSave, SaveRecovery } from '../persistence/schema';
 import { platform } from '../platform';
 import type { MatchSession } from '../engine/match/types';
 import type { CareerMatchOutcome } from '../engine/career/matches';

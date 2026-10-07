@@ -1,8 +1,8 @@
 import { useAppStore } from '../store';
 import { autosave } from './session';
-import { SaveError } from './schema';
+import { SaveError, UnsavedWorldError } from './errors';
 
-export class UnsavedWorldError extends Error {}
+export { UnsavedWorldError };
 
 function assertCanReload(): void {
   const { world, activeSave, worldJob } = useAppStore.getState();

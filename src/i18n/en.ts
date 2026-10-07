@@ -98,6 +98,27 @@ export const en = {
     players: 'Faces with a story.',
     playersBody: 'Unique players, from their first season to their veteran years.',
     view: 'Take a look',
+    pillarsTitle: 'A whole career in your hands.',
+    pillars: [
+      {
+        title: 'Decide the big moments',
+        body: 'Matches play out on a 2D pitch and stop for your decisions, with the odds and the reasons behind every outcome.',
+      },
+      {
+        title: 'Grow from a trial to a star',
+        body: 'Train, level up and unlock skills, while contracts, agents and transfers carry you up the pyramid.',
+      },
+      {
+        title: 'Live the life around the game',
+        body: 'Handle the press, your manager and a rival from your generation, and earn fame, sponsors and a signature celebration.',
+      },
+      {
+        title: 'Win, retire, begin again',
+        body: 'Chase trophies, caps and the Golden Ball, then retire into the Hall of Fame and play on as your child.',
+      },
+    ],
+    promise:
+      'Free in your browser. No account and no ads. Your saves stay on your device, and the game plays offline after your first visit.',
   },
   gallery: {
     title: 'The identity of the game.',

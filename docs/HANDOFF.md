@@ -7,9 +7,9 @@ Prepared on **6 October 2026** and updated the same day after the post-milestone
 1. Read [AGENTS.md](../AGENTS.md) in full before changing anything.
 2. Read this handoff, then [README.md](../README.md), [DECISIONS.md](DECISIONS.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 3. Read [REALISM.md](REALISM.md) before touching world generation, league sizes, schedules or sporting movement.
-4. Read the **Milestone 9 verification** section of [VERIFICATION.md](VERIFICATION.md), [MILESTONE-9.md](MILESTONE-9.md), [MILESTONE-8.md](MILESTONE-8.md), [MILESTONE-7.md](MILESTONE-7.md), [MILESTONE-6.md](MILESTONE-6.md), [MILESTONE-5.md](MILESTONE-5.md) and [MILESTONE-4.md](MILESTONE-4.md), and the later sections of [DECISIONS.md](DECISIONS.md) (hardening, milestone 4, real identities, milestones 5–9). Earlier verification sections are historical.
+4. Read the **Milestone 10 verification** section of [VERIFICATION.md](VERIFICATION.md), [MILESTONE-10.md](MILESTONE-10.md), [DEPLOY.md](DEPLOY.md), [MILESTONE-9.md](MILESTONE-9.md), [MILESTONE-8.md](MILESTONE-8.md), [MILESTONE-7.md](MILESTONE-7.md), [MILESTONE-6.md](MILESTONE-6.md), [MILESTONE-5.md](MILESTONE-5.md) and [MILESTONE-4.md](MILESTONE-4.md), and the later sections of [DECISIONS.md](DECISIONS.md) (hardening, milestone 4, real identities, milestones 5–10). Earlier verification sections are historical.
 5. Inspect `git status`, the latest commits and the actual implementation. Documented test results are a recorded baseline, not proof that a later checkout still passes.
-6. Follow the user's current requested scope. The next product milestone is **Milestone 10**, but this handoff itself does not authorize starting it. Work one milestone at a time and stop with a summary before advancing.
+6. Follow the user's current requested scope. The next product milestone is **Milestone 11**, but this handoff itself does not authorize starting it. Work one milestone at a time and stop with a summary before advancing.
 
 ## Complete document index
 
@@ -18,9 +18,9 @@ Paths below are relative to this document. All documents under `docs/` at handof
 | Document                                 | Purpose and when to read it                                                                                                                                                       | Status at handoff                                                                                                                                                                          |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [AGENTS.md](../AGENTS.md)                | Full product specification: mandatory stack, art direction, browser requirements, simulation systems, quality bar and milestones.                                                 | Authority for requirements; supplied by the user, not an implementation substitute.                                                                                                        |
-| [README.md](../README.md)                | Installation, development commands, implemented screen usage, save behavior, hosting/CI setup and next milestone.                                                                 | Updated through milestone 9.                                                                                                                                                               |
+| [README.md](../README.md)                | Installation, development commands, implemented screen usage, save behavior, hosting/CI setup and next milestone.                                                                 | Updated through milestone 10.                                                                                                                                                              |
 | [ASSETS.md](../ASSETS.md)                | Original SVG provenance, self-hosted font licenses, audio scope and installation-icon limitations.                                                                                | Current provenance; audio remains a later milestone.                                                                                                                                       |
-| [ARCHITECTURE.md](ARCHITECTURE.md)       | Folder boundaries, full TypeScript domain model, engine/store/UI/worker interactions, platform adapter, persistence and interactive match session contracts.                      | Updated through milestone 9; domain types synced with `src/model/domain.ts`; compare with `src/engine/match/types.ts` too.                                                                 |
+| [ARCHITECTURE.md](ARCHITECTURE.md)       | Folder boundaries, full TypeScript domain model, engine/store/UI/worker interactions, platform adapter, persistence and interactive match session contracts.                      | Updated through milestone 10; domain types synced with `src/model/domain.ts`; compare with `src/engine/match/types.ts` too.                                                                |
 | [DECISIONS.md](DECISIONS.md)             | Ambiguities, adaptations and implementation choices: legacy compatibility, national profiles, worker transport/persistence, PWA update safety and friendly match scope.           | Append-only decision history; later national/match sections supersede earlier compact-world assumptions.                                                                                   |
 | [PLAN.md](PLAN.md)                       | Completed milestone-1 implementation checklist for the foundation, SVG assets, shell and saves.                                                                                   | Historical completed plan.                                                                                                                                                                 |
 | [MILESTONE-2.md](MILESTONE-2.md)         | Original world-engine design, worker checkpoint flow, UI/save integration and completed implementation checklist.                                                                 | Historical compact-world plan; uniform eight-club rules and older schema/limits are preserved for legacy worlds, not new generation.                                                       |
@@ -34,6 +34,8 @@ Paths below are relative to this document. All documents under `docs/` at handof
 | [MILESTONE-7.md](MILESTONE-7.md)         | Lifestyle design: fame levels, sponsorships, lifestyle items, wardrobe, celebrations, challenges, and known limits.                                                               | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
 | [MILESTONE-8.md](MILESTONE-8.md)         | Honours design: continental cups, national team, awards, retirement, legacy, Chronicle, Moments, and known limits.                                                                | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
 | [MILESTONE-9.md](MILESTONE-9.md)         | Edit mode, colour-blind kit clash check, tutorial, procedural audio, accessibility sweep and known limits.                                                                        | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
+| [MILESTONE-10.md](MILESTONE-10.md)       | Web release: free deployment, production headers, landing page, share tags, PNG derivatives, performance work.                                                                    | Implemented; formulas in BALANCING.md.                                                                                                                                                     |
+| [DEPLOY.md](DEPLOY.md)                   | How CI, Cloudflare Pages, secrets, custom domains, headers and rollbacks work.                                                                                                    | Current; needs the two Cloudflare secrets to deploy.                                                                                                                                       |
 | [MATCH-BALANCING.md](MATCH-BALANCING.md) | Interactive scoring/probability/fatigue/report formulas and exact 10,000-match calibration results and cohort limits.                                                             | Current friendly-engine calibration.                                                                                                                                                       |
 | [VERIFICATION.md](VERIFICATION.md)       | Required checks, browser flows, performance/storage measurements, screenshot locations and unresolved release/device checks.                                                      | Milestone-2 history followed by the current milestone-3 evidence.                                                                                                                          |
 | [HANDOFF.md](HANDOFF.md)                 | This document: reading order, full index, current state, integration risks and a reusable continuation prompt.                                                                    | Handoff snapshot; update it when implementation or verification changes.                                                                                                                   |
@@ -42,7 +44,7 @@ When a historical plan differs from the current state, use AGENTS.md for require
 
 ## Implemented state
 
-**Milestones 1–9 are implemented (with the post-milestone-3 hardening pass and the real-identity rework); milestone 10 has not started.** Release acceptance still has the explicit gaps listed below.
+**Milestones 1–10 are implemented (with the post-milestone-3 hardening pass and the real-identity rework); milestone 11 has not started.** Release acceptance still has the explicit gaps listed below.
 
 - Foundation: Vite, React 18, strict TypeScript, route splitting, Zustand slices, Tailwind/design tokens, Framer Motion, Dexie, Vitest, Playwright, lint/format tooling, PWA/update handling, web platform adapter and CI/static-host configuration.
 - Art and shell: seeded SVG crests, home/away/third kits and ageing avatars; asset gallery; title/menu, settings and three save slots; responsive sidebar/bottom navigation; light/dark themes, font scaling and reduced motion.
@@ -129,6 +131,7 @@ England extends through tier six, including National League North/South. Referen
   - retirement into a legacy with a Hall of Fame rank; new careers and child careers in the same world; former teammates as managers;
   - the Chronicle (with PNG export) and Moments (with self-contained replay links).
 - Milestone 9 added edit mode (`src/engine/world/edits.ts`, `World.edits`), the colour-blind kit clash check (`src/engine/assets/clash.ts`), procedural audio (`src/audio/`, Howler loaded after the first gesture), the tutorial (`src/ui/Tutorial.tsx`, completion in device settings) and the shared `Tooltip` (see MILESTONE-9.md). Interface sounds are delegated in the shell; new controls get them automatically.
+- Milestone 10 made the save system load on demand (`src/persistence/lazy.ts`; only Saves imports it statically), moved Framer Motion behind `LazyMotion` (`m` elements), and added `public/_headers` (strict CSP, applied in `vite preview` too). New code must keep both: import save functions through `persistence()`, use `m` not `motion`, and avoid inline scripts or `eval`. `e2e/release.spec.ts` guards the share tags, headers and first-visit bundle.
 - `e2e/accessibility.spec.ts` checks every route with axe in both themes, at phone width and by keyboard. Add new routes to its list. Other specs call `skipTutorial` from `e2e/support.ts`.
 - `world.career` can now be absent in a world with legacies. Career pages show the legacy and ways to continue; the Legacy page works without a career.
 - Bump `MATCH_ENGINE_VERSION` (currently `match-6`) whenever match logic changes. File schema is 13.
@@ -145,21 +148,21 @@ Detailed current fixtures and results are replaced on rollover. Retired players 
 
 ## Verification baseline and remaining gaps
 
-Recorded on 7 October 2026 after milestone 9; see VERIFICATION.md for full evidence:
+Recorded on 7 October 2026 after milestone 10; see VERIFICATION.md for full evidence:
 
-| Check                                            | Recorded result                                                                                                        |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| Typecheck, lint, formatting and production build | Passed                                                                                                                 |
-| Vitest                                           | 245 tests across 30 files passed                                                                                       |
-| Playwright full suite                            | 92 passed, 1 skipped (WebKit keyboard order); an axe sweep of all 26 routes in both themes                             |
-| 10,000-match benchmark                           | 2.744 goals per match; home advantage; away upsets 26.2% at a 15-point and 17.7% at a 45-point gap                     |
-| Initial-route JavaScript                         | 215.3–270.1 KB gzip; all twenty-six routes below 300 KB; PixiJS and audio deferred                                     |
-| Lighthouse (milestone 4 run)                     | Mobile performance 88–93, desktop 100, accessibility 100 on all nine configurations; cold mobile interactive 2.9–3.4 s |
-| Simulated national week (Node)                   | About 80–100 ms; a fully auto-played national career season is 16.5 s (274 ms median week)                             |
+| Check                                            | Recorded result                                                                                                                            |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Typecheck, lint, formatting and production build | Passed                                                                                                                                     |
+| Vitest                                           | 245 tests across 30 files passed                                                                                                           |
+| Playwright full suite                            | 104 passed, 1 skipped (WebKit keyboard order), under the production CSP; axe sweep of all 26 routes                                        |
+| 10,000-match benchmark                           | 2.744 goals per match; home advantage; away upsets 26.2% at a 15-point and 17.7% at a 45-point gap                                         |
+| Initial-route JavaScript                         | Startup bundle 80 KB gzip; all twenty-six routes below 300 KB; save system, motion, PixiJS and audio deferred                              |
+| Lighthouse (milestone 10 run)                    | Mobile performance 86–95 on all eleven pages, desktop 100, accessibility 100; title page interactive in 2.8 s, Saves 2.6 s, Matchday 3.7 s |
+| Simulated national week (Node)                   | About 80–100 ms; a fully auto-played national career season is 16.5 s (274 ms median week)                                                 |
 
 Remaining checks and scope limits:
 
-- Some cold mobile entry screens take **3.1–3.2 seconds**, exceeding the strict under-three-second interactive target even though score thresholds pass.
+- Under Lighthouse's slow-4G mobile preset, the career and Matchday entry pages take **3.6–3.7 seconds** to become interactive (all other audited pages 2.6–3.2 s); they need engine code before they can render.
 - Physical mid-range laptop/phone 60fps certification and macOS/iOS Safari IndexedDB, offline and installation checks have not been completed.
 - Windows Playwright WebKit has an offline module-navigation driver limitation. Its offline tests verify actual cached responses; Chromium and Firefox exercise offline navigation/world simulation. Do not describe that as physical Safari certification.
 - Styling rule (AGENTS.md, updated with the user): new UI uses Tailwind utilities with the shared tokens (`bg-surface`, `text-muted`, `shadow-surface`, …). Screens built before milestone 4 keep their component CSS partials in `src/styles/` until a later milestone reworks them.
@@ -170,7 +173,7 @@ Remaining checks and scope limits:
   - avatars have no "no accessory" or bald options;
   - large screen components (World, Match).
 - Fixed in milestone 9: touch long-press tooltips and the engine lint scope (browser globals are now forbidden in `src/engine/`).
-- No site has been deployed; CI has not run remotely. Release features (milestone 10) and the Android port (milestone 11) retain their milestone scope.
+- No site has been deployed; CI has not run remotely. The Android port (milestone 11) retains its milestone scope.
 - `artifacts/` contains local screenshots, Lighthouse reports and generated test saves, but is Git-ignored. A new checkout may not have those files; regenerate evidence with the scripts rather than assuming it travelled with the source.
 
 ## Run and verify
@@ -202,24 +205,23 @@ Optional inspection scripts are `scripts/capture.mjs` (screen captures) and `scr
 ## Git and delivery state
 
 - Repository root on the original machine: `C:\Users\Stefan\Game Mod`.
-- Git was initialized after milestones 1–3. Branch: **main**. Initial implementation commit: **`fde81f5` — Build Pitch to Glory through milestone 3**. The hardening pass is commit **`bb50490`**, milestone 4 is **`bb9d30f`** and the real-identity rework is **`9480351`**. Milestone 5 is **`d11b040`**, milestone 6 is **`eb3a1d8`**, milestone 7 is **`7c3ef78`**, milestone 8 is **`ec10897`** and milestone 9 is **`455d003`**. Before the first push, the history was rewritten to use the GitHub noreply author email, so hashes recorded in older notes differ. Check `git log` for later commits.
-- Remote: **https://github.com/Lewandowskista/pitch-to-glory** (public), pushed from the `Lewandowskista` account. No hosting deployment is configured yet; milestone 10 targets Cloudflare Pages (free tier). Commits use the noreply email `8884915+Lewandowskista@users.noreply.github.com` (set in this repository's local Git config).
+- Git was initialized after milestones 1–3. Branch: **main**. Initial implementation commit: **`fde81f5` — Build Pitch to Glory through milestone 3**. The hardening pass is commit **`bb50490`**, milestone 4 is **`bb9d30f`** and the real-identity rework is **`9480351`**. Milestone 5 is **`d11b040`**, milestone 6 is **`eb3a1d8`**, milestone 7 is **`7c3ef78`**, milestone 8 is **`ec10897`** and milestone 9 is **`455d003`**; milestone 10 follows. Before the first push, the history was rewritten to use the GitHub noreply author email, so hashes recorded in older notes differ. Check `git log` for later commits.
+- Remote: **https://github.com/Lewandowskista/pitch-to-glory** (public), pushed from the `Lewandowskista` account. Hosting: Cloudflare Pages (free plan), project `pitch-to-glory`, deployed by CI once the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets exist (see DEPLOY.md). Commits use the noreply email `8884915+Lewandowskista@users.noreply.github.com` (set in this repository's local Git config).
 - `.gitignore` excludes dependencies, builds, local test reports/artifacts, logs and environment files. Never stage generated large backup fixtures or credentials.
-- `netlify.toml` supplies the static-host configuration. `.github/workflows/ci.yml` contains checks and optional deployment; publishing requires the configured Netlify production secrets and explicit deployment scope.
+- `.github/workflows/ci.yml` verifies on Linux, runs the browser journeys on Windows (one job per engine) and deploys `main` to Cloudflare Pages. `netlify.toml` remains as a fallback host configuration.
 
 Historical plans stating that there is no repository are time-specific records. This Git section supersedes those statements.
 
 ## Next milestone and continuation prompt
 
-The next milestone is **10: the web release**. It should:
+The next milestone is **11: the Android port**. It should:
 
-- finish the deployment pipeline (CI typecheck, lint, tests and deploy to the configured static host);
-- polish the PWA and offline behaviour and the "Update available" prompt;
-- audit performance and bundles against the 300 KB and Lighthouse targets, including the cold mobile time to interactive (some screens measured 3.1–3.2 s);
-- run the cross-browser pass, including real Safari checks for IndexedDB, workers and audio;
-- make the title screen a landing page with Open Graph and Twitter card tags (the share image must become an absolute URL).
+- install Capacitor and add Android platform adapters behind `src/platform/` only (haptics, hardware back button, share sheet, file access, status bar);
+- produce icons and a splash screen from the existing SVG sources (as `scripts/raster.mjs` does for the web);
+- do a touch and performance pass on a real device or emulator;
+- write release build instructions in `docs/ANDROID.md`.
 
-Do not begin the Android port (milestone 11) at the same time.
+The web build and its pipeline must keep working unchanged.
 
 ```text
 You are continuing Pitch to Glory in this repository.
@@ -228,20 +230,19 @@ Read AGENTS.md in full before doing anything, then read docs/HANDOFF.md
 and follow its reading order. AGENTS.md is the product source of truth.
 Inspect git status and the current code before modifying files.
 
-Milestones 1–9 are implemented. Implement Milestone 10 only, following
-the mandatory stack, SVG art direction, accessibility, save compatibility
-and quality requirements. New UI uses Tailwind utilities with the shared
-tokens. Do not start Milestone 11 or install Capacitor.
+Milestones 1–10 are implemented and the web build deploys to Cloudflare
+Pages from CI. Implement Milestone 11 only: the Android port with
+Capacitor. Capacitor imports stay inside src/platform/; the web adapter
+and the web pipeline must keep working unchanged.
 
-Preserve the source-documented national pyramids and legacy world rules.
-Current saves are schema 13; bump MATCH_ENGINE_VERSION when match logic
-changes. Keep the single career commit path (commitPlayedFixture), the
-pure engine (no browser globals or imports), audio loading only after the
-first user gesture, and the accessibility sweep passing for every route.
+Current saves are schema 13. Keep the single career commit path, the pure
+engine (no browser globals or imports), the lazy save system and motion
+features, the strict Content Security Policy, and the accessibility sweep
+passing for every route.
 
 Make reasonable decisions for ambiguities, record them in docs/DECISIONS.md,
-and continue. Update architecture, balancing, verification, README and the
-handoff as appropriate. Run typecheck, lint, formatting, unit tests, build
-and critical flows in Chromium, Firefox and WebKit before finishing.
-Report measured limitations candidly and stop with a Milestone 10 summary.
+and continue. Update architecture, verification, README and the handoff as
+appropriate. Run typecheck, lint, formatting, unit tests, build and the
+browser journeys before finishing. Report measured limitations candidly
+and stop with a Milestone 11 summary.
 ```

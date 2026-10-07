@@ -25,3 +25,8 @@ All of these are original, authored in code; no external images are used.
 ## Audio (milestone 9)
 
 No audio files are included. Every sound is synthesised on the player's device by original code in `src/audio/synth.ts` (oscillators, seeded noise and filters) and played with Howler.js (MIT licence, `node_modules/howler/LICENSE.md`). The sounds are interface taps, toggles, confirmations and errors; reward chimes and a level-up fanfare; a pea whistle, kick, net, goal roar, groan and a looping crowd. Nothing is downloaded or recorded, and nothing needs attribution.
+
+## Release images and fonts (milestone 10)
+
+- **PNG derivatives**: `public/share.png` (1200×630 share card), `public/icon-192.png`, `public/icon-512.png`, `public/icon-maskable-512.png` and `public/apple-touch-icon.png` are rendered from the original `public/share.svg`, `public/icon.svg` and `public/icon-maskable.svg` by `scripts/raster.mjs`, because social cards and iOS home-screen icons do not accept SVG. The share card's text is set in the game's own self-hosted fonts. The SVGs remain the source; regenerate with `npm run raster`.
+- **Inter**: now the variable font from `@fontsource-variable/inter` (Latin subset, weights 100–900), SIL Open Font License 1.1; upstream https://github.com/rsms/inter. License: `node_modules/@fontsource-variable/inter/LICENSE`. It replaces the four static weights from `@fontsource/inter`.

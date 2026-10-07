@@ -1,3 +1,6 @@
+// Pixi's no-eval shader and uniform code, so the pitch runs under the strict Content
+// Security Policy (no 'unsafe-eval'); see public/_headers.
+import 'pixi.js/unsafe-eval';
 import { Application, Container, Graphics, Text } from 'pixi.js';
 import type { Club, Point, ReplayFrame } from '../../model/domain';
 import { kitAppearance } from './Maps';

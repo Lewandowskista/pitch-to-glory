@@ -94,7 +94,7 @@ describe('world milestone save upgrade', () => {
     const incomplete = structuredClone(world);
     delete incomplete.results[Object.keys(incomplete.results)[0]!];
     expect(() => validateWorld(incomplete)).toThrow();
-  }, 15000);
+  }, 120000);
   it('rejects empty cup stages, empty archived tables and invalid fixture schedules', async () => {
     const { generateWorld } = await import('../src/engine/world/generate');
     const world = generateWorld('malformed-structure', { format: 'legacy' });

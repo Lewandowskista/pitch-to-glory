@@ -1,5 +1,5 @@
 ﻿import { expect, test, type Page } from '@playwright/test';
-import { skipTutorial } from './support';
+import { isBrowserNoise, skipTutorial } from './support';
 import { mkdir, readFile } from 'node:fs/promises';
 
 test.beforeEach(async ({ page }) => {
@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (entry) => {
-    if (entry.type() === 'error') errors.push(entry.text());
+    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
   });
   await page.addInitScript(() => {
     window.addEventListener('unhandledrejection', (event) => {

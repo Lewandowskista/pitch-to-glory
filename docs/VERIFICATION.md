@@ -458,3 +458,42 @@ Verified on 7 October 2026:
 - How the synthesised sounds sound is a human judgement; tests cover rendering, levels and loading.
 - Lighthouse was not re-run this milestone; it belongs to the milestone 10 performance audit.
 - Physical-device and Safari release checks remain outstanding.
+
+## Milestone 10 verification
+
+Verified on 7 October 2026, on Windows with Node 24, against the production build served with the production headers (`public/_headers`, applied by `vite preview`):
+
+| Check                               | Result                                                                                                                                                                 |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Strict TypeScript, ESLint, Prettier | Passed                                                                                                                                                                 |
+| Vitest                              | 245 tests across 30 files passed                                                                                                                                       |
+| Production build                    | Passed; startup bundle 80 KB gzip (173 KB before); all twenty-six routes 91.7–186.7 KB gzip including the shell (budget 300 KB)                                        |
+| Playwright                          | 104 passed and 1 skipped across Chromium, Firefox and WebKit, under the strict Content Security Policy (the WebKit keyboard-order check is skipped, as in milestone 9) |
+| Lighthouse, mobile                  | Performance 86–95 on all eleven audited pages (was 82–89); accessibility 100                                                                                           |
+| Lighthouse, desktop (title page)    | Performance 100; accessibility 100                                                                                                                                     |
+
+**Lighthouse, mobile preset** (simulated slow 4G at 1.6 Mbps, 4× CPU slowdown):
+
+| Page                      | Performance | First paint | Largest paint and interactive |
+| ------------------------- | ----------- | ----------- | ----------------------------- |
+| Title (`/`)               | 95          | 1.9 s       | 2.8 s (was 3.6 s)             |
+| Gallery, Settings, Moment | 94–95       | 1.8–1.9 s   | 2.8 s                         |
+| Saves                     | 95          | 1.8 s       | 2.6 s (was 3.5 s)             |
+| World, Edit mode          | 92–93       | 1.8–2.0 s   | 3.1 s                         |
+| Career wizard             | 91          | 2.1 s       | 3.2 s                         |
+| Career (no career yet)    | 88          | 2.3 s       | 3.6 s                         |
+| Matchday (no world)       | 86          | 2.3 s       | 3.7 s                         |
+
+The title page now transfers 216 KB on a first visit (326 KB before). Pages that need engine code (career, Matchday) stay above 3 s to interactive under this harsh preset; typical 4G is several times faster.
+
+**Release journey** (`e2e/release.spec.ts`): absolute Open Graph and X card tags and canonical link; `share.png` is a real 1200×630 PNG; the Apple touch icon is PNG; `robots.txt` is served; the manifest has SVG and PNG icons (including maskable) and shortcuts, all served; pages carry the CSP, `nosniff` and `X-Frame-Options`, and `sw.js` is `no-cache`; a first visit to the title page downloads none of the save system, which loads when Saves opens.
+
+**Found and fixed during verification:**
+
+- A preview server left running from an earlier session was serving the old configuration, so the first CSP check passed without the headers. With a fresh server the policy blocked PixiJS (it generates code with `new Function`) and the tests' inline axe injection. Pixi now loads its no-eval build, and the tests evaluate axe instead of injecting a script tag.
+- Making the save system lazy opened a race: a world job cancelled while the save system was still loading could resume after a new job started. The load is now part of the job's startup promise, which cancellation waits for.
+- The first GitHub Actions run (Linux) failed in Firefox and WebKit: Firefox logs an internal navigation error with no script location, and WebKit crashed in WebGL without a GPU. Browser journeys now run on Windows runners, and the Firefox message is filtered only when it has no location.
+- On phones, the title page's links sat over the stadium artwork; the artwork now follows the text.
+- A world checkpoint test ran past its 15 s timeout under parallel load (it passes alone); it now has the 120 s timeout its neighbours use.
+
+**Not done:** the first deploy waits for the two Cloudflare secrets. Real-device checks (a mid-range phone; Safari on macOS and iOS for IndexedDB, workers, audio and installation) remain manual.
