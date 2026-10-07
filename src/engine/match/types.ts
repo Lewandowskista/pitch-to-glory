@@ -11,7 +11,7 @@ import type { RatingFamily } from './situations';
 export type { Tactics } from '../../model/domain';
 
 /** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
-export const MATCH_ENGINE_VERSION = 'match-6';
+export const MATCH_ENGINE_VERSION = 'match-7';
 
 export interface MatchSetup {
   version: 1;
@@ -53,10 +53,33 @@ export interface LiveStats {
   fatigue: number;
 }
 export type RatingPart = RatingFamily | 'goals' | 'assists' | 'saves' | 'errors';
+/** How play restarts at the start of the next passage (see motion.ts). */
+export type Restart = 'kickoff' | 'goal' | 'second-half' | 'goal-kick' | 'corner';
+/** Who has the ball between passages. */
+export interface PlayState {
+  /** Team in possession: 0 home, 1 away (the team taking a pending restart). */
+  side: 0 | 1;
+  /** Player on the ball, or null while it runs loose or is out of play. */
+  carrierId: string | null;
+  restart: Restart | null;
+}
+/**
+ * Keyframes of the most recent passage of play, starting at the previously shown frame:
+ * a simulated minute, the build-up to a key moment, or a resolved decision.
+ */
+export interface MatchMotion {
+  kind: 'kickoff' | 'minute' | 'moment' | 'outcome';
+  frames: ReplayFrame[];
+}
 export interface MatchState {
   match: Match;
   currentMoment: KeyMoment | null;
+  /** One snapshot per played minute, taken at the end of the minute. */
   frames: ReplayFrame[];
+  play: PlayState;
+  motion: MatchMotion;
+  /** Keyframes of the selected player's goals, cut for Moments clips (at most 12 each). */
+  highlights: { eventId: string; frames: ReplayFrame[] }[];
   selectedPlayerMinutes: number;
   substituted: boolean;
   substitutionDecisionPending: boolean;

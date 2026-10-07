@@ -976,10 +976,19 @@ export interface Point {
   x: number;
   y: number;
 }
+/**
+ * How the ball travelled into a keyframe: rolled along the ground, lofted, struck at goal,
+ * lifted over the bar, dribbled at a player's feet, running loose, out of play, or reset
+ * instantly (the second-half kickoff).
+ */
+export type BallMotion = 'ground' | 'air' | 'shot' | 'over' | 'carry' | 'loose' | 'dead' | 'reset';
 export interface ReplayFrame {
   timeMs: number;
   ball: Point;
   players: { id: Id; point: Point; animation: string }[];
+  /** Player with the ball at their feet; null while it travels, runs loose or is out of play. */
+  carrierId?: Id | null;
+  ballMotion?: BallMotion;
 }
 /** A memorable play, stored as a compact clip that can be replayed and shared as a link. */
 export interface Moment {

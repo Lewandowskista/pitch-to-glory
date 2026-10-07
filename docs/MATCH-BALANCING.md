@@ -1,8 +1,8 @@
 # Interactive match balancing
 
-Engine `match-4` (`MATCH_ENGINE_VERSION`). Milestone 3 plays regulation-time friendlies. Scalar tunables live in `CONFIG.match` (`src/engine/config.ts`; `engine/match/tuning.ts` is an alias). The key-moment catalogue — situations, their choices, governing attributes, base probabilities and weights — is data in `src/engine/match/situations.ts`; personal roles and their effects are in `src/engine/match/roles.ts`. Pitch geometry, formation slots and regulation minutes are structural values.
+Engine `match-7` (`MATCH_ENGINE_VERSION`). The engine plays the 90 minutes of friendlies and career fixtures; extra time is simulated when a fixture is finalized (see Phase 1.2 in BALANCING.md). Scalar tunables live in `CONFIG.match` (`src/engine/config.ts`; `engine/match/tuning.ts` is an alias). The key-moment catalogue — situations, their choices, governing attributes, base probabilities and weights — is data in `src/engine/match/situations.ts`; personal roles and their effects are in `src/engine/match/roles.ts`. Pitch geometry, formation slots and regulation minutes are structural values.
 
-All replayed floats are produced with `+ − × ÷`, `Math.round`, `min`/`max` only and rounded to six decimals where they are stored or compared (`round6`). No `Math.exp`, `Math.pow` or `Math.hypot` result enters replayed state, so a saved session replays byte-for-byte on any JavaScript engine. Sessions carry `engine: 'match-4'`; `validateMatchSession` throws `OutdatedMatchSessionError` before replaying a session whose `engine` is missing or different.
+All replayed floats are produced with `+ − × ÷`, `Math.round`, `min`/`max` only and rounded to six decimals where they are stored or compared (`round6`). No `Math.exp`, `Math.pow` or `Math.hypot` result enters replayed state, so a saved session replays byte-for-byte on any JavaScript engine. Sessions carry their engine version (`engine: 'match-7'`); `validateMatchSession` throws `OutdatedMatchSessionError` before replaying a session whose `engine` is missing or different.
 
 ## Shared strength model
 
@@ -180,3 +180,20 @@ Each choice now multiplies its odds by `clamp(1 + (morale − 70) × 0.002, 0.92
 - **Away upsets:** 26.2% at a 15-point gap and 17.7% at a 45-point gap.
 
 The analytic tests pin neutral morale.
+
+## Match motion (engine `match-7`)
+
+Earlier engines placed the ball at a uniformly random point every minute and jittered all 22 players independently around fixed slots, so the pitch view looked erratic and unrelated to the commentary. `src/engine/match/motion.ts` now choreographs every minute, key moment and decision outcome as a continuous passage of play. **Outcomes are unchanged:** shots, goals, decisions and ratings still come from the calibrated model above. Motion uses its own seeded streams (`${seed}:motion:${minute}:${kind}`). The same 200 seeded matches across eight positions gave byte-identical scores, events (except pitch points), key moments, statistics and reports before and after the change.
+
+- **Passages.** Each command that advances play stores `state.motion`: keyframes starting at the frame previously shown. `state.play` carries possession (side, carrier, pending restart) between passages. `state.frames` keeps one end-of-minute snapshot per minute for the heatmap.
+- **Team shape.** Each side holds a 4-3-3 that slides with the ball: depth shift 0.55 in possession and 0.5 out of it, lateral shift 0.12 and 0.3, width × 1.05 and × 0.8. Each line has depth bounds, and the back line never drops deeper than two units behind the ball. Every player also has a small stable personal offset.
+- **Defending.** The two nearest outfielders press the carrier: one 2.2 units goal-side, one covering 8 units deeper.
+- **Offside.** Attackers without the ball stay level with the second-last defender (or the ball) in the opponent's half, including teammates timing a run during a build-up.
+- **Speed limits.** Nobody moves faster than 0.0085 units per sporting millisecond (about 9 m/s). Passes take 700 ms plus 60 ms per unit (lofted 1,300 ms plus 55 ms), carries 600 ms plus 170 ms per unit, and shots 250 ms plus 28 ms per unit. Keyframe times are never compressed.
+- **Possession.** Passes go to teammates scored by forward progress (scaled by momentum), distance and pressure. The opposition intercepts or tackles with probability `clamp(0.2 × (1 − possession share), 0.04, 0.2)`, × 1.6 in the final third. A minute holds at least three or four ball actions.
+- **Events.** A shot is struck by its shooter from a slot-based shooting position after the ball is worked to them, and ends in the net, the keeper's hands, off a defender, wide or over, matching its commentary variant. A decision pass reaches the teammate who takes the follow-up chance; dribbles and tackles beat or dispossess the nearest opponent.
+- **Restarts.** Goals lead to a celebration, then a kickoff by the conceding side with both teams in their own halves. Misses lead to goal kicks and parries to corners. At half-time the teams switch ends and the away side kicks off.
+- **Key moments.** The scene is built around the selected player at the situation's spot, with the opponent drawn for the odds as the direct opponent: a defender goal-side, a presser on build-out, or the attacker running at you. Decision event points come from the scene and its outcome.
+- **Moments.** The selected player's goals keep up to 12 keyframes of build-up, strike and celebration (`state.highlights`), and Moments clips are cut from them.
+- **Cost.** Motion adds about 4 ms per match in Node. The 10,000-match gate therefore has a 240 s budget.
+- **Restarts after goals.** The passage containing a goal ends with the celebration; the next passage, even a quiet minute without events, walks both teams back and takes the kickoff.

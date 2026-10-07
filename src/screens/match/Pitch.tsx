@@ -2,14 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import type { Club, ReplayFrame } from '../../model/domain';
 import { pitchCopy as copy } from '../../i18n/pitch';
 import { kitAppearance, PitchMarkings } from './Maps';
-import type { PitchScene } from './pitchScene';
+import type { PitchScene, PitchView } from './pitchScene';
 
 export interface PitchProps {
   frame: ReplayFrame;
   home: Club;
   away: Club;
   selectedPlayerId: string;
-  playing: boolean;
+  /** The passage of play ending at `frame`, animated whenever a new one arrives. */
+  motion?: ReplayFrame[] | null;
+  /** Sporting milliseconds shown per real millisecond, and the longest a passage may take. */
+  rate?: number;
+  maxMs?: number;
   reducedMotion: boolean;
   onUnavailable?: () => void;
   /** The selected player's latest goal celebration: replayed when its key changes. */
@@ -103,6 +107,14 @@ function SvgPitch({ frame, home, away, selectedPlayerId, celebration }: PitchPro
   );
 }
 
+const viewOf = (props: PitchProps): PitchView => ({
+  frame: props.frame,
+  motion: props.motion ?? null,
+  rate: props.rate ?? 18,
+  maxMs: props.maxMs ?? 800,
+  reducedMotion: props.reducedMotion,
+});
+
 export default function Pitch(props: PitchProps) {
   const host = useRef<HTMLDivElement>(null);
   const scene = useRef<PitchScene | null>(null);
@@ -153,7 +165,7 @@ export default function Pitch(props: PitchProps) {
           return;
         }
         scene.current = created;
-        created.update(latest.current.frame, latest.current.playing, latest.current.reducedMotion);
+        created.update(viewOf(latest.current));
         setReady(true);
       } catch {
         unavailable();
@@ -166,8 +178,8 @@ export default function Pitch(props: PitchProps) {
     };
   }, [props.home.id, props.away.id, props.selectedPlayerId]);
   useEffect(() => {
-    scene.current?.update(props.frame, props.playing, props.reducedMotion);
-  }, [props.frame, props.playing, props.reducedMotion]);
+    scene.current?.update(viewOf(latest.current));
+  }, [props.frame, props.motion, props.rate, props.maxMs, props.reducedMotion]);
   const celebrationKey = props.celebration?.key;
   useEffect(() => {
     if (celebrationKey && latest.current.celebration)

@@ -7,6 +7,7 @@ import {
   createMatchSession,
   createMatchSetup,
   type MatchCommand,
+  type MatchMotion,
 } from '../engine/match';
 import type { DecisionChoice, MatchEvent, SlotId } from '../model/domain';
 import { errorCode } from '../persistence/errors';
@@ -32,6 +33,17 @@ import { useMatchAudio } from './match/useMatchAudio';
 import { Tutorial } from '../ui/Tutorial';
 import { tutorialText as tt } from '../i18n/tutorial';
 const Pitch = lazy(() => import('./match/Pitch'));
+/** Real milliseconds per simulated minute at 1× speed. */
+const MINUTE_MS = 850;
+/**
+ * How fast a passage of play is shown: live minutes run at a steady 18× real time and always
+ * finish before the next minute; the build-up to a decision and its outcome play slower.
+ */
+function motionPace(kind: MatchMotion['kind'], speed: number) {
+  if (kind === 'minute') return { rate: 18 * speed, maxMs: (MINUTE_MS / speed) * 0.95 };
+  if (kind === 'kickoff') return { rate: 1, maxMs: 0 };
+  return { rate: 8, maxMs: 3200 };
+}
 const percent = (value: number) => (value * 100).toFixed(value < 0.1 ? 1 : 0);
 const attributeName = (name: string) =>
   t.world.attributes[name as keyof typeof t.world.attributes] ?? name;
@@ -213,7 +225,7 @@ export default function MatchScreen() {
         return;
       }
       command({ type: 'advance' });
-    }, 850 / speed);
+    }, MINUTE_MS / speed);
     return () => window.clearInterval(timer);
   }, [
     playing,
@@ -587,7 +599,8 @@ export default function MatchScreen() {
                           home={session.setup.home}
                           away={session.setup.away}
                           selectedPlayerId={session.setup.selectedPlayerId}
-                          playing={playing}
+                          motion={state!.motion.frames}
+                          {...motionPace(state!.motion.kind, speed)}
                           reducedMotion={settings.reducedMotion || !!systemReduced}
                           celebration={celebration}
                         />

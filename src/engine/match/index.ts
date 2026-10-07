@@ -19,8 +19,16 @@ import {
   type MatchSession,
   type MatchState,
   type MatchCommand,
+  type MatchMotion,
   type RatingPart,
 } from './types';
+import {
+  minutePassage,
+  momentPassage,
+  openingKickoff,
+  outcomePassage,
+  type Passage,
+} from './motion';
 import { MATCH_CONFIG as C } from './tuning';
 import { performanceFame, performanceXp } from './rewards';
 import { validateSetup, validateTactics, validateCommand, validateJson } from './validation';
@@ -46,6 +54,7 @@ export {
   positionFamily,
   shiftMentality,
 } from './roles';
+export { span, attacksRightAt, type Passage } from './motion';
 export {
   buildChoices,
   expectedImpact,
@@ -298,7 +307,10 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
     state: {
       match,
       currentMoment: null,
-      frames: [frame(setup, home, away, 0)],
+      frames: [],
+      play: { side: 0, carrierId: null, restart: null },
+      motion: { kind: 'kickoff', frames: [] },
+      highlights: [],
       selectedPlayerMinutes: 0,
       substituted: false,
       substitutionDecisionPending: false,
@@ -335,39 +347,38 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
     },
   };
   updatePossession(session);
+  const opening = openingKickoff(session);
+  session.state.frames = [opening.frame];
+  session.state.play = opening.play;
+  session.state.motion = { kind: 'kickoff', frames: [opening.frame] };
   return session;
 }
-const FORMATION_POINTS = [
-  [5, 50],
-  [24, 15],
-  [22, 38],
-  [22, 62],
-  [24, 85],
-  [45, 27],
-  [42, 50],
-  [45, 73],
-  [70, 18],
-  [76, 50],
-  [70, 82],
-];
-function frame(setup: MatchSetup, home: Lineup, away: Lineup, minute: number): ReplayFrame {
-  const rng = createRng(`${setup.seed}:frame:${minute}`);
-  return {
-    timeMs: minute * 60000,
-    ball: { x: rng.int(20, 80), y: rng.int(12, 88) },
-    players: [home, away].flatMap((team, side) =>
-      team.starterIds.map((id, i) => {
-        const base = FORMATION_POINTS[i]!;
-        const flip = (side === 1) !== minute > 45;
-        const x = clamp(base[0]! + rng.int(-5, 5), 2, 98);
-        return {
-          id,
-          point: { x: flip ? 100 - x : x, y: clamp(base[1]! + rng.int(-6, 6), 2, 98) },
-          animation: 'run',
-        };
-      }),
-    ),
-  };
+/**
+ * Store a passage of play: its keyframes become the current motion and its last frame the
+ * snapshot of this minute. The selected player's goals keep their build-up for Moments.
+ */
+function applyPassage(
+  session: MatchSession,
+  kind: MatchMotion['kind'],
+  passage: Passage,
+  lead: ReplayFrame[] = [],
+): void {
+  const s = session.state;
+  const last = passage.frames[passage.frames.length - 1]!;
+  const snapshot = { ...last, timeMs: s.match.minute * 60000 };
+  if (kind === 'outcome') s.frames[s.frames.length - 1] = snapshot;
+  else s.frames.push(snapshot);
+  s.play = passage.play;
+  s.motion = { kind, frames: passage.frames };
+  for (const goal of passage.goals)
+    if (goal.playerId === session.setup.selectedPlayerId)
+      s.highlights = [
+        ...s.highlights,
+        {
+          eventId: goal.eventId,
+          frames: [...lead, ...passage.frames.slice(0, goal.frame + 1)].slice(-12),
+        },
+      ];
 }
 /** True when the team attacks towards x = 100 at this minute. */
 const attacksRight = (session: MatchSession, teamId: string, minute: number) =>
@@ -452,11 +463,6 @@ function goal(session: MatchSession, side: number, playerId: string, target?: nu
     session.state.stats.goals++;
     addRating(session, 'goals', C.rating.goal);
   }
-  const currentFrame = session.state.frames[session.state.frames.length - 1]!;
-  session.state.frames[session.state.frames.length - 1] = {
-    ...currentFrame,
-    ball: { ...m.events[m.events.length - 1]!.endPoint! },
-  };
 }
 function addRating(session: MatchSession, part: RatingPart, delta: number): void {
   const s = session.state;
@@ -693,19 +699,25 @@ function replacement(session: MatchSession, bench: string[], player: Player): st
     .filter((id) => tier(id) > 0)
     .sort((a, b) => tier(b) - tier(a) || byAbility(players)(a, b))[0];
 }
-function contextFor(session: MatchSession, situation: Situation, rng: Rng): DecisionContext {
+function contextFor(
+  session: MatchSession,
+  situation: Situation,
+  rng: Rng,
+  drawn: { keeper?: string; defender?: string; attacker?: string } = {},
+): DecisionContext {
   const s = session.state,
     setup = session.setup,
     side = selectedSide(setup);
   const player = setup.players[setup.selectedPlayerId]!;
   const opposition = side === 0 ? s.match.away : s.match.home;
-  const pickAbility = (positions: Position[]) => {
+  // The drawn opponents are also the ones placed in the moment's scene.
+  const pickAbility = (positions: Position[], role: keyof typeof drawn) => {
     const pool = opposition.starterIds.filter((id) =>
       positions.includes(setup.players[id]!.primaryPosition),
     );
-    return round6(
-      playerAbility(setup.players[rng.pick(pool.length ? pool : opposition.starterIds)]!),
-    );
+    const id = rng.pick(pool.length ? pool : opposition.starterIds);
+    drawn[role] = id;
+    return round6(playerAbility(setup.players[id]!));
   };
   const weights = situationWeights(player.primaryPosition, s.match.tactics.role);
   return {
@@ -726,9 +738,9 @@ function contextFor(session: MatchSession, situation: Situation, rng: Rng): Deci
     pitchCondition: s.match.pitchCondition,
     strengthGap: round6(s.strength[side]! - s.strength[1 - side]!),
     opponents: {
-      keeper: pickAbility(['GK']),
-      defender: pickAbility(['CB', 'LB', 'RB', 'DM']),
-      attacker: pickAbility(['ST', 'LW', 'RW', 'AM']),
+      keeper: pickAbility(['GK'], 'keeper'),
+      defender: pickAbility(['CB', 'LB', 'RB', 'DM'], 'defender'),
+      attacker: pickAbility(['ST', 'LW', 'RW', 'AM'], 'attacker'),
     },
   };
 }
@@ -748,7 +760,8 @@ function openMoment(next: MatchSession): void {
       break;
     }
   }
-  const context = contextFor(next, situation, rng);
+  const opponents: { keeper?: string; defender?: string; attacker?: string } = {};
+  const context = contextFor(next, situation, rng, opponents);
   // Place the selected player where the situation happens, attacking the correct end.
   const right = attacksRight(next, player.clubId!, m.minute);
   const width = clamp(
@@ -760,15 +773,8 @@ function openMoment(next: MatchSession): void {
     x: right ? situation.spot.depth : 100 - situation.spot.depth,
     y: width,
   };
-  const currentFrame = s.frames[s.frames.length - 1]!;
-  const momentFrame: ReplayFrame = {
-    ...currentFrame,
-    ball: { ...spot },
-    players: currentFrame.players.map((p) =>
-      p.id === player.id ? { ...p, point: { ...spot } } : p,
-    ),
-  };
-  s.frames[s.frames.length - 1] = momentFrame;
+  applyPassage(next, 'moment', momentPassage(next, situation, spot, opponents));
+  const momentFrame = s.frames[s.frames.length - 1]!;
   const moment = {
     id: `${m.id}:moment:${m.minute}`,
     minute: m.minute,
@@ -896,6 +902,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
   const state: MatchState = {
     ...source,
     stats: { ...source.stats },
+    play: { ...source.play },
     ratingParts: { ...source.ratingParts },
     frames: [...source.frames],
     match: {
@@ -918,7 +925,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     if (m.status !== 'live' || state.captainDecisionPending || state.substitutionDecisionPending)
       throw new Error('Cannot advance paused match');
     m.minute++;
-    state.frames.push(frame(setup, m.home, m.away, m.minute));
+    const first = m.events.length;
     if (!state.substituted) {
       state.selectedPlayerMinutes++;
       state.stats.fatigue = round6(
@@ -947,7 +954,6 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
             starterIds: current.starterIds.map((id) => (id === player.id ? incoming : id)),
             benchIds: current.benchIds.filter((id) => id !== incoming),
           };
-          state.frames[state.frames.length - 1] = frame(setup, m.home, m.away, m.minute);
           event(next, 'substitution', player.clubId!, player.id, 'match.commentary.substitution');
         }
       }
@@ -955,19 +961,22 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     if (!state.substituted && state.momentMinutes.includes(m.minute)) openMoment(next);
     else {
       simulateMinuteGoals(next);
+      applyPassage(next, 'minute', minutePassage(next, m.events.slice(first)));
       afterMinute(next);
     }
   } else if (command.type === 'choose') {
     if (m.status !== 'decision' || !state.currentMoment) throw new Error('No decision pending');
+    const first = m.events.length;
     resolveChoice(next, command.choiceId);
     simulateMinuteGoals(next);
-    // End the highlight at the resolved action or goal, never an unrelated ball position.
-    const goalEvent = m.events.findLast((e) => e.minute === m.minute && e.kind === 'goal');
-    const actionEvent = m.events.find((e) => e.outcome?.input.momentId === state.currentMoment!.id);
-    const currentFrame = state.frames[state.frames.length - 1]!;
-    const destination =
-      goalEvent?.endPoint ?? actionEvent?.endPoint ?? actionEvent?.point ?? currentFrame.ball;
-    state.frames[state.frames.length - 1] = { ...currentFrame, ball: { ...destination } };
+    // The build-up to the moment leads into its outcome in a goal highlight.
+    const lead = source.motion.kind === 'moment' ? source.motion.frames.slice(0, -1) : [];
+    applyPassage(
+      next,
+      'outcome',
+      outcomePassage(next, m.events.slice(first), state.currentMoment.situationId),
+      lead,
+    );
     state.currentMoment = null;
     m.status = 'live';
     afterMinute(next);
@@ -982,6 +991,8 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
       state.shares = shares(player.primaryPosition, m.tactics.role);
     }
     state.stats.fatigue = round6(Math.max(0, state.stats.fatigue - C.halftimeRecovery));
+    // Ends are switched and the away side kicks off the second half.
+    state.play = { side: 1, carrierId: null, restart: 'second-half' };
     m.status = 'live';
     state.captainDecisionPending = state.captain;
   } else if (command.type === 'substitution') {

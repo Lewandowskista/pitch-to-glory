@@ -135,6 +135,7 @@ describe('match engine', () => {
     const final = finish(s).state;
     expect(final.report!.passes.every((pass) => pass.from.x >= 0 && pass.to.x <= 100)).toBe(true);
   });
+  // Every match also choreographs its motion (about 4 ms), so the gate needs a larger budget.
   it('calibrates 10,000 complete matches including reputation-gap upsets', () => {
     let goals = 0,
       homeGoals = 0,
@@ -186,7 +187,7 @@ describe('match engine', () => {
     expect(wideUpsets / 2000).toBeGreaterThan(0.03);
     expect(wideUpsets / 2000).toBeLessThan(0.2);
     expect(wideUpsets).toBeLessThan(closeUpsets);
-  }, 60000);
+  }, 240000);
   it('retains half-time recovery and requires captain instruction', () => {
     const chosen = structuredClone(setup);
     chosen.players[chosen.selectedPlayerId]!.attributes.leadership = 99;

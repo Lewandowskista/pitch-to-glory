@@ -4,9 +4,11 @@ import 'pixi.js/unsafe-eval';
 import { Application, Container, Graphics, Text } from 'pixi.js';
 import type { Club, Point, ReplayFrame } from '../../model/domain';
 import { kitAppearance } from './Maps';
+import { preparePlayback, samplePlayback, type Playback } from './playback';
 
-export const pitchPoint = (point: Point) => ({
-  x: 8 + Math.max(0, Math.min(100, point.x)),
+/** Pitch units to scene units; the ball may cross the goal line into the net or past it. */
+export const pitchPoint = (point: Point, overrun = 0) => ({
+  x: 8 + Math.max(-overrun, Math.min(100 + overrun, point.x)),
   y: 8 + Math.max(0, Math.min(100, point.y)) * 0.64,
 });
 
@@ -14,11 +16,20 @@ interface Token {
   view: Container;
   /** The token's shapes, transformed by a celebration while the view keeps its position. */
   body: Container;
-  target: Point;
+}
+/** What the pitch shows: the latest frame and the passage of play that led to it. */
+export interface PitchView {
+  frame: ReplayFrame;
+  /** Keyframes ending at `frame`; a new array is played from the positions on screen. */
+  motion: ReplayFrame[] | null;
+  /** Sporting milliseconds per real millisecond, and the longest the passage may take. */
+  rate: number;
+  maxMs: number;
+  reducedMotion: boolean;
 }
 export interface PitchScene {
-  update(frame: ReplayFrame, playing: boolean, reducedMotion: boolean): void;
-  /** Play the selected player's goal celebration (milestone 7). */
+  update(view: PitchView): void;
+  /** Play the selected player's goal celebration once the ball is in the net (milestone 7). */
   celebrate(motion: string): void;
   destroy(): void;
 }
@@ -131,10 +142,10 @@ export async function createPitchScene(
   world.addChild(grass);
   const tokens = new Map<string, Token>();
   const kits = kitAppearance(home, away);
-  let playing = false,
-    reducedMotion = false;
-  let highlightRemainingMs = 0;
+  let reducedMotion = false;
+  let playback: (Playback & { started: number }) | null = null;
   let celebration: { motion: string; elapsed: number } | null = null;
+  let pendingCelebration: string | null = null;
   const addToken = (id: string, point: Point, index: number) => {
     const isHome = home.playerIds.includes(id);
     const view = new Container();
@@ -174,34 +185,50 @@ export async function createPitchScene(
     number.anchor.set(0.5);
     body.addChild(number);
     view.addChild(body);
-    const target = pitchPoint(point);
-    view.position.set(target.x, target.y);
+    const at = pitchPoint(point);
+    view.position.set(at.x, at.y);
     world.addChild(view);
-    tokens.set(id, { view, body, target });
+    tokens.set(id, { view, body });
   };
+  // The shadow stays on the grass while a lofted ball rises and grows.
+  const ballShadow = new Graphics().circle(0, 0, 0.7).fill({ color: '#09281d', alpha: 0.5 });
   const ball = new Graphics()
-    .circle(0.1, 0.25, 0.7)
-    .fill({ color: '#09281d', alpha: 0.5 })
     .circle(0, 0, 0.65)
     .fill('#ffffff')
     .stroke({ color: '#17221c', width: 0.18 })
     .circle(0, 0, 0.2)
     .fill('#17221c');
-  let ballTarget = pitchPoint(frame.ball);
-  let previousFrame = frame;
+  const placeBall = (point: Point, height: number) => {
+    const at = pitchPoint(point, 5);
+    ballShadow.position.set(at.x + 0.1 + height * 0.6, at.y + 0.25 + height * 0.4);
+    ballShadow.alpha = 1 - height * 0.6;
+    ball.position.set(at.x, at.y - height * 2.4);
+    ball.scale.set(1 + height * 0.55);
+  };
+  /** Show a frame exactly, adding tokens for players seen for the first time. */
   const applyFrame = (next: ReplayFrame) => {
     const active = new Set(next.players.map((player) => player.id));
     for (const [id, token] of tokens) token.view.visible = active.has(id);
     next.players.forEach((player, index) => {
       if (!tokens.has(player.id)) addToken(player.id, player.point, index);
-      const token = tokens.get(player.id)!;
-      token.target = pitchPoint(player.point);
-      if (!playing || reducedMotion) token.view.position.set(token.target.x, token.target.y);
+      const at = pitchPoint(player.point);
+      tokens.get(player.id)!.view.position.set(at.x, at.y);
     });
-    ballTarget = pitchPoint(next.ball);
-    if (!playing || reducedMotion) ball.position.set(ballTarget.x, ballTarget.y);
+    placeBall(next.ball, 0);
   };
+  /** Positions on screen, in pitch units, so a new passage starts without a jump. */
+  const onScreen = (frame: ReplayFrame): ReplayFrame => ({
+    ...frame,
+    ball: { x: ballShadow.x - 8.1, y: (ballShadow.y - 8.25) / 0.64 },
+    players: frame.players.map((player) => {
+      const token = tokens.get(player.id);
+      return token?.view.visible
+        ? { ...player, point: { x: token.view.x - 8, y: (token.view.y - 8) / 0.64 } }
+        : player;
+    }),
+  });
   applyFrame(frame);
+  world.addChild(ballShadow);
   world.addChild(ball);
   let destroyed = false;
   const resize = () => {
@@ -210,14 +237,37 @@ export async function createPitchScene(
     const scale = Math.min(host.clientWidth / 116, host.clientHeight / 80);
     world.scale.set(scale);
     world.position.set((host.clientWidth - 116 * scale) / 2, (host.clientHeight - 80 * scale) / 2);
-    if (!playing || reducedMotion) app.render();
+    if (!playback && !celebration) app.render();
   };
   const observer = new ResizeObserver(resize);
   observer.observe(host);
   resize();
+  const startCelebration = (motion: string) => {
+    celebration = { motion, elapsed: 0 };
+    const selected = tokens.get(selectedPlayerId);
+    if (selected) world.setChildIndex(selected.view, world.children.length - 3);
+    app.start();
+  };
   app.ticker.add((ticker) => {
-    if ((!playing && highlightRemainingMs <= 0) || reducedMotion) return;
-    highlightRemainingMs = Math.max(0, highlightRemainingMs - ticker.deltaMS);
+    if (reducedMotion) return;
+    if (playback) {
+      const elapsed = performance.now() - playback.started;
+      const sample = samplePlayback(playback, elapsed);
+      for (const [id, point] of sample.players) {
+        const token = tokens.get(id);
+        if (!token) continue;
+        const at = pitchPoint(point);
+        token.view.position.set(at.x, at.y);
+      }
+      placeBall(sample.ball, sample.height);
+      if (elapsed >= playback.duration) {
+        playback = null;
+        if (pendingCelebration) {
+          startCelebration(pendingCelebration);
+          pendingCelebration = null;
+        }
+      }
+    }
     const celebrating = celebration && tokens.get(selectedPlayerId);
     if (celebration && celebrating) {
       celebration.elapsed += ticker.deltaMS;
@@ -233,44 +283,40 @@ export async function createPitchScene(
         celebration = null;
       }
     }
-    const mix = 1 - Math.exp(-Math.min(ticker.deltaMS, 80) / 130);
-    for (const { view, target } of tokens.values()) {
-      view.x += (target.x - view.x) * mix;
-      view.y += (target.y - view.y) * mix;
-    }
-    ball.x += (ballTarget.x - ball.x) * mix;
-    ball.y += (ballTarget.y - ball.y) * mix;
-    if (!playing && highlightRemainingMs <= 0) {
-      ball.position.set(ballTarget.x, ballTarget.y);
-      app.stop();
-    }
+    if (!playback && !celebration) app.stop();
   });
   const lost = (event: Event) => {
     event.preventDefault();
     unavailable();
   };
   app.canvas.addEventListener('webglcontextlost', lost);
+  let shownMotion: ReplayFrame[] | null | undefined;
   return {
-    update(next, nextPlaying, nextReducedMotion) {
+    update(view) {
       if (destroyed) return;
-      playing = nextPlaying;
-      reducedMotion = nextReducedMotion;
-      // A resolved choice changes the frame within the same sporting minute.
-      // Animate that short highlight while the decision flow remains paused.
-      const outcomeHighlight =
-        next !== previousFrame && next.timeMs === previousFrame.timeMs && !reducedMotion;
-      highlightRemainingMs = outcomeHighlight ? 500 : 0;
-      // Pausing the current frame freezes its interpolation in place. A new
-      // decision frame must instead land exactly on the engine's coordinates.
-      if (next !== previousFrame || reducedMotion) {
-        const wasPlaying = playing;
-        if (outcomeHighlight) playing = true;
-        applyFrame(next);
-        playing = wasPlaying;
+      reducedMotion = view.reducedMotion;
+      const fresh = view.motion !== shownMotion;
+      // The first view only shows where play stands; later passages are played out.
+      const replay =
+        fresh && shownMotion !== undefined && !reducedMotion && (view.motion?.length ?? 0) > 1;
+      shownMotion = view.motion;
+      for (const player of view.frame.players)
+        if (!tokens.has(player.id))
+          addToken(player.id, player.point, view.frame.players.indexOf(player));
+      if (replay) {
+        const frames = [onScreen(view.motion![0]!), ...view.motion!.slice(1)];
+        const prepared = preparePlayback(frames, view.rate, view.maxMs);
+        const active = new Set(view.frame.players.map((player) => player.id));
+        for (const [id, token] of tokens) token.view.visible = active.has(id);
+        playback = prepared.duration > 0 ? { ...prepared, started: performance.now() } : null;
+        if (!playback) applyFrame(view.frame);
+      } else if (fresh || reducedMotion || !playback) {
+        playback = null;
+        applyFrame(view.frame);
       }
-      previousFrame = next;
+      world.setChildIndex(ballShadow, world.children.length - 2);
       world.setChildIndex(ball, world.children.length - 1);
-      if ((playing || highlightRemainingMs > 0) && !reducedMotion) app.start();
+      if ((playback || celebration) && !reducedMotion) app.start();
       else {
         app.stop();
         app.render();
@@ -278,11 +324,8 @@ export async function createPitchScene(
     },
     celebrate(motion) {
       if (destroyed || reducedMotion) return;
-      celebration = { motion, elapsed: 0 };
-      highlightRemainingMs = Math.max(highlightRemainingMs, CELEBRATION_MS);
-      const selected = tokens.get(selectedPlayerId);
-      if (selected) world.setChildIndex(selected.view, world.children.length - 1);
-      app.start();
+      if (playback) pendingCelebration = motion;
+      else startCelebration(motion);
     },
     destroy() {
       if (destroyed) return;

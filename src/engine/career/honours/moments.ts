@@ -17,8 +17,27 @@ const MO = CONFIG.career.honours.moments;
 function framePoints(frame: ReplayFrame): Point[] {
   return frame.players.slice(0, 22).map((player) => ({ ...player.point }));
 }
-/** Keyframes around a goal: the minute before, the strike, and the ball in the net. */
+/**
+ * Keyframes of a goal: the engine's recorded build-up, strike and celebration when present,
+ * otherwise the minute before, the strike, and the ball in the net.
+ */
 function cutClip(session: MatchSession, event: MatchEvent, playerId: string): Clip | null {
+  const highlight = session.state.highlights?.find((entry) => entry.eventId === event.id);
+  if (highlight && highlight.frames.length >= 2 && highlight.frames.length <= 12) {
+    const selected = highlight.frames[0]!.players.findIndex((player) => player.id === playerId);
+    if (
+      selected >= 0 &&
+      selected <= 21 &&
+      highlight.frames.every((frame) => frame.players.length >= 22)
+    )
+      return {
+        selected,
+        frames: highlight.frames.map((frame) => ({
+          ball: { ...frame.ball },
+          players: framePoints(frame),
+        })),
+      };
+  }
   const frames = session.state.frames;
   const at = [...frames].reverse().find((frame) => frame.timeMs <= event.minute * 60000);
   const before = [...frames].reverse().find((frame) => frame.timeMs < (at?.timeMs ?? 0));
