@@ -1,67 +1,233 @@
+<div align="center">
+
+<img src="public/icon.svg" alt="" width="96" height="96" />
+
 # Pitch to Glory
 
-Milestones 1–10: a web-first football career simulator with deterministic SVG art, a persistent football world and interactive friendly matches. Generate six real countries with source-based national pyramids: 52 league groups, 959 initial clubs and 21,098 players. Clubs and competitions are fictional parodies of their real counterparts (Munich Reds, English Premier Division), and lower-tier clubs live in real towns. Follow domestic cups, regional groups, promotion/survival playoffs and complete seasons in a Web Worker, with squads that retire, renew, release and sign free agents over many seasons. Play a footballer from your world through pre-match tactics, situation-based key moments, half-time and a detailed performance report. Create a young footballer, start at a semi-professional trial club and build a career: play your club's fixtures, earn XP, level up, spend attribute points against age-adjusted soft caps, unlock skills from a 49-skill tree, plan weekly training and manage injuries while the world's players develop and age on realistic curves. Your contract's squad-role promise decides how often you start. Clubs scout you, bid in the transfer windows and negotiate terms with you; hire an agent, ask for a new contract, hand in a transfer request or go out on loan. Answer the press, build chemistry with key teammates, win over the dressing room's groups and track a rival of your generation, while your morale (which now affects key moments) and form are charted week by week. Grow your fame to attract sponsors, buy cars, homes and investments, dress your player, pick a signature goal celebration that plays on the pitch, and chase daily and weekly challenges for cosmetic rewards. Get called up to your country's Under-19, Under-21 and senior sides, and play summer tournaments every two years. In national worlds, top clubs play a Champions Cup and a Shield with groups and knockouts. Win monthly and season awards and watch the Golden Ball ceremony next to your rival. Your Career Chronicle writes itself as a biography you can export as an image, and memorable goals become Moments you can share as replay links. Retire into a Hall of Fame legacy, then carry on in the same world with a new player or as your player's child. Rename and repaint the world in Edit mode, learn the game from a short guided tour, and hear whistles, a reactive crowd and interface sounds, all generated on your device. Existing compact worlds retain their original rules.
+**A football career, made your own.**
 
-## Run locally
+Create a teenage footballer, earn a trial at a semi-professional club and take them all the way to the Golden Ball — then retire into the Hall of Fame and carry on as their child. Free in your browser, and playable offline.
 
-Node.js 22.19+ (Node 24 recommended and used for verification):
+[![Play now](https://img.shields.io/badge/Play_now-pitch--to--glory.pages.dev-075e45?style=for-the-badge)](https://pitch-to-glory.pages.dev)
+
+[![Validate and deploy](https://github.com/Lewandowskista/pitch-to-glory/actions/workflows/ci.yml/badge.svg)](https://github.com/Lewandowskista/pitch-to-glory/actions/workflows/ci.yml)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
+![React 18](https://img.shields.io/badge/React-18-149eca?logo=react&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646cff?logo=vite&logoColor=white)
+![PixiJS](https://img.shields.io/badge/PixiJS-8-e72264)
+![PWA](https://img.shields.io/badge/PWA-offline_ready-5a0fc8?logo=pwa&logoColor=white)
+![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-f38020?logo=cloudflare&logoColor=white)
+
+<img src="docs/images/landing.png" alt="The Pitch to Glory title screen: an illustrated stadium beside the headline Every great career starts somewhere." width="900" />
+
+</div>
+
+## The game
+
+Matches play out on a 2D pitch and stop for **your** decisions. Every choice shows its chance of success and the attributes, traits and fatigue behind it, and every outcome is explained, so the game teaches its own systems.
+
+<p align="center">
+  <img src="docs/images/key-moment.png" alt="A key moment: four choices, from shooting near post (16%) to squaring it to a teammate (69%), each with the attributes it uses and what is at stake." width="720" />
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/match.png" alt="Matchday: the scoreboard, a top-down pitch with player tokens in kit colours, and live statistics." /></td>
+    <td width="50%"><img src="docs/images/career-hub.png" alt="The career hub: the next fixture, the footballer's level, XP and unspent points." /></td>
+  </tr>
+  <tr>
+    <td><b>Matchday.</b> Speed controls, live commentary, momentum and your live rating, with a pitch rendered by PixiJS (an SVG fallback covers every browser).</td>
+    <td><b>Career hub.</b> Your next match, level and XP, unspent points, condition, training, fame, the press, your rival and the transfer market.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/golden-ball.png" alt="The Golden Ball ceremony: a ranked shortlist of ten players with their clubs and points, the winner highlighted." /></td>
+    <td><img src="docs/images/chronicle.png" alt="The Career Chronicle: a season-by-season biography with portraits at each age." /></td>
+  </tr>
+  <tr>
+    <td><b>Golden Ball.</b> Monthly and season awards, world records, and a ceremony that tells you where you and your rival finished.</td>
+    <td><b>Career Chronicle.</b> Your career written as a biography as it happens, exportable as an image to share.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/profile.png" alt="The player profile: attribute groups with soft caps, positions and hidden traits." /></td>
+    <td><img src="docs/images/edit-mode.png" alt="Edit mode: a club editor with name, three colours, crest, kits and a kit clash check for colour-blind viewers." /></td>
+  </tr>
+  <tr>
+    <td><b>Player profile.</b> 22 attributes with age-based soft caps, positions you can learn, and hidden traits revealed over time.</td>
+    <td><b>Edit mode.</b> Rename and repaint the world; a kit clash check makes sure every kit is distinct for colour-blind players too.</td>
+  </tr>
+</table>
+
+<img src="docs/images/mobile-hub-dark.png" alt="The career hub on a phone in dark mode, with the bottom tab bar." width="240" align="right" />
+
+### What you can do
+
+- **Play the moments that matter.** 6–15 key moments a match, depending on your role and form: chances in the box, build-up play, crosses, aerial duels, last-ditch defending and, for keepers, saves and distribution, each a situation drawn on the pitch. Half-time talks with the manager, substitutions and captain's calls.
+- **Grow from a trial to a star.** XP from every match, attribute points against age-adjusted soft caps, a 49-skill tree that changes the odds and unlocks new choices, weekly training plans and injuries that need managing. Players peak in their late twenties; pace goes first, experience keeps rising.
+- **Build a career off the pitch.** Contracts with role promises and clauses, agents, scouting interest, multi-step transfer negotiations and loans. Press conferences and a social feed, teammate chemistry, dressing-room groups, culture fit, and a rival from your generation tracked against you.
+- **Live the life.** Fame levels, sponsors with obligations, cars, homes and investments, a wardrobe of boots, socks and armbands, signature celebrations that play on the pitch, and daily and weekly cosmetic challenges.
+- **Win everything.** Domestic cups, a Champions Cup and a Shield with groups and knockouts, call-ups from Under-19 to senior level, tournaments every two years, and a Golden Ball ceremony.
+- **Leave a legacy.** Retire into a Hall of Fame ranking, keep your Moments as replayable clips shared by link, and start again in the same world — former teammates may now be managers — or as your player's child.
+
+### A living football world
+
+Six real countries — England, France, Spain, Germany, Italy and Portugal — with their real league pyramids: **52 league groups, 959 clubs and 21,098 players**, every regional group and promotion or relegation playoff in the first four tiers, and deeper tiers where a semi-professional start needs them. Clubs and competitions are fictional parodies of their real counterparts, in real towns. Every club has its own procedural crest and three kits, every player a face that ages with them, and the whole world simulates every week in a Web Worker: results, transfers, manager sackings, retirements and youth intakes. See [national rules and sources](docs/REALISM.md).
+
+### Made for every player
+
+- **Accessible**: every screen checked with axe against WCAG 2.1 AA (no serious or critical issues) in light and dark themes; full keyboard play (Space, 1–4, arrows, Escape, `?`); screen-reader labels; text size from 85% to 130%; reduced motion; a simulation-only mode; colour-blind-safe kit choice.
+- **Fast**: a startup bundle of 80 KB gzipped, with everything else loaded on demand. Mobile Lighthouse performance 86–95 and accessibility 100 on every audited page.
+- **Yours**: no account, no ads, no tracking. Three save slots in your browser, backup export and import, and offline play after the first visit. All art is procedural SVG and every sound is synthesised on your device.
+- **Guided**: a short tour during your first week and your first match.
+
+<br clear="right" />
+
+## How it is built
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI["React UI<br/>routes, screens, tutorial"]
+    Store["Zustand store"]
+    Pixi["PixiJS pitch<br/>(lazy)"]
+    Audio["Howler.js + synthesiser<br/>(after first gesture)"]
+  end
+  subgraph Workers["Web Workers"]
+    World["World worker<br/>weekly and season simulation"]
+    Saves["Persistence worker<br/>validation and IndexedDB writes"]
+    Synth["Audio worker<br/>renders sounds"]
+  end
+  Engine[("Pure TypeScript engine<br/>seeded RNG · no browser APIs")]
+  DB[("IndexedDB<br/>3 save slots")]
+  UI <--> Store
+  UI --> Pixi
+  UI --> Audio
+  Audio --> Synth
+  Store <--> World
+  Store <--> Saves
+  World --> Engine
+  Saves --> DB
+  UI -. "match engine, career actions" .-> Engine
+```
+
+- **A pure engine.** Everything that decides results lives in `src/engine/`: plain, deterministic TypeScript with a seedable RNG and no browser globals or imports (enforced by lint). The same code runs in the UI, in Web Workers and in Node tests, so any career or match replays exactly from its seed.
+- **Workers for heavy work.** Season simulation and save validation run off the main thread, with progress and cancellation, so the interface never freezes.
+- **Saves you can trust.** Versioned save schema (now 13) with migrations from every earlier version, strict validation of every record, revision checks, and one browser tab per save slot.
+- **Code-split by route.** Each screen is its own chunk; PixiJS, the save system, audio and animation features load only when needed.
+
+### The match engine is calibrated
+
+The match engine simulates 10,000 matches in its test suite and checks realistic averages: **2.74 goals per match**, a clear home advantage, and upsets that become rarer as the reputation gap grows.
+
+```mermaid
+pie showData title Results over 10,000 simulated matches (%)
+  "Home win" : 44.3
+  "Draw" : 25.2
+  "Away win" : 30.5
+```
+
+### Performance
+
+```mermaid
+xychart-beta
+  title "Lighthouse mobile performance (slow 4G, 4x CPU throttling)"
+  x-axis ["Title", "Gallery", "Settings", "Moment", "Saves", "World", "Edit", "Wizard", "Career", "Match"]
+  y-axis "Score" 0 --> 100
+  bar [95, 94, 94, 95, 95, 93, 92, 91, 88, 86]
+```
+
+| Measure                                | Result                             |
+| -------------------------------------- | ---------------------------------- |
+| Startup JavaScript                     | 80 KB gzipped (was 173 KB)         |
+| Largest route, including the shell     | 187 KB gzipped (budget 300 KB)     |
+| Title page, mid-range phone on slow 4G | interactive in 2.8 s               |
+| Desktop Lighthouse                     | performance 100, accessibility 100 |
+
+### Delivery
+
+```mermaid
+flowchart LR
+  Push["Push to main"] --> Verify["verify (Linux)<br/>Prettier · ESLint · 245 unit tests<br/>typecheck · build · bundle budget"]
+  Verify --> C["Chromium journeys<br/>(Windows)"]
+  Verify --> F["Firefox journeys<br/>(Windows)"]
+  Verify --> W["WebKit journeys<br/>(Windows)"]
+  C --> Deploy["Deploy to<br/>Cloudflare Pages"]
+  F --> Deploy
+  W --> Deploy
+```
+
+Every push to `main` is formatted, linted, unit-tested, type-checked and built, then played through in Chromium, Firefox and WebKit under the production security headers before it deploys. Pull requests run the same checks without deploying. Both GitHub Actions and Cloudflare Pages are free for this public repository. See [deploying](docs/DEPLOY.md).
+
+## Tech stack
+
+| Area               | Choice                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| Language and UI    | TypeScript (strict), React 18, React Router                                         |
+| State              | Zustand slices over a framework-free engine                                         |
+| Rendering          | PixiJS for the pitch, procedural SVG for crests, kits and faces                     |
+| Styling and motion | Tailwind CSS with shared design tokens, Framer Motion                               |
+| Storage            | IndexedDB via Dexie, versioned schema and migrations                                |
+| Audio              | Howler.js playing sounds synthesised in a Web Worker                                |
+| Testing            | Vitest for the engine, Playwright in Chromium, Firefox and WebKit, axe-core         |
+| Delivery           | Vite, PWA with offline precache and update prompt, GitHub Actions, Cloudflare Pages |
+
+## Run it locally
+
+Node.js 22.19 or newer (Node 24 recommended):
 
 ```sh
 npm ci
-npm run dev
+npm run dev          # http://127.0.0.1:5173
 ```
-
-Open the URL Vite prints (normally http://127.0.0.1:5173). On Windows PowerShell with blocked script shims, use `npm.cmd` and `npx.cmd`.
 
 ```sh
 npm run typecheck
 npm run lint
-npm test
-npm run build
+npm test             # Vitest: engine, persistence, workers, audio
+npm run build        # typecheck, production build, per-route bundle budget
 npx playwright install chromium firefox webkit
-npm run test:e2e
+npm run test:e2e     # browser journeys under the production headers
+npm run audit        # Lighthouse quality targets
 ```
 
-Browser tests start the production preview on port 4173. Close unrelated servers using that port before running. For manual production/offline review: `npm run preview`; PWA registration runs only in production. Offline use requires one connected visit. All route chunks, workers and locally bundled WOFF2 fonts are precached.
+On Windows PowerShell with blocked script shims, use `npm.cmd` and `npx.cmd`. Browser tests start a production preview on port 4173; Lighthouse uses 4180. After changing `public/share.svg` or the icons, run `npm run raster` to regenerate their PNG copies.
 
-`npm run audit` checks Lighthouse mobile performance/accessibility on all six entry screens plus the desktop title screen, using port 4180. Run it after browser tests stop so measurements are not distorted by concurrent workloads. Reports go to `artifacts/`. `node scripts/capture.mjs` captures desktop/mobile screens from a preview on port 4173; pass another base URL as its first argument if needed. `node scripts/inspect-pwa.mjs` checks Chrome installability.
+## Project layout
 
-## Use
+```text
+src/
+  engine/        pure, deterministic simulation: world, match, career, assets
+  workers/       world simulation and persistence workers
+  persistence/   save schema, validation, migrations, repositories (loaded on demand)
+  audio/         synthesiser, rendering worker, Howler player
+  store/         Zustand slices
+  screens/       one lazy route per screen
+  ui/            shell, tutorial, tooltip and shared components
+  i18n/          every string, English first
+  platform/      web adapter for files, sharing, storage and more
+tests/           Vitest suites
+e2e/             Playwright journeys and the accessibility sweep
+docs/            architecture, decisions, balancing, verification, deployment
+public/          icons, share card, production headers
+```
 
-- Clubhouse: title screen with "Start a career" / "Continue career" and direct gallery links.
-- Career: the wizard (`/career/new`) chooses name, nationality, age 16–18, foot, every avatar layer, position (including goalkeeper) and archetype. It then builds a new world (or uses a loaded one), offers three semi-professional trial clubs, and can save straight into a slot.
-- The hub (`/career`) shows your next match, level and XP, unspent points, condition, injury recovery choices, last result, season stats, league position and last week's training. "Continue to next matchday" simulates the world in the worker until your club plays; season simulation asks whether to auto-play your matches.
-- Profile (`/career/profile`) allocates attribute points (costs rise at the soft cap), shows positions, revealed hidden attributes and match history. Skills (`/career/skills`) unlocks skills with prerequisites and minimum levels. Training (`/career/training`) sets three weekly sessions, their intensity and an optional mentor session.
-- Career matches are played on Matchday and recorded once at full time. The report shows the XP granted and an animated level-up. The manager picks the side each matchday: your role promise, place in the squad, form, fatigue and the manager's trust set your chance of starting.
-- Transfers and contract (`/career/transfers`) shows your contract and clauses, playing time against the promise, manager trust and fan affection, earnings, scouting interest, offers and career moves. Ask for a new contract, hand in a transfer request or ask to go out on loan. Open an offer to negotiate wage, length, role, release clause and signing-on fee: the club accepts, counters halfway with its reasons, or walks away.
-- Club life (`/career/club`) charts morale and form and explains this week's morale target. It also shows the dressing room's mood and groups, your chemistry with key teammates and why, the manager and fans, and your culture fit with the club. Media (`/career/media`) holds press conferences and interviews: each answer shows what it changes, and keys 1–3 answer. A feed carries fan, press and rival posts, and headlines. Rival (`/career/rival`) compares your career with your rival's, season by season.
-- Lifestyle (`/career/lifestyle`) shows your fame level, sponsor offers and deals with their obligations, your savings and upkeep, and a shop of cars, homes and investments. Wardrobe and celebrations (`/career/wardrobe`) changes your look and kit (sleeves, socks, armband, boots), sets your signature celebration, and lists the day's and week's challenges. Rewards are cosmetic only.
-- National team (`/career/national`) shows call-ups, caps and goals at each level, the latest squad, recent internationals and tournaments. Trophies (`/career/trophies`) holds your cabinet, the season's awards, the continental cups and the Golden Ball ceremony. Chronicle (`/career/chronicle`) is your career as a biography, exportable as an image. Moments (`/career/moments`) replays your memorable goals and shares each as a link; anyone can open the link at `/moment` without a save. From 32 you can retire once a season is over (the hub's Honours card); Legacy (`/career/legacy`) then shows your Hall of Fame place and lets you start again in the same world, or as your player's child.
-- Agent (`/career/agent`) lists agents (aggressive negotiators, well-connected or cheap) with their commission and the standing they require. Inbox (`/career/inbox`) collects offers, lapses, agent advice and selection news, with links to the talks.
-- Edit mode (`/edit`): rename clubs, leagues and players, set a club's three colours (crest and kits follow) and draw new crests, with a kit clash check for colour-blind viewers. Revert any edit, and export or import edits as a JSON file; a file also applies to other worlds with the same clubs and leagues.
-- World: enter a seed to generate the complete football world. Choose a country/division/regional group, browse standings/fixtures/cup/postseason/history and select club or player rows to inspect their full generated data. Advance a week, finish a season, cancel a job, or apply promotion/relegation by starting the next season.
-- Matchday (worlds without a career): choose clubs, a footballer (including goalkeepers), and a seed. Set personal tactics, kick off, then play/pause at 1×/2×/4× or skip to the next decision. Each key moment is a situation for your position (box chance, build-up, defending an attack, shot incoming, distribution and more) with 2–4 choices. Review each choice's probability, the attributes it uses, what is at stake if it works or fails, and its contributing factors. Respond to the manager, substitutions and captain prompts; finish with a rating, objectives, heat/pass/shot maps and calculated performance rewards. Friendlies preserve league standings and player progression. Save the world in a slot to resume the match after refresh.
-- Gallery: 15 crests, 45 kits and 24 age portraits. Apply a text seed to reproduce a collection; reseed to generate another.
-- Save collections: store the current world or gallery in one of three slots. Loaded worlds autosave after each week and match; match checkpoints and ordinary edits autosave too. Export/import compact JSON backups up to 128 MiB. File schema v13 migrates v1–v12 saves while keeping older worlds on their original rules. Match sessions are validated by deterministic command replay; a session from an older match engine is discarded on load with an explanation, and the world is kept. A damaged or newer slot is reported on its own card without affecting the other slots. Request persistent browser storage to reduce eviction.
-- Save a world before closing the browser. Its URL then includes the slot so refresh restores it with the selected competition view. Creating another world keeps the previous slot intact. At season end, the optional backup reminder links to export controls.
-- Settings: system/light/dark theme, 85–130% font scale, reduced motion, simulation-only match presentation, sound (mute, master, effects and crowd volumes, with previews) and a button to show the tutorial again. Preferences persist on this device independently of saves.
-- Tutorial: a short guided tour runs during your first career week (on the hub) and your first match. Skip it with Escape or the Skip button.
-- Sound starts after your first click or key press. Every sound is synthesised in the browser; nothing is downloaded.
-- Keyboard: Tab and Enter for controls, Space to play/pause matches, 1–4 to choose a key-moment action, arrows for navigation/tabs/choices, Escape to close/back, `?` for the shortcut guide. Confirmation dialogs support browser back. Matches pause when the tab becomes hidden and require explicit playback to resume.
-- Two tabs can view summaries, but only one owns a slot. A conflict offers export of the unsaved local snapshot and confirmed reload; if the slot disappeared, recovery detaches it while retaining the in-memory collection.
+## Roadmap
 
-## Delivery
+- [x] 1–3 · Foundations, a living world and the match engine
+- [x] 4 · The career player: attributes, XP, training, skills and ageing
+- [x] 5 · Contracts, agents, transfers, loans and negotiations
+- [x] 6 · Media, relationships, the rival, the dressing room, morale and form
+- [x] 7 · Fame, sponsors, lifestyle, wardrobe, celebrations and challenges
+- [x] 8 · National teams, continental cups, awards, retirement, legacy, the Chronicle and Moments
+- [x] 9 · Edit mode, accessibility, the tutorial, audio and polish
+- [x] 10 · Web release: deployment, offline play, performance and share tags
+- [ ] 11 · Android app with Capacitor
 
-`dist/` is a static SPA, published to Cloudflare Pages (free plan) at https://pitch-to-glory.pages.dev. The GitHub workflow checks formatting, lint, unit tests and the build on Linux, runs the browser journeys on Windows in Chromium, Firefox and WebKit, and deploys `main` once the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets are set. `public/_headers` sets the production cache and security headers (a strict Content Security Policy), and `vite preview` applies the same file. See [deploying](docs/DEPLOY.md) for setup, custom domains and rollbacks; `netlify.toml` remains as a fallback host configuration.
+## Documentation
 
-Share cards and home-screen icons are PNG copies rendered from the SVG sources; run `npm run raster` after changing those SVGs.
+[Architecture](docs/ARCHITECTURE.md) · [Decisions](docs/DECISIONS.md) · [Balancing](docs/BALANCING.md) · [Match balancing](docs/MATCH-BALANCING.md) · [National rules and sources](docs/REALISM.md) · [Verification](docs/VERIFICATION.md) · [Deploying](docs/DEPLOY.md) · [Asset provenance](ASSETS.md) · [Implementation handoff](docs/HANDOFF.md)
 
-The manifest offers SVG icons with PNG copies, and shortcuts to the career hub and Matchday. Physical Safari installation/offline behaviour remains release-device verification. Windows WebKit's test driver blocks offline navigation/module loading before service-worker handling; its test checks actual cached shell, route and simulation-worker responses offline. Chromium and Firefox also run full offline navigation and world simulation. See verification for the latest recorded checks; expanded-world performance and browser results must be assessed separately from the earlier compact-world runs.
+Milestone write-ups: [match](docs/MILESTONE-3.md) · [career player](docs/MILESTONE-4.md) · [contracts and transfers](docs/MILESTONE-5.md) · [relationships and media](docs/MILESTONE-6.md) · [fame and lifestyle](docs/MILESTONE-7.md) · [honours and legacy](docs/MILESTONE-8.md) · [edit mode, accessibility, tutorial and audio](docs/MILESTONE-9.md) · [web release](docs/MILESTONE-10.md)
 
-See [architecture](docs/ARCHITECTURE.md), [national rules and adaptations](docs/REALISM.md), [match implementation](docs/MILESTONE-3.md), [career player](docs/MILESTONE-4.md), [contracts and transfers](docs/MILESTONE-5.md), [relationships and media](docs/MILESTONE-6.md), [fame and lifestyle](docs/MILESTONE-7.md), [honours and legacy](docs/MILESTONE-8.md), [edit mode, accessibility, tutorial and audio](docs/MILESTONE-9.md), [web release](docs/MILESTONE-10.md), [deploying](docs/DEPLOY.md), [decisions](docs/DECISIONS.md), [balancing](docs/BALANCING.md), [verification](docs/VERIFICATION.md), and [asset provenance](ASSETS.md).
+## Credits
 
-## Next milestone
-
-For a complete document index, current implementation state and a ready-to-use Claude Code continuation prompt, see [the implementation handoff](docs/HANDOFF.md).
-
-Milestone 11 is the Android port: Capacitor, Android platform adapters (haptics, the hardware back button, share sheet, file access, status bar), icons, a splash screen, a touch and performance pass on real devices, and release build instructions in `docs/ANDROID.md`. It needs a real Android device or emulator for the device pass.
+All artwork is original procedural SVG made in this repository; every sound is synthesised in code. Fonts are self-hosted: [Inter](https://github.com/rsms/inter) and [Bebas Neue](https://github.com/dharmatype/Bebas-Neue), both under the SIL Open Font License. Audio playback uses [Howler.js](https://howlerjs.com) (MIT). Details in [ASSETS.md](ASSETS.md).
