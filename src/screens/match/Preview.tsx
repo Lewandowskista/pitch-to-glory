@@ -134,6 +134,8 @@ export function Preview({
         <button className="button match-kickoff" data-tour="kickoff" onClick={onKickoff}>
           {m.kickoff}
         </button>
+        {/* On phones the tour's kick-off step appears here, in the page. */}
+        <div data-tour-slot="kickoff" />
         <p className="muted">{note ?? m.friendlyBody}</p>
       </section>
       {[setup.home, setup.away].map((club, index) => {

@@ -283,9 +283,14 @@
 }
 .match-live-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 1.25rem;
   align-items: start;
+}
+/* A key moment brings the view here (or to the decision on phones), with a little air. */
+.match-live-layout,
+.match-decision {
+  scroll-margin-top: 0.75rem;
 }
 .match-live-main,
 .match-live-aside,
@@ -360,6 +365,21 @@
 }
 .match-decision {
   border: 2px solid var(--accent);
+}
+/* Beside the pitch, the choices stack in one column. */
+.match-live-aside .match-choices {
+  grid-template-columns: minmax(0, 1fr);
+}
+.match-live-aside .match-decision h2 {
+  font-size: 1.55rem;
+}
+/* The phone's compact drawing of the key moment, above its choices. */
+.match-situation {
+  aspect-ratio: 2.4 / 1;
+  overflow: hidden;
+  border-radius: 0.8rem;
+  margin-bottom: 0.75rem;
+  background: #143d2d;
 }
 .match-choices {
   display: grid;
@@ -577,7 +597,7 @@
 }
 @media (max-width: 1150px) {
   .match-live-layout {
-    grid-template-columns: minmax(0, 1fr) 255px;
+    grid-template-columns: minmax(0, 1fr) 300px;
   }
   .match-panel {
     padding: 1.1rem;
@@ -647,6 +667,14 @@
   .match-choices {
     grid-template-columns: 1fr;
   }
+  /* Short enough for the situation and the first choice to share the screen. */
+  .match-decision h2 {
+    font-size: 1.35rem;
+    margin-bottom: 0.75rem;
+  }
+  .match-decision .match-eyebrow {
+    margin-bottom: 0.4rem;
+  }
   .match-pitch-heading {
     flex-wrap: wrap;
   }
@@ -683,4 +711,11 @@
   margin-top: 0.25rem;
   font-weight: 700;
   color: var(--accent);
+}
+/* Phones: a choice focused from the keyboard scrolls clear of the bottom tab bar. */
+@media (max-width: 700px) {
+  .match-choice > button {
+    scroll-margin-top: 1rem;
+    scroll-margin-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
 }

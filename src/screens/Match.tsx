@@ -1,4 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../store';
@@ -9,10 +17,10 @@ import {
   type MatchCommand,
   type MatchMotion,
 } from '../engine/match';
-import type { DecisionChoice, MatchEvent, SlotId } from '../model/domain';
+import type { MatchEvent, SlotId } from '../model/domain';
 import { errorCode } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
-import { errorText, t } from '../i18n';
+import { errorText } from '../i18n';
 import { matchText as m, matchLabel, matchFormat } from '../i18n/match';
 import { careerText as c } from '../i18n/career';
 import { Page } from '../ui/Page';
@@ -20,6 +28,7 @@ import { Selection } from './match/Selection';
 import { Preview } from './match/Preview';
 import { Report } from './match/Report';
 import { ClubBadge, Factors } from './match/Shared';
+import { DecisionPanel } from './match/DecisionPanel';
 import { CareerFixture, CareerNoMatch, CareerReportActions } from './match/CareerMatchday';
 import { pendingCareerFixture } from '../engine/career/fixtures';
 import { careerMatchSetup, defaultTactics } from '../engine/career/matches';
@@ -44,54 +53,23 @@ function motionPace(kind: MatchMotion['kind'], speed: number) {
   if (kind === 'kickoff') return { rate: 1, maxMs: 0 };
   return { rate: 8, maxMs: 3200 };
 }
-const percent = (value: number) => (value * 100).toFixed(value < 0.1 ? 1 : 0);
-const attributeName = (name: string) =>
-  t.world.attributes[name as keyof typeof t.world.attributes] ?? name;
 function commentaryText(event: MatchEvent): string {
   return matchFormat(matchLabel(event.commentaryKey), event.commentaryParams ?? {});
 }
-/** What each outcome leads to, so the player sees the risk as well as the chance. */
-function ChoiceHint({
-  choice,
-  id,
-  traits,
-}: {
-  choice: DecisionChoice;
-  id: string;
-  traits: string[];
-}) {
-  const { stakes } = choice;
-  return (
-    <p className="match-choice-hint" id={id}>
-      <span>
-        {matchFormat(m.uses, {
-          attributes: choice.attributes.slice(0, 2).map(attributeName).join(', '),
-        })}
-      </span>
-      {stakes.successGoal > 0 && (
-        <span>
-          {stakes.successGoal === 1
-            ? m.stakeScore
-            : matchFormat(m.stakeGoal, { percent: percent(stakes.successGoal) })}
-        </span>
-      )}
-      <span>
-        {stakes.failureConcede === 1
-          ? m.stakeConcedeDirect
-          : stakes.failureConcede > 0
-            ? matchFormat(m.stakeConcede, { percent: percent(stakes.failureConcede) })
-            : m.stakeSafe}
-      </span>
-      {choice.traitId && traits.includes(choice.traitId) && (
-        <span className="match-tag">
-          {matchFormat(m.traitActive, {
-            trait: c.skillNames[choice.traitId] ?? m.traits[choice.traitId] ?? choice.traitId,
-          })}
-        </span>
-      )}
-    </p>
+/** Whether the viewport is at least `query` wide, following resizes. */
+function useMediaQuery(query: string): boolean {
+  return useSyncExternalStore(
+    (change) => {
+      const list = window.matchMedia(query);
+      list.addEventListener('change', change);
+      return () => list.removeEventListener('change', change);
+    },
+    () => window.matchMedia(query).matches,
+    () => false,
   );
 }
+/** The two-column match layout, with the decision beside the pitch. */
+const WIDE = '(min-width: 951px)';
 
 export default function MatchScreen() {
   const world = useAppStore((store) => store.world);
@@ -107,6 +85,8 @@ export default function MatchScreen() {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const choicesRef = useRef<HTMLDivElement>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const wide = useMediaQuery(WIDE);
   const [outcomeId, setOutcomeId] = useState<string | null>(null);
   const state = session?.state;
   const status = state?.match.status;
@@ -290,7 +270,11 @@ export default function MatchScreen() {
         const index = buttons.findIndex((button) => button === document.activeElement);
         const direction = ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1;
         event.preventDefault();
-        buttons[(index + direction + buttons.length) % buttons.length]?.focus();
+        // Reveal the whole choice (clear of the phone tab bar); browsers differ in how far
+        // focus alone scrolls.
+        const next = buttons[(index + direction + buttons.length) % buttons.length];
+        next?.focus({ preventScroll: true });
+        next?.scrollIntoView({ block: 'nearest' });
       }
     };
     window.addEventListener('keydown', keydown);
@@ -310,6 +294,8 @@ export default function MatchScreen() {
     );
   }, [scoreText, momentText, latestText, latestEvent?.id]);
   // A new key moment moves focus to its first choice unless the player is typing elsewhere.
+  // Focus alone would scroll the pitch away; instead the view starts at the pitch and the
+  // decision beside it (wide screens), or at the decision with its situation preview (phones).
   useEffect(() => {
     if (!momentId) return;
     const active = document.activeElement;
@@ -318,7 +304,13 @@ export default function MatchScreen() {
       (active.matches('input:not([type="checkbox"]),select,textarea') || active.isContentEditable)
     )
       return;
-    choicesRef.current?.querySelector<HTMLButtonElement>('button[data-choice]')?.focus();
+    const first = choicesRef.current?.querySelector<HTMLButtonElement>('button[data-choice]');
+    if (!first) return;
+    first.focus({ preventScroll: true });
+    const target = window.matchMedia(WIDE).matches
+      ? layoutRef.current
+      : first.closest<HTMLElement>('.match-decision');
+    target?.scrollIntoView({ block: 'start' });
   }, [momentId]);
 
   // Career fixtures: the session's setup names the scheduled fixture it plays.
@@ -362,6 +354,14 @@ export default function MatchScreen() {
     !state?.captainDecisionPending &&
     !state?.substitutionDecisionPending &&
     !job;
+  const decision = session?.state.currentMoment ? (
+    <DecisionPanel
+      session={session}
+      choicesRef={choicesRef}
+      preview={!wide && !settings.simulationOnly}
+      onChoose={(choiceId) => command({ type: 'choose', choiceId })}
+    />
+  ) : null;
   const reset = () => {
     setPlaying(false);
     setOutcomeId(null);
@@ -565,7 +565,7 @@ export default function MatchScreen() {
             />
           ) : (
             <>
-              <div className="match-live-layout">
+              <div className="match-live-layout" ref={layoutRef}>
                 <div className="match-live-main">
                   <section className="match-panel match-pitch-panel">
                     <div className="match-pitch-heading">
@@ -619,47 +619,7 @@ export default function MatchScreen() {
                       </div>
                     </div>
                   </section>
-                  {state!.currentMoment && (
-                    <section
-                      className="match-panel match-decision"
-                      data-tour="decision"
-                      aria-labelledby="decision-heading"
-                    >
-                      <span className="match-eyebrow">
-                        {m.decision} · {matchFormat(m.minute, { minute: state!.match.minute })}
-                      </span>
-                      <h2 id="decision-heading">{matchLabel(state!.currentMoment.situationKey)}</h2>
-                      <div className="match-choices" ref={choicesRef}>
-                        {state!.currentMoment.choices.map((choice, index) => (
-                          <div className="match-choice" key={choice.id}>
-                            <button
-                              data-choice={choice.id}
-                              data-sound="none"
-                              aria-describedby={`choice-hint-${choice.id}`}
-                              onClick={() => command({ type: 'choose', choiceId: choice.id })}
-                            >
-                              <span className="match-choice-number">{index + 1}</span>
-                              <strong>{matchLabel(choice.labelKey)}</strong>
-                              <span>
-                                {matchFormat(m.chance, {
-                                  percent: Math.round(choice.probability * 100),
-                                })}
-                              </span>
-                            </button>
-                            <ChoiceHint
-                              choice={choice}
-                              id={`choice-hint-${choice.id}`}
-                              traits={session.setup.players[session.setup.selectedPlayerId]!.traits}
-                            />
-                            <details>
-                              <summary>{m.transparency}</summary>
-                              <Factors factors={choice.factors} />
-                            </details>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  )}
+                  {state!.currentMoment && !wide && decision}
                   {outcome && (
                     <section
                       className="match-panel match-outcome"
@@ -773,6 +733,7 @@ export default function MatchScreen() {
                   </section>
                 </div>
                 <aside className="match-live-aside">
+                  {state!.currentMoment && wide && decision}
                   <section className="match-panel">
                     <h2>{m.stats}</h2>
                     <div className="match-rating">

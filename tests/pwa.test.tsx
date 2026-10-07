@@ -66,3 +66,18 @@ it('preserves a job started after the update request but before service-worker a
   expect(reload).not.toHaveBeenCalled();
   expect(hook.setRefresh).toHaveBeenCalledWith(true);
 });
+
+it('waits until a key moment is decided before showing an update notice', () => {
+  // Server rendering reads the store's initial state, so the moment is set there.
+  const initial = useAppStore.getInitialState();
+  expect(renderToString(<PwaPrompt />)).toContain('pwa-prompt');
+  try {
+    Object.assign(initial, {
+      matchSession: { state: { currentMoment: { id: 'moment' } } } as never,
+    });
+    expect(renderToString(<PwaPrompt />)).toBe('');
+  } finally {
+    Object.assign(initial, { matchSession: null });
+  }
+  expect(renderToString(<PwaPrompt />)).toContain('pwa-prompt');
+});

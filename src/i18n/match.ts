@@ -57,6 +57,8 @@ export const matchText = {
   live: 'Live',
   paused: 'Paused',
   decision: 'Key moment',
+  situationPreview:
+    'The key moment on the pitch: {situation} Your player has a double gold ring; away players have dashed rings.',
   halftime: 'Half-time',
   finished: 'Full-time',
   minute: '{minute}′',

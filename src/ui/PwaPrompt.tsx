@@ -10,6 +10,8 @@ export function PwaPrompt() {
   const [activated, setActivated] = useState(false);
   const unsavedWorld = useAppStore((state) => !!state.world && !state.activeSave);
   const simulating = useAppStore((state) => !!state.worldJob);
+  // Never over a key moment's choices: the notice waits until the decision is made.
+  const deciding = useAppStore((state) => !!state.matchSession?.state.currentMoment);
   const {
     offlineReady: [offline, setOffline],
     needRefresh: [refresh, setRefresh],
@@ -33,7 +35,7 @@ export function PwaPrompt() {
       .then((p) => p.updateApplication(async () => window.location.reload()))
       .catch(reportFailure);
   }
-  if (!offline && !refresh && !error) return null;
+  if ((!offline && !refresh && !error) || deciding) return null;
   return (
     <div className="pwa-prompt" role="status">
       <p>

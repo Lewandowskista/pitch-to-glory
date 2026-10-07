@@ -6,7 +6,7 @@
 
 **Stack:** Existing TypeScript, React 18, Vite, React Router, Zustand, PixiJS, Tailwind, Framer Motion, Dexie, Vitest and Playwright. No new runtime dependency is required by this plan.
 
-**Status:** Phase 1 complete (tasks 1.1–1.5); Phase 2 not started. The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
+**Status:** Phases 1 and 2 complete; Phase 3 not started. The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
 
 ## Scope and approach
 
@@ -126,13 +126,15 @@ Keep the green/gold identity, existing country profiles and browser-first archit
 
 **Tests:** extend `e2e/match.spec.ts`, `e2e/onboarding.spec.ts`, `e2e/accessibility.spec.ts`.
 
-- [ ] Extract the current decision UI into a focused panel; retain choices, transparent probabilities, factors and number-key support.
-- [ ] On desktop, put pitch/situation and choices in adjacent columns with independently bounded commentary. Use focus with `preventScroll` and explicit positioning so automatic focus does not hide the football context.
-- [ ] On narrow screens, show a compact situation preview with the active decision. Keep action, probability and likely consequence visible; move detailed factors into the existing disclosure. Allow intentional scrolling for long text without trapping touch or keyboard users.
-- [ ] Make action-step tutorial instructions inline on phones. Preserve desktop guidance, skip/replay behavior and announcements. Prevent tutorial and offline/update notices from covering the selected choice.
-- [ ] Test mouse, touch, Space, 1–4, arrows, Escape, reduced motion and simulation-only mode. Test 390×844 and 360×640 at normal and 130% font scale, plus a 1366×768 desktop viewport.
+- [x] Extract the current decision UI into a focused panel; retain choices, transparent probabilities, factors and number-key support.
+- [x] On desktop, put pitch/situation and choices in adjacent columns with independently bounded commentary. Use focus with `preventScroll` and explicit positioning so automatic focus does not hide the football context.
+- [x] On narrow screens, show a compact situation preview with the active decision. Keep action, probability and likely consequence visible; move detailed factors into the existing disclosure. Allow intentional scrolling for long text without trapping touch or keyboard users.
+- [x] Make action-step tutorial instructions inline on phones. Preserve desktop guidance, skip/replay behavior and announcements. Prevent tutorial and offline/update notices from covering the selected choice.
+- [x] Test mouse, touch, Space, 1–4, arrows, Escape, reduced motion and simulation-only mode. Test 390×844 and 360×640 at normal and 130% font scale, plus a 1366×768 desktop viewport.
 
 **Accept:** a key moment reveals both pitch context and the first action at normal phone sizes; focused actions are never covered by overlays; all choices and explanations remain reachable with large text; commentary and score remain accessible. Capture before/after desktop and phone screenshots.
+
+**Done (2026-10-07):** `DecisionPanel` holds the key moment (choices, chances, consequences, factor disclosure, number keys) and renders once: beside the pitch at the top of the right column from 951 px, after the pitch below it. Opening a moment focuses the first choice with `preventScroll`, then scrolls the pitch and decision (wide) or the decision (phones) to the top. On phones the panel opens with a cropped SVG drawing of the moment (`SvgPitch`, shared with the accessible pitch fallback) and a shorter headline; the score joins the key-moment label. Commentary keeps its own bounded scroll. Action steps of the tour render inline in `data-tour-slot` elements on phones; on wider screens the card avoids the focused element (below, above, then beside the target, low first), scrolls only as needed and at once, and focus within the card never moves it. The update/offline notice waits while a key moment is open. Arrow-key focus reveals the whole choice, clear of the phone tab bar; Escape closes an open breakdown before meaning "back". Deviations: the attribute line ("Uses …") stays visible on phones because AGENTS.md §7 requires the attribute-based quality hint; it fits at 360×640 with large text. Tests live in a new `e2e/decision-layout.spec.ts` rather than extending `match.spec.ts`; `onboarding.spec.ts` and `accessibility.spec.ts` were unchanged (key-moment axe checks are in the new spec).
 
 ## Phase 3 — Focus career navigation and the next action
 
