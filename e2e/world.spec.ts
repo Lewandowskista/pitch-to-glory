@@ -107,7 +107,8 @@ test('worker advances, autosaves, finishes and rolls over a reproducible season'
   page,
   browserName,
 }) => {
-  test.setTimeout(360000);
+  // A full season takes about five minutes in Firefox on the Windows CI runners.
+  test.setTimeout(600000);
   await generate(page, 'season-roundtrip');
   await page.getByRole('link', { name: 'Save this world', exact: true }).click();
   await page.getByLabel('Collection name').fill('Season world');
@@ -153,7 +154,7 @@ test('worker advances, autosaves, finishes and rolls over a reproducible season'
   }
   await page.getByRole('button', { name: 'Finish season', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Start next season', exact: true })).toBeVisible({
-    timeout: 300000,
+    timeout: 480000,
   });
   if (browserName === 'chromium')
     console.log(
