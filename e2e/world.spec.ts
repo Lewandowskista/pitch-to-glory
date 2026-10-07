@@ -44,16 +44,20 @@ test('generates a world and browses real countries, divisions, clubs and squads'
   await expect(page.locator('.rules-reference')).toHaveText(
     'Real-world model: National League North/South · 2026/27 rules',
   );
+  // Read South's id from its option, not from the select mid-update.
+  const southGroup = (await page
+    .getByLabel('Group', { exact: true })
+    .locator('option', { hasText: 'South' })
+    .getAttribute('value'))!;
   await page.getByLabel('Group', { exact: true }).selectOption({ label: 'South' });
-  const southGroup = await page.getByLabel('Group', { exact: true }).inputValue();
-  await expect(page).toHaveURL(new RegExp(`group=${encodeURIComponent(southGroup)}`));
+  await expect(page).toHaveURL(new RegExp(`group=${encodeURIComponent(southGroup)}(&|$)`));
   await expect(page.locator('.standings-table caption')).toContainText('South');
   await page.goBack();
   await expect(page.getByLabel('Group', { exact: true }).locator('option:checked')).toHaveText(
     'North',
   );
   await page.goForward();
-  await expect(page).toHaveURL(new RegExp(`group=${encodeURIComponent(southGroup)}`));
+  await expect(page).toHaveURL(new RegExp(`group=${encodeURIComponent(southGroup)}(&|$)`));
   await expect(page.getByLabel('Group', { exact: true })).toHaveValue(southGroup);
   // Fast input events must merge against the pending route, even before React renders it.
   await page.evaluate(() => {

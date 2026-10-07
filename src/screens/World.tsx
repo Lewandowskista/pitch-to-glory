@@ -142,7 +142,9 @@ export default function WorldScreen() {
       else next.set(key, value);
     }
     pendingParams.current = next;
-    setParams(next);
+    // Commit synchronously: in a transition, controlled selects would flick back to the old
+    // value for a frame before the new URL renders.
+    setParams(next, { flushSync: true });
   };
   const selectClub = (id: string) => {
     const selected = world!.clubs[id]!;
