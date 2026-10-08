@@ -243,6 +243,8 @@ test('production PWA precaches unvisited routes for offline use', async ({
   context,
   browserName,
 }) => {
+  // Installing the service worker caches every route first; CI runners can take a while.
+  test.setTimeout(90000);
   await page.goto('/');
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
