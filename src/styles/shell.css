@@ -45,6 +45,7 @@
 }
 .sidebar nav a {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 0.8rem;
   min-height: 44px;
@@ -56,6 +57,11 @@
   transition:
     background-color 150ms ease-out,
     color 150ms ease-out;
+}
+.sidebar nav a > span:not(.nav-badge):not(.sr-only) {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .sidebar nav a:hover {
   background: var(--surface-soft);
@@ -100,6 +106,7 @@
 /* Unread count on Overview and Inbox. */
 .nav-badge {
   display: inline-grid;
+  flex: 0 0 auto;
   white-space: nowrap;
   place-items: center;
   min-width: 1.4rem;

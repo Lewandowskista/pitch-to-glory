@@ -5,6 +5,11 @@ import type { AppSave, SaveRecovery } from '../persistence/schema';
 import { platform } from '../platform';
 import type { MatchSession } from '../engine/match/types';
 import type { CareerMatchOutcome } from '../engine/career/matches';
+import {
+  trainingDraftSlice,
+  retainedTrainingDraft,
+  type TrainingDraftSlice,
+} from './trainingDraftSlice';
 
 interface SettingsSlice {
   settings: Settings;
@@ -68,7 +73,12 @@ interface MatchSlice {
   careerResult: { session: MatchSession; outcome: CareerMatchOutcome } | null;
   setCareerResult: (result: MatchSlice['careerResult']) => void;
 }
-export type AppStore = SettingsSlice & GallerySlice & SessionSlice & WorldSlice & MatchSlice;
+export type AppStore = SettingsSlice &
+  GallerySlice &
+  SessionSlice &
+  WorldSlice &
+  MatchSlice &
+  TrainingDraftSlice;
 /**
  * A retained report belongs to a world only while that world's career has the report's match
  * as its latest record: loading another save, a later state of the same career or a new world
@@ -150,29 +160,48 @@ const sessionSlice: StateCreator<AppStore, [], [], SessionSlice> = (set) => ({
   saveNotice: null,
   dismissSaveNotice: () => set({ saveNotice: null }),
   applySave: ({ recovery, ...save }) =>
-    set((state) => ({
-      activeSave: save,
-      saveNotice: recovery ?? null,
-      world: save.payload.kind === 'world' ? save.payload.world : null,
-      careerResult: reportFor(
-        state.careerResult,
-        save.payload.kind === 'world' ? save.payload.world : null,
-      ),
-      matchSession: save.payload.kind === 'world' ? (save.payload.matchSession ?? null) : null,
-      gallery: save.payload.gallery,
-      settings: withDeviceTutorial(save.payload.settings, state.settings),
-      preferencesStored: platform.writePreferences(
-        withDeviceTutorial(save.payload.settings, state.settings),
-      ),
-      change: state.change + 1,
-      savedChange: state.change + 1,
-      saveStatus: 'saved',
-      saveError: null,
-    })),
+    set((state) => {
+      state.trainingAbandon?.resolve(false);
+      return {
+        trainingDraft: null,
+        trainingAdvance: null,
+        trainingAbandon: null,
+        trainingSession: state.trainingSession + 1,
+        activeSave: save,
+        saveNotice: recovery ?? null,
+        world: save.payload.kind === 'world' ? save.payload.world : null,
+        careerResult: reportFor(
+          state.careerResult,
+          save.payload.kind === 'world' ? save.payload.world : null,
+        ),
+        matchSession: save.payload.kind === 'world' ? (save.payload.matchSession ?? null) : null,
+        gallery: save.payload.gallery,
+        settings: withDeviceTutorial(save.payload.settings, state.settings),
+        preferencesStored: platform.writePreferences(
+          withDeviceTutorial(save.payload.settings, state.settings),
+        ),
+        change: state.change + 1,
+        savedChange: state.change + 1,
+        saveStatus: 'saved',
+        saveError: null,
+      };
+    }),
   saved: (save, change) =>
     set({ activeSave: save, savedChange: change, saveStatus: 'saved', saveError: null }),
   setSaveStatus: (saveStatus, saveError) => set({ saveStatus, saveError: saveError ?? null }),
-  clearSession: () => set({ activeSave: null, saveStatus: 'idle', saveError: null }),
+  clearSession: () =>
+    set((state) => {
+      state.trainingAbandon?.resolve(false);
+      return {
+        activeSave: null,
+        saveStatus: 'idle',
+        saveError: null,
+        trainingDraft: null,
+        trainingAdvance: null,
+        trainingAbandon: null,
+        trainingSession: state.trainingSession + 1,
+      };
+    }),
 });
 const worldSlice: StateCreator<AppStore, [], [], WorldSlice> = (set) => ({
   world: null,
@@ -182,6 +211,9 @@ const worldSlice: StateCreator<AppStore, [], [], WorldSlice> = (set) => ({
   setWorld: (world) =>
     set((state) => ({
       world,
+      trainingDraft: retainedTrainingDraft(state, world),
+      trainingAdvance:
+        state.trainingSaving || retainedTrainingDraft(state, world) ? state.trainingAdvance : null,
       matchSession: null,
       careerResult: reportFor(state.careerResult, world),
       change: state.change + 1,
@@ -201,4 +233,5 @@ export const useAppStore = create<AppStore>()((...args) => ({
   ...sessionSlice(...args),
   ...worldSlice(...args),
   ...matchSlice(...args),
+  ...trainingDraftSlice(...args),
 }));

@@ -139,7 +139,7 @@ test('an update reaches a saved career, keeps it and works offline', async ({
       .nth(0)
       .getByLabel('Import backup — Slot 1')
       .setInputFiles(save);
-    await expect(page.locator('.notice')).toHaveText('Collection imported.', { timeout: 60000 });
+    await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 60000 });
     await page.goto(`${origin}/career?save=1`);
     await expect(page.getByRole('region', { name: 'Needs you' })).toBeVisible({ timeout: 30000 });
     // The old build's service worker controls the page.

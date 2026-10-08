@@ -1,4 +1,4 @@
-﻿import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
 import { mkdir, readFile } from 'node:fs/promises';
 
@@ -113,7 +113,7 @@ test('worker advances, autosaves, finishes and rolls over a reproducible season'
   test.setTimeout(600000);
   await generate(page, 'season-roundtrip');
   await page.getByRole('link', { name: 'Save this world', exact: true }).click();
-  await page.getByLabel('Collection name').fill('Season world');
+  await page.getByLabel('Save name').fill('Season world');
   await page
     .locator('.slot-card')
     .first()
@@ -189,7 +189,7 @@ test('worker advances, autosaves, finishes and rolls over a reproducible season'
     .nth(1)
     .getByLabel('Import backup — Slot 2')
     .setInputFiles(backupPath);
-  await expect(page.locator('.notice')).toHaveText('Collection imported.', { timeout: 60000 });
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 60000 });
   await expect(page.locator('.slot-card').nth(1).locator('.active-label')).toBeVisible();
   await page.reload();
   await page

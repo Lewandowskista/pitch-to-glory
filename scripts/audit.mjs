@@ -146,9 +146,7 @@ async function auditPopulated(results) {
         .nth(0)
         .getByLabel('Import backup — Slot 1')
         .setInputFiles(save);
-      await page
-        .locator('.notice', { hasText: 'Collection imported.' })
-        .waitFor({ timeout: 120000 });
+      await page.locator('.notice', { hasText: 'Save imported.' }).waitFor({ timeout: 120000 });
       // A save belongs to one tab: close this one so the audited page can open it.
       await page.close();
       for (const [name, path, preset] of [

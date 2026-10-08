@@ -4,6 +4,13 @@ import { saves, slotLocks } from './runtime';
 import { AutosaveQueue } from './autosave';
 import { errorCode, SaveError } from './errors';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
+import {
+  sameTrainingContext,
+  trainingContext,
+  trainingEditBlocked,
+} from '../store/trainingDraftSlice';
+import { confirmTrainingAbandonment } from '../store/trainingTransitions';
+import { mentorFor, validFocus } from '../engine/career/training';
 
 export { errorCode } from './errors';
 export function snapshot(): FoundationState | WorldState {
@@ -18,13 +25,14 @@ export function snapshot(): FoundationState | WorldState {
     : foundation;
 }
 function assertNotSimulating(): void {
-  if (useAppStore.getState().worldJob) throw new SaveError('busy');
+  if (useAppStore.getState().worldJob || useAppStore.getState().trainingSaving)
+    throw new SaveError('busy');
 }
 export const autosave = new AutosaveQueue(async () => {
   // Keep later edits dirty until a subsequent write; each transaction checks its revision.
   const state = useAppStore.getState();
   const active = state.activeSave;
-  if (!active || state.savedChange === state.change) return;
+  if (!active || state.trainingSaving || state.savedChange === state.change) return;
   state.setSaveStatus('saving');
   try {
     if (!(await slotLocks.acquire(active.slot))) throw new SaveError('locked');
@@ -46,6 +54,74 @@ export const autosave = new AutosaveQueue(async () => {
     throw error;
   }
 });
+/** Write the proposed world first: a failed transaction never consumes pending intent. */
+export async function saveTrainingDraft(): Promise<boolean> {
+  const initial = useAppStore.getState();
+  const draft = initial.trainingDraft;
+  if (
+    !draft ||
+    trainingEditBlocked(initial) ||
+    !sameTrainingContext(draft.context, trainingContext(initial))
+  )
+    return false;
+  useAppStore.setState({ trainingSaving: true, saveStatus: 'saving', saveError: null });
+  const current = () => {
+    const state = useAppStore.getState();
+    if (
+      state.trainingDraft !== draft ||
+      state.worldJob ||
+      state.matchSession ||
+      !sameTrainingContext(draft.context, trainingContext(state))
+    )
+      throw new SaveError('conflict');
+    return state;
+  };
+  try {
+    await autosave.settle();
+    const slot = current().activeSave?.slot;
+    if (slot && !(await slotLocks.acquire(slot))) throw new SaveError('locked');
+    const before = current();
+    const world = before.world!;
+    const player = world.players[world.career!.playerId];
+    if (
+      !player ||
+      draft.plan.sessions.length !== 3 ||
+      draft.plan.sessions.some(
+        (entry) =>
+          !validFocus(player, entry.focus) || !['low', 'normal', 'high'].includes(entry.intensity),
+      )
+    )
+      throw new SaveError('invalid');
+    const mentor = draft.plan.extra ? mentorFor(world, draft.plan.extra.focus) : null;
+    if (draft.plan.extra && (!mentor || !validFocus(player, draft.plan.extra.focus)))
+      throw new SaveError('invalid');
+    const training = structuredClone(draft.plan);
+    if (training.extra && mentor) training.extra.mentorId = mentor.id;
+    const proposed = { ...world, career: { ...world.career!, training } };
+    const active = before.activeSave;
+    const save = active
+      ? await saves.write(
+          {
+            ...active,
+            payload: { ...snapshot(), kind: 'world', world: proposed },
+            updatedAt: new Date().toISOString(),
+          },
+          active.revision,
+        )
+      : null;
+    current().setWorld(proposed);
+    if (save) useAppStore.getState().saved(save, before.change + 1);
+    else useAppStore.getState().setSaveStatus('idle');
+    return true;
+  } catch (error) {
+    useAppStore.getState().setSaveStatus('error', errorCode(error));
+    return false;
+  } finally {
+    useAppStore.setState({ trainingSaving: false });
+    const state = useAppStore.getState();
+    if (state.activeSave && state.change !== state.savedChange) autosave.schedule();
+  }
+}
 async function own<T>(slot: SlotId, operation: () => Promise<T>): Promise<T> {
   if (!(await slotLocks.acquire(slot))) throw new SaveError('locked');
   try {
@@ -54,7 +130,9 @@ async function own<T>(slot: SlotId, operation: () => Promise<T>): Promise<T> {
     if (useAppStore.getState().activeSave?.slot !== slot) await slotLocks.release(slot);
   }
 }
-export async function loadSlot(slot: SlotId): Promise<void> {
+export async function loadSlot(slot: SlotId): Promise<boolean> {
+  assertNotSimulating();
+  if (!(await confirmTrainingAbandonment())) return false;
   assertNotSimulating();
   await autosave.flush();
   await own(slot, async () => {
@@ -64,8 +142,15 @@ export async function loadSlot(slot: SlotId): Promise<void> {
     if (previous && previous !== slot) await slotLocks.release(previous);
     useAppStore.getState().applySave(save);
   });
+  return true;
 }
-export async function saveSlot(slot: SlotId, name: string, expected: number | null): Promise<void> {
+export async function saveSlot(
+  slot: SlotId,
+  name: string,
+  expected: number | null,
+): Promise<boolean> {
+  assertNotSimulating();
+  if (!(await confirmTrainingAbandonment())) return false;
   assertNotSimulating();
   expected = await flushExpected(slot, expected);
   await own(slot, async () => {
@@ -91,12 +176,15 @@ export async function saveSlot(slot: SlotId, name: string, expected: number | nu
     if (previous && previous !== slot) await slotLocks.release(previous);
     useAppStore.getState().applySave(save);
   });
+  return true;
 }
 export async function importSlot(
   slot: SlotId,
   json: string,
   expected: number | null,
-): Promise<void> {
+): Promise<boolean> {
+  assertNotSimulating();
+  if (!(await confirmTrainingAbandonment())) return false;
   assertNotSimulating();
   expected = await flushExpected(slot, expected);
   await own(slot, async () => {
@@ -105,14 +193,19 @@ export async function importSlot(
     if (previous && previous !== slot) await slotLocks.release(previous);
     useAppStore.getState().applySave(save);
   });
+  return true;
 }
-export async function deleteSlot(slot: SlotId, expected: number | null): Promise<void> {
+export async function deleteSlot(slot: SlotId, expected: number | null): Promise<boolean> {
+  assertNotSimulating();
+  if (useAppStore.getState().activeSave?.slot === slot && !(await confirmTrainingAbandonment()))
+    return false;
   assertNotSimulating();
   expected = await flushExpected(slot, expected);
   await own(slot, async () => {
     await saves.remove(slot, expected);
     if (useAppStore.getState().activeSave?.slot === slot) useAppStore.getState().clearSession();
   });
+  return true;
 }
 export async function exportSlotJSON(slot: SlotId): Promise<{ name: string; json: string }> {
   assertNotSimulating();
@@ -128,6 +221,8 @@ async function flushExpected(slot: SlotId, expected: number | null): Promise<num
     : expected;
 }
 export async function reloadActiveSlot(): Promise<void> {
+  assertNotSimulating();
+  if (!(await confirmTrainingAbandonment())) return;
   assertNotSimulating();
   // Explicitly confirmed recovery; preserve the snapshot first via the export control.
   await autosave.settle();

@@ -51,7 +51,7 @@ async function prepare(page: Page, keeper = false, tired = false) {
     .nth(0)
     .getByLabel('Import backup — Slot 1')
     .setInputFiles(tired ? fatiguedBackupPath : backupPath);
-  await expect(page.locator('.notice')).toHaveText('Collection imported.', { timeout: 30000 });
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
   await page
     .getByRole('navigation')
     .first()
@@ -142,7 +142,7 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   await page
     .getByRole('navigation')
     .first()
-    .getByRole('link', { name: 'Save collections', exact: true })
+    .getByRole('link', { name: 'Saved games', exact: true })
     .click();
   const download = page.waitForEvent('download');
   await page.locator('.slot-card').first().getByRole('button', { name: 'Export backup' }).click();

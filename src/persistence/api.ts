@@ -8,6 +8,7 @@ export {
   loadSlot,
   reloadActiveSlot,
   saveSlot,
+  saveTrainingDraft,
   snapshot,
 } from './session';
 export { updateApplication } from './update';

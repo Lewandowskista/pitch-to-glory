@@ -94,9 +94,10 @@ export function useSaveLink(): (path: string) => string {
 /** Why career edits are blocked right now, if they are. */
 export function useEditBlock(): string | null {
   const job = useAppStore((s) => s.worldJob);
+  const saving = useAppStore((s) => s.trainingSaving);
   const session = useAppStore((s) => s.matchSession);
   // Saving a changed world clears the match session, so edits wait until it is recorded.
-  if (job) return c.common.blockedJob;
+  if (job || saving) return c.common.blockedJob;
   if (session) return c.common.blockedMatch;
   return null;
 }
@@ -293,7 +294,9 @@ export function CareerEmpty() {
                     setError('');
                     void persistence()
                       .then((p) => p.loadSlot(entry.slot))
-                      .then(() => navigate(`/career?save=${entry.slot}`, { replace: true }))
+                      .then((loaded) => {
+                        if (loaded) navigate(`/career?save=${entry.slot}`, { replace: true });
+                      })
                       .catch((cause: unknown) => setError(errorText(errorCode(cause))))
                       .finally(() => setBusy(null));
                   }}

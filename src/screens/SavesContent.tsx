@@ -26,6 +26,17 @@ export default function SavesContent() {
   const active = useAppStore((s) => s.activeSave);
   const world = useAppStore((s) => s.world);
   const worldJob = useAppStore((s) => s.worldJob);
+  const replaceLabel = world?.career
+    ? t.saves.replaceCareer
+    : world
+      ? t.saves.replaceWorld
+      : t.saves.replace;
+  const saveLabel = world?.career ? t.saves.saveCareer : world ? t.saves.saveWorld : t.saves.save;
+  const content = world?.career
+    ? t.saves.careerContent
+    : world
+      ? t.saves.worldContent
+      : t.saves.galleryContent;
   const [collections, setCollections] = useState<SlotListing[] | null>(null);
   const [name, setName] = useState<string>(t.saves.defaultName);
   const [busy, setBusy] = useState(false);
@@ -114,8 +125,7 @@ export default function SavesContent() {
         setPending(json);
         await open('import', target);
       } else {
-        await importSlot(target, json, null);
-        setNotice(t.saves.imported);
+        if (await importSlot(target, json, null)) setNotice(t.saves.imported);
       }
     });
   };
@@ -124,13 +134,13 @@ export default function SavesContent() {
       if (!reviewed) return;
       const target = reviewed.slot;
       if (action === 'delete') {
-        await deleteSlot(target, reviewed.revision);
+        if (!(await deleteSlot(target, reviewed.revision))) return;
         setNotice(t.saves.deleted);
       } else if (action === 'replace') {
-        await saveSlot(target, name.trim(), reviewed.revision);
+        if (!(await saveSlot(target, name.trim(), reviewed.revision))) return;
         setNotice(t.saves.created);
       } else if (action === 'import' && pending) {
-        await importSlot(target, pending, reviewed.revision);
+        if (!(await importSlot(target, pending, reviewed.revision))) return;
         setNotice(t.saves.imported);
       }
       close();
@@ -296,12 +306,15 @@ export default function SavesContent() {
                     disabled={blocked}
                     onClick={() =>
                       void run(async () => {
-                        await loadSlot(target);
-                        setNotice(t.saves.loaded);
+                        if (await loadSlot(target)) setNotice(t.saves.loaded);
                       })
                     }
                   >
-                    {collection.kind === 'world' ? t.saves.loadWorldAction : t.saves.load}
+                    {collection.world?.career
+                      ? t.saves.continueCareer
+                      : collection.kind === 'world'
+                        ? t.saves.loadWorldAction
+                        : t.saves.load}
                     <Icon name="arrow" />
                   </button>
                 )}
@@ -312,18 +325,11 @@ export default function SavesContent() {
                     if (occupied) void run(() => open('replace', target));
                     else
                       void run(async () => {
-                        await saveSlot(target, name.trim(), null);
-                        setNotice(t.saves.created);
+                        if (await saveSlot(target, name.trim(), null)) setNotice(t.saves.created);
                       });
                   }}
                 >
-                  {world
-                    ? occupied
-                      ? t.saves.replaceWorld
-                      : t.saves.saveWorld
-                    : occupied
-                      ? t.saves.replace
-                      : t.saves.save}
+                  {occupied ? replaceLabel : saveLabel}
                 </button>
                 <div className="slot-tools">
                   {collection && (
@@ -426,14 +432,14 @@ export default function SavesContent() {
           body={
             action === 'import' && !pending
               ? t.saves.wrongFile
-              : format(actionBody, { slot, name: reviewed.name })
+              : format(actionBody, { slot, name: reviewed.name, content })
           }
           confirmLabel={
             action === 'delete'
               ? t.saves.confirmDelete
               : action === 'import'
                 ? t.saves.confirmImport
-                : t.saves.confirmReplace
+                : replaceLabel
           }
           onConfirm={action === 'import' && !pending ? undefined : confirm}
           busy={busy}

@@ -184,7 +184,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await openCareerPage(page, 'Training');
   await page.locator('#focus-0').selectOption('finishing');
   await page.getByRole('radio', { name: 'High' }).first().check({ force: true });
-  await page.getByRole('button', { name: 'Save training plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save training', exact: true }).click();
   await expect(page.getByText('Training plan saved.', { exact: false })).toBeVisible();
 
   // Back on the hub, advance the world to the next matchday with live progress.
@@ -202,11 +202,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await expect(page.locator('.save-indicator')).toContainText('All changes saved', {
     timeout: 60000,
   });
-  await page
-    .getByRole('navigation')
-    .first()
-    .getByRole('link', { name: 'Save collections' })
-    .click();
+  await page.getByRole('navigation').first().getByRole('link', { name: 'Saved games' }).click();
   await expect(page.locator('.slot-card').first()).toContainText('Robin Vale · Level');
   await page.getByRole('link', { name: /Continue as Robin Vale/ }).click();
   await expect(page).toHaveURL(/\/career\?save=1/);
@@ -309,9 +305,9 @@ test('a finished match report never follows the player into another save', async
 
   // Load slot 2 in the same session; Matchday shows slot 2's own fixture, not that report.
   const shell = page.getByRole('navigation').first();
-  await shell.getByRole('link', { name: 'Save collections' }).click();
-  await page.locator('.slot-card').nth(1).getByRole('button', { name: 'Load world' }).click();
-  await expect(page.locator('.notice')).toHaveText('Collection loaded.');
+  await shell.getByRole('link', { name: 'Saved games' }).click();
+  await page.locator('.slot-card').nth(1).getByRole('button', { name: 'Continue career' }).click();
+  await expect(page.locator('.notice')).toHaveText('Save loaded.');
   await expect(page.locator('.slot-card').nth(1)).toContainText('Sam Okafor');
   await shell.getByRole('link', { name: 'Matchday' }).click();
   await expect(

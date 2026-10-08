@@ -211,6 +211,7 @@ function NextMatch({
   // Remember where this advance started, so the hub can summarize what actually happened.
   const advance = (run: () => void) => {
     const next = new URLSearchParams(params);
+    next.delete('confirm');
     next.set('since', sinceValue(world.date));
     setParams(next, { replace: true });
     run();
@@ -351,7 +352,6 @@ function NextMatch({
           busy={busy}
           onClose={dialog.close}
           onConfirm={() => {
-            dialog.close();
             advance(() => simulateCareerSeason(true));
           }}
         />

@@ -22,6 +22,8 @@ import { audio } from '../audio';
 import type { AudioSettings } from '../model/domain';
 import { navigationText as n } from '../i18n/navigation';
 import { CAREER_GROUPS, careerGroupOf, groupHome } from '../screens/career/navigation';
+import { TrainingDraftGuard } from './TrainingDraftGuard';
+import { trainingDraftText } from '../i18n/trainingDraft';
 type Item = { path: string; label: string; icon: IconName };
 const home: Item = { path: '/', label: t.app.menu, icon: 'home' };
 const careerItem: Item = { path: '/career', label: t.app.career, icon: 'career' };
@@ -57,6 +59,7 @@ export function Shell() {
   const worldJob = useAppStore((s) => s.worldJob);
   const dirty = useAppStore((s) => Boolean(s.activeSave && s.change !== s.savedChange));
   const saveNotice = useAppStore((s) => s.saveNotice);
+  const trainingPending = useAppStore((s) => Boolean(s.trainingDraft));
   const location = useLocation();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -305,6 +308,13 @@ export function Shell() {
               <Icon name="settings" />
             </Link>
           </header>
+          {trainingPending && (
+            <div className="global-notice" role="status">
+              <Link className="text-button" to={keepSave('/career/training')}>
+                {trainingDraftText.pending}
+              </Link>
+            </div>
+          )}
           {error && (
             <div className="global-error" role="alert">
               {errorText(error)}
@@ -448,6 +458,7 @@ export function Shell() {
             }}
           />
         )}
+        <TrainingDraftGuard />
       </MotionConfig>
     </LazyMotion>
   );

@@ -84,17 +84,15 @@ export function renderMusic(): Stereo {
         gain * Math.sin(TAU * (48 * t + 1.7 * (1 - Math.exp(-t / 0.025)))) * Math.exp(-t / 0.065),
     );
   }
-  function brush(start: number, gain: number, hat: boolean, pan: number) {
-    const band = new Biquad('bandpass', hat ? 2800 : 1200, 0.6, sr);
-    const low = new Biquad('lowpass', hat ? 3900 : 2400, Math.SQRT1_2, sr);
-    voice(start, hat ? 0.09 : 0.22, pan, (t) => {
-      const noise = low.next(band.next(rng.next() * 2 - 1));
-      return (
-        gain *
-        (noise + (hat ? 0 : Math.sin(TAU * 175 * t) * Math.exp(-t / 0.025) * 0.3)) *
-        Math.exp(-t / (hat ? 0.023 : 0.055))
-      );
-    });
+  function drumTap(start: number, gain: number, pan: number) {
+    // Rounded tonal taps keep the groove without a repeating noise/hiss texture.
+    voice(
+      start,
+      0.16,
+      pan,
+      (t) =>
+        gain * (Math.sin(TAU * 175 * t) + 0.18 * Math.sin(TAU * 350 * t)) * Math.exp(-t / 0.035),
+    );
   }
   // A / A' / B / A'': different melodic phrases, chord attacks and drum fills.
   for (let bar = 0; bar < MUSIC.bars; bar++) {
@@ -119,14 +117,8 @@ export function renderMusic(): Stereo {
     kick(start, bridge ? 0.15 : 0.23);
     kick(start + beat * 2, 0.16);
     if (bar % 4 === 2) kick(start + beat * 2.7, 0.1);
-    brush(start + beat * 1.02, 0.19, false, -0.12);
-    brush(start + beat * 3.015, 0.16, false, 0.12);
-    for (let step = 0; step < 8; step++) {
-      if (bridge && step % 2 === 0) continue;
-      // Late offbeats create swing; seeded microtiming and velocity keep it unmechanical.
-      const timing = step * 0.5 + (step % 2 ? 0.09 : 0) + rng.next() * 0.018;
-      brush(start + timing * beat, 0.04 + rng.next() * 0.025, true, step % 2 ? 0.35 : -0.25);
-    }
+    drumTap(start + beat * (1.02 + rng.next() * 0.018), 0.11, -0.12);
+    drumTap(start + beat * (3.015 + rng.next() * 0.018), 0.09, 0.12);
     // Sparse call and response, with space between phrases.
     const melody = bridge ? [72, 71, 67, 64] : [69, 67, 64, 62];
     if (bar % 2 === 0 || section === 3) {
@@ -134,7 +126,7 @@ export function renderMusic(): Stereo {
       keys(start + beat * 1.6, first, 0.038, 0.28, 0.45);
       keys(start + beat * 2.8, chord.keys[3] + 12, 0.025, -0.3, 0.5);
     }
-    if (bar % 8 === 7) brush(start + beat * 3.65, 0.08, false, 0.25);
+    if (bar % 8 === 7) drumTap(start + beat * 3.65, 0.045, 0.25);
   }
 
   const out: Stereo = [new Float32Array(frames), new Float32Array(frames)];

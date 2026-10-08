@@ -110,7 +110,7 @@ async function importCareer(page: Page, name: string) {
     .nth(0)
     .getByLabel('Import backup — Slot 1')
     .setInputFiles(saves.get(name)!);
-  await expect(page.locator('.notice')).toHaveText('Collection imported.', { timeout: 30000 });
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
 }
 const priorities = (page: Page) => page.getByRole('region', { name: 'Needs you' });
 

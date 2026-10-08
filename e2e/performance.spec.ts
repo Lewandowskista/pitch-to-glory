@@ -119,7 +119,7 @@ for (const fixture of FIXTURES)
           .nth(0)
           .getByLabel('Import backup — Slot 1')
           .setInputFiles(path);
-        await expect(page.locator('.notice')).toHaveText('Collection imported.', {
+        await expect(page.locator('.notice')).toHaveText('Save imported.', {
           timeout: 120000,
         });
       });

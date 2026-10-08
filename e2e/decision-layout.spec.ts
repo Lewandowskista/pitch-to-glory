@@ -80,7 +80,7 @@ async function preview(page: Page, variant: Variant = {}) {
     .nth(0)
     .getByLabel('Import backup — Slot 1')
     .setInputFiles(saves.get(key(variant))!);
-  await expect(page.locator('.notice')).toHaveText('Collection imported.', { timeout: 30000 });
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
   await page.goto('/match?save=1');
   const select = page.getByRole('combobox', { name: 'Your footballer', exact: true });
   await expect(select.locator('option')).toHaveCount(22, { timeout: 30000 });
