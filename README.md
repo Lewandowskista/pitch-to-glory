@@ -33,11 +33,11 @@ Matches play out on a 2D pitch and stop for **your** decisions. Every choice sho
 <table>
   <tr>
     <td width="50%"><img src="docs/images/match.png" alt="Matchday: the scoreboard, a top-down pitch with player tokens in kit colours, and live statistics." /></td>
-    <td width="50%"><img src="docs/images/career-hub.png" alt="The career hub: the next fixture, the footballer's level, XP and unspent points." /></td>
+    <td width="50%"><img src="docs/images/career-hub.png" alt="The career hub: the next fixture with what Continue will do, and a Needs you list of what is waiting, beside the five career sections." /></td>
   </tr>
   <tr>
     <td><b>Matchday.</b> Speed controls, live commentary, momentum and your live rating, with a pitch rendered by PixiJS (an SVG fallback covers every browser).</td>
-    <td><b>Career hub.</b> Your next match, level and XP, unspent points, condition, training, fame, the press, your rival and the transfer market.</td>
+    <td><b>Career hub.</b> Your next match and exactly what Continue will play, a <i>Needs you</i> list ordered by urgency, then your level, condition, club, season and everything else at a glance.</td>
   </tr>
   <tr>
     <td><img src="docs/images/golden-ball.png" alt="The Golden Ball ceremony: a ranked shortlist of ten players with their clubs and points, the winner highlighted." /></td>
@@ -57,7 +57,15 @@ Matches play out on a 2D pitch and stop for **your** decisions. Every choice sho
   </tr>
 </table>
 
-<img src="docs/images/mobile-hub-dark.png" alt="The career hub on a phone in dark mode, with the bottom tab bar." width="240" align="right" />
+### Always know what to do next
+
+The hub puts the next action first. _Needs you_ lists what is waiting, most urgent first: an injury that needs a recovery plan, your match, transfer talks, press questions and sponsor offers before they lapse, then unspent points. Before you continue, the hub says which weeks will be played, where it will stop and which deadlines would pass on the way; afterwards, a short summary reports what actually happened while the world played on. The calendar lays out the whole season week by week, and nothing ever predicts a result or a team selection in advance.
+
+<p align="center">
+  <img src="docs/images/calendar.png" alt="The calendar: the season week by week, with this week's fixture and training, transfer windows and later fixtures, each with the opponent's crest." width="720" />
+</p>
+
+<img src="docs/images/mobile-hub-dark.png" alt="The career hub on a phone in dark mode: the next match and the Continue button above a five-section tab bar." width="240" align="right" />
 
 ### What you can do
 
@@ -77,6 +85,7 @@ Six real countries — England, France, Spain, Germany, Italy and Portugal — w
 - **Accessible**: every screen checked with axe against WCAG 2.1 AA (no serious or critical issues) in light and dark themes; full keyboard play (Space, 1–4, arrows, Escape, `?`); screen-reader labels; text size from 85% to 130%; reduced motion; a simulation-only mode; colour-blind-safe kit choice.
 - **Fast**: a startup bundle of 80 KB gzipped, with everything else loaded on demand. Mobile Lighthouse performance 86–95 and accessibility 100 on every audited page.
 - **Yours**: no account, no ads, no tracking. Three save slots in your browser, backup export and import, and offline play after the first visit. All art is procedural SVG and every sound is synthesised on your device.
+- **Easy to find your way**: the career is grouped into five sections (Overview, Player, Club, Life and History), each opening with page tabs that never move. On phones a five-slot tab bar and a More sheet replace sideways scrolling, and Back closes the sheet.
 - **Guided**: a short tour during your first week and your first match.
 
 <br clear="right" />
@@ -111,7 +120,7 @@ flowchart LR
 
 - **A pure engine.** Everything that decides results lives in `src/engine/`: plain, deterministic TypeScript with a seedable RNG and no browser globals or imports (enforced by lint). The same code runs in the UI, in Web Workers and in Node tests, so any career or match replays exactly from its seed.
 - **Workers for heavy work.** Season simulation and save validation run off the main thread, with progress and cancellation, so the interface never freezes.
-- **Saves you can trust.** Versioned save schema (now 13) with migrations from every earlier version, strict validation of every record, revision checks, and one browser tab per save slot.
+- **Saves you can trust.** Versioned save schema (now 14) with migrations from every earlier version, strict validation of every record, revision checks, and one browser tab per save slot.
 - **Code-split by route.** Each screen is its own chunk; PixiJS, the save system, audio and animation features load only when needed.
 
 ### The match engine is calibrated
@@ -146,7 +155,7 @@ xychart-beta
 
 ```mermaid
 flowchart LR
-  Push["Push to main"] --> Verify["verify (Linux)<br/>Prettier · ESLint · 245 unit tests<br/>typecheck · build · bundle budget"]
+  Push["Push to main"] --> Verify["verify (Linux)<br/>Prettier · ESLint · 295 unit tests<br/>typecheck · build · bundle budget"]
   Verify --> C["Chromium journeys<br/>(Windows)"]
   Verify --> F["Firefox journeys<br/>(Windows)"]
   Verify --> W["WebKit journeys<br/>(Windows)"]
@@ -221,6 +230,15 @@ public/          icons, share card, production headers
 - [x] 9 · Edit mode, accessibility, the tutorial, audio and polish
 - [x] 10 · Web release: deployment, offline play, performance and share tags
 - [ ] 11 · Android app with Capacitor
+
+After the web release, a [high-value improvements plan](docs/superpowers/plans/2026-10-07-high-value-improvements.md) comes first:
+
+- [x] Trustworthy results, statistics, awards, trophies and legacies
+- [x] Key moments that keep the situation in view on desktop and phone
+- [x] Grouped career navigation, a prioritized hub and a personal calendar
+- [ ] Multi-generation endurance tests and performance gates on real play states
+- [ ] Formation-aware selection, positions and coaching advice
+- [ ] One sustained story arc: a manager's development promise
 
 ## Documentation
 
