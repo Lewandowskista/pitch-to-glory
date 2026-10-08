@@ -178,12 +178,16 @@ test('a second tab cannot load or mutate an owned slot', async ({ page, context 
   await expect(second.getByRole('alert')).toContainText('open in another tab');
   await second.keyboard.press('Escape');
   await page.close();
-  await second
-    .locator('.slot-card')
-    .first()
-    .getByRole('button', { name: 'Load collection' })
-    .click();
-  await expect(second.locator('.notice')).toHaveText('Collection loaded.');
+  // The closed tab's lock is released by the browser shortly after it closes (later in
+  // Firefox): loading succeeds once it has gone, as it would for a player trying again.
+  await expect(async () => {
+    await second
+      .locator('.slot-card')
+      .first()
+      .getByRole('button', { name: 'Load collection' })
+      .click();
+    await expect(second.locator('.notice')).toHaveText('Collection loaded.', { timeout: 2000 });
+  }).toPass({ timeout: 20000 });
   await second.close();
 });
 

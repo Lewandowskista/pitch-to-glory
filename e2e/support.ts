@@ -32,6 +32,8 @@ export async function skipTutorial(page: Page): Promise<void> {
  * navigations; anything with a web location is still treated as a real error. Errors located in
  * browser-internal chrome:// code, such as Playwright's Firefox instrumentation reporting
  * NS_BINDING_ABORTED when a navigation cancels a worker request, never come from game code.
+ * NS_BINDING_ABORTED is Firefox's own code for a request cancelled by a navigation; it can
+ * also be attributed to the worker script whose load was cancelled, and is never game code.
  */
 export function isBrowserNoise(message: ConsoleMessage): boolean {
   const { url } = message.location();
@@ -39,7 +41,8 @@ export function isBrowserNoise(message: ConsoleMessage): boolean {
     (message.text() === '[JavaScript Error: "InvalidStateError: Navigated away from page"]' &&
       !url) ||
     url.startsWith('chrome://') ||
-    /\{file: "chrome:\/\/juggler\//.test(message.text())
+    /\{file: "chrome:\/\/juggler\//.test(message.text()) ||
+    message.text().startsWith('[JavaScript Error: "NS_BINDING_ABORTED"')
   );
 }
 
