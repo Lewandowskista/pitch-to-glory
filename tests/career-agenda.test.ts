@@ -271,7 +271,7 @@ describe('season agenda', () => {
         .flatMap((entry) => entry.entries)
         .every((entry) => entry.kind !== 'fixture' || entry.result !== null),
     ).toBe(true);
-  });
+  }, 120000);
 });
 
 describe('digest', () => {

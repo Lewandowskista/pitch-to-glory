@@ -1,0 +1,40 @@
+name: Performance
+# Performance on real play states (docs/VERIFICATION.md, Phase 4.2): deterministic career
+# saves, timed journeys with frame pacing and interaction latency, and Lighthouse on loaded
+# career pages. Serialized and off the critical path; the fast route budgets run in ci.yml.
+on:
+  schedule:
+    # Weekly (Saturday).
+    - cron: '29 4 * * 6'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: performance
+  cancel-in-progress: false
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run perf:fixtures
+      # One job at a time: the journeys, then Lighthouse, never alongside each other.
+      - run: npm run test:performance
+      - run: npm run audit -- --populated
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-results
+          path: |
+            artifacts/performance/results.json
+            artifacts/lighthouse-*.json
+          if-no-files-found: warn

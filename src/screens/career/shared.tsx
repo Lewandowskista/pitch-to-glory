@@ -179,7 +179,9 @@ export function CareerPage({
   const player = world?.career ? world.players[world.career.playerId] : undefined;
   return (
     <Page className="career-page">
-      {world?.career && player && !loading && <CareerNav />}
+      {/* Shown while a save loads too: the tabs depend only on the route, and appearing late
+          would push the whole page down. */}
+      {(loading || (world?.career && player)) && <CareerNav />}
       <div className="page-body">
         <header className="page-heading">
           <h1>{title}</h1>

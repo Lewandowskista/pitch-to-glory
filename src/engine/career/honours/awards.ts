@@ -131,15 +131,24 @@ export function trackPlayers(world: World, players: Player[]): void {
 function addAward(world: World, award: Omit<Award, 'id'>): Award {
   const full: Award = { id: nextId(world, 'award'), ...award };
   world.awards.push(full);
-  // Keep a manageable record: the career's own awards and the last seasons of everything else.
-  if (world.awards.length > 400) {
-    const careerId = world.career?.playerId;
-    const index = world.awards.findIndex(
-      (entry) => !entry.winnerIds.includes(careerId ?? '') && entry.kind !== 'golden-ball',
-    );
-    if (index >= 0) world.awards.splice(index, 1);
-  }
+  trimAwards(world);
   return full;
+}
+/**
+ * Keep a manageable record: every career's awards (the current one's, and those a retired
+ * career's legacy names), Golden Balls, and the last seasons of everything else.
+ */
+export function trimAwards(world: World): void {
+  if (world.awards.length <= A.recordLimit) return;
+  const careerId = world.career?.playerId;
+  const kept = new Set(world.legacies.flatMap((legacy) => legacy.awardIds));
+  const index = world.awards.findIndex(
+    (entry) =>
+      !kept.has(entry.id) &&
+      !entry.winnerIds.includes(careerId ?? '') &&
+      entry.kind !== 'golden-ball',
+  );
+  if (index >= 0) world.awards.splice(index, 1);
 }
 function celebrate(world: World, award: Award, fame: number): void {
   const career = world.career!;

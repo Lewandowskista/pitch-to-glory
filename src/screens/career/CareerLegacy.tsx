@@ -36,7 +36,7 @@ export default function CareerLegacy() {
   const { loading, error } = useRestoredWorld();
   return (
     <Page className="career-page">
-      {world?.career && !loading && <CareerNav />}
+      {(loading || world?.career) && <CareerNav />}
       <div className="page-body">
         <header className="page-heading">
           <h1>{h.titles.legacy}</h1>

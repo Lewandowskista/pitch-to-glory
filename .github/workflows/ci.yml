@@ -26,6 +26,15 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm test
+      # One national season of headless career play: invariants, export, import and the size
+      # limit at its end (scripts/soak-career.ts). Longer runs are in endurance.yml.
+      - run: npm run soak -- --seasons 1
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: soak-smoke
+          path: artifacts/soak/*.json
+          if-no-files-found: ignore
       # The build script runs the strict typecheck and the per-route bundle budget.
       - run: npm run build
       - uses: actions/upload-artifact@v4
@@ -54,6 +63,9 @@ jobs:
           path: dist
       - run: npx playwright install ${{ matrix.browser }}
       - run: npx playwright test --project=${{ matrix.browser }}
+      # A second release replaces the first under a saved career (e2e/update.spec.ts).
+      - if: matrix.browser == 'chromium'
+        run: npm run test:update
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

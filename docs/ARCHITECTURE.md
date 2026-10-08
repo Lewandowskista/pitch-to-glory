@@ -1453,6 +1453,8 @@ Vite PWA precaches route chunks, both workers, SVG icons and fonts after one con
 
 Tests cover foundation reproducibility, save migrations/round trips/ownership, world generation, schedule/table conservation, cups, weekly AI changes, JSON resume and promotion rollover. Match tests replay complete sessions, validate conserved statistics and simulate 10,000 matches for goals/home advantage/upsets. Worker tests cover acknowledgement ordering, failures and cancellation during startup/yield/lock cleanup. Browser flows exercise real workers, world backup/import/restoration, full-season rollover, match decisions/refresh/report, large-text layouts and offline resources. Builds enforce 300 KB initial JavaScript gzip for every route and reject eager Pixi loading. Tutorial and audio retain their later milestone scope.
 
+Long careers are checked by `scripts/soak-career.ts`, which plays seeded national careers headlessly through the same engine entry points as the UI and, at every season end, runs `careerInvariants` (`src/engine/career/invariants.ts`: single fixture commits, non-negative cash, statistics against match records, completed competitions, unique trophies, surviving Chronicle/Moment/legacy references and Hall of Fame order), exports, re-imports and continues from the imported world. `scripts/performance-fixtures.ts` saves real play states for `e2e/performance.spec.ts` and the populated Lighthouse audit; `e2e/update.spec.ts` replaces one build with another under a saved career. Nothing in the shipped game exists for these checks.
+
 ## Interactive match sessions
 
 The pure match engine exposes createMatchSetup, createMatchSession, applyMatchCommand and validateMatchSession. Its supplementary contracts are kept in src/engine/match/types.ts:

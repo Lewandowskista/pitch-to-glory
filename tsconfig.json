@@ -17,5 +17,5 @@
     "noEmit": true,
     "types": ["vite/client", "vite-plugin-pwa/client", "node"]
   },
-  "include": ["src", "tests", "e2e", "*.ts"]
+  "include": ["src", "tests", "e2e", "scripts/**/*.ts", "*.ts"]
 }

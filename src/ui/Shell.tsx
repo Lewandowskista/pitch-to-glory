@@ -60,6 +60,9 @@ export function Shell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  // Links to screens that restore a save keep it, so arriving never rewrites the history
+  // entry afterwards (which a quick Back could land on).
+  const keepSave = (path: string) => withSave(path, params.get('save'));
   const main = useRef<HTMLElement>(null);
   const helpPushed = useRef(false);
   const [recoverBusy, setRecoverBusy] = useState(false);
@@ -161,7 +164,7 @@ export function Shell() {
   const sidebarLink = (item: Item) => (
     <NavLink
       end={item.path === '/'}
-      to={item.path}
+      to={keepSave(item.path)}
       key={item.path}
       // On a career page its group link carries the highlight; Career itself stays quieter.
       className={({ isActive }) => (isActive ? (group ? 'active parent' : 'active') : '')}
@@ -228,7 +231,7 @@ export function Shell() {
                 {CAREER_GROUPS.map((entry) => (
                   <li key={entry.id}>
                     <Link
-                      to={groupHome(entry)}
+                      to={keepSave(groupHome(entry))}
                       className={group?.id === entry.id ? 'active' : undefined}
                       aria-current={group?.id === entry.id ? 'true' : undefined}
                       onKeyDown={(event) => arrowKeys(event, sidebarNav.current)}
@@ -379,7 +382,7 @@ export function Shell() {
           {bottomItems.map((item) => (
             <Link
               key={item.path}
-              to={item.path}
+              to={keepSave(item.path)}
               className={item.current ? 'active' : undefined}
               aria-current={item.current ? 'page' : undefined}
               onKeyDown={(event) => arrowKeys(event, bottomNav.current)}
@@ -409,7 +412,12 @@ export function Shell() {
           </button>
         </nav>
         {moreOpen && (
-          <MoreSheet hasCareer={hasCareer} pathname={location.pathname} onClose={closeMore} />
+          <MoreSheet
+            hasCareer={hasCareer}
+            pathname={location.pathname}
+            keepSave={keepSave}
+            onClose={closeMore}
+          />
         )}
         <PwaPrompt />
         {params.get('help') === '1' && (
@@ -480,10 +488,12 @@ function useAudio(settings: AudioSettings): void {
 function MoreSheet({
   hasCareer,
   pathname,
+  keepSave,
   onClose,
 }: {
   hasCareer: boolean;
   pathname: string;
+  keepSave: (path: string) => string;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -540,7 +550,7 @@ function MoreSheet({
               {section.links.map((item) => (
                 <li key={item.path}>
                   <Link
-                    to={item.path}
+                    to={keepSave(item.path)}
                     replace
                     aria-current={pathname === item.path ? 'page' : undefined}
                   >
@@ -555,4 +565,10 @@ function MoreSheet({
       </div>
     </dialog>
   );
+}
+
+/** Screens that restore a save from the URL: career pages, Matchday and the world. */
+function withSave(path: string, save: string | null): string {
+  if (!save || !/^\/(career|match|world)(\/|$)/.test(path)) return path;
+  return `${path}?save=${encodeURIComponent(save)}`;
 }

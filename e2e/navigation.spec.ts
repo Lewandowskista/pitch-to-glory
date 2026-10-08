@@ -153,9 +153,14 @@ test('every earlier career route still opens directly, with its group and tab', 
   await importCareer(page);
   for (const route of ROUTES) {
     await page.goto(`${route}?save=1`);
+    // The tabs show while the save restores; wait for the career itself before moving on.
+    await expect(page.getByText('Restoring your career…')).toHaveCount(0, { timeout: 30000 });
     await expect(careerTabs(page).getByRole('link', { name: /./ }).first()).toBeVisible();
     await expect(careerTabs(page).locator('[aria-current="page"]')).toHaveCount(1);
     await expect(page).toHaveURL(new RegExp(`${route}\\?save=1`));
+    // The save system finishes loading in the background; leaving mid-download makes
+    // WebKit report the cancelled worker script as an error.
+    await page.waitForLoadState('networkidle');
   }
 });
 

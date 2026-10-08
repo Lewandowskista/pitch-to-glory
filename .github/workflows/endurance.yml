@@ -1,0 +1,45 @@
+name: Career endurance
+# Long headless careers in seeded national worlds (docs/VERIFICATION.md, Phase 4.1). The
+# pull-request smoke season runs in ci.yml; this workflow runs the longer soaks off the
+# critical path and keeps their reports.
+on:
+  schedule:
+    # Nightly: five seasons of one career.
+    - cron: '17 2 * * *'
+    # Weekly (Sunday): two generations, each ending in a natural retirement.
+    - cron: '43 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'seasons (five seasons) or generations (two retirements)'
+        type: choice
+        options: [seasons, generations]
+        default: seasons
+permissions:
+  contents: read
+concurrency:
+  group: endurance-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Five seasons
+        if: github.event.schedule == '17 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'seasons')
+        run: npm run soak -- --seasons 5 --repeat
+      - name: Two generations
+        if: github.event.schedule == '43 3 * * 0' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'generations')
+        run: npm run soak -- --generations 2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: endurance-report
+          path: artifacts/soak/*.json
+          if-no-files-found: warn

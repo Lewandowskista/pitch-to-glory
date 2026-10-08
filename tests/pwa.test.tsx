@@ -81,3 +81,15 @@ it('waits until a key moment is decided before showing an update notice', () => 
   }
   expect(renderToString(<PwaPrompt />)).toContain('pwa-prompt');
 });
+
+it('reloads once when the library and the controller change both ask', async () => {
+  const reload = vi.fn();
+  vi.stubGlobal('window', { location: { reload } });
+  useAppStore.setState({ world: null, activeSave: null, worldJob: null });
+  renderToString(<PwaPrompt />);
+  // The library's activation callback and the prompt's own controller-change listener.
+  hook.onNeedReload!();
+  hook.onNeedReload!();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(reload).toHaveBeenCalledOnce();
+});

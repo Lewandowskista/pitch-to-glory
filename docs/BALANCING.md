@@ -78,6 +78,18 @@ Measured with seed `long-run` over ten national seasons in Node (compact JSON si
 | End S10   | 1,097 (138)        | 30,471 (2,233)        | 13,482   | 67.2 MiB   |
 | Start S11 | 1,097 (137)        | 28,867 (2,233)        | 15,131   | 58.9 MiB   |
 
+Two full careers (Phase 4.1, `npm run soak -- --generations 2`, seed `endurance`): a 17-year-old retires at 33 after 17 seasons, then their child plays 17 more, 34 national seasons in all, exported and re-imported at every season end.
+
+| Point                | Export (compact save) | Season simulation | Export / import |
+| -------------------- | --------------------- | ----------------- | --------------- |
+| End S1 (age 17)      | 52.2 MiB              | 19.3–24.3 s       | ≤ 0.7 s / 1.1 s |
+| End S5 (21)          | 62.3 MiB              |                   |                 |
+| End S17, retirement  | 77.5 MiB              |                   |                 |
+| End S18, child at 17 | 78.2 MiB              |                   |                 |
+| End S34, retirement  | 93.8 MiB              |                   |                 |
+
+Growth slows from 3.4 MiB per season at first to about 1 MiB per season after ten, so the largest save measured is 73% of the 128 MiB import limit; peak Node heap was 1.7 GB. At about 1 MiB per season a third full career would end near 110 MiB; compaction (with migration tests, keeping every historical person and achievement) belongs before careers that long are supported. Awards that any career's legacy names are never dropped, so the save validator allows up to `CONFIG.career.honours.awards.maxRecords` (2,000) while ordinary awards are trimmed at `recordLimit` (400).
+
 Before this pass the same measurement grew ~15 MiB per season and a season-3 backup (134.4 MB pretty-printed) exceeded the 128 MiB import limit. Growth is now about 1.3 MiB per season, mostly the compact retiree archive. Mean squad age moves from 26.9 at generation to about 25 and then holds; squads hold 23–26 players.
 
 **Known balance issue, deferred to milestone 4:** mean ability still rises over time (top tier 66 → 72, sixth tier 19 → 27 after ten seasons, rising more slowly each season). Generated adults start below their potential and develop toward it, and the 60-week national calendar applies development 60 times a season against the 34-week calibration. Milestone 4 owns the ageing curve and attribute development and should recalibrate both, including generation, so that tiers stay stable.

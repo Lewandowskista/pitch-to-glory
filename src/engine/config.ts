@@ -519,6 +519,13 @@ export const CONFIG = {
         continentalFinal: 5,
         tournamentWinner: 8,
         shortlist: 10,
+        /** Awards kept before the oldest ones nobody's career names are dropped. */
+        recordLimit: 400,
+        /**
+         * The most a save may hold: careers' awards are never dropped, so generations add to
+         * the record limit.
+         */
+        maxRecords: 2000,
         fame: { month: 3, season: 6, goldenBall: 25, shortlist: 5 },
       },
       retirement: { optionalAge: 32, forcedAge: 40 },

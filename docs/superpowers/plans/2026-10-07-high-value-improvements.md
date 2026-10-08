@@ -6,7 +6,7 @@
 
 **Stack:** Existing TypeScript, React 18, Vite, React Router, Zustand, PixiJS, Tailwind, Framer Motion, Dexie, Vitest and Playwright. No new runtime dependency is required by this plan.
 
-**Status:** Phases 1, 2 and 3 complete; Phase 4 not started. The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
+**Status:** Phases 1–3 complete; Phase 4 complete except physical-device acceptance; Phase 5 not started. The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
 
 ## Scope and approach
 
@@ -179,11 +179,13 @@ Keep the green/gold identity, existing country profiles and browser-first archit
 
 **Modify:** `package.json`, `.github/workflows/ci.yml`, `docs/VERIFICATION.md`, `docs/BALANCING.md`.
 
-- [ ] Use deterministic seeded national worlds and headless career play. Run one national season as a pull-request smoke check, five seasons in the nightly job, and at least two natural retirements/child careers in a weekly/manual endurance job; do not age players artificially in the long run.
-- [ ] Include transfers, a loan, injuries, retirement, the child wizard's domain path, save parsing and export/import checkpoints. Repeat a seed to prove reproducibility; store seed, season and last completed action on failure.
-- [ ] Check single fixture commit, non-negative finances, valid references, result/statistics agreement, competition progression, deduplicated trophies and consistent legacy ranking. Protect Chronicle/Moments/legacy references across pruning.
-- [ ] Measure compact export size, simulation/checkpoint time and peak memory per season. Require every tested generation's export to import within the configured limit. Investigate growth before changing limits; any compaction must preserve historical people and achievements and ship with migration tests.
-- [ ] Keep slow soak work out of ordinary interactive development tests and retain its structured artifacts in CI.
+- [x] Use deterministic seeded national worlds and headless career play. Run one national season as a pull-request smoke check, five seasons in the nightly job, and at least two natural retirements/child careers in a weekly/manual endurance job; do not age players artificially in the long run.
+- [x] Include transfers, a loan, injuries, retirement, the child wizard's domain path, save parsing and export/import checkpoints. Repeat a seed to prove reproducibility; store seed, season and last completed action on failure.
+- [x] Check single fixture commit, non-negative finances, valid references, result/statistics agreement, competition progression, deduplicated trophies and consistent legacy ranking. Protect Chronicle/Moments/legacy references across pruning.
+- [x] Measure compact export size, simulation/checkpoint time and peak memory per season. Require every tested generation's export to import within the configured limit. Investigate growth before changing limits; any compaction must preserve historical people and achievements and ship with migration tests.
+- [x] Keep slow soak work out of ordinary interactive development tests and retain its structured artifacts in CI.
+
+**Done:** see `docs/VERIFICATION.md`, Phase 4. The CI jobs are `ci.yml` (one season) and `endurance.yml` (nightly and weekly).
 
 **Accept:** two generations complete reproducibly, load/export/import successfully, and satisfy accounting/reference invariants at every checkpoint.
 
@@ -193,13 +195,15 @@ Keep the green/gold identity, existing country profiles and browser-first archit
 
 **Modify:** `scripts/audit.mjs`, `package.json`, `.github/workflows/ci.yml`, `playwright.config.ts`, `docs/VERIFICATION.md`.
 
-- [ ] Add deterministic populated national-career and late-career fixtures. Make the audit load the save before measurement using a dedicated local test harness; avoid putting benchmark-only controls in the shipped game.
-- [ ] Measure loaded hub, agenda, large inbox, live Pixi pitch, save/checkpoint and season advance. Keep the existing entry-page Lighthouse checks and route JavaScript budgets.
-- [ ] Record Lighthouse performance/accessibility, interactive readiness, input-to-next-paint, long tasks, renderer frame pacing and browser memory where available. Run audits without concurrent browser/season jobs.
-- [ ] Use release targets from AGENTS.md: desktop Lighthouse >90, mobile >85, accessibility >95, initial JavaScript <300 KB gzip and interactive readiness <3 seconds on the agreed phone/4G profile. Aim for 60 fps on the target laptop and phone; persist the hardware/profile used so comparisons are meaningful.
-- [ ] Run the fast route budget on each change, populated audits on a serialized scheduled/release job, and upload results. Fail gates rather than hiding regressions through repeated averaging.
-- [ ] Add manual acceptance for Safari macOS/iOS and a mid-range Android browser: IndexedDB storage pressure, install/offline, audio gesture unlock, background/resume, large text, touch decisions and sustained rendering. Manual results require a real device run, not an automated tick.
-- [ ] Cover an old build receiving a new service worker while a saved career is active, checkpointing safely, reloading and continuing offline. Reuse the existing update manager; add an actual two-build journey.
+- [x] Add deterministic populated national-career and late-career fixtures. Make the audit load the save before measurement using a dedicated local test harness; avoid putting benchmark-only controls in the shipped game.
+- [x] Measure loaded hub, agenda, large inbox, live Pixi pitch, save/checkpoint and season advance. Keep the existing entry-page Lighthouse checks and route JavaScript budgets.
+- [x] Record Lighthouse performance/accessibility, interactive readiness, input-to-next-paint, long tasks, renderer frame pacing and browser memory where available. Run audits without concurrent browser/season jobs.
+- [x] Use release targets from AGENTS.md: desktop Lighthouse >90, mobile >85, accessibility >95, initial JavaScript <300 KB gzip and interactive readiness <3 seconds on the agreed phone/4G profile. Aim for 60 fps on the target laptop and phone; persist the hardware/profile used so comparisons are meaningful.
+- [x] Run the fast route budget on each change, populated audits on a serialized scheduled/release job, and upload results. Fail gates rather than hiding regressions through repeated averaging.
+- [ ] Add manual acceptance for Safari macOS/iOS and a mid-range Android browser: IndexedDB storage pressure, install/offline, audio gesture unlock, background/resume, large text, touch decisions and sustained rendering. Manual results require a real device run, not an automated tick. _(Checklist in `docs/DEVICE-ACCEPTANCE.md`; results need real devices and are not yet recorded.)_
+- [x] Cover an old build receiving a new service worker while a saved career is active, checkpointing safely, reloading and continuing offline. Reuse the existing update manager; add an actual two-build journey.
+
+**Done** apart from device acceptance: see `docs/VERIFICATION.md`, Phase 4. Interaction latency uses Event Timing durations as a stand-in for INP.
 
 **Accept:** representative play states meet recorded budgets; two-build updates preserve careers; physical-device evidence is documented. Address measured bottlenecks within the affected modules before passing the phase.
 

@@ -175,7 +175,7 @@ export function validateHonours(w: Record<string, unknown>): void {
       }
   }
   const awardIds = new Set<string>();
-  for (const value of array(w.awards, 400)) {
+  for (const value of array(w.awards, H.awards.maxRecords)) {
     const award = object(value);
     id(award.id);
     requireValue(!awardIds.has(String(award.id)));

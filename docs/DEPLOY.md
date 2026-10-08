@@ -6,11 +6,18 @@ The game is a static site. It is built and tested by GitHub Actions and publishe
 
 `.github/workflows/ci.yml` runs on every push to `main`, on pull requests, and on demand.
 
-1. **verify** (Linux): `npm ci`, Prettier, ESLint, unit tests, then `npm run build`, which runs the strict typecheck and the per-route bundle budget. The built `dist/` is kept as an artifact.
-2. **browsers** (Windows, one job each for Chromium, Firefox and WebKit, in parallel): the Playwright journeys against that exact build, served with the production headers. Windows runners are used because Linux WebKit runners have no GPU and crash in the WebGL match renderer.
+1. **verify** (Linux): `npm ci`, Prettier, ESLint, unit tests, one national season of headless career play with its end-of-season checks (`npm run soak -- --seasons 1`), then `npm run build`, which runs the strict typecheck and the per-route bundle budget. The built `dist/` is kept as an artifact.
+2. **browsers** (Windows, one job each for Chromium, Firefox and WebKit, in parallel): the Playwright journeys against that exact build, served with the production headers. The Chromium job also builds a second release and replaces the first under a saved career (`npm run test:update`). Windows runners are used because Linux WebKit runners have no GPU and crash in the WebGL match renderer.
 3. **deploy** (pushes to `main` only, after both pass): uploads `dist/` to the Cloudflare Pages project `pitch-to-glory` with Wrangler. It creates the project on the first deploy. Until the two secrets below exist, this job reports a notice and skips, without failing.
 
 Pull requests run the checks but never deploy.
+
+Two scheduled workflows run longer checks off the critical path and keep their reports as artifacts:
+
+- `.github/workflows/endurance.yml`: five seasons of one career every night, run twice to prove the seed reproduces, and two full careers (retirement, then the child's career) every Sunday (`npm run soak`).
+- `.github/workflows/performance.yml`: every Saturday, career saves from `npm run perf:fixtures`, timed journeys with frame pacing and interaction latency (`npm run test:performance`), and Lighthouse on loaded career pages (`npm run audit -- --populated`).
+
+Both can be started from the **Actions** tab.
 
 ## One-time setup
 
@@ -59,6 +66,10 @@ npm run build
 npx playwright install chromium firefox webkit
 npm run test:e2e
 npm run audit          # Lighthouse: mobile > 85, desktop > 90, accessibility > 95
+npm run soak -- --seasons 5 --repeat   # long careers, reproducibility and save size
+npm run perf:fixtures && npm run test:performance && npm run audit -- --populated-only
 ```
+
+Physical-device checks are manual: see [DEVICE-ACCEPTANCE.md](DEVICE-ACCEPTANCE.md).
 
 Run `npm run raster` after changing `public/share.svg`, `public/icon.svg` or `public/icon-maskable.svg`, and commit the regenerated PNGs.

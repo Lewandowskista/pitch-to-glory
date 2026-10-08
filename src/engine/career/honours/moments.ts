@@ -111,10 +111,21 @@ export function captureMoments(world: World, session: MatchSession, importance: 
     world.moments.push(moment);
     saved.push(moment.id);
   }
-  const mine = world.moments.filter((moment) => moment.playerId === career.playerId);
-  if (mine.length > MO.limit) {
-    const drop = new Set(mine.slice(0, mine.length - MO.limit).map((moment) => moment.id));
-    world.moments = world.moments.filter((moment) => !drop.has(moment.id));
-  }
+  trimMoments(world, career.playerId);
   return saved;
+}
+
+/**
+ * Keep a player's most recent Moments within the limit. Chronicle entries keep their story
+ * but no longer point at a clip that has gone; they are replaced, not edited, because worlds
+ * share unchanged records.
+ */
+export function trimMoments(world: World, playerId: string): void {
+  const mine = world.moments.filter((moment) => moment.playerId === playerId);
+  if (mine.length <= MO.limit) return;
+  const drop = new Set(mine.slice(0, mine.length - MO.limit).map((moment) => moment.id));
+  world.moments = world.moments.filter((moment) => !drop.has(moment.id));
+  world.chronicle = world.chronicle.map((entry) =>
+    entry.momentId && drop.has(entry.momentId) ? { ...entry, momentId: null } : entry,
+  );
 }

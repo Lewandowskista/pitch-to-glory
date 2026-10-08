@@ -1,6 +1,7 @@
 node_modules
 dist
 dist-custom
+dist-next
 package-lock.json
 playwright-report
 test-results
