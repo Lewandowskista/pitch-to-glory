@@ -627,3 +627,23 @@ The [game design review](GAME-DESIGN-REVIEW.md) found money without stakes (comp
 **Things worth buying (`lifestyle/catalogue.ts`).** Cars, homes and experiences are priced in weeks of wages (hatchback 25, coupé 60, grand tourer 120, hypercar 200; flat 60, townhouse 150, family home 250, villa 400; a week away 4, a family visit 1), at least their old floors, with upkeep of price ÷ 250 a week fixed at purchase; a better home rests 1–3 fatigue a week. Personal staff charge a share of the wage (physio 15%: injuries × 0.8; nutritionist 10%: 2 fatigue a week; coach 20%: training × 1.15; analyst 15%: +2 XP per key decision that comes off) and four weeks' salary to hire. A foundation (10% of the wage) or a youth camp (15%) earns fan affection every week (0.4 / 0.6) and fame every month (1 / 2). Experiences are felt at once (a holiday shakes off 20 fatigue). Living beyond half of wage plus sponsor income costs morale. The property fund now dips (± 1.2% a week) and a start-up swings ± 8% and can fold (0.04% a week). A failed sponsorship costs fame by level and claws back 25% of the fees, and closes the category for two seasons; a completed one is offered again at 1.25× the fee.
 
 **Measured (`npm run profile`, with a spending policy).** Trust below 70 in 16% of weeks (it never fell below 90 before); 24% of earnings spent on the lifestyle; at most 33 declined offers in a career (were ~300); no national award below tier 3; tier-1 wages of 1,400–2,700 a week by 23. Details in VERIFICATION.md, pass D.
+
+## Connected systems, phase 0: repaired links (October 2026)
+
+The [connected systems plan](superpowers/plans/2026-10-08-connected-systems.md) starts with links that were broken or free. Constants are in `src/engine/config.ts`.
+
+**Fame credited as reported.** A career match credits `3 × max(0, rating − 6.3) + 1.5 × goals + 1 × assists + 1.5 for a clean sheet (keepers and defenders)`, from the finalized match (extra time included), the same terms the report shows. Before, the saved career ignored assists and clean sheets.
+
+**Injuries by exposure.** A match's injury chance (`injuries.matchChance` 0.008 for the career player, `aiInjuries.matchChance` 0.012 for others) is per 90 minutes: it scales by `(minutes + extra time) / 90`, at least `injuries.minuteFloor` 0.1. A rushed return's re-injury risk scales the same way, so the hub states it per full match.
+
+**Experiences have cooldowns.** A week away (−20 fatigue, morale +6) can be taken again after 8 weeks and a family visit after 4 (`experienceCooldownWeeks`). A family visit also adds 3 to the weekly morale target for four weeks (`familyMorale`), inside the lifestyle bound of ±8. Stored as `career.style.experiences` (schema 18).
+
+**Boots deals hold.** While a deal requiring its boots is active, other boots cannot be worn. Breaking the deal is a stated decision, and it costs what any failed deal costs: fame `−(3 + level)`, 25% of the fees paid back, and no boots deal for two seasons. The weekly breach rule (−2 fame, no clawback) is gone.
+
+**A transfer request cools the dressing room.** Every clique's affinity falls by 8 and the senior players' by a further 4 (`cliques.transferRequest`, `seniorsTransferRequest`), on top of the trust and affection costs.
+
+**Connected agents pitch more.** A connected agent's weekly pitch chance is `0.001 × network × 1.5` (`connectedPitch`); it was × 1, so the personality added nothing to pitches.
+
+**Key moments follow the slot.** See MATCH-BALANCING.md, engine `match-11`: moments are drawn for the formation slot the player fills, and an unfamiliar slot costs `(100 − familiarity) × 0.1` attribute points, shown as an "Out of position" factor.
+
+**The overspend warning** on the lifestyle screen uses the engine's rule (upkeep above half of wage plus sponsor income).

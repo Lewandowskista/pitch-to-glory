@@ -27,6 +27,7 @@ import { expectedImpact } from '../match/decisions';
 import { performanceFame, performanceXp } from '../match/rewards';
 import { rolesForPosition } from '../match/roles';
 import { commitPlayedFixture, type PlayedFixture } from '../world/simulate';
+import { matchExposure } from '../world/finalize';
 import { addXp } from './progression';
 import { injure, injuryFactor, revealHidden } from './training';
 import { fixtureImportance } from './fixtures';
@@ -179,7 +180,9 @@ export function commitCareerMatch(
     assists: me.assists,
     objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
   });
-  const fame = performanceFame(me.rating, me.goals);
+  // The same terms as the report's fame, from the finalized contributions.
+  const backLine = ['GK', 'CB', 'LB', 'RB'].includes(player.primaryPosition);
+  const fame = performanceFame(me.rating, me.goals, me.assists, backLine && conceded === 0);
   const opponentId = ownHome ? fixture.awayId : fixture.homeId;
   const outcome =
     result.winnerId === player.clubId ? 'win' : result.winnerId === opponentId ? 'loss' : 'draw';
@@ -250,9 +253,13 @@ export function commitCareerMatch(
   // Knocks and re-injury after a rushed return.
   const rng = createRng(`${world.seed}:career:match:${fixture.id}`);
   let injury: Injury | null = null;
-  if (career.reinjury && rng.next() < career.reinjury.risk)
+  const exposure = matchExposure(minutesPlayed);
+  if (career.reinjury && rng.next() < career.reinjury.risk * exposure)
     injury = injure(world, 'match', rng, career.reinjury.kind);
-  else if (rng.next() < CONFIG.career.injuries.matchChance * injuryFactor(career, player))
+  else if (
+    rng.next() <
+    CONFIG.career.injuries.matchChance * exposure * injuryFactor(career, player)
+  )
     injury = injure(world, 'match', rng);
   revealHidden(player);
   const final: CareerMatchFinal = {

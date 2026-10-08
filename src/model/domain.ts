@@ -561,6 +561,8 @@ export interface CareerStyle {
   /** Goals celebrated with the signature celebration in big matches. */
   signatureUses: number;
   assets: LifestyleAsset[];
+  /** When each experience was last taken, by catalogue item; absent in older saves. */
+  experiences?: Record<Id, GameDate>;
 }
 export interface LifestyleAsset {
   id: Id;
@@ -1412,7 +1414,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 17;
+  schemaVersion: 18;
   engineVersion: string;
   slot: SlotId;
   name: string;

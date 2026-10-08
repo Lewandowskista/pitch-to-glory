@@ -7,12 +7,11 @@ import {
   assetEffects,
   BRAND_BY_ID,
   BRANDS,
-  COSMETIC_BY_ID,
   LIFESTYLE_BY_ID,
   type LifestyleItem,
 } from './catalogue';
 import { adjustRelationship } from '../market/records';
-import { careerFameLevel, enforceEquipment, L } from './wardrobe';
+import { bootsDeal, careerFameLevel, enforceEquipment, L } from './wardrobe';
 
 const SP = L.sponsor;
 const ATTACKERS = ['ST', 'LW', 'RW', 'AM'];
@@ -171,7 +170,7 @@ export function sponsorWeek(world: World, rng: Rng): void {
       deal.obligations.some((o) => o.kind === 'boots') &&
       !obligationMet(world, deal, { kind: 'boots', target: 1 })
     ) {
-      endDeal(world, deal, 'ended', SP.bootsBreachFame, 'sponsor-dropped');
+      failDeal(world, deal, 'sponsor-dropped');
       continue;
     }
     pay(world, deal.weeklyFee, false);
@@ -198,21 +197,45 @@ export function sponsorRollover(world: World): void {
       pay(world, deal.bonus, false);
       endDeal(world, deal, 'completed', SP.completedFame, 'sponsor-completed');
       renewSponsor(world, deal);
-    } else {
-      // Failure costs: fame by level and a share of the fees back.
-      const clawback = Math.round((deal.paid ?? 0) * SP.clawback);
-      world.career!.market.finances.cash = Math.max(
-        0,
-        world.career!.market.finances.cash - clawback,
-      );
-      endDeal(world, deal, 'ended', SP.failedFame - careerFameLevel(world), 'sponsor-failed');
-      if (clawback > 0)
-        postMessage(world, 'sponsor-clawback', {
-          brand: BRAND_BY_ID[deal.brandId]!.name,
-          amount: clawback,
-        });
-    }
+    } else failDeal(world, deal, 'sponsor-failed');
   }
+}
+
+/**
+ * A failed deal costs fame by level and a share of the fees back; its category stays closed
+ * for `lockSeasons` (see `makeSponsorOffer`).
+ */
+function failDeal(
+  world: World,
+  deal: Sponsorship,
+  kind: 'sponsor-failed' | 'sponsor-dropped',
+): void {
+  const clawback = Math.round((deal.paid ?? 0) * SP.clawback);
+  world.career!.market.finances.cash = Math.max(0, world.career!.market.finances.cash - clawback);
+  endDeal(world, deal, 'ended', SP.failedFame - careerFameLevel(world), kind);
+  if (clawback > 0)
+    postMessage(world, 'sponsor-clawback', {
+      brand: BRAND_BY_ID[deal.brandId]!.name,
+      amount: clawback,
+    });
+}
+
+/** The player chooses other boots over a boots deal: the deal fails, with its full cost. */
+export function breakBootsDeal(world: World): void {
+  const deal = bootsDeal(world);
+  if (!deal) throw new Error('No boots deal to break');
+  failDeal(world, deal, 'sponsor-dropped');
+}
+
+/** What breaking a deal now would cost: the fame and the fees clawed back. */
+export function dealFailureCost(
+  world: World,
+  deal: Sponsorship,
+): { fame: number; clawback: number } {
+  return {
+    fame: SP.failedFame - careerFameLevel(world),
+    clawback: Math.round((deal.paid ?? 0) * SP.clawback),
+  };
 }
 
 /** A completed deal is offered again at a better fee. */
@@ -283,13 +306,16 @@ export function buyAsset(world: World, itemId: string, amount?: number): void {
     career.style.assets.some((asset) => asset.itemId === itemId)
   )
     throw new Error('You already have this');
+  if (item.kind === 'experience' && experienceWait(world, item) > 0)
+    throw new Error('Too soon to do that again');
   if (career.market.finances.cash < price) throw new Error('Not enough savings');
   career.market.finances.cash -= price;
   if (item.kind === 'experience') {
-    // Felt at once, nothing kept.
+    // Felt at once, nothing kept but the date, which sets the cooldown.
     const player = world.players[career.playerId]!;
     player.morale = Math.max(0, Math.min(100, player.morale + item.morale));
     if (item.effect === 'holiday') player.fatigue = Math.max(0, player.fatigue - 20);
+    career.style.experiences = { ...career.style.experiences, [itemId]: today(world) };
     postMessage(world, 'experience', { item: itemId });
     return;
   }
@@ -373,7 +399,31 @@ export function assetWeek(world: World): void {
   finances.cash = Math.max(0, finances.cash - upkeep);
 }
 
-/** Morale from the best car and home, less a penalty for living beyond one's wage. */
+/** Weeks until an experience can be taken again: 0 when it is available now. */
+export function experienceWait(world: World, item: LifestyleItem): number {
+  const last = world.career!.style.experiences?.[item.id];
+  const cooldown = L.experienceCooldownWeeks[item.effect ?? ''] ?? 0;
+  if (!last || cooldown <= 0) return 0;
+  const ready = addWeeks(world, last, cooldown);
+  const now = today(world);
+  for (let weeks = 0; weeks < cooldown; weeks++)
+    if (compareDates(ready, addWeeks(world, now, weeks)) <= 0) return weeks;
+  return cooldown;
+}
+
+/** Whether a family visit in the last few weeks is still steadying morale. */
+function familyVisitRecent(world: World): boolean {
+  const last = world.career!.style.experiences?.['experience:family'];
+  return (
+    last !== undefined &&
+    compareDates(addWeeks(world, last, L.familyMorale.weeks), today(world)) > 0
+  );
+}
+
+/**
+ * Morale from the best car and home and a recent family visit, less a penalty for living
+ * beyond one's means.
+ */
 export function lifestyleMorale(world: World): number {
   const assets = world.career!.style.assets;
   const best = (kind: 'car' | 'house') =>
@@ -383,12 +433,9 @@ export function lifestyleMorale(world: World): number {
     );
   const income = weeklyIncome(world);
   const overspend = weeklyUpkeep(world) > income * L.overspendShare ? L.overspendMorale : 0;
-  return Math.max(-L.moraleLimit, Math.min(L.moraleLimit, best('car') + best('house') + overspend));
+  const family = familyVisitRecent(world) ? L.familyMorale.morale : 0;
+  return Math.max(
+    -L.moraleLimit,
+    Math.min(L.moraleLimit, best('car') + best('house') + family + overspend),
+  );
 }
-
-/** Boots a sponsor provides: the cosmetic id for an active boots deal, if any. */
-export const sponsorBoots = (world: World) =>
-  world.sponsorships
-    .filter((deal) => deal.status === 'active')
-    .map((deal) => BRAND_BY_ID[deal.brandId]?.bootsId)
-    .filter((id): id is string => Boolean(id && COSMETIC_BY_ID[id]));

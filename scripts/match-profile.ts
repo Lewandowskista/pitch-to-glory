@@ -22,6 +22,7 @@ import {
   type MatchSetup,
 } from '../src/engine/match';
 import { ABILITY_WEIGHTS } from '../src/engine/strength';
+import { FORMATION_SLOTS, FORMATIONS } from '../src/engine/selection/formations';
 import { expectedImpact } from '../src/engine/match/decisions';
 import { autoPlayCommand } from '../src/engine/career/matches';
 
@@ -112,7 +113,6 @@ export function profilePosition(position: Position, matches: number): PositionPr
   };
   for (let index = 0; index < matches; index++) {
     const [home, away] = index % 2 ? [clubs[1]!, clubs[0]!] : [clubs[0]!, clubs[1]!];
-    const own = index % 2 ? 1 : 0;
     const club = index % 2 ? clubs[1]! : clubs[0]!;
     // Every player of the position at the club takes turns, so one profile does not decide.
     const candidates = club.playerIds.filter(
@@ -127,6 +127,16 @@ export function profilePosition(position: Position, matches: number): PositionPr
       selected,
       `profile:${position}:${index}`,
     );
+    const own = setup.home.id === club.id ? 0 : 1;
+    // Moments follow the slot played (engine match-11), so a position is profiled in a
+    // formation that has a slot for it: an attacking midfielder is not measured at striker.
+    if (
+      setup.formations &&
+      !FORMATION_SLOTS[setup.formations[own]].some((s) => s.position === position)
+    )
+      setup.formations[own] = FORMATIONS.find((f) =>
+        FORMATION_SLOTS[f].some((s) => s.position === position),
+      )!;
     const best = play(createMatchSession(setup, tactics), autoPlayCommand);
     // The policy spread is measured on a career-like profile: strong in what the position
     // relies on, weaker elsewhere, so choices differ in value.

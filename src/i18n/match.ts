@@ -489,6 +489,7 @@ const engineText: Record<string, string> = {
   'match.factor.base': 'Base chance',
   'match.factor.defender': 'Opposition quality',
   'match.factor.attribute': 'Relevant attribute',
+  'match.factor.position': 'Out of position',
   'match.factor.trait': 'Trait bonus',
   'match.factor.fatigue': 'Fatigue',
   'match.factor.morale': 'Morale',

@@ -67,6 +67,8 @@ export const CONFIG = {
       bigGame: { base: 0.9, slope: 0.002, skill: 0.1 },
       /** Per match, governing attributes shift by up to ± spread × (1 − consistency / 100). */
       consistencySpread: 8,
+      /** Attribute points lost per point of familiarity below 100 in the slot played. */
+      positionPenalty: 0.1,
       /** Odds × (1 + (own momentum − 50) × slope): a team on top finds everything easier. */
       momentumSlope: 0.002,
       /** Half-time: the talk's effect on second-half odds and on momentum. */
@@ -256,7 +258,9 @@ export const CONFIG = {
       secondWindSkill: 0.7,
     },
     injuries: {
+      /** Per 90 minutes played; a match's chance scales with the minutes (floor `minuteFloor`). */
       matchChance: 0.008,
+      minuteFloor: 0.1,
       ironManSkill: 0.5,
       fatigueWeight: 50,
       types: [
@@ -436,7 +440,7 @@ export const CONFIG = {
         pool: 8,
         changeCooldownWeeks: 4,
         pitchChance: 0.001,
-        connectedPitch: 1,
+        connectedPitch: 1.5,
         /** A connected agent's reach abroad: 1 + network / this. */
         foreignReach: 60,
         adviceWeeks: 8,
@@ -596,7 +600,6 @@ export const CONFIG = {
         clawback: 0.25,
         lockSeasons: 2,
         renewalFactor: 1.25,
-        bootsBreachFame: -2,
         /** Obligation targets per remaining season fraction. */
         starts: 0.45,
         goals: 0.25,
@@ -626,6 +629,10 @@ export const CONFIG = {
       startupFoldChance: 0.0004,
       /** Charities: fame arrives every this many weeks. */
       charityFameWeeks: 4,
+      /** Experiences can be taken again after this many weeks. */
+      experienceCooldownWeeks: { holiday: 8, family: 4 } as Record<string, number>,
+      /** A family visit steadies morale: this much on the weekly morale target for `weeks`. */
+      familyMorale: { morale: 3, weeks: 4 },
       investmentAmounts: [1_000, 5_000, 10_000, 25_000, 50_000, 100_000] as const,
       challenges: {
         daily: 3,
@@ -721,7 +728,7 @@ export const CONFIG = {
     unfamiliarFactor: 0.8,
   },
   saves: {
-    schemaVersion: 17,
+    schemaVersion: 18,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,

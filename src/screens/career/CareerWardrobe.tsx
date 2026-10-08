@@ -3,10 +3,14 @@ import { AnimatePresence, m } from 'framer-motion';
 import type { Avatar, Career, Challenge, Club, Kit, Player, World } from '../../model/domain';
 import {
   availability,
+  bootsDeal,
+  BRAND_BY_ID,
   challengeDone,
   challengeProgress,
   COSMETIC_BY_ID,
   COSMETICS,
+  dealFailureCost,
+  sponsorBoots,
   type Availability,
   type CosmeticItem,
 } from '../../engine/career/lifestyle';
@@ -16,10 +20,13 @@ import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
 import { CareerPage, plural, ui } from './shared';
-import { ActionError, BlockNote } from './marketUi';
+import { ActionError, BlockNote, money } from './marketUi';
 import { CelebrationPreview, useChallengeRefresh, useLifestyleAction } from './lifestyleUi';
 import { Glyph } from './honoursUi';
 import { audio } from '../../audio';
+import { CONFIG } from '../../engine/config';
+import { Dialog } from '../../ui/Dialog';
+import { useUrlDialog } from './useUrlDialog';
 
 type Action = ReturnType<typeof useLifestyleAction>;
 const W = l.wardrobe;
@@ -340,6 +347,14 @@ function KitOptions({
   action: Action;
 }) {
   const equipped = career.style.equipped;
+  const confirm = useUrlDialog('break-boots');
+  const deal = bootsDeal(world);
+  const brand = deal ? BRAND_BY_ID[deal.brandId] : undefined;
+  const dealBoots = sponsorBoots(world);
+  const breaking =
+    confirm.value && deal && brand && COSMETIC_BY_ID[confirm.value]?.kind === 'boots'
+      ? confirm.value
+      : null;
   const group = (
     kind: 'boots' | 'socks' | 'armband',
     label: string,
@@ -359,7 +374,11 @@ function KitOptions({
             selected={equipped[kind] === item.id}
             label={names[item.id] ?? item.id}
             action={action}
-            onSelect={() => action.run({ type: 'wardrobe', change: { slot: kind, id: item.id } })}
+            onSelect={() =>
+              kind === 'boots' && deal && !dealBoots.includes(item.id)
+                ? confirm.open(item.id)
+                : action.run({ type: 'wardrobe', change: { slot: kind, id: item.id } })
+            }
           >
             {item.colors ? (
               <Swatch colors={item.colors} />
@@ -400,8 +419,31 @@ function KitOptions({
         </div>
       </fieldset>
       {group('boots', W.boots, W.bootNames)}
+      {brand && (
+        <p className={`${ui.muted} mt-2 text-xs`}>{format(W.bootsDeal, { brand: brand.name })}</p>
+      )}
       {group('socks', W.socks, W.sockNames)}
       {group('armband', W.armband, W.armbandNames)}
+      {breaking && deal && brand && (
+        <Dialog
+          title={format(W.breakTitle, { brand: brand.name })}
+          body={format(W.breakBody, {
+            fame: dealFailureCost(world, deal).fame,
+            amount: money(dealFailureCost(world, deal).clawback),
+            seasons: CONFIG.career.lifestyle.sponsor.lockSeasons,
+          })}
+          confirmLabel={W.breakConfirm}
+          danger
+          onClose={confirm.close}
+          onConfirm={() => {
+            confirm.close();
+            action.run({
+              type: 'wardrobe',
+              change: { slot: 'boots', id: breaking, breakDeal: true },
+            });
+          }}
+        />
+      )}
     </section>
   );
 }

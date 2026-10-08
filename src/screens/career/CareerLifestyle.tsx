@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { m } from 'framer-motion';
 import type { Career, Sponsorship, World } from '../../model/domain';
 import { CONFIG } from '../../engine/config';
-import { careerContract } from '../../engine/career/market';
 import {
   BRAND_BY_ID,
   BRANDS,
@@ -11,12 +10,14 @@ import {
   LIFESTYLE_BY_ID,
   careerFameLevel,
   fameProgress,
+  experienceWait,
   lifestyleMorale,
   obligationMet,
   obligationProgress,
   resaleValue,
   priceOf,
   upkeepOf,
+  weeklyIncome,
   weeklyUpkeep,
   type LifestyleItem,
 } from '../../engine/career/lifestyle';
@@ -302,6 +303,7 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
   const price = item.kind === 'investment' ? chosen : priceOf(world, item);
   const upkeep = upkeepOf(world, item);
   const owned = world.career!.style.assets.some((asset) => asset.itemId === item.id);
+  const wait = item.kind === 'experience' ? experienceWait(world, item) : 0;
   const name = l.lifestyle.items[item.id] ?? item.id;
   const effect = item.effect
     ? l.lifestyle.effects[item.effect]
@@ -316,12 +318,17 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
         }
       : owned && item.kind !== 'investment' && item.kind !== 'experience'
         ? { chip: l.lifestyle.ownedChip, reason: l.lifestyle.ownedReason }
-        : cash < price
+        : wait > 0
           ? {
-              chip: format(l.lifestyle.lockedCash, { amount: money(price) }),
-              reason: l.lifestyle.afford,
+              chip: l.lifestyle.cooldownChip,
+              reason: plural(wait, l.lifestyle.cooldownNextWeek, l.lifestyle.cooldownWeeks),
             }
-          : null;
+          : cash < price
+            ? {
+                chip: format(l.lifestyle.lockedCash, { amount: money(price) }),
+                reason: l.lifestyle.afford,
+              }
+            : null;
   return (
     <li className="flex flex-col gap-2 rounded-control border border-line bg-surface-soft p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
@@ -414,7 +421,7 @@ function LockIcon() {
 function Assets({ world, career, action }: { world: World; career: Career; action: Action }) {
   const upkeep = weeklyUpkeep(world);
   const morale = lifestyleMorale(world);
-  const overspending = upkeep > careerContract(world).weeklyWage * L.overspendShare;
+  const overspending = upkeep > weeklyIncome(world) * L.overspendShare;
   return (
     <section aria-label={l.lifestyle.title} className={`${ui.panel} lg:col-span-7`}>
       <h2 className={ui.heading}>{l.lifestyle.heading}</h2>

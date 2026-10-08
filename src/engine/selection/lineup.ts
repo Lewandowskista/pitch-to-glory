@@ -11,7 +11,7 @@ import type { Id, Player, Position } from '../../model/domain';
 import { CONFIG } from '../config';
 import { createRng } from '../rng';
 import { playerAbility } from '../strength';
-import { FORMATION_SLOTS, type Formation } from './formations';
+import { FORMATION_SLOTS, type Formation, type Line } from './formations';
 
 const S = CONFIG.selection;
 
@@ -31,6 +31,19 @@ export function slotFit(
   if (player.primaryPosition === position) return 100;
   return player.secondaryPositions.find((entry) => entry.position === position)?.familiarity ?? 0;
 }
+/** The line each position naturally plays in. */
+const NATURAL_LINE: Record<Position, Line> = {
+  GK: 'keeper',
+  CB: 'defence',
+  LB: 'defence',
+  RB: 'defence',
+  DM: 'midfield',
+  CM: 'midfield',
+  AM: 'midfield',
+  LW: 'attack',
+  RW: 'attack',
+  ST: 'attack',
+};
 /** A player's ability in a slot, scaled by positional fit. */
 export function effectiveAbility(player: Player, position: Position): number {
   const fit = slotFit(player, position);
@@ -85,11 +98,17 @@ export function selectLineup(
   if (selected) {
     if (selected.primaryPosition === 'GK') place(0, selected.id);
     else {
+      // Their best slot by fit; among equals (a winger in a formation without wingers), one in
+      // the line they naturally play in, so nobody is sent to centre-back for want of a fit.
+      const natural = NATURAL_LINE[selected.primaryPosition];
+      const value = (index: number) => effectiveAbility(selected, slots[index]!.position);
       let best = 1;
       for (let index = 2; index < slots.length; index++)
         if (
-          effectiveAbility(selected, slots[index]!.position) >
-          effectiveAbility(selected, slots[best]!.position)
+          value(index) > value(best) ||
+          (value(index) === value(best) &&
+            slots[index]!.line === natural &&
+            slots[best]!.line !== natural)
         )
           best = index;
       place(best, selected.id);

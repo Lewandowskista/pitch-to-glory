@@ -2,7 +2,7 @@
 
 **Goal:** Make the career's systems push back. Every system is now present and most are wired, but almost every consequence is a small number that drifts back toward a midpoint, and the club never acts on the player. After this plan a bad run can become a crisis (dropped, listed, fined, booed), a good run is told back to the player as clearly as a bad one, and every system the player reads about changes something they can feel.
 
-**Status:** Not started. Physical-device acceptance stays skipped (decision of 2026-10-08). [AGENTS.md](../../../AGENTS.md) remains the product authority; this plan builds on the [balance overhaul](2026-10-08-balance-overhaul.md) and must not undo its gates.
+**Status:** Phase 0 complete (see Done below); Phases 1–6 not started. Physical-device acceptance stays skipped (decision of 2026-10-08). [AGENTS.md](../../../AGENTS.md) remains the product authority; this plan builds on the [balance overhaul](2026-10-08-balance-overhaul.md) and must not undo its gates.
 
 **Stack and architecture:** No new runtime dependency. Engine changes stay pure in `src/engine/`; constants go in `src/engine/config.ts`; copy goes in `src/i18n/`; new UI uses Tailwind utilities and shared tokens.
 
@@ -39,16 +39,18 @@ The 17-season striker profile on the same tree (`npm run profile`, `artifacts/pr
 
 Defects confirmed in code. No new systems; small, independent fixes.
 
-- [ ] **Fame credited ≠ fame reported.** `commitCareerMatch` calls `performanceFame(me.rating, me.goals)` (`career/matches.ts:182`) while the report passes assists and the back-line clean sheet (`match/index.ts:826`). Pass the same arguments in both; add a test that the report's `fameDelta` equals the committed change.
-- [ ] **Holidays have no cooldown.** `buyItem` applies −20 fatigue and +6 morale every purchase (`lifestyle/lifestyle.ts:288-293`). Add `lastExperience` per kind with a cooldown (holiday 8 weeks, family 4) and show the date it is next available. Stored field: schema bump.
-- [ ] **The family experience does nothing beyond +3 morale.** Give it the effect its copy implies (for example morale floor +5 for four weeks) or change the copy.
-- [ ] **Match injury ignores minutes.** Scale `CONFIG.career.injuries.matchChance` by `minutes / 90` (minimum 0.1) in `career/matches.ts:255`; mirror it for AI players in `world/finalize.ts`.
-- [ ] **Key moments ignore the slot played.** `situationWeights(player.primaryPosition, …)` (`match/index.ts:873, 918`) should use the slot the player occupies in the selected formation; apply the familiarity penalty `(100 − familiarity) × 0.1` to governing attributes in that slot. Engine version bump.
-- [ ] **Overspend warning disagrees with the engine.** The screen compares upkeep to wage (`CareerLifestyle.tsx:417`); the engine to wage plus sponsor fees (`lifestyle.ts:384`). Use `weeklyIncome` in both.
-- [ ] **Boots sponsor exit is free.** Equipping other boots ends a boots deal for −2 fame with no clawback (`lifestyle/wardrobe.ts:97`). While a boots deal is active, lock the boots slot to `sponsorBoots()` (currently never called) and ask before breaking the deal, which then follows the normal failure path.
-- [ ] **Dead constants and stale text.** Wire `cliques.transferRequest` and `seniorsTransferRequest` (`config.ts:521-522`) into the transfer-request action; set `agents.connectedPitch` to a value above 1 (it is 1, so the connected agent gets no extra pitches); fix the "must retire at 40" comment in `honours/retirement.ts:10` (the rule is 38).
+- [x] **Fame credited ≠ fame reported.** `commitCareerMatch` calls `performanceFame(me.rating, me.goals)` (`career/matches.ts:182`) while the report passes assists and the back-line clean sheet (`match/index.ts:826`). Pass the same arguments in both; add a test that the report's `fameDelta` equals the committed change.
+- [x] **Holidays have no cooldown.** `buyItem` applies −20 fatigue and +6 morale every purchase (`lifestyle/lifestyle.ts:288-293`). Add `lastExperience` per kind with a cooldown (holiday 8 weeks, family 4) and show the date it is next available. Stored field: schema bump.
+- [x] **The family experience does nothing beyond +3 morale.** Give it the effect its copy implies (for example morale floor +5 for four weeks) or change the copy.
+- [x] **Match injury ignores minutes.** Scale `CONFIG.career.injuries.matchChance` by `minutes / 90` (minimum 0.1) in `career/matches.ts:255`; mirror it for AI players in `world/finalize.ts`.
+- [x] **Key moments ignore the slot played.** `situationWeights(player.primaryPosition, …)` (`match/index.ts:873, 918`) should use the slot the player occupies in the selected formation; apply the familiarity penalty `(100 − familiarity) × 0.1` to governing attributes in that slot. Engine version bump.
+- [x] **Overspend warning disagrees with the engine.** The screen compares upkeep to wage (`CareerLifestyle.tsx:417`); the engine to wage plus sponsor fees (`lifestyle.ts:384`). Use `weeklyIncome` in both.
+- [x] **Boots sponsor exit is free.** Equipping other boots ends a boots deal for −2 fame with no clawback (`lifestyle/wardrobe.ts:97`). While a boots deal is active, lock the boots slot to `sponsorBoots()` (currently never called) and ask before breaking the deal, which then follows the normal failure path.
+- [x] **Dead constants and stale text.** Wire `cliques.transferRequest` and `seniorsTransferRequest` (`config.ts:521-522`) into the transfer-request action; set `agents.connectedPitch` to a value above 1 (it is 1, so the connected agent gets no extra pitches); fix the "must retire at 40" comment in `honours/retirement.ts:10` (the rule is 38).
 
 **Gate:** unit tests for each item; `npm run profile:match` still within its six gates after the slot change.
+
+**Done (2026-10-08):** see `docs/VERIFICATION.md`, connected systems phase 0. Deviations: the experience cooldown is stored as `career.style.experiences` (the date per item) and the shop states the weeks left rather than a date; the family visit adds +3 to the morale target for four weeks. The out-of-position cost is its own odds step ("Out of position", `× (1 − penalty × attributeSlope)`) rather than a hidden shift of the attributes, so it shows in the breakdown. The engine bump keeps `match-10` sessions replaying (`slotMoments` on the setup) instead of discarding them. Found and fixed on the way: a selected player with no fit was fielded at centre-back (`selectLineup` tie-break), five inbox kinds the save validator rejected, and the match profile's side bookkeeping. Roles, goal shares, objectives and the rating's back-line terms still follow the primary position; Phase 2's squad status is the place to revisit that.
 
 ## Phase 1 — Tell the player what happened
 

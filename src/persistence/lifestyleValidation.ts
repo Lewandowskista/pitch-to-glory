@@ -56,6 +56,14 @@ export function validateLifestyle(w: Record<string, unknown>): void {
     number(asset.cost, 0, 1e12, true);
     number(asset.value, 0, 1e13, true);
   }
+  if (style.experiences !== undefined) {
+    const experiences = object(style.experiences);
+    requireValue(Object.keys(experiences).length <= 10);
+    for (const [itemId, taken] of Object.entries(experiences)) {
+      requireValue(LIFESTYLE_BY_ID[itemId]?.kind === 'experience');
+      date(taken);
+    }
+  }
 
   const dealIds = new Set<string>();
   const activeCategories = new Set<string>();

@@ -473,6 +473,11 @@ export function applyFinalizedFixture(world: World, final: FinalizedFixture): vo
     }
   }
 }
+/** How much of a match's injury chance a player carries: minutes over 90, extra time included. */
+export function matchExposure(minutes: number): number {
+  return Math.max(CONFIG.career.injuries.minuteFloor, minutes / 90);
+}
+
 /**
  * AI players get injured too (the career player's injuries are their own system): a chance
  * per match that grows with fatigue and injury proneness, for a spell drawn from the same
@@ -490,6 +495,7 @@ function injureParticipants(world: World, final: FinalizedFixture): void {
     if (!player || player.id === careerId || player.injuryId || participant.minutes <= 0) continue;
     const chance =
       A.matchChance *
+      matchExposure(participant.minutes + participant.extraTimeMinutes) *
       (0.5 + player.hidden.injuryProneness / 100) *
       (1 + player.fatigue / A.fatigueWeight);
     if (rng.next() >= chance) continue;

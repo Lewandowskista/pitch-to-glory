@@ -25,6 +25,7 @@ import {
 } from '../src/engine/career/market';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { careerRoom } from '../src/engine/career/social/rules';
 import { INBOX_KINDS } from '../src/persistence/marketValidation';
 import { marketText } from '../src/i18n/market';
 import { socialText } from '../src/i18n/social';
@@ -275,6 +276,19 @@ describe('requests, loans and contracts', () => {
       w.relationships.find((r) => r.kind === 'manager' && r.targetId === own(w).managerId)!.value;
     const requested = applyMarketAction(world, { type: 'transfer-request' }).world;
     expect(trust(requested)).toBe(trust(world) + MK.transferRequest.trust);
+    // The dressing room cools, the senior players most; the input world's room is untouched.
+    const Q = CONFIG.career.social.cliques;
+    const affinity = (w: World) =>
+      Object.fromEntries(careerRoom(w).cliques.map((c) => [c.kind, c.affinity]));
+    const was = affinity(world);
+    const now = affinity(requested);
+    expect(Object.keys(was).length).toBeGreaterThan(0);
+    for (const [kind, value] of Object.entries(was)) {
+      const expected =
+        value + Q.transferRequest + (kind === 'seniors' ? Q.seniorsTransferRequest : 0);
+      expect(now[kind]).toBeCloseTo(Math.max(0, Math.min(100, expected)), 1);
+    }
+    expect(affinity(world)).toEqual(was);
     const club = buyer(requested);
     requested.clubs[club.id]!.finances.transferBudget = 1e9;
     careerContract(requested).releaseClause = null;

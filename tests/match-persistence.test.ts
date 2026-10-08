@@ -98,7 +98,7 @@ describe('saved interactive matches', () => {
     expect((await db.worlds.get(1))?.world).toEqual(world);
     expect(await db.matches.get(1)).toBeUndefined();
     const read = await new LocalSaveRepository(db).read(1);
-    expect(read?.schemaVersion).toBe(17);
+    expect(read?.schemaVersion).toBe(18);
     expect(read?.payload).toEqual(state);
   });
   it('writes match checkpoints without the world, with ownership and revision checks', async () => {

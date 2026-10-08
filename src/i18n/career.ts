@@ -239,12 +239,12 @@ export const careerText = {
     rehabBody: 'Return when fully healed: {weeks} weeks out, no added risk.',
     rush: 'Rush back',
     rushBody:
-      'Return in about {weeks} weeks, but carry a {risk}% chance per match of breaking down again for six weeks.',
+      'Return in about {weeks} weeks, but carry a {risk}% chance per full match of breaking down again for six weeks.',
     recoveryChosen: {
       rehab: 'Full rehabilitation chosen.',
-      rush: 'Rushing back. Re-injury risk {risk}% per match.',
+      rush: 'Rushing back. Re-injury risk {risk}% per full match.',
     },
-    reinjury: 'Re-injury risk {risk}% per match for {weeks} more weeks.',
+    reinjury: 'Re-injury risk {risk}% per full match for {weeks} more weeks.',
     training: 'Last week’s training',
     trainingEmpty: 'Your first week of training is still to come.',
     trainingImproved: 'Improved',

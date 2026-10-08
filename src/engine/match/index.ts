@@ -25,7 +25,6 @@ import { FORMATION_SLOTS, type Formation } from '../selection/formations';
 import { clubFormation, usesFormations } from '../selection/world';
 import {
   MATCH_ENGINE_VERSION,
-  LEGACY_MATCH_ENGINE,
   engineFor,
   type MatchSetup,
   type MatchSession,
@@ -223,10 +222,13 @@ export function createMatchSetup(
     neutral: options.neutral ?? false,
     ...(options.fixture ? { fixture: options.fixture } : {}),
     ...(options.chemistry !== undefined ? { chemistry: options.chemistry } : {}),
-    ...(options.chemistry !== undefined ? { chemistry: options.chemistry } : {}),
-    // Worlds on formation-aware selection field each manager's shape.
+    // Worlds on formation-aware selection field each manager's shape, and key moments follow
+    // the slot the selected player fills in it.
     ...(usesFormations(world)
-      ? { formations: [clubFormation(world, home), clubFormation(world, away)] }
+      ? {
+          formations: [clubFormation(world, home), clubFormation(world, away)],
+          slotMoments: true as const,
+        }
       : {}),
     strengthBonus: [
       round6(managerStrengthBonus(world.managers[home.managerId]?.ability ?? 60)),
@@ -236,6 +238,29 @@ export function createMatchSetup(
 }
 const selectedSide = (setup: MatchSetup) =>
   setup.players[setup.selectedPlayerId]!.clubId === setup.home.id ? 0 : 1;
+
+/**
+ * Where the selected player plays: the formation slot they fill in a slot-aware match, with
+ * their familiarity there, else their primary position (familiarity 100).
+ */
+function playedSlot(session: MatchSession): { position: Position; familiarity: number } {
+  const setup = session.setup;
+  const player = setup.players[setup.selectedPlayerId]!;
+  const primary = { position: player.primaryPosition, familiarity: 100 };
+  if (!setup.slotMoments) return primary;
+  const own = selectedSide(setup) === 0 ? session.state.match.home : session.state.match.away;
+  const formation = own.formation as Formation | undefined;
+  const index = own.starterIds.indexOf(player.id);
+  const slot = formation ? FORMATION_SLOTS[formation]?.[index]?.position : undefined;
+  if (
+    !slot ||
+    slot === player.primaryPosition ||
+    (slot === 'GK') !== (player.primaryPosition === 'GK')
+  )
+    return primary;
+  const familiarity = player.secondaryPositions.find((p) => p.position === slot)?.familiarity ?? 0;
+  return { position: slot, familiarity };
+}
 
 /** Strength-model expectations adjusted by personal tactics, rounded for stable replay. */
 /**
@@ -870,7 +895,8 @@ function contextFor(
     drawn[role] = id;
     return round6(playerAbility(setup.players[id]!));
   };
-  const weights = situationWeights(player.primaryPosition, s.match.tactics.role);
+  const slot = playedSlot(session);
+  const weights = situationWeights(slot.position, s.match.tactics.role);
   // The finishers a created chance falls to: the best three teammate attackers on the pitch.
   const own = side === 0 ? s.match.home : s.match.away;
   const finishing = own.starterIds
@@ -907,6 +933,7 @@ function contextFor(
       : s.matchLevel,
     consistencyShift: s.consistencyShift,
     chemistry: setup.chemistry ?? 60,
+    positionPenalty: round6((100 - slot.familiarity) * C.decision.positionPenalty),
   };
 }
 function openMoment(next: MatchSession): void {
@@ -915,7 +942,7 @@ function openMoment(next: MatchSession): void {
     setup = next.setup;
   const player = setup.players[setup.selectedPlayerId]!;
   const rng = createRng(`${setup.seed}:situation:${m.minute}`);
-  const weights = situationWeights(player.primaryPosition, m.tactics.role);
+  const weights = situationWeights(playedSlot(next).position, m.tactics.role);
   let target = rng.next() * weights.reduce((sum, w) => sum + w.weight, 0);
   let situation = weights[weights.length - 1]!.situation;
   for (const w of weights) {
@@ -1235,10 +1262,12 @@ export function validateMatchSession(value: unknown): MatchSession {
   if (!value || typeof value !== 'object') throw new Error('Invalid match session');
   const session = value as MatchSession;
   // Sessions from another engine cannot replay; callers discard them and keep the world. A
-  // session from before formations replays with the 4-3-3 rules its setup implies.
+  // session from before formations, or before slot-aware moments, replays with the rules its
+  // setup implies.
   if (
-    session.engine !== MATCH_ENGINE_VERSION &&
-    !(session.engine === LEGACY_MATCH_ENGINE && session.setup && !session.setup.formations)
+    !session.setup ||
+    typeof session.setup !== 'object' ||
+    session.engine !== engineFor(session.setup)
   )
     throw new OutdatedMatchSessionError(session.engine);
   if (

@@ -14,6 +14,9 @@ import {
   today,
 } from './rules';
 import { adjustRelationship, postMessage } from './records';
+import { CONFIG } from '../../config';
+import { adjustCliques } from '../social/dressing';
+import { careerRoom } from '../social/rules';
 import {
   acceptTerms,
   counterOffer,
@@ -172,7 +175,14 @@ export function applyMarketAction(
 ): { world: World; result: MarketResult } {
   if (!input.career) throw new Error('No career in this world');
   const isMove = action.type === 'accept' || action.type === 'counter';
-  const world = draftWorld(input, isMove ? moveTouch(input, action.offerId) : {});
+  const world = draftWorld(
+    input,
+    isMove
+      ? moveTouch(input, action.offerId)
+      : action.type === 'transfer-request'
+        ? { dressingRooms: [careerRoom(input).id] }
+        : {},
+  );
   const career = world.career!;
   const market = career.market;
   const player = world.players[career.playerId]!;
@@ -218,6 +228,10 @@ export function applyMarketAction(
         market.selection.promiseBroken ? T.brokenTrust : T.trust,
       );
       adjustRelationship(world, 'fans', parent.id, T.fans);
+      // The dressing room cools on a player who wants out; the senior players most.
+      const Q = CONFIG.career.social.cliques;
+      adjustCliques(world, Q.transferRequest);
+      adjustCliques(world, { seniors: Q.seniorsTransferRequest });
       market.transferRequest = today(world);
       for (const interest of world.scouting)
         if (interest.kind === 'transfer')

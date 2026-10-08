@@ -281,4 +281,42 @@ describe('career match accounting', () => {
     expect(checked).toBeGreaterThanOrEqual(3);
     expect(scoredInExtraTime).toBe(true);
   }, 360000);
+
+  it('credits the fame the report shows, assists and clean sheets included', () => {
+    const base = clone(national);
+    const trial = trialOffers(base, 'country:0', 'fame')[0]!;
+    for (const [position, archetype] of [
+      ['CB', 'destroyer'],
+      ['CM', 'playmaker'],
+    ] as const) {
+      const career = createCareer(base, draft({ position, archetype }), trial.id, 'fame');
+      const opponent = career.leagues[career.clubs[trial.id]!.leagueId]!.clubIds.find(
+        (id) => id !== trial.id,
+      )!;
+      let checked = 0;
+      let credited = false;
+      for (let index = 0; index < 150 && !(checked >= 3 && credited); index++) {
+        const world = clone(career);
+        const fixture = playoff(world, trial.id, opponent, `fame-${position}-${index}`);
+        let session: MatchSession = createMatchSession(
+          careerMatchSetup(world, fixture),
+          defaultTactics(world),
+        );
+        while (session.state.match.status !== 'finished')
+          session = applyMatchCommand(session, autoPlayCommand(session));
+        const [home, away] = session.state.match.score;
+        // Decided in 90 minutes, so the report and the finalized match count the same play.
+        if (home === away) continue;
+        const before = world.career!.fame;
+        const { final, celebrationFame } = commitCareerMatch(world, session);
+        checked++;
+        expect(final.fame).toBe(session.state.report!.fameDelta);
+        expect(world.career!.fame - before).toBe(final.fame + celebrationFame);
+        credited ||=
+          position === 'CB' ? session.state.match.score[1] === 0 : session.state.stats.assists > 0;
+      }
+      expect(checked).toBeGreaterThanOrEqual(3);
+      expect(credited).toBe(true);
+    }
+  }, 360000);
 });

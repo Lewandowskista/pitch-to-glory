@@ -104,6 +104,9 @@ const migrations: Readonly<Record<number, Migration>> = {
   // curve can change without taking or granting levels: a migrated career keeps its level
   // and starts the new curve from its current XP.
   16: (old) => ({ ...old, schemaVersion: 17, payload: withLevelXp(old.payload) }),
+  // v18 records when each experience was last taken (optional `career.style.experiences`), for
+  // their cooldowns. Careers saved before can take any experience at once.
+  17: (old) => ({ ...old, schemaVersion: 18 }),
 };
 function withLevelXp(payload: unknown): unknown {
   try {

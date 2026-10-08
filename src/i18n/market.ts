@@ -114,7 +114,7 @@ export const marketText = {
       'Your club lowers its asking price and interested clubs move faster. The manager and fans will not like it, and you lose your loyalty bonus.',
     transferConfirmTitle: 'Hand in a transfer request?',
     transferConfirmBody:
-      'Manager’s trust falls by {trust} and fan affection by {fans}. Your club will accept {discount}% of its usual asking price. You forfeit the loyalty bonus if you are sold.',
+      'Manager’s trust falls by {trust} and fan affection by {fans}. The dressing room cools on you, the senior players most. Your club will accept {discount}% of its usual asking price. You forfeit the loyalty bonus if you are sold.',
     transferConfirm: 'Hand it in',
     transferActive: 'Transfer request handed in, week {week} of {season}.',
     withdraw: 'Withdraw the request',

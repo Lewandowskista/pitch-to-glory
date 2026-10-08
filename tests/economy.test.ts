@@ -16,6 +16,8 @@ import { lifestyleRollover } from '../src/engine/career/lifestyle/week';
 import {
   applyLifestyleAction,
   assetWeek,
+  experienceWait,
+  lifestyleMorale,
   priceOf,
   sponsorRollover,
   upkeepOf,
@@ -25,6 +27,7 @@ import { injuryFactor } from '../src/engine/career/training';
 import { retirementState, awardWeight } from '../src/engine/career/honours/retirement';
 import { getSeasonWeeks } from '../src/engine/world/calendar';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { matchExposure } from '../src/engine/world/finalize';
 
 /**
  * Balance pass D (docs/GAME-DESIGN-REVIEW.md): stakes in money and relationships, and
@@ -214,6 +217,37 @@ describe('things worth buying', () => {
     expect(player(rested).morale).toBeGreaterThan(moraleBefore);
     expect(rested.career!.style.assets).toHaveLength(0);
     expect(rested.inbox.at(-1)!.subjectKey).toBe('experience');
+  });
+  it('rests a holiday for eight weeks before another, and a family visit steadies morale', () => {
+    const world = clone(career);
+    world.career!.market.finances.cash = 100_000;
+    const holiday = LIFESTYLE_BY_ID['experience:holiday']!;
+    const away = applyLifestyleAction(world, { type: 'buy-asset', itemId: holiday.id });
+    expect(experienceWait(away, holiday)).toBe(8);
+    expect(() => applyLifestyleAction(away, { type: 'buy-asset', itemId: holiday.id })).toThrow();
+    const later = clone(away);
+    later.date.week += 7;
+    expect(experienceWait(later, holiday)).toBe(1);
+    later.date.week += 1;
+    expect(experienceWait(later, holiday)).toBe(0);
+    expect(() =>
+      applyLifestyleAction(later, { type: 'buy-asset', itemId: holiday.id }),
+    ).not.toThrow();
+    // The family visit lifts the weekly morale target for four weeks, then stops.
+    const before = lifestyleMorale(world);
+    const visited = applyLifestyleAction(world, { type: 'buy-asset', itemId: 'experience:family' });
+    const F = CONFIG.career.lifestyle.familyMorale;
+    expect(lifestyleMorale(visited)).toBe(before + F.morale);
+    const settled = clone(visited);
+    settled.date.week += F.weeks;
+    expect(lifestyleMorale(settled)).toBe(before);
+    expect(() => validateWorld(clone(away))).not.toThrow();
+  });
+  it('scales a match injury chance by the minutes played', () => {
+    expect(matchExposure(90)).toBe(1);
+    expect(matchExposure(45)).toBe(0.5);
+    expect(matchExposure(120)).toBeCloseTo(4 / 3);
+    expect(matchExposure(1)).toBe(CONFIG.career.injuries.minuteFloor);
   });
   it('claws back fees from a failed sponsorship and fades fame between seasons', () => {
     const world = clone(career);

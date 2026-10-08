@@ -5,10 +5,16 @@ import { startNextSeason } from '../src/engine/world/simulate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { nextCareerFixture, pendingCareerFixture } from '../src/engine/career/fixtures';
-import { careerMatchSetup, defaultTactics } from '../src/engine/career/matches';
+import { autoPlayCommand, careerMatchSetup, defaultTactics } from '../src/engine/career/matches';
 import { careerSelection, slotCompetition } from '../src/engine/career/market';
 import { applyMatchCommand, createMatchSession, validateMatchSession } from '../src/engine/match';
-import { engineFor, LEGACY_MATCH_ENGINE, MATCH_ENGINE_VERSION } from '../src/engine/match/types';
+import {
+  engineFor,
+  LEGACY_MATCH_ENGINE,
+  MATCH_ENGINE_VERSION,
+  PREVIOUS_MATCH_ENGINE,
+} from '../src/engine/match/types';
+import { SITUATION_BY_ID } from '../src/engine/match/situations';
 import {
   FORMATION_SLOTS,
   FORMATIONS,
@@ -60,6 +66,18 @@ const setAll = (player: Player, value: number) => {
 };
 
 describe('formations', () => {
+  it('field a selected player with no fit anywhere in their own line, not at centre-back', () => {
+    const players = clone(world.players);
+    const club = careerClub(world);
+    const winger = club.playerIds
+      .map((id) => players[id]!)
+      .find((p) => p.primaryPosition !== 'GK')!;
+    winger.primaryPosition = 'RW';
+    winger.secondaryPositions = [];
+    const choice = selectLineup(club.playerIds, players, '3-5-2', { selected: winger.id });
+    const index = choice.starterIds.indexOf(winger.id);
+    expect(FORMATION_SLOTS['3-5-2'][index]!.line).toBe('attack');
+  });
   it('give every formation eleven slots: one keeper first, then outfield posts', () => {
     for (const formation of FORMATIONS) {
       const slots = FORMATION_SLOTS[formation];
@@ -251,6 +269,76 @@ describe('interactive matches', () => {
     }
     // A saved session replays exactly.
     expect(validateMatchSession(clone(session))).toEqual(session);
+  });
+
+  it('draw key moments for the slot played, at a stated cost in an unfamiliar one', () => {
+    const source = pending();
+    const setup = careerMatchSetup(source, pendingCareerFixture(source)!);
+    expect(setup.slotMoments).toBe(true);
+    const id = setup.selectedPlayerId;
+    const primary = setup.players[id]!.primaryPosition;
+    const play = (slotted: boolean) => {
+      let session = createMatchSession(setup, defaultTactics(source));
+      expect(session.engine).toBe(MATCH_ENGINE_VERSION);
+      if (slotted) {
+        // Field the striker at centre-back, a slot they know a little.
+        const team = session.state.match[setup.home.id === careerClub(source).id ? 'home' : 'away'];
+        const slots = FORMATION_SLOTS[team.formation as Formation];
+        const from = team.starterIds.indexOf(id);
+        const to = slots.findIndex((slot) => slot.position === 'CB');
+        [team.starterIds[from], team.starterIds[to]] = [
+          team.starterIds[to]!,
+          team.starterIds[from]!,
+        ];
+        session.setup.players[id]!.secondaryPositions = [{ position: 'CB', familiarity: 40 }];
+      }
+      const moments = new Map<string, { situationId: string; penalised: boolean }>();
+      while (session.state.match.status !== 'finished') {
+        const moment = session.state.currentMoment;
+        if (moment && !moments.has(moment.id))
+          moments.set(moment.id, {
+            situationId: moment.situationId,
+            penalised: moment.choices.every((choice) =>
+              choice.factors.some(
+                (f) => f.labelKey === 'match.factor.position' && f.contribution < 0,
+              ),
+            ),
+          });
+        session = applyMatchCommand(session, autoPlayCommand(session));
+      }
+      return [...moments.values()];
+    };
+    const own = play(false);
+    expect(own.length).toBeGreaterThan(0);
+    for (const moment of own) {
+      expect(SITUATION_BY_ID[moment.situationId]!.positions[primary] ?? 0).toBeGreaterThan(0);
+      expect(moment.penalised).toBe(false);
+    }
+    const slotted = play(true);
+    expect(slotted.length).toBeGreaterThan(0);
+    for (const moment of slotted) {
+      expect(SITUATION_BY_ID[moment.situationId]!.positions.CB ?? 0).toBeGreaterThan(0);
+      expect(moment.penalised).toBe(true);
+    }
+    // At least one moment a striker would never face in their own position.
+    expect(slotted.some((m) => !(SITUATION_BY_ID[m.situationId]!.positions[primary] ?? 0))).toBe(
+      true,
+    );
+  }, 120000);
+
+  it('replay match-10 sessions, saved before slot-aware moments, as they were', () => {
+    const source = pending();
+    const setup = careerMatchSetup(source, pendingCareerFixture(source)!);
+    delete setup.slotMoments;
+    expect(engineFor(setup)).toBe(PREVIOUS_MATCH_ENGINE);
+    let session = createMatchSession(setup, defaultTactics(source));
+    expect(session.engine).toBe(PREVIOUS_MATCH_ENGINE);
+    session = applyMatchCommand(session, { type: 'kickoff' });
+    expect(validateMatchSession(clone(session))).toEqual(session);
+    // Neither engine can be claimed for the other's setup.
+    expect(() =>
+      validateMatchSession({ ...clone(session), engine: MATCH_ENGINE_VERSION }),
+    ).toThrow();
   });
 
   it('replay sessions from before formations with their 4-3-3', () => {

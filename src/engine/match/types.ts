@@ -12,15 +12,25 @@ import type { Formation } from '../selection/formations';
 export type { Tactics } from '../../model/domain';
 
 /** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
-export const MATCH_ENGINE_VERSION = 'match-10';
+export const MATCH_ENGINE_VERSION = 'match-11';
+/**
+ * The engine before key moments followed the formation slot. A setup without `slotMoments`
+ * still replays with moments drawn for the primary position, so sessions saved before keep
+ * playing.
+ */
+export const PREVIOUS_MATCH_ENGINE = 'match-10';
 /**
  * The engine before formations (Phase 5.1). A setup without `formations` still replays with
  * its 4-3-3 lineup and strength, so sessions saved before keep playing.
  */
 export const LEGACY_MATCH_ENGINE = 'match-10-lines';
 /** The engine a setup replays with. */
-export const engineFor = (setup: Pick<MatchSetup, 'formations'>): string =>
-  setup.formations ? MATCH_ENGINE_VERSION : LEGACY_MATCH_ENGINE;
+export const engineFor = (setup: Pick<MatchSetup, 'formations' | 'slotMoments'>): string =>
+  !setup.formations
+    ? LEGACY_MATCH_ENGINE
+    : setup.slotMoments
+      ? MATCH_ENGINE_VERSION
+      : PREVIOUS_MATCH_ENGINE;
 
 export interface MatchSetup {
   version: 1;
@@ -35,6 +45,11 @@ export interface MatchSetup {
   fixture?: MatchFixture;
   /** Home and away managers' formations; absent for a world on the earlier 4-3-3 selection. */
   formations?: [Formation, Formation];
+  /**
+   * Key moments follow the formation slot the selected player fills, and an unfamiliar slot
+   * costs odds (`match-11`). Absent in sessions saved before, which replay as they were.
+   */
+  slotMoments?: true;
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */
   strengthBonus?: [number, number];
   /** The selected player's chemistry with their teammates (0–100; 60 when absent). */

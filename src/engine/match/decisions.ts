@@ -53,6 +53,8 @@ export interface DecisionContext {
   consistencyShift: number;
   /** Chemistry with teammates (0–100): what a chance made for them is worth. */
   chemistry: number;
+  /** Attribute points lost to playing an unfamiliar slot (0 in the player's own position). */
+  positionPenalty?: number;
 }
 
 export function governingValue(
@@ -268,6 +270,15 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
       const steps: [string, ProbabilityFactor['source'], number][] = [
         ['match.factor.defender', 'defender', (t.direct ? 1 : team) * matchup],
         ['match.factor.attribute', 'attribute', attribute],
+        ...(context.positionPenalty
+          ? ([
+              [
+                'match.factor.position',
+                'attribute',
+                clamp(1 - context.positionPenalty * D.attributeSlope, D.attributeMinimum, 1),
+              ],
+            ] as [string, ProbabilityFactor['source'], number][])
+          : []),
         [
           'match.factor.trait',
           'trait',

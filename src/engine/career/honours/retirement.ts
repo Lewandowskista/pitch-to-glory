@@ -7,7 +7,8 @@ import { chronicle } from './chronicle';
 
 /**
  * Retirement and legacy (AGENTS.md §8, §9.2). The player chooses when to retire from age 32
- * once a season is complete, and must retire at 40. The career becomes a legacy record; the
+ * once a season is complete, and must retire at 38, or from 33 once ability has fallen well
+ * below its peak (`retirement` in the honours config). The career becomes a legacy record; the
  * world carries on, with the retired player kept for the history, and a new career (or the
  * player's child) can start in the same world.
  */

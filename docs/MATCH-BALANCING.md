@@ -229,3 +229,15 @@ The [game design review](GAME-DESIGN-REVIEW.md) found that every choice in a sit
 ## Balance pass D (engine `match-10`)
 
 Chemistry with teammates scales a created chance for them (`successGoal × clamp(1 + (chemistry − 60) × 0.004, 0.85, 1.15)`, from `MatchSetup.chemistry`); morale's factor is `1 + (morale − 65) × 0.004` within 0.88–1.12. Saved sessions from `match-9` are discarded on load.
+
+## Connected systems phase 0 (engine `match-11`)
+
+**Moments follow the slot.** A setup with `slotMoments` (every new setup in a world on formation-aware selection) draws key moments by the situation weights of the formation slot the selected player fills (`FORMATION_SLOTS[formation][index]`), not their primary position, and budgets the moment from the same weights. A striker fielded at centre-back faces defensive moments. Roles, goal shares, objectives and the rating's back-line terms still follow the primary position.
+
+**Out of position.** In a slot other than the primary position, the player loses `(100 − familiarity) × positionPenalty` attribute points (0.1, so familiarity 40 costs 6), applied as its own odds step after the attribute factor: `× clamp(1 − penalty × attributeSlope, attributeMinimum, 1)`. It appears in the breakdown as "Out of position" and is absent in the player's own position.
+
+**Compatibility.** Sessions saved before (`match-10`, no `slotMoments`) still replay as they were; `engineFor(setup)` picks `match-11`, `match-10` or the earlier `match-10-lines` from the setup, and a session may not claim another engine.
+
+**Placement.** A selected player is put in their best slot by fit (`selectLineup`); among equal fits they now take a slot in the line they naturally play in. Before, a winger with no familiarity anywhere in a 3-5-2 was fielded at centre-back (the first outfield slot), drawn there on the pitch and taught centre-back familiarity by those minutes.
+
+**Profile.** `scripts/match-profile.ts` fields each position in a formation that has a slot for it (an attacking midfielder is not measured at striker), and counts goals for and against from the profiled club's actual side (it is always at home; the tallies used to alternate sides). All six gates hold on `match-11`: striker 0.39 goals a match (the same as `match-10` on this world; the 0.51 recorded under pass D predates later changes), wingers 0.17 goals and 0.28 assists, every objective kind 10–75%, attacker involvement best/worst ×1.19–1.59, odds within tolerance.

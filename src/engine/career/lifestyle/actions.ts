@@ -1,6 +1,6 @@
 import type { World } from '../../../model/domain';
 import { draftWorld } from '../market/actions';
-import { acceptSponsor, buyAsset, declineSponsor, sellAsset } from './lifestyle';
+import { acceptSponsor, breakBootsDeal, buyAsset, declineSponsor, sellAsset } from './lifestyle';
 import { claimChallenge, refreshChallenges } from './challenges';
 import { applyWardrobe, buyCosmetic, type WardrobeChange } from './wardrobe';
 
@@ -26,6 +26,7 @@ export function applyLifestyleAction(input: World, action: LifestyleAction): Wor
   });
   switch (action.type) {
     case 'wardrobe':
+      if (action.change.slot === 'boots' && action.change.breakDeal) breakBootsDeal(world);
       applyWardrobe(world, action.change);
       break;
     case 'buy-cosmetic':

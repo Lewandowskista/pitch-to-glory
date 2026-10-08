@@ -1,6 +1,6 @@
-import type { CareerStyle, Player, SleeveLength, World } from '../../../model/domain';
+import type { CareerStyle, Player, SleeveLength, Sponsorship, World } from '../../../model/domain';
 import { CONFIG } from '../../config';
-import { COSMETIC_BY_ID, type CosmeticItem } from './catalogue';
+import { BRAND_BY_ID, COSMETIC_BY_ID, type CosmeticItem } from './catalogue';
 
 export const L = CONFIG.career.lifestyle;
 
@@ -65,11 +65,31 @@ export const usable = (world: World, item: CosmeticItem) =>
 export type WardrobeChange =
   | { slot: 'hair' | 'accessory'; value: number }
   | { slot: 'hairColor' | 'facialHair'; value: number }
-  | { slot: 'boots' | 'socks' | 'armband'; id: string }
+  | {
+      slot: 'boots';
+      id: string;
+      /** Wear other boots even though it breaks a boots deal. */ breakDeal?: boolean;
+    }
+  | { slot: 'socks' | 'armband'; id: string }
   | { slot: 'sleeves'; value: SleeveLength }
   | { slot: 'celebration'; id: string | null };
 
-/** Change a look or kit item the player is allowed to use. Mutates the given world. */
+/** Boots that active sponsor deals provide. */
+export const sponsorBoots = (world: World) =>
+  world.sponsorships
+    .filter((deal) => deal.status === 'active')
+    .map((deal) => BRAND_BY_ID[deal.brandId]?.bootsId)
+    .filter((id): id is string => Boolean(id && COSMETIC_BY_ID[id]));
+/** The active deal that requires its boots to be worn, if any. */
+export const bootsDeal = (world: World): Sponsorship | undefined =>
+  world.sponsorships.find(
+    (deal) => deal.status === 'active' && deal.obligations.some((o) => o.kind === 'boots'),
+  );
+
+/**
+ * Change a look or kit item the player is allowed to use. Mutates the given world. Other
+ * boots cannot be worn while a boots deal is active: breaking that deal is its own decision.
+ */
 export function applyWardrobe(world: World, change: WardrobeChange): void {
   const career = world.career!;
   const player = world.players[career.playerId]!;
@@ -94,6 +114,8 @@ export function applyWardrobe(world: World, change: WardrobeChange): void {
       const item = COSMETIC_BY_ID[change.id];
       if (!item || item.kind !== change.slot || !usable(world, item))
         throw new Error('That item is still locked');
+      if (change.slot === 'boots' && bootsDeal(world) && !sponsorBoots(world).includes(change.id))
+        throw new Error('Your boots sponsor requires its boots');
       style.equipped[change.slot] = change.id;
       return;
     }

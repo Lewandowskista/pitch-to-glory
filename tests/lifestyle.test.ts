@@ -10,6 +10,7 @@ import {
   applyLifestyleAction,
   assetWeek,
   availability,
+  careerFameLevel,
   celebrationFame,
   challengeDone,
   challengePeriods,
@@ -131,13 +132,34 @@ describe('wardrobe', () => {
     const signed = applyLifestyleAction(world, { type: 'accept-sponsor', id: 'sponsor:test' });
     expect(signed.career!.style.equipped.boots).toBe('boots:strider');
     valid(signed);
-    // Changing boots breaks the deal at the next weekly check, and the boots come off.
+    // Other boots cannot be worn while the deal runs; breaking it is its own decision and
+    // costs what any failed deal costs: fame by level, a share of the fees, the category.
+    expect(() =>
+      applyLifestyleAction(signed, {
+        type: 'wardrobe',
+        change: { slot: 'boots', id: 'boots:classic' },
+      }),
+    ).toThrow();
+    sponsorWeek(signed, createRng('paid'));
+    const paid = signed.sponsorships[0]!.paid!;
+    expect(paid).toBe(50);
+    const level = careerFameLevel(signed);
     const changed = applyLifestyleAction(signed, {
       type: 'wardrobe',
-      change: { slot: 'boots', id: 'boots:classic' },
+      change: { slot: 'boots', id: 'boots:classic', breakDeal: true },
     });
-    sponsorWeek(changed, createRng('breach'));
     expect(changed.sponsorships[0]!.status).toBe('ended');
+    expect(changed.career!.style.equipped.boots).toBe('boots:classic');
+    expect(changed.career!.fame - signed.career!.fame).toBe(
+      CONFIG.career.lifestyle.sponsor.failedFame - level,
+    );
+    expect(signed.career!.market.finances.cash - changed.career!.market.finances.cash).toBe(
+      Math.round(paid * CONFIG.career.lifestyle.sponsor.clawback),
+    );
+    expect(changed.inbox.at(-2)!.subjectKey).toBe('sponsor-dropped');
+    expect(changed.inbox.at(-1)!.subjectKey).toBe('sponsor-clawback');
+    // The input world keeps its deal.
+    expect(signed.sponsorships[0]!.status).toBe('active');
     valid(changed);
   });
 });

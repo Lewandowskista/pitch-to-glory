@@ -95,7 +95,8 @@ export const lifestyleText = {
     savings: 'Savings',
     upkeep: 'Weekly upkeep',
     morale: 'Morale from your lifestyle',
-    overspend: 'Your upkeep is more than half your wage, which weighs on your morale.',
+    overspend:
+      'Your upkeep is more than half your wage and sponsor income, which weighs on your morale.',
     owned: 'You own',
     none: 'You do not own anything yet.',
     shop: 'Buy',
@@ -114,8 +115,8 @@ export const lifestyleText = {
       nutrition: 'Recovers 2 fatigue a week',
       coach: 'Training gains +15%',
       analyst: '+2 XP for every key decision that comes off',
-      holiday: 'Shakes off 20 fatigue and lifts morale',
-      family: 'Lifts morale',
+      holiday: 'Shakes off 20 fatigue and lifts morale. Once every 8 weeks',
+      family: 'Lifts morale, then steadies it for 4 weeks. Once every 4 weeks',
       foundation: 'The fans warm to you; a little fame every month',
       camp: 'The fans love it; fame every month',
       rest: 'Rests {value} fatigue a week',
@@ -129,6 +130,9 @@ export const lifestyleText = {
     lockedCash: 'Need {amount}',
     ownedChip: 'Yours',
     ownedReason: 'You already have this',
+    cooldownChip: 'Too soon',
+    cooldownNextWeek: 'You can do this again next week',
+    cooldownWeeks: 'You can do this again in {count} weeks',
     buy: 'Buy',
     sell: 'Sell for {amount}',
     invest: 'Invest',
@@ -163,6 +167,11 @@ export const lifestyleText = {
   },
   wardrobe: {
     preview: 'Your look',
+    bootsDeal: 'Your {brand} deal requires their boots.',
+    breakTitle: 'Break your deal with {brand}?',
+    breakBody:
+      'Wearing other boots ends the deal as a failure: fame {fame}, {amount} of the fees paid back, and no boots deals for {seasons} seasons.',
+    breakConfirm: 'Break the deal',
     previewAlt: 'Your kit with {boots} boots and {socks} socks',
     look: 'Look',
     kit: 'Kit',
@@ -322,7 +331,7 @@ export const lifestyleText = {
     },
     'sponsor-dropped': {
       subject: '{brand} dropped you',
-      body: 'You stopped wearing their boots, so {brand} ended the deal.',
+      body: 'You stopped wearing their boots, so {brand} ended the deal and the press noticed.',
     },
     'sponsor-clawback': {
       subject: '{brand} wants money back',
