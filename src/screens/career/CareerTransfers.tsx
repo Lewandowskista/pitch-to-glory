@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { competitionLine } from './selectionUi';
+import { withSave } from './agenda';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CONFIG } from '../../engine/config';
 import { nextCareerFixture } from '../../engine/career/fixtures';
 import {
@@ -199,6 +201,7 @@ function PlayingTime({
   player: Player;
   club: Club | undefined;
 }) {
+  const [params] = useSearchParams();
   const selection = career.market.selection;
   const fixture = nextCareerFixture(world);
   const chance = fixture && !player.injuryId ? careerSelection(world, fixture) : null;
@@ -223,12 +226,24 @@ function PlayingTime({
                 value={chance.probability * 100}
                 tone={chance.probability < 0.5 ? 'danger' : 'accent'}
               />
-              <p className="mt-1.5 text-xs text-muted">
-                {format(m.playing.chanceBody, {
-                  count: MK.slots[line],
-                  line: m.playing.lines[line],
-                })}
-              </p>
+              {chance.competition.formation ? (
+                <p className="mt-1.5 text-xs text-muted">
+                  {competitionLine(world, chance)}{' '}
+                  <Link
+                    className="font-semibold text-accent underline"
+                    to={withSave('/career/club', params.get('save'))}
+                  >
+                    {m.playing.reasons}
+                  </Link>
+                </p>
+              ) : (
+                <p className="mt-1.5 text-xs text-muted">
+                  {format(m.playing.chanceBody, {
+                    count: MK.slots[line],
+                    line: m.playing.lines[line],
+                  })}
+                </p>
+              )}
             </>
           ) : (
             <p className="text-sm font-semibold">{m.playing.unregistered}</p>

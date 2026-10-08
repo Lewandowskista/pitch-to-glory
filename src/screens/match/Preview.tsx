@@ -5,6 +5,10 @@ import {
   type MatchSession,
   type Tactics,
 } from '../../engine/match';
+import type { ReactNode } from 'react';
+import { FORMATION_SLOTS, formationOf } from '../../engine/selection/formations';
+import { slotFit } from '../../engine/selection/lineup';
+import { selectionText as s } from '../../i18n/selection';
 import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
 import { ClubBadge, Footballer } from './Shared';
 
@@ -13,10 +17,13 @@ export function Preview({
   onTactics,
   onKickoff,
   note,
+  selection,
 }: {
   session: MatchSession;
   /** Replaces the friendly-match explanation (career fixtures). */
   note?: string;
+  /** Why the career player is starting, for a career fixture. */
+  selection?: ReactNode;
   onTactics: (tactics: Tactics) => void;
   onKickoff: () => void;
 }) {
@@ -137,9 +144,12 @@ export function Preview({
         {/* On phones the tour's kick-off step appears here, in the page. */}
         <div data-tour-slot="kickoff" />
         <p className="muted">{note ?? m.friendlyBody}</p>
+        {selection}
       </section>
       {[setup.home, setup.away].map((club, index) => {
         const lineup = index === 0 ? state.match.home : state.match.away;
+        // Earlier sessions fielded 4-3-3 in the same slot order.
+        const posts = FORMATION_SLOTS[formationOf(lineup.formation)];
         return (
           <section key={club.id} className="match-panel">
             <div className="match-lineup-title">
@@ -153,13 +163,23 @@ export function Preview({
             </div>
             <h3>{m.lineup}</h3>
             <ol className="match-lineup">
-              {lineup.starterIds.map((id) => (
-                <li key={id} className={id === player.id ? 'selected' : ''}>
-                  <span>{setup.players[id]!.primaryPosition}</span>
-                  <strong>{setup.players[id]!.name}</strong>
-                  {id === player.id && <small>{m.selected}</small>}
-                </li>
-              ))}
+              {lineup.starterIds.map((id, slot) => {
+                const starter = setup.players[id]!;
+                const position = posts[slot]?.position ?? starter.primaryPosition;
+                const fit = slotFit(starter, position);
+                return (
+                  <li key={id} className={id === player.id ? 'selected' : ''}>
+                    <span>{position}</span>
+                    <strong>{starter.name}</strong>
+                    {id === player.id && <small>{m.selected}</small>}
+                    {fit < 100 && (
+                      <small>
+                        {fit > 0 ? matchFormat(s.slot.secondary, { fit }) : s.slot.unfamiliar}
+                      </small>
+                    )}
+                  </li>
+                );
+              })}
             </ol>
             <details>
               <summary>

@@ -19,6 +19,11 @@ import { careerText as c } from '../../i18n/career';
 import { socialText as s } from '../../i18n/social';
 import { CareerPage, Meter, ui } from './shared';
 import { cultureTraits, signed } from './socialUi';
+import { careerSelection } from '../../engine/career/market';
+import { nextCareerFixture } from '../../engine/career/fixtures';
+import { clubFormation, usesFormations } from '../../engine/selection/world';
+import { selectionText as sel } from '../../i18n/selection';
+import { SelectionReasons } from './selectionUi';
 
 export default function CareerClub() {
   return (
@@ -53,6 +58,7 @@ function ClubContent({
       <div className="contents lg:col-span-5 lg:flex lg:flex-col lg:gap-5">
         <MoraleBreakdown career={career} />
         <PeopleCard world={world} club={club} />
+        <SelectionCard world={world} club={club} />
         <FitCard world={world} player={player} club={club} />
       </div>
     </div>
@@ -301,6 +307,33 @@ function PeopleCard({ world, club }: { world: World; club: Club }) {
         >
           {s.people.world}
         </Link>
+      )}
+    </section>
+  );
+}
+
+/** The manager's shape, the player's place in it and the chance of starting the next match. */
+function SelectionCard({ world, club }: { world: World; club: Club }) {
+  const fixture = nextCareerFixture(world);
+  const injured = Boolean(world.career?.injury);
+  return (
+    <section aria-labelledby="selection-heading" className={`${ui.panel} order-4 lg:order-none`}>
+      <h2 id="selection-heading" className={ui.heading}>
+        {sel.title}
+      </h2>
+      <p className="mt-2 text-sm text-muted">
+        {usesFormations(world)
+          ? format(sel.formationClub, { formation: clubFormation(world, club) })
+          : sel.lineBased}
+      </p>
+      {fixture && !injured ? (
+        <SelectionReasons
+          world={world}
+          selection={careerSelection(world, fixture)}
+          className="mt-4"
+        />
+      ) : (
+        <p className={`${ui.muted} mt-4`}>{injured ? c.hub.injury : sel.noFixture}</p>
       )}
     </section>
   );

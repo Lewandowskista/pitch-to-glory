@@ -52,6 +52,7 @@ import {
   type SessionState,
 } from './agenda';
 import { AdvanceDigest, AdvancePreviewText, HubPriorities } from './HubPriorities';
+import { CoachTile } from './CoachAdvice';
 import { tutorialText as tt } from '../../i18n/tutorial';
 
 const attributeName = (key: string) =>
@@ -163,6 +164,7 @@ function HubContent({
         {!pressActive && <PressTile world={world} />}
         {!marketActive && <MarketTile world={world} />}
         <TrainingSummary career={career} />
+        <CoachTile world={world} className={tile} />
         <FameSummary world={world} />
         {!retirement && <HonoursTile world={world} />}
         <RivalWatch world={world} />

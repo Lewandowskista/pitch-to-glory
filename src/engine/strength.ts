@@ -63,6 +63,11 @@ export function teamStrength(
   );
 }
 
+/** Team strength from a mean ability already worked out, such as a lineup's slot values. */
+export function strengthFromAbility(reputation: number, meanAbility: number): number {
+  return reputation * BACKGROUND.reputationWeight + meanAbility * BACKGROUND.squadWeight;
+}
+
 export function expectedGoals(
   homeStrength: number,
   awayStrength: number,

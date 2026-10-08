@@ -12,9 +12,14 @@ import type {
   Position,
 } from '../../model/domain';
 import { createRng, type Rng } from '../rng';
-import { expectedGoals, playerAbility, teamStrength } from '../strength';
+import { expectedGoals, playerAbility, strengthFromAbility, teamStrength } from '../strength';
+import { available, lineupAbility, selectLineup } from '../selection/lineup';
+import { FORMATION_SLOTS, type Formation } from '../selection/formations';
+import { clubFormation, usesFormations } from '../selection/world';
 import {
   MATCH_ENGINE_VERSION,
+  LEGACY_MATCH_ENGINE,
+  engineFor,
   type MatchSetup,
   type MatchSession,
   type MatchState,
@@ -106,6 +111,30 @@ function fit(player: Player, position: Position): number {
     ? 100
     : (player.secondaryPositions.find((p) => p.position === position)?.familiarity ?? 0);
 }
+/**
+ * The eleven for a formation, by the shared selection (src/engine/selection/lineup.ts), with
+ * the career player in their best slot. Like the earlier lineup, a match needs eleven
+ * available players and a goalkeeper.
+ */
+function formationLineup(
+  club: Club,
+  players: Record<string, Player>,
+  formation: Formation,
+  selected: string,
+): Lineup {
+  const ready = club.playerIds.filter((id) => available(players[id]));
+  if (ready.length < 11) throw new Error('A match requires eleven available players per team');
+  if (!ready.some((id) => players[id]!.primaryPosition === 'GK'))
+    throw new Error('A match requires a goalkeeper');
+  const choice = selectLineup(club.playerIds, players, formation, { selected });
+  if (choice.starterIds.length !== 11) throw new Error('Invalid lineup');
+  return {
+    teamId: club.id,
+    formation,
+    starterIds: choice.starterIds,
+    benchIds: choice.benchIds,
+  };
+}
 function byAbility(players: Record<string, Player>) {
   return (a: string, b: string) =>
     playerAbility(players[b]!) - playerAbility(players[a]!) || (a < b ? -1 : 1);
@@ -186,6 +215,10 @@ export function createMatchSetup(
     selectedPlayerId,
     neutral: options.neutral ?? false,
     ...(options.fixture ? { fixture: options.fixture } : {}),
+    // Worlds on formation-aware selection field each manager's shape.
+    ...(usesFormations(world)
+      ? { formations: [clubFormation(world, home), clubFormation(world, away)] }
+      : {}),
   });
 }
 const selectedSide = (setup: MatchSetup) =>
@@ -236,12 +269,33 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   validateSetup(setup);
   const selected = setup.players[setup.selectedPlayerId]!;
   validateTactics(tactics, selected.primaryPosition);
-  const home = lineup(setup.home, setup.players, setup.selectedPlayerId),
-    away = lineup(setup.away, setup.players, setup.selectedPlayerId);
+  const formations = setup.formations;
+  const home = formations
+      ? formationLineup(setup.home, setup.players, formations[0], setup.selectedPlayerId)
+      : lineup(setup.home, setup.players, setup.selectedPlayerId),
+    away = formations
+      ? formationLineup(setup.away, setup.players, formations[1], setup.selectedPlayerId)
+      : lineup(setup.away, setup.players, setup.selectedPlayerId);
   const starters = (team: Lineup) => team.starterIds.map((id) => setup.players[id]!);
+  // With formations each starter is valued in their slot, as background results are.
+  const strengthOf = (club: MatchSetup['home'], team: Lineup) =>
+    formations
+      ? strengthFromAbility(
+          club.reputation,
+          lineupAbility(
+            {
+              formation: team.formation as Formation,
+              starterIds: team.starterIds,
+              slots: FORMATION_SLOTS[team.formation as Formation].map((slot) => slot.position),
+              benchIds: team.benchIds,
+            },
+            setup.players,
+          ),
+        )
+      : teamStrength(club.reputation, starters(team));
   const strength: [number, number] = [
-    round6(teamStrength(setup.home.reputation, starters(home))),
-    round6(teamStrength(setup.away.reputation, starters(away))),
+    round6(strengthOf(setup.home, home)),
+    round6(strengthOf(setup.away, away)),
   ];
   const matchLevel = round6(
     [...starters(home), ...starters(away)].reduce((sum, p) => sum + playerAbility(p), 0) / 22,
@@ -300,7 +354,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   )[0];
   const session: MatchSession = {
     version: 1,
-    engine: MATCH_ENGINE_VERSION,
+    engine: engineFor(setup),
     setup: copy(setup),
     initialTactics: copy(tactics),
     commands: [],
@@ -1034,8 +1088,13 @@ export function validateMatchSession(value: unknown): MatchSession {
   validateJson(value);
   if (!value || typeof value !== 'object') throw new Error('Invalid match session');
   const session = value as MatchSession;
-  // Sessions from another engine cannot replay; callers discard them and keep the world.
-  if (session.engine !== MATCH_ENGINE_VERSION) throw new OutdatedMatchSessionError(session.engine);
+  // Sessions from another engine cannot replay; callers discard them and keep the world. A
+  // session from before formations replays with the 4-3-3 rules its setup implies.
+  if (
+    session.engine !== MATCH_ENGINE_VERSION &&
+    !(session.engine === LEGACY_MATCH_ENGINE && session.setup && !session.setup.formations)
+  )
+    throw new OutdatedMatchSessionError(session.engine);
   if (
     session.version !== 1 ||
     !session.setup ||

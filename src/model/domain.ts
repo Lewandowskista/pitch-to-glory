@@ -441,6 +441,10 @@ export interface CareerMatchRecord {
   xp: number;
   /** Played by the headless decision policy during season simulation. */
   auto: boolean;
+  /** Completed and attempted passes (recorded from Phase 5.2). */
+  passes?: [number, number];
+  /** Successful tackles (recorded from Phase 5.2). */
+  tackles?: number;
 }
 /**
  * The career. The player is an ordinary entry in `world.players` and their club's squad;
@@ -475,6 +479,50 @@ export interface Career {
   style: CareerStyle;
   /** National team, retirement and legacy (milestone 8). */
   honours: CareerHonours;
+  /** Coaching (Phase 5.2): recent decisions and the season goal; absent in older saves. */
+  coaching?: CareerCoaching;
+}
+export type DecisionFamily = 'shooting' | 'passing' | 'dribbling' | 'defending' | 'goalkeeping';
+/** One key-moment decision, kept for coaching after its match is recorded. */
+export interface DecisionSample {
+  season: number;
+  week: number;
+  family: DecisionFamily;
+  success: boolean;
+  /** The chance the decision had. */
+  probability: number;
+  /** Governing attributes, strongest first (at most three). */
+  attributes: string[];
+}
+export type SeasonGoalKind = 'appearances' | 'passing' | 'defending' | 'attribute';
+/** A development goal the player accepted for a season; it never changes once accepted. */
+export interface SeasonGoal {
+  version: 1;
+  season: number;
+  kind: SeasonGoalKind;
+  target: number;
+  /** The attribute to develop, for an attribute goal. */
+  attribute: string | null;
+  /** The attribute's value when the goal was accepted (0 for other goals). */
+  baseline: number;
+  accepted: GameDate;
+}
+export interface SeasonGoalResult {
+  season: number;
+  kind: SeasonGoalKind;
+  target: number;
+  attribute: string | null;
+  achieved: number;
+  completed: boolean;
+}
+export interface CareerCoaching {
+  version: 1;
+  /** The latest decisions, oldest first. */
+  recent: DecisionSample[];
+  goal: SeasonGoal | null;
+  /** The season whose goal offer the player turned down. */
+  declinedSeason: number | null;
+  history: SeasonGoalResult[];
 }
 export type NationalLevel = 'U19' | 'U21' | 'senior';
 export interface CareerHonours {
@@ -1151,6 +1199,8 @@ export interface World {
   format?: 'legacy' | 'national-v1';
   /** 2: potential is peak overall ability and development follows age curves. */
   developmentVersion?: 2;
+  /** Formation-aware team selection (Phase 5.1); absent before the world adopts it. */
+  selectionVersion?: 1;
   /**
    * 2: real countries and towns, with fictional clubs and competitions referencing real ones.
    * Absent for worlds generated with fictional countries, which keep their identities.
@@ -1311,7 +1361,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 14;
+  schemaVersion: 15;
   engineVersion: string;
   slot: SlotId;
   name: string;

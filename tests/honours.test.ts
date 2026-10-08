@@ -452,7 +452,7 @@ describe('persistence', () => {
         settings: DEFAULT_SETTINGS,
       },
     });
-    expect(migrated.schemaVersion).toBe(14);
+    expect(migrated.schemaVersion).toBe(15);
     const next = (migrated.payload as { world: World }).world;
     expect(next.career!.honours.caps).toEqual({ U19: 0, U21: 0, senior: 0 });
     expect(next.international!.nations.length).toBeGreaterThan(6);

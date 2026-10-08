@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import type { TrainingFocus, World } from '../../model/domain';
-import { format, t } from '../../i18n';
+import type { World } from '../../model/domain';
+import { format } from '../../i18n';
 import { agendaText as a } from '../../i18n/agenda';
 import { careerText as c } from '../../i18n/career';
 import { CareerPage, CrestImage, ui } from './shared';
 import { competitionName } from './selectors';
 import { seasonAgenda, withSave, type AgendaEntry, type AgendaWeek } from './agenda';
 import { priorityLabel } from './HubPriorities';
+import { focusLabel } from './trainingLabels';
 
 type View = 'ahead' | 'all';
 const VIEWS: View[] = ['ahead', 'all'];
@@ -17,19 +18,6 @@ export default function CareerCalendar() {
     <CareerPage title={a.calendar.title} description={a.calendar.description}>
       {({ world }) => <CalendarContent world={world} />}
     </CareerPage>
-  );
-}
-
-function focusLabel(focus: TrainingFocus): string {
-  if (focus === 'recovery') return c.training.recovery;
-  if (focus.startsWith('position:'))
-    return format(c.training.positionFocus, {
-      position: c.positions[focus.slice('position:'.length) as keyof typeof c.positions] ?? focus,
-    });
-  return (
-    c.training.groupNames[focus as keyof typeof c.training.groupNames] ??
-    t.world.attributes[focus as keyof typeof t.world.attributes] ??
-    focus
   );
 }
 

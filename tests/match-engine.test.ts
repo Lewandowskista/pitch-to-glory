@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { FORMATION_SLOTS, type Formation } from '../src/engine/selection/formations';
+import { slotFit } from '../src/engine/selection/lineup';
 import { generateWorld } from '../src/engine/world/generate';
 import { CONFIG } from '../src/engine/config';
 import {
@@ -231,19 +233,14 @@ describe('match engine', () => {
       )!,
     };
     let s = applyMatchCommand(createMatchSession(chosen, tactics), { type: 'kickoff' });
-    expect(s.state.match.home.starterIds.map((id) => setup.players[id]!.primaryPosition)).toEqual([
-      'GK',
-      'LB',
-      'CB',
-      'CB',
-      'RB',
-      'CM',
-      'DM',
-      'CM',
-      'LW',
-      'ST',
-      'RW',
-    ]);
+    // The manager's formation, the chosen keeper in goal, and every starter in a slot they know.
+    const home = s.state.match.home;
+    expect(home.formation).toBe(setup.formations![0]);
+    expect(home.starterIds[0]).toBe(chosen.selectedPlayerId);
+    expect(new Set(home.starterIds).size).toBe(11);
+    FORMATION_SLOTS[home.formation as Formation].forEach((slot, index) =>
+      expect(slotFit(setup.players[home.starterIds[index]!]!, slot.position)).toBeGreaterThan(0),
+    );
     s = untilMoment(s);
     expect(['shot-incoming', 'one-on-one', 'cross-ball', 'distribution']).toContain(
       s.state.currentMoment!.situationId,

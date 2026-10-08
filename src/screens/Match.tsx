@@ -35,6 +35,7 @@ import { pendingCareerFixture } from '../engine/career/fixtures';
 import { careerMatchSetup, defaultTactics } from '../engine/career/matches';
 import { startWorldJob } from '../workers/client';
 import { competitionName } from './career/selectors';
+import { CareerSelectionBriefing } from './match/SelectionBriefing';
 import { COSMETIC_BY_ID } from '../engine/career/lifestyle/catalogue';
 import { lifestyleText as l } from '../i18n/lifestyle';
 import '../styles/match.css';
@@ -522,6 +523,11 @@ export default function MatchScreen() {
               <Preview
                 session={session}
                 note={careerFixture ? c.report.previewNote : undefined}
+                selection={
+                  careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
+                    <CareerSelectionBriefing world={world} fixtureId={careerFixture.id} />
+                  ) : undefined
+                }
                 onTactics={(tactics) =>
                   useAppStore.getState().setMatchSession(createMatchSession(session.setup, tactics))
                 }

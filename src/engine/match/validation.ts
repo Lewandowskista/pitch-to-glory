@@ -1,3 +1,4 @@
+import { isFormation } from '../selection/formations';
 import type { Position } from '../../model/domain';
 import type { MatchSetup, MatchCommand, Tactics } from './types';
 import { isRoleFor } from './roles';
@@ -88,6 +89,13 @@ export function validateSetup(setup: MatchSetup): void {
       Object.keys(setup.fixture).sort().join(',') !== 'competitionId,id,importance')
   )
     throw new Error('Invalid match fixture');
+  if (
+    setup.formations !== undefined &&
+    (!Array.isArray(setup.formations) ||
+      setup.formations.length !== 2 ||
+      !setup.formations.every(isFormation))
+  )
+    throw new Error('Invalid match formations');
   const ids: string[] = [];
   for (const club of [setup.home, setup.away]) {
     if (

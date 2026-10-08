@@ -1,4 +1,5 @@
 import type { Club, Player, SeasonSummary, World } from '../../model/domain';
+import { coachingRollover } from '../career/coaching';
 import { CONFIG } from '../config';
 import { restoreRng, type Rng } from '../rng';
 import { developWeek, recalibratePotential } from '../ageing';
@@ -472,11 +473,15 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
   for (const movement of summary.movements)
     world.clubs[movement.clubId]!.leagueId = movement.toLeagueId;
   world.date = { season: world.date.season + 1, week: 1, day: 1 };
+  // Worlds saved before formation-aware selection adopt it with the new season, so no
+  // season changes selection rules part-way.
+  world.selectionVersion = CONFIG.selection.version;
   for (const movement of summary.movements)
     if (movement.fromLeagueId.startsWith('feeder:') && world.leagues[movement.toLeagueId])
       refreshReturningClub(world, world.clubs[movement.clubId]!);
   if (world.career) {
     marketRollover(world);
+    coachingRollover(world);
     lifestyleRollover(world);
     keepCareerInSimulatedLeagues(world);
     refreshMentor(world);

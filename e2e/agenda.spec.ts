@@ -4,6 +4,7 @@ import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
+import { autoPlayCareerFixture } from '../src/engine/career/matches';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
 import { careerTabs, isBrowserNoise, skipTutorial } from './support';
@@ -41,8 +42,9 @@ function between(seed: string): World {
   );
   for (let week = 0; week < 6; week++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
-  for (let guard = 0; guard < 6 && pendingCareerFixture(world); guard++)
-    world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  // Play this week's match, as a player would: Continue is then the next action.
+  for (let pending = pendingCareerFixture(world); pending; pending = pendingCareerFixture(world))
+    autoPlayCareerFixture(world, pending);
   return world;
 }
 test.beforeAll(async ({ browserName }, workerInfo) => {
@@ -64,6 +66,9 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
   };
   injured.players[injured.career!.playerId]!.injuryId = 'injury:agenda';
   injured.career!.skillPoints = 2;
+  // Only the injury and the points wait: no press question in between.
+  injured.media = injured.media.filter((item) => !item.choices.length || item.answer !== null);
+  ready.media = ready.media.filter((item) => !item.choices.length || item.answer !== null);
   for (const [name, world] of Object.entries({ ready, injured })) {
     const path = `artifacts/agenda-${name}-${browserName}-${workerInfo.workerIndex}.json`;
     await writeFile(

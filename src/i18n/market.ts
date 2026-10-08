@@ -69,6 +69,7 @@ export const marketText = {
     chance: 'Chance of starting the next match',
     chanceBody:
       'Set by your role, your place among {count} {line}, form, fatigue and the manager’s trust.',
+    reasons: 'How the chance is worked out',
     lines: {
       GK: 'goalkeepers',
       DEF: 'defenders',

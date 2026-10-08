@@ -92,6 +92,11 @@ const migrations: Readonly<Record<number, Migration>> = {
   // v14 adds optional current-season competition statistics. Worlds saved before keep their
   // award mode and start complete statistics at their next season; issued awards are kept.
   13: (old) => ({ ...old, schemaVersion: 14 }),
+  // v15 adds formation-aware selection (optional `selectionVersion`, match `formations`) and
+  // coaching (optional `career.coaching`, match `passes` and `tackles`). Worlds saved before
+  // keep line-based selection and 4-3-3 matches until their next season; match sessions saved
+  // before replay with their original 4-3-3 engine; coaching starts from the next match.
+  14: (old) => ({ ...old, schemaVersion: 15 }),
 };
 /** Careers saved before milestone 8 gain their honours record and award baselines. */
 function withCareerHonours(payload: unknown): unknown {

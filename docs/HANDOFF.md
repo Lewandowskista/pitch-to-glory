@@ -134,7 +134,7 @@ England extends through tier six, including National League North/South. Referen
 - Milestone 10 made the save system load on demand (`src/persistence/lazy.ts`; only Saves imports it statically), moved Framer Motion behind `LazyMotion` (`m` elements), and added `public/_headers` (strict CSP, applied in `vite preview` too). New code must keep both: import save functions through `persistence()`, use `m` not `motion`, and avoid inline scripts or `eval`. `e2e/release.spec.ts` guards the share tags, headers and first-visit bundle.
 - `e2e/accessibility.spec.ts` checks every route with axe in both themes, at phone width and by keyboard. Add new routes to its list. Other specs call `skipTutorial` from `e2e/support.ts`.
 - `world.career` can now be absent in a world with legacies. Career pages show the legacy and ways to continue; the Legacy page works without a career.
-- Bump `MATCH_ENGINE_VERSION` (currently `match-6`) whenever match logic changes. File schema is 13.
+- Bump `MATCH_ENGINE_VERSION` (currently `match-8`; `match-7` sessions replay through the 4-3-3 path) whenever match logic changes. File schema is 15.
 
 ### Legacy saves and storage
 

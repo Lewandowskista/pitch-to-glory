@@ -6,6 +6,7 @@ import type {
   Tactics,
   World,
 } from '../../model/domain';
+import { matchDecisions, recordDecisions } from './coaching';
 import { CONFIG } from '../config';
 import { createRng } from '../rng';
 import {
@@ -213,8 +214,11 @@ export function commitCareerMatch(
     cleanSheet: result.score[1 - own] === 0,
     xp,
     auto: Boolean(options.auto),
+    passes: [state.stats.passesCompleted, state.stats.passesAttempted],
+    tackles: state.stats.tackles,
   };
   career.matches.push(record);
+  recordDecisions(career, matchDecisions(session, world.date));
   accrueMatchBonuses(world, record.goals, record.cleanSheet);
   socialMatch(world, record, fixture);
   const signature = celebrationFame(world, record.goals, importance);

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { lineupAbility } from '../src/engine/selection/lineup';
+import { clubLineup } from '../src/engine/selection/world';
 import { CONFIG } from '../src/engine/config';
 import { createRng, type Rng } from '../src/engine/rng';
 import {
@@ -6,6 +8,7 @@ import {
   playerAbility,
   selectStartingPlayers,
   teamStrength,
+  strengthFromAbility,
 } from '../src/engine/strength';
 import { generateWorld } from '../src/engine/world/generate';
 import { simulateWeek } from '../src/engine/world/simulate';
@@ -74,15 +77,39 @@ describe('shared strength model', () => {
     expect(neutralHome).toBe(neutralAway);
     expect(expectedGoals(10, 200, false)[0]).toBe(B.minimumGoals);
   });
-  it('reproduces the background resolver scores on generated clubs', () => {
-    const next = simulateWeek(world);
-    const fixtures = Object.values(world.fixtures).filter(
+  const fixturesOf = (source: World, next: World) =>
+    Object.values(source.fixtures).filter(
       (f) =>
-        f.date.season === world.date.season &&
-        f.date.week === world.date.week &&
+        f.date.season === source.date.season &&
+        f.date.week === source.date.week &&
         !f.tieId &&
         next.results[f.id],
     );
+  it('reproduces the background resolver scores on generated clubs', () => {
+    // Formation-aware: each manager's eleven, each starter valued in their slot.
+    expect(world.selectionVersion).toBe(1);
+    const next = simulateWeek(world);
+    const fixtures = fixturesOf(world, next);
+    expect(fixtures.length).toBeGreaterThan(20);
+    const strength = (club: Club) =>
+      strengthFromAbility(club.reputation, lineupAbility(clubLineup(world, club)!, world.players));
+    for (const fixture of fixtures) {
+      const [lambdaHome, lambdaAway] = expectedGoals(
+        strength(world.clubs[fixture.homeId]!),
+        strength(world.clubs[fixture.awayId]!),
+        !!fixture.neutral,
+      );
+      const rng = createRng(`${world.seed}:result:${fixture.id}`);
+      expect(next.results[fixture.id]!.score).toEqual([
+        poisson(rng, lambdaHome),
+        poisson(rng, lambdaAway),
+      ]);
+    }
+  });
+  it('keeps the line-based eleven in a world saved before formations', () => {
+    const before: World = { ...world, selectionVersion: undefined };
+    const next = simulateWeek(before);
+    const fixtures = fixturesOf(before, next);
     expect(fixtures.length).toBeGreaterThan(20);
     for (const fixture of fixtures) {
       const home = world.clubs[fixture.homeId]!,

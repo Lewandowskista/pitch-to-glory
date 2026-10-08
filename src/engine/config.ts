@@ -142,6 +142,26 @@ export const CONFIG = {
       noise: 2,
       offers: 3,
     },
+    /** Coaching (Phase 5.2): advice from recent decisions and a season development goal. */
+    coaching: {
+      /** Decisions kept for advice. */
+      recentLimit: 40,
+      /** Fewer decisions than this give a position-based plan instead of advice. */
+      minimumDecisions: 10,
+      /** A kind of decision needs this many attempts before advice speaks to it. */
+      minimumAttempts: 4,
+      /** Successes this far below what the decisions' chances predicted count as a pattern. */
+      shortfall: 1.5,
+      /** At or above this fatigue, recovery comes first. */
+      fatigue: 60,
+      goals: {
+        appearances: { key: 30, rotation: 22, backup: 12, youth: 14 },
+        passes: 150,
+        tackles: 30,
+        attributeGain: 3,
+      },
+      historyLimit: 10,
+    },
     training: {
       sessions: 3,
       gain: { low: 0.08, normal: 0.13, high: 0.19 },
@@ -548,8 +568,15 @@ export const CONFIG = {
   },
   gallery: { clubs: 15, players: 8, ages: [17, 28, 42] as const },
   workers: { transportBatchEntries: 32, transportYieldMs: 8 },
+  /** Team selection (Phase 5.1): one formation-aware eleven for every match. */
+  selection: {
+    /** Worlds at this version pick formation-aware elevens; older worlds adopt it next season. */
+    version: 1,
+    /** A player's value in an unfamiliar position, as a share of their ability. */
+    unfamiliarFactor: 0.8,
+  },
   saves: {
-    schemaVersion: 14,
+    schemaVersion: 15,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,

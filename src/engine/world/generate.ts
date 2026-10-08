@@ -204,6 +204,7 @@ export function generateWorld(
         }
       : {}),
     developmentVersion: 2,
+    selectionVersion: 1,
     ...(national ? { identityVersion: 2 as const } : {}),
     id: `world:${hashSeed(seed)}`,
     seed,

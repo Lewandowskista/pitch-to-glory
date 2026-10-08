@@ -1,7 +1,9 @@
 import type { BackgroundResult, Fixture, Id, Player, World } from '../../model/domain';
 import { CONFIG } from '../config';
 import { createRng, type Rng } from '../rng';
-import { expectedGoals, selectStartingPlayers, teamStrength } from '../strength';
+import { expectedGoals, strengthFromAbility, teamStrength } from '../strength';
+import { lineupAbility } from '../selection/lineup';
+import { clubLineup, clubStarters } from '../selection/world';
 import { isKnockoutFixture } from './continental';
 import { recordFixtureStatistics } from './statistics';
 
@@ -133,15 +135,25 @@ export function finalizeFixture(
   const home = world.clubs[fixture.homeId]!;
   const away = world.clubs[fixture.awayId]!;
   const appeared = (side: Record<Id, number>) => Object.keys(side).map((id) => world.players[id]!);
-  const starters = (clubId: Id) =>
-    selectStartingPlayers(
-      world.clubs[clubId]!.playerIds.filter((id) => id !== benched).map((id) => world.players[id]!),
-    );
-  const homePlayers = played ? appeared(played.minutes.home) : starters(home.id);
-  const awayPlayers = played ? appeared(played.minutes.away) : starters(away.id);
+  // The eleven each club fields; with formations, each starter is valued in their slot.
+  const exclude = benched ? [benched] : [];
+  const homeLineup = played ? null : clubLineup(world, home, { exclude });
+  const awayLineup = played ? null : clubLineup(world, away, { exclude });
+  const homePlayers = played
+    ? appeared(played.minutes.home)
+    : (homeLineup?.starterIds.map((id) => world.players[id]!) ??
+      clubStarters(world, home, { exclude }));
+  const awayPlayers = played
+    ? appeared(played.minutes.away)
+    : (awayLineup?.starterIds.map((id) => world.players[id]!) ??
+      clubStarters(world, away, { exclude }));
   // Shared with the interactive match engine so played and simulated fixtures agree.
-  const homeStrength = teamStrength(home.reputation, homePlayers);
-  const awayStrength = teamStrength(away.reputation, awayPlayers);
+  const homeStrength = homeLineup
+    ? strengthFromAbility(home.reputation, lineupAbility(homeLineup, world.players))
+    : teamStrength(home.reputation, homePlayers);
+  const awayStrength = awayLineup
+    ? strengthFromAbility(away.reputation, lineupAbility(awayLineup, world.players))
+    : teamStrength(away.reputation, awayPlayers);
   const difference = (homeStrength - awayStrength) * CONFIG.world.strengthScale;
   const [homeGoals, awayGoals] = expectedGoals(
     homeStrength,

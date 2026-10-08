@@ -1,3 +1,4 @@
+import { refreshDressingRoom } from '../src/engine/world/dressing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Id, World } from '../src/model/domain';
 import { generateWorld } from '../src/engine/world/generate';
@@ -78,6 +79,9 @@ function move(world: World, playerId: Id, clubId: Id) {
   world.clubs[clubId]!.playerIds.push(playerId);
   player.clubId = clubId;
   if (player.contractId) world.contracts[player.contractId]!.clubId = clubId;
+  // As the engine's transfers do: both dressing rooms lose or gain the player.
+  refreshDressingRoom(world, from);
+  refreshDressingRoom(world, world.clubs[clubId]!);
 }
 
 describe('league awards count league football only', () => {
@@ -253,7 +257,7 @@ describe('season competition statistics', () => {
       schemaVersion: 13,
     };
     const migrated = migrateSave(JSON.parse(JSON.stringify(old)));
-    expect(migrated.schemaVersion).toBe(14);
+    expect(migrated.schemaVersion).toBe(15);
     if (migrated.payload.kind !== 'world') throw new Error('Expected a world save');
     const loaded = migrated.payload.world;
     expect(hasSeasonStatistics(loaded)).toBe(false);

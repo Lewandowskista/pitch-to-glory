@@ -6,7 +6,7 @@
 
 **Stack:** Existing TypeScript, React 18, Vite, React Router, Zustand, PixiJS, Tailwind, Framer Motion, Dexie, Vitest and Playwright. No new runtime dependency is required by this plan.
 
-**Status:** Phases 1–3 complete; Phase 4 complete except physical-device acceptance; Phase 5 not started. The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
+**Status:** Phases 1–3 and 5 complete; Phase 4 complete except physical-device acceptance; Phase 6 not started. The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
 
 ## Scope and approach
 
@@ -215,13 +215,15 @@ Keep the green/gold identity, existing country profiles and browser-first archit
 
 **Modify:** `src/engine/strength.ts`, `src/engine/match/index.ts`, `src/engine/match/motion.ts`, `src/engine/career/market/rules.ts`, `src/engine/world/simulate.ts`, `src/screens/match/Preview.tsx`, `src/screens/career/CareerClub.tsx`, `src/engine/config.ts`, relevant model and persistence validators.
 
-- [ ] Support the four manager formations already generated: 4-3-3, 4-4-2, 4-2-3-1 and 3-5-2. Define ordered slot positions and pitch geometry in one catalogue.
-- [ ] Unify positional fit, secondary familiarity, availability, ability and deterministic tie-breaking across background selection, career selection and interactive setup. The interactive selector already considers secondary familiarity; retain that behavior and extend it consistently.
-- [ ] Preserve current role/form/trust selection policy while incorporating the formation's actual available slots. An explicitly selected career player can occupy an appropriate slot without silently moving another goalkeeper into an outfield role.
-- [ ] Return reason codes and numbers for the selection explanation: role promise, positional fit, competition for the slot, form, fatigue, registration and trust. Display them in briefing and Club life without exposing hidden attributes.
-- [ ] Make match-motion shapes follow the selected formation. Verify highlights and replay setup use the same slot ordering.
-- [ ] Version the selection model. New worlds use it immediately; existing worlds adopt it at a documented season boundary, preserving in-progress sessions and saved national profiles.
-- [ ] Test eleven unique starters, one keeper, injury/retirement exclusion, deterministic ties, familiarity improvements, all four formations, replay/save compatibility and the existing 10,000-match statistical calibration.
+- [x] Support the four manager formations already generated: 4-3-3, 4-4-2, 4-2-3-1 and 3-5-2. Define ordered slot positions and pitch geometry in one catalogue.
+- [x] Unify positional fit, secondary familiarity, availability, ability and deterministic tie-breaking across background selection, career selection and interactive setup. The interactive selector already considers secondary familiarity; retain that behavior and extend it consistently.
+- [x] Preserve current role/form/trust selection policy while incorporating the formation's actual available slots. An explicitly selected career player can occupy an appropriate slot without silently moving another goalkeeper into an outfield role.
+- [x] Return reason codes and numbers for the selection explanation: role promise, positional fit, competition for the slot, form, fatigue, registration and trust. Display them in briefing and Club life without exposing hidden attributes.
+- [x] Make match-motion shapes follow the selected formation. Verify highlights and replay setup use the same slot ordering.
+- [x] Version the selection model. New worlds use it immediately; existing worlds adopt it at a documented season boundary, preserving in-progress sessions and saved national profiles.
+- [x] Test eleven unique starters, one keeper, injury/retirement exclusion, deterministic ties, familiarity improvements, all four formations, replay/save compatibility and the existing 10,000-match statistical calibration.
+
+**Done:** see `docs/VERIFICATION.md`, Phase 5. Old match sessions are preserved rather than discarded: a setup without formations replays with the earlier 4-3-3 (`match-7`); new sessions are `match-8`. `deservedRole` (the role clubs promise in offers) still uses the line ranking.
 
 **Accept:** the displayed formation matches selection and pitch shape; learning a suitable secondary position has a measurable effect; selection explanations match the actual calculation.
 
@@ -231,11 +233,13 @@ Keep the green/gold identity, existing country profiles and browser-first archit
 
 **Modify:** `src/screens/match/Report.tsx`, `src/screens/career/CareerTraining.tsx`, `src/screens/career/CareerHub.tsx`, `src/engine/config.ts`, relevant career model and save validators.
 
-- [ ] Generate up to two recommendations from recent finalized decisions, the player's position, trainable attributes and condition. Use recovery as the priority while injured or heavily fatigued; never recommend keeper-inappropriate or capped attributes.
-- [ ] Explain the evidence in plain copy, such as unsuccessful passes or poor defensive decisions. When there is insufficient data, offer a neutral position-based plan and say what it is based on; never imply certainty from one failed roll.
-- [ ] Link advice to a prefilled training draft. Applying it requires the existing save action and preserves the previous plan until then; block changes during active matches and simulation.
-- [ ] Offer one explicit season development goal with a measurable target and visible progress. Start with role-appropriate appearances, passing, defensive contributions or attribute development, using finalized records and configured values.
-- [ ] Store accepted goals and their season/version; derive temporary advice. Cover deterministic recommendations, keeper/outfield suitability, capped attributes, insufficient data, fatigue, injury, rejection, completion and migration.
+- [x] Generate up to two recommendations from recent finalized decisions, the player's position, trainable attributes and condition. Use recovery as the priority while injured or heavily fatigued; never recommend keeper-inappropriate or capped attributes.
+- [x] Explain the evidence in plain copy, such as unsuccessful passes or poor defensive decisions. When there is insufficient data, offer a neutral position-based plan and say what it is based on; never imply certainty from one failed roll.
+- [x] Link advice to a prefilled training draft. Applying it requires the existing save action and preserves the previous plan until then; block changes during active matches and simulation.
+- [x] Offer one explicit season development goal with a measurable target and visible progress. Start with role-appropriate appearances, passing, defensive contributions or attribute development, using finalized records and configured values.
+- [x] Store accepted goals and their season/version; derive temporary advice. Cover deterministic recommendations, keeper/outfield suitability, capped attributes, insufficient data, fatigue, injury, rejection, completion and migration.
+
+**Done:** see `docs/VERIFICATION.md`, Phase 5. Pass and tackle counts are stored per match from Phase 5.2; earlier matches count as zero towards passing and defending goals.
 
 **Accept:** feedback produces a useful, safe training choice; players can understand why it was recommended; accepted goals survive saves and never change silently.
 

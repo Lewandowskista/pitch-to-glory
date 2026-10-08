@@ -1,5 +1,6 @@
 import type { Clique, CliqueKind, Player, World } from '../../../model/domain';
-import { playerAbility, selectStartingPlayers } from '../../strength';
+import { playerAbility } from '../../strength';
+import { clubStarters } from '../../selection/world';
 import { adjustRelationship, relationship } from '../market/records';
 import { lineOf } from '../market/rules';
 import {
@@ -174,11 +175,7 @@ export function dressingWeek(world: World, playedThisWeek: boolean): void {
   const T = S.teammates;
   const internationals = hasInternationals(world, club);
   // Teammates the background XI would field alongside the player this week.
-  const starters = new Set(
-    playedThisWeek
-      ? selectStartingPlayers(club.playerIds.map((id) => world.players[id]!)).map((p) => p.id)
-      : [],
-  );
+  const starters = new Set(playedThisWeek ? clubStarters(world, club).map((p) => p.id) : []);
   for (const teammate of keyTeammates(world)) {
     const entry = relationship(world, 'teammate', teammate.id);
     const baseline = compatibility(world, player, teammate, club).value;

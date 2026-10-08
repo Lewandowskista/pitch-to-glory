@@ -12,6 +12,7 @@ import MatchMaps from './Maps';
 import { m as motion, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../../store';
 import { audio } from '../../audio';
+import { CoachAdvice } from '../career/CoachAdvice';
 
 /** Career fixtures: the granted XP once recorded, or the action that records it. */
 export interface CareerReport {
@@ -127,6 +128,7 @@ export function Report({
   const report = state.report!;
   const systemReduced = useReducedMotion();
   const reduced = useAppStore((store) => store.settings.reducedMotion) || Boolean(systemReduced);
+  const world = useAppStore((store) => store.world);
   const outcome = career?.outcome ?? null;
   // A recorded career match reports its finalized values, simulated extra time included.
   const final = outcome?.final;
@@ -280,6 +282,8 @@ export function Report({
           </blockquote>
         </section>
       </div>
+      {/* Once the result is recorded, the coach reads it with the decisions before it. */}
+      {career?.outcome && world?.career && <CoachAdvice world={world} compact />}
       <section className="match-panel">
         <h2>{m.maps}</h2>
         <MatchMaps report={report} />

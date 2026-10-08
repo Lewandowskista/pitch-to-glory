@@ -190,6 +190,7 @@ export function validateEntities(
   feederClubIds: readonly string[] = [],
 ): void {
   if (w.developmentVersion !== undefined) requireValue(w.developmentVersion === 2);
+  if (w.selectionVersion !== undefined) requireValue(w.selectionVersion === 1);
   if (w.identityVersion !== undefined) requireValue(w.identityVersion === 2);
   const currentDate = object(w.date);
   const countries = object(w.countries),

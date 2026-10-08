@@ -1,4 +1,5 @@
 import type { Avatar, Career, Club, Foot, Id, Position, World } from '../../model/domain';
+import { emptyCoaching } from './coaching';
 import { CONFIG } from '../config';
 import { createRng, hashSeed } from '../rng';
 import {
@@ -165,6 +166,7 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
     social: initialSocial(),
     style: initialStyle(player),
     honours: initialHonours(playerAbility(player), draft.parentLegacyId ?? null),
+    coaching: emptyCoaching(),
   };
   grantStartingSkill(career, player, archetype.startingSkill);
   world.career = career;

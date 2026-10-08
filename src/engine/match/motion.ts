@@ -3,6 +3,12 @@ import { createRng, hashSeed, type Rng } from '../rng';
 import { clamp } from './decisions';
 import { SITUATION_BY_ID, type Situation } from './situations';
 import type { MatchSession, PlayState } from './types';
+import {
+  FORMATION_SLOTS,
+  formationOf,
+  type FormationSlot,
+  type SlotRole,
+} from '../selection/formations';
 
 /**
  * Match motion: turns the engine's events into a continuous, football-logical passage of
@@ -10,7 +16,8 @@ import type { MatchSession, PlayState } from './types';
  * this module only choreographs how they happen on the pitch:
  *
  * - possession moves between actual teammates by passes, carries, tackles and interceptions;
- * - both teams hold a 4-3-3 shape that slides with the ball, compresses out of possession,
+ * - both teams hold their formation's shape (src/engine/selection/formations.ts), which slides
+ *   with the ball, compresses out of possession,
  *   presses the ball carrier with the two nearest players and respects the offside line;
  * - every recorded shot is struck by its shooter from a shooting position and ends in the
  *   net, in the keeper's hands, off a defender, wide or over, matching the commentary line;
@@ -35,8 +42,10 @@ interface Actor {
   /** Position in frames: home slots 0–10, away slots 11–21. */
   index: number;
   side: Side;
-  /** Lineup slot: 0 GK, 1 LB, 2–3 CB, 4 RB, 5 CM, 6 DM, 7 CM, 8 LW, 9 ST, 10 RW. */
+  /** Lineup slot index: 0 is the keeper; the formation gives each slot its post. */
   slot: number;
+  /** The slot's position, line, role and shape in the team's formation. */
+  post: FormationSlot;
   keeper: boolean;
   /** A stable personal offset from the shape, so teammates do not move in lockstep. */
   style: Spot;
@@ -62,35 +71,6 @@ const RUN = 0.0085;
 /** Longest pause a keyframe may take while players walk to their marks. */
 const MAX_STEP_MS = 14000;
 const CENTRE: Point = { x: 50, y: 50 };
-/** Slot positions in the attack frame with the ball on the centre spot. */
-const SHAPE: Record<'in' | 'out', readonly (readonly [number, number])[]> = {
-  in: [
-    [6, 50],
-    [38, 13],
-    [28, 37],
-    [28, 63],
-    [38, 87],
-    [50, 33],
-    [40, 50],
-    [50, 67],
-    [66, 12],
-    [70, 50],
-    [66, 88],
-  ],
-  out: [
-    [5, 50],
-    [26, 22],
-    [23, 41],
-    [23, 59],
-    [26, 78],
-    [38, 36],
-    [32, 50],
-    [38, 64],
-    [50, 25],
-    [56, 50],
-    [50, 75],
-  ],
-};
 /** Depth bounds per line [in possession min, max, out of possession min, max]. */
 const LINE_DEPTH = {
   defence: [7, 68, 9, 52],
@@ -159,7 +139,19 @@ function styleOf(id: string): Spot {
   }
   return style;
 }
-const lineOf = (slot: number) => (slot <= 4 ? 'defence' : slot <= 7 ? 'midfield' : 'attack');
+/** The shape line an outfield slot belongs to. */
+const lineOf = (actor: Actor) => (actor.post.line === 'keeper' ? 'defence' : actor.post.line);
+/** Back line, keeper included: who plays a short goal kick out. */
+const atBack = (actor: Actor) => actor.post.line === 'keeper' || actor.post.line === 'defence';
+/** The first teammate, in slot order, holding any of the roles, in their order of preference. */
+function byRole(team: readonly Actor[], ...roles: SlotRole[]): Actor | undefined {
+  for (const role of roles) {
+    const actor = team.find((entry) => entry.post.role === role);
+    if (actor) return actor;
+  }
+  return undefined;
+}
+const hasRole = (actor: Actor, roles: readonly SlotRole[]) => roles.includes(actor.post.role);
 const byId = (a: Actor, b: Actor) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 class Director {
@@ -186,20 +178,22 @@ class Director {
     readonly rng: Rng,
   ) {
     const m = session.state.match;
-    [m.home, m.away].forEach((team, side) =>
+    [m.home, m.away].forEach((team, side) => {
+      const posts = FORMATION_SLOTS[formationOf(team.formation)];
       team.starterIds.forEach((id, slot) => {
         const actor: Actor = {
           id,
           index: this.actors.length,
           side: side as Side,
           slot,
+          post: posts[slot]!,
           keeper: slot === 0,
           style: styleOf(id),
         };
         this.actors.push(actor);
         this.lookup.set(id, actor);
-      }),
-    );
+      });
+    });
     this.play = { ...play };
     this.ball = start ? { ...start.ball } : { ...CENTRE };
     const shown = new Map(start?.players.map((p) => [p.id, p.point]));
@@ -247,8 +241,8 @@ class Director {
         d: clamp(3 + (ball.d - 25) * 0.12, 2, inPossession ? 20 : 14),
         w: 50 + (ball.w - 50) * 0.25,
       };
-    const base = SHAPE[inPossession ? 'in' : 'out'][actor.slot]!;
-    const bounds = LINE_DEPTH[lineOf(actor.slot)];
+    const base = inPossession ? actor.post.in : actor.post.out;
+    const bounds = LINE_DEPTH[lineOf(actor)];
     const d = base[0] + (ball.d - 50) * (inPossession ? 0.55 : 0.5) + actor.style.d;
     const w =
       50 +
@@ -543,7 +537,7 @@ class Director {
         this.rng.next() * 8;
       if (value > score || (value === score && best && actor.id < best.actor.id)) {
         score = value;
-        const run = actor.slot >= 5 ? 1 + this.rng.next() * 3 : 0;
+        const run = !atBack(actor) ? 1 + this.rng.next() * 3 : 0;
         best = {
           actor,
           point: this.toPitch(side, { d: clamp(spot.d + run, 1, cap), w: spot.w }),
@@ -647,7 +641,7 @@ class Director {
 
   kickoffMarks(side: Side): { kicker: Actor; marks: Map<string, Point> } {
     const team = this.teammates(side);
-    const kicker = team.find((actor) => actor.slot === 9) ?? team[team.length - 1]!;
+    const kicker = byRole(team, 'striker', 'second-striker') ?? team[team.length - 1]!;
     const marks = new Map<string, Point>();
     for (const actor of this.actors) {
       const own = actor.side === side;
@@ -656,7 +650,7 @@ class Director {
       if (!own && Math.abs(spot.w - 50) < 16) spot.d = Math.min(spot.d, 39);
       marks.set(actor.id, this.toPitch(actor.side, spot));
     }
-    const partner = team.find((actor) => actor.slot === 5);
+    const partner = byRole(team, 'left-mid', 'second-striker', 'attacking-mid', 'pivot');
     if (partner) marks.set(partner.id, this.toPitch(side, { d: 47.5, w: 44 }));
     marks.set(kicker.id, { ...CENTRE });
     return { kicker, marks };
@@ -692,7 +686,8 @@ class Director {
   kickoff(): void {
     const kicker = this.carrier()!;
     const team = this.teammates(kicker.side).filter((actor) => actor.id !== kicker.id);
-    const receiver = team.find((actor) => actor.slot === 6) ?? team.find((a) => !a.keeper)!;
+    const receiver =
+      byRole(team, 'pivot', 'left-mid', 'attacking-mid') ?? team.find((a) => !a.keeper)!;
     this.passTo(receiver, this.at(receiver.id), false);
   }
   goalKick(want: Want | undefined): void {
@@ -708,9 +703,12 @@ class Director {
       dead: true,
       action: false,
     });
-    const short = want ? want.side === side && want.target.slot <= 4 : this.rng.next() < 0.5;
+    const short = want ? want.side === side && atBack(want.target) : this.rng.next() < 0.5;
     if (short) {
-      const back = this.teammates(side).find((actor) => actor.slot === (spot.y < 50 ? 2 : 3))!;
+      const backs = this.teammates(side);
+      const back =
+        byRole(backs, spot.y < 50 ? 'centre-back-left' : 'centre-back-right', 'centre-back') ??
+        backs.find((actor) => actor.post.line === 'defence')!;
       this.passTo(back, this.at(back.id), false);
       return;
     }
@@ -724,7 +722,7 @@ class Director {
       return;
     }
     const receiver = this.teammates(side)
-      .filter((actor) => actor.slot >= 5)
+      .filter((actor) => !atBack(actor))
       .sort(
         (a, b) => span(this.at(a.id), landing) - span(this.at(b.id), landing) || byId(a, b),
       )[0]!;
@@ -734,17 +732,27 @@ class Director {
     const side = this.play.side;
     const left = this.toSpot(side, this.ball).w < 50;
     const team = this.teammates(side);
-    const taker = team.find((actor) => actor.slot === (left ? 8 : 10)) ?? team[1]!;
+    const taker = byRole(team, left ? 'wide-left' : 'wide-right') ?? team[1]!;
     const flag = this.toPitch(side, { d: 99.4, w: left ? 0.8 : 99.2 });
     const marks = new Map<string, Point>();
-    const runners = team.filter((actor) => [2, 3, 5, 9, left ? 10 : 8].includes(actor.slot));
+    const runners = team.filter((actor) =>
+      hasRole(actor, [
+        'centre-back-left',
+        'centre-back',
+        'centre-back-right',
+        'left-mid',
+        'striker',
+        'second-striker',
+        left ? 'wide-right' : 'wide-left',
+      ]),
+    );
     runners.forEach((actor, index) =>
       marks.set(actor.id, this.toPitch(side, { d: 87 + (index % 3) * 3, w: 38 + index * 5 })),
     );
     const defenders = this.teammates((1 - side) as Side);
     defenders.forEach((actor) => {
       if (actor.keeper) marks.set(actor.id, this.toPitch(side, { d: 98.5, w: 50 }));
-      else if (actor.slot <= 7)
+      else if (actor.post.line !== 'attack')
         marks.set(
           actor.id,
           this.toPitch(side, { d: 86 + (actor.slot % 3) * 3, w: 36 + actor.slot * 4 }),
@@ -784,20 +792,21 @@ class Director {
 
   // ── Shots ──────────────────────────────────────────────────────────────────
 
-  /** Where a player shoots from, by lineup slot (attack frame). */
+  /** Where a player shoots from, by their role in the formation (attack frame). */
   shootingSpot(actor: Actor): Point {
     const r = this.rng.next(),
       s = this.rng.next();
+    const role = actor.post.role;
     const spot =
-      actor.slot === 9
+      role === 'striker' || role === 'second-striker'
         ? { d: 84 + r * 6, w: 41 + s * 18 }
-        : actor.slot === 8
+        : role === 'wide-left'
           ? { d: 80 + r * 7, w: 27 + s * 13 }
-          : actor.slot === 10
+          : role === 'wide-right'
             ? { d: 80 + r * 7, w: 60 + s * 13 }
-            : actor.slot === 5 || actor.slot === 7
-              ? { d: 74 + r * 7, w: actor.slot === 5 ? 36 + s * 14 : 50 + s * 14 }
-              : actor.slot === 6
+            : role === 'left-mid' || role === 'right-mid'
+              ? { d: 74 + r * 7, w: role === 'left-mid' ? 36 + s * 14 : 50 + s * 14 }
+              : role === 'pivot' || role === 'attacking-mid'
                 ? { d: 71 + r * 6, w: 40 + s * 20 }
                 : { d: 87 + r * 5, w: 42 + s * 16 };
     return this.toPitch(actor.side, spot);
@@ -1034,7 +1043,11 @@ class Director {
           : this.shootingSpot(follower);
     } else if (style === 'through' || style === 'long') {
       const forwards = this.teammates(side)
-        .filter((actor) => actor.slot >= (style === 'long' ? 5 : 8) && actor.id !== passer.id)
+        .filter(
+          (actor) =>
+            (style === 'long' ? !atBack(actor) : actor.post.line === 'attack') &&
+            actor.id !== passer.id,
+        )
         .sort(
           (a, b) =>
             this.toSpot(side, this.at(b.id)).d - this.toSpot(side, this.at(a.id)).d || byId(a, b),
@@ -1050,12 +1063,16 @@ class Director {
       }
     } else if (style === 'cross') {
       const box = from.d > 66;
-      receiver = this.teammates(side).find((actor) => actor.slot === 9 && actor.id !== passer.id);
+      receiver = byRole(
+        this.teammates(side).filter((actor) => actor.id !== passer.id),
+        'striker',
+      );
       if (box && receiver)
         target = this.toPitch(side, { d: 88 + this.rng.next() * 4, w: 42 + this.rng.next() * 16 });
       else {
-        receiver = this.teammates(side).find(
-          (actor) => actor.slot === (from.w < 50 ? 10 : 8) && actor.id !== passer.id,
+        receiver = byRole(
+          this.teammates(side).filter((actor) => actor.id !== passer.id),
+          from.w < 50 ? 'wide-right' : 'wide-left',
         );
         if (receiver)
           target = this.reachable(
@@ -1180,10 +1197,12 @@ class Director {
     switch (situation.id) {
       case 'aerial-chance': {
         const wide = this.teammates(own).filter(
-          (actor) => actor.id !== selected.id && [8, 10, 1, 4].includes(actor.slot),
+          (actor) =>
+            actor.id !== selected.id &&
+            hasRole(actor, ['wide-left', 'wide-right', 'left-back', 'right-back']),
         );
-        const crosser = wide.find((actor) => actor.slot === (at.w <= 50 ? 10 : 8)) ?? wide[0]!;
-        const crossFrom = ownFrame(85, crosser.slot === 10 || crosser.slot === 4 ? 90 : 10);
+        const crosser = byRole(wide, at.w <= 50 ? 'wide-right' : 'wide-left') ?? wide[0]!;
+        const crossFrom = ownFrame(85, hasRole(crosser, ['wide-right', 'right-back']) ? 90 : 10);
         this.bringBall({ side: own, target: crosser }, crossFrom);
         const marker = outfield(opponents.defender, spot);
         this.passTo(
@@ -1220,7 +1239,7 @@ class Director {
         const fallback = ownFrame(at.d + 6, at.w);
         const attacker =
           situation.id === 'cross-ball'
-            ? (this.teammates(opposition).find((actor) => actor.slot === (at.w <= 50 ? 10 : 8)) ??
+            ? (byRole(this.teammates(opposition), at.w <= 50 ? 'wide-right' : 'wide-left') ??
               outfield(opponents.attacker, fallback))
             : outfield(opponents.attacker, fallback);
         const ballAt =
@@ -1240,13 +1259,17 @@ class Director {
           situation.id === 'defend-attack' ? spot : ownFrame(at.d, 50 + (ball.w - 50) * 0.3),
         );
         if (situation.id === 'one-on-one')
-          for (const back of this.teammates(own).filter(
-            (actor) => actor.slot === 2 || actor.slot === 3,
+          for (const back of this.teammates(own).filter((actor) =>
+            hasRole(actor, ['centre-back-left', 'centre-back-right']),
           ))
-            marks.set(back.id, ownFrame(ball.d + 6, ball.w + (back.slot === 2 ? -5 : 5)));
+            marks.set(
+              back.id,
+              ownFrame(ball.d + 6, ball.w + (back.post.role === 'centre-back-left' ? -5 : 5)),
+            );
         if (situation.id === 'cross-ball') {
-          const target = this.teammates(opposition).find(
-            (actor) => actor.slot === 9 && actor.id !== attacker.id,
+          const target = byRole(
+            this.teammates(opposition).filter((actor) => actor.id !== attacker.id),
+            'striker',
           );
           if (target) marks.set(target.id, ownFrame(9, 50));
         }

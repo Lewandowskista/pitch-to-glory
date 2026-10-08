@@ -120,5 +120,54 @@ export function validateCareer(w: Record<string, unknown>): void {
     number(match.goals, 0, 40, true);
     number(match.assists, 0, 40, true);
     number(match.xp, 0, 1e6, true);
+    if (match.passes !== undefined) {
+      const passes = array(match.passes, 2);
+      requireValue(passes.length === 2);
+      passes.forEach((count) => number(count, 0, 500, true));
+      requireValue(Number(passes[0]) <= Number(passes[1]));
+    }
+    if (match.tackles !== undefined) number(match.tackles, 0, 200, true);
+  }
+  if (career.coaching !== undefined) validateCoaching(career.coaching, current);
+}
+
+/** Coaching (Phase 5.2): recent decisions, the accepted season goal and past results. */
+function validateCoaching(value: unknown, current: Record<string, unknown>): void {
+  const coaching = object(value);
+  const K = CONFIG.career.coaching;
+  requireValue(coaching.version === 1);
+  const families = ['shooting', 'passing', 'dribbling', 'defending', 'goalkeeping'];
+  for (const entry of array(coaching.recent, K.recentLimit)) {
+    const sample = object(entry);
+    number(sample.season, 1800, Number(current.season), true);
+    number(sample.week, 1, 80, true);
+    options(sample.family, families);
+    requireValue(typeof sample.success === 'boolean');
+    number(sample.probability, 0, 1);
+    for (const key of array(sample.attributes, 3)) text(key, 40);
+  }
+  const kinds = ['appearances', 'passing', 'defending', 'attribute'];
+  if (coaching.goal !== null) {
+    const goal = object(coaching.goal);
+    requireValue(goal.version === 1);
+    number(goal.season, 1800, Number(current.season), true);
+    options(goal.kind, kinds);
+    number(goal.target, 1, 1000, true);
+    requireValue(
+      goal.kind === 'attribute' ? typeof goal.attribute === 'string' : goal.attribute === null,
+    );
+    number(goal.baseline, 0, 99, true);
+    date(goal.accepted);
+  }
+  if (coaching.declinedSeason !== null)
+    number(coaching.declinedSeason, 1800, Number(current.season), true);
+  for (const entry of array(coaching.history, K.historyLimit)) {
+    const result = object(entry);
+    number(result.season, 1800, Number(current.season), true);
+    options(result.kind, kinds);
+    number(result.target, 1, 1000, true);
+    requireValue(result.attribute === null || typeof result.attribute === 'string');
+    number(result.achieved, 0, 1e4, true);
+    requireValue(typeof result.completed === 'boolean');
   }
 }

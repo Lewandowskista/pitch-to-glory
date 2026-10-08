@@ -8,10 +8,19 @@ import type {
   Tactics,
 } from '../../model/domain';
 import type { RatingFamily } from './situations';
+import type { Formation } from '../selection/formations';
 export type { Tactics } from '../../model/domain';
 
 /** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
-export const MATCH_ENGINE_VERSION = 'match-7';
+export const MATCH_ENGINE_VERSION = 'match-8';
+/**
+ * The engine before formations (Phase 5.1). A setup without `formations` still replays with
+ * its 4-3-3 lineup and strength, so sessions saved before keep playing.
+ */
+export const LEGACY_MATCH_ENGINE = 'match-7';
+/** The engine a setup replays with. */
+export const engineFor = (setup: Pick<MatchSetup, 'formations'>): string =>
+  setup.formations ? MATCH_ENGINE_VERSION : LEGACY_MATCH_ENGINE;
 
 export interface MatchSetup {
   version: 1;
@@ -24,6 +33,8 @@ export interface MatchSetup {
   neutral: boolean;
   /** A scheduled fixture played by the career player; absent for friendlies. */
   fixture?: MatchFixture;
+  /** Home and away managers' formations; absent for a world on the earlier 4-3-3 selection. */
+  formations?: [Formation, Formation];
 }
 export interface MatchFixture {
   id: string;

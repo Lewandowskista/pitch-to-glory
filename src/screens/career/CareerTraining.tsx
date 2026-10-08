@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { adviceDraft, coachAdvice } from '../../engine/career/coaching';
+import { CoachAdvice, SeasonGoalCard } from './CoachAdvice';
 import { useAppStore } from '../../store';
 import { CONFIG } from '../../engine/config';
 import {
@@ -129,7 +132,19 @@ function TrainingPlanner({
   player: Player;
 }) {
   const block = useEditBlock();
-  const [plan, setPlan] = useState<TrainingPlan>(() => structuredClone(career.training));
+  const [params] = useSearchParams();
+  // Arriving from advice elsewhere (`?advice=1`) starts from the advised draft; the saved plan
+  // stays in force until the player saves.
+  const [applied, setApplied] = useState(
+    () =>
+      params.get('advice') === '1' &&
+      !samePlan(adviceDraft(career.training, coachAdvice(world)), career.training),
+  );
+  const [plan, setPlan] = useState<TrainingPlan>(() =>
+    params.get('advice') === '1'
+      ? adviceDraft(career.training, coachAdvice(world))
+      : structuredClone(career.training),
+  );
   const [extraFocus, setExtraFocus] = useState<TrainingFocus>(
     career.training.extra?.focus ?? (player.primaryPosition === 'GK' ? 'goalkeeping' : 'technical'),
   );
@@ -176,6 +191,7 @@ function TrainingPlanner({
     useAppStore.getState().setWorld(withTraining(current, effective));
     setPlan(structuredClone(effective));
     setStatus(c.training.saved);
+    setApplied(false);
   };
   const percent = (value: number) => (value * 100).toFixed(value < 0.01 ? 1 : 0);
   const noMentor = Boolean(plan.extra && !mentor);
@@ -369,7 +385,19 @@ function TrainingPlanner({
           </button>
         </section>
       </div>
-      <TrainingReport career={career} player={player} keeper={keeper} />
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
+        <CoachAdvice
+          world={world}
+          applied={applied}
+          onApply={(draft) => {
+            setPlan(draft);
+            setStatus('');
+            setApplied(true);
+          }}
+        />
+        <SeasonGoalCard world={world} />
+        <TrainingReport career={career} player={player} keeper={keeper} />
+      </div>
     </div>
   );
 }
