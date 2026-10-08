@@ -252,6 +252,9 @@ test('production PWA precaches unvisited routes for offline use', async ({
   await expect
     .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
     .toBe(true);
+  // Let the first page finish its lazy chunks: going offline mid-download makes Firefox report
+  // the aborted import as a page error.
+  await page.waitForLoadState('networkidle');
   await context.setOffline(true);
   if (browserName === 'webkit') {
     // Windows WebKit's driver blocks navigation before dispatching the service worker.
