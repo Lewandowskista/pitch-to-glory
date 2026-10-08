@@ -28,6 +28,8 @@ test('title, URLs, route refresh and keyboard navigation', async ({ page }) => {
   );
   await page.getByRole('link', { name: 'Explore the gallery' }).click();
   await expect(page).toHaveURL(/\/gallery$/);
+  // Let the route finish loading first: Firefox reports a lazy chunk aborted by the reload.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Asset gallery');
   await page.reload();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Asset gallery');
   await page.goBack();
