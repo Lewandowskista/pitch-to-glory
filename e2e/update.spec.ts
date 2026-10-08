@@ -6,6 +6,7 @@ import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
+import { autoPlayCareerFixture } from '../src/engine/career/matches';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
 
@@ -88,8 +89,11 @@ test.beforeAll(async () => {
     trial.id,
     'update-journey',
   );
-  for (let guard = 0; guard < 6 && (world.date.week < 3 || pendingCareerFixture(world)); guard++)
+  for (let guard = 0; guard < 6 && world.date.week < 3; guard++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  // Play this week's match, as a player would: Continue is then the next action.
+  for (let pending = pendingCareerFixture(world); pending; pending = pendingCareerFixture(world))
+    autoPlayCareerFixture(world, pending);
   await mkdir('artifacts', { recursive: true });
   await writeFile(
     save,
