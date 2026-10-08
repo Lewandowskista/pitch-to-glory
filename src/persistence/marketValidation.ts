@@ -17,7 +17,8 @@ import {
 
 const M = CONFIG.career.market;
 const ROLES = ['key', 'rotation', 'backup', 'youth'];
-const INBOX_KINDS = [
+/** Every inbox message kind a save may hold; each has copy in an i18n `messages` table. */
+export const INBOX_KINDS = [
   'welcome-market',
   'offer-terms',
   'offer-rejected',
@@ -55,6 +56,11 @@ const INBOX_KINDS = [
   'sponsor-completed',
   'sponsor-failed',
   'sponsor-dropped',
+  'sponsor-clawback',
+  'sponsor-renewal',
+  'free-transfer',
+  'experience',
+  'investment-lost',
   'asset-sold',
   'fame-level',
   'call-up',

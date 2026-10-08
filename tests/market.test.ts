@@ -25,6 +25,12 @@ import {
 } from '../src/engine/career/market';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { INBOX_KINDS } from '../src/persistence/marketValidation';
+import { marketText } from '../src/i18n/market';
+import { socialText } from '../src/i18n/social';
+import { lifestyleText } from '../src/i18n/lifestyle';
+import { honoursText } from '../src/i18n/honours';
+import { storiesText } from '../src/i18n/stories';
 
 const MK = CONFIG.career.market;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
@@ -420,6 +426,16 @@ describe('weekly market', () => {
 });
 
 describe('market saves', () => {
+  it('accepts every inbox message kind that has copy, and no other', () => {
+    const copy = [
+      marketText.messages,
+      socialText.messages,
+      lifestyleText.messages,
+      honoursText.messages,
+      storiesText.messages,
+    ].flatMap((messages) => Object.keys(messages));
+    expect([...INBOX_KINDS].sort()).toEqual([...new Set(copy)].sort());
+  });
   it('round trips a career with market records and rejects forged ones', () => {
     const world = inWindow();
     const club = buyer(world);
