@@ -199,7 +199,6 @@ export const careerText = {
     resume: 'Resume your match',
     record: 'Record your result',
     continue: 'Continue to next matchday',
-    continueBody: 'The world plays on week by week until your club’s next fixture.',
     continueSeason: 'Simulate to the end of the season',
     noFixture: 'No more fixtures this season.',
     noFixtureBody:

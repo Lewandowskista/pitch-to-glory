@@ -25,6 +25,7 @@ export const CAREER_GROUPS: readonly CareerGroup[] = [
     icon: 'overview',
     pages: [
       { path: '/career', label: n.pages['/career']! },
+      { path: '/career/calendar', label: n.pages['/career/calendar']! },
       { path: '/career/inbox', label: n.pages['/career/inbox']! },
     ],
   },

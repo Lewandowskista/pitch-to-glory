@@ -106,6 +106,7 @@ const ROUTES = [
   '/match?save=1',
   '/career/new',
   '/career?save=1',
+  '/career/calendar?save=1',
   '/career/inbox?save=1',
   '/career/profile?save=1',
   '/career/skills?save=1',

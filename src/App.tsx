@@ -18,6 +18,7 @@ const CareerTraining = lazy(() => import('./screens/career/CareerTraining'));
 const CareerTransfers = lazy(() => import('./screens/career/CareerTransfers'));
 const CareerAgent = lazy(() => import('./screens/career/CareerAgent'));
 const CareerInbox = lazy(() => import('./screens/career/CareerInbox'));
+const CareerCalendar = lazy(() => import('./screens/career/CareerCalendar'));
 const CareerClub = lazy(() => import('./screens/career/CareerClub'));
 const CareerMedia = lazy(() => import('./screens/career/CareerMedia'));
 const CareerRival = lazy(() => import('./screens/career/CareerRival'));
@@ -57,6 +58,7 @@ export default function App() {
               <Route path="career/transfers" element={<CareerTransfers />} />
               <Route path="career/agent" element={<CareerAgent />} />
               <Route path="career/inbox" element={<CareerInbox />} />
+              <Route path="career/calendar" element={<CareerCalendar />} />
               <Route path="career/club" element={<CareerClub />} />
               <Route path="career/media" element={<CareerMedia />} />
               <Route path="career/rival" element={<CareerRival />} />

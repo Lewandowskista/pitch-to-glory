@@ -12,6 +12,7 @@ export const navigationText = {
   },
   pages: {
     '/career': 'Hub',
+    '/career/calendar': 'Calendar',
     '/career/inbox': 'Inbox',
     '/career/profile': 'Profile',
     '/career/skills': 'Skills',

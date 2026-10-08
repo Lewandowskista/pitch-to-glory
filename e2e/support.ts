@@ -46,6 +46,7 @@ export function isBrowserNoise(message: ConsoleMessage): boolean {
 /** The career group each page tab belongs to (src/screens/career/navigation.ts). */
 const CAREER_GROUP: Record<string, string> = {
   Hub: 'Overview',
+  Calendar: 'Overview',
   Inbox: 'Overview',
   Profile: 'Player',
   Skills: 'Player',

@@ -11,7 +11,7 @@ import { careerTabs, groupLinkName, isBrowserNoise, openCareerPage, skipTutorial
  * with a URL-backed More sheet, and every earlier route still reachable.
  */
 const GROUPS: [string, string[]][] = [
-  ['Overview', ['Hub', 'Inbox']],
+  ['Overview', ['Hub', 'Calendar', 'Inbox']],
   ['Player', ['Profile', 'Skills', 'Training', 'National team']],
   ['Club', ['Club life', 'Transfers', 'Agent']],
   ['Life', ['Media', 'Rival', 'Lifestyle', 'Wardrobe']],
@@ -19,6 +19,7 @@ const GROUPS: [string, string[]][] = [
 ];
 const ROUTES = [
   '/career',
+  '/career/calendar',
   '/career/inbox',
   '/career/profile',
   '/career/skills',

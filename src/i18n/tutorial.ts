@@ -12,6 +12,10 @@ export const tutorialText = {
       title: 'Your first fixture',
       body: 'This card shows your next match. Continuing simulates the whole world, week by week, until your club plays.',
     },
+    priorities: {
+      title: 'What needs you',
+      body: 'Anything waiting for you appears here, most urgent first: recovery, your match, then offers and press questions before they lapse, then unspent points. The calendar shows the whole season.',
+    },
     'player-card': {
       title: 'Your footballer',
       body: 'Level, XP and unspent points live here. Matches earn XP, and every level brings attribute and skill points to spend.',

@@ -18,6 +18,7 @@ for (const route of [
   'career/CareerTransfers',
   'career/CareerAgent',
   'career/CareerInbox',
+  'career/CareerCalendar',
   'career/CareerClub',
   'career/CareerMedia',
   'career/CareerRival',

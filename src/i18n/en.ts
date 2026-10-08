@@ -19,6 +19,7 @@ export const en = {
       '/career/training': 'Training',
       '/career/transfers': 'Transfers and contract',
       '/career/agent': 'Agent',
+      '/career/calendar': 'Calendar',
       '/career/inbox': 'Inbox',
       '/career/club': 'Club life',
       '/career/media': 'Media',

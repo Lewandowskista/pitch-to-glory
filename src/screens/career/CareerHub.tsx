@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, type ReactNode } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { Icon } from '../../ui/Icon';
 import { HeadToHead } from '../../ui/HeadToHead';
@@ -43,6 +43,15 @@ import { honoursText as h } from '../../i18n/honours';
 import { fameName, useChallengeRefresh } from './lifestyleUi';
 import { HonoursSummary } from './honoursHub';
 import { Tutorial } from '../../ui/Tutorial';
+import { agendaText as a } from '../../i18n/agenda';
+import {
+  advancePreview,
+  hubPriorities,
+  sinceValue,
+  type AdvancePreview,
+  type SessionState,
+} from './agenda';
+import { AdvanceDigest, AdvancePreviewText, HubPriorities } from './HubPriorities';
 import { tutorialText as tt } from '../../i18n/tutorial';
 
 const attributeName = (key: string) =>
@@ -92,8 +101,38 @@ function HubContent({
 }) {
   const error = useAppStore((s) => s.worldError);
   const notice = useAppStore((s) => s.worldNotice);
+  const session = useAppStore((s): SessionState =>
+    s.matchSession
+      ? s.matchSession.state.match.status === 'finished'
+        ? 'finished'
+        : 'live'
+      : null,
+  );
+  const [params] = useSearchParams();
+  const { hash } = useLocation();
+  // Links into the hub (such as a recovery choice from the priorities) bring their target into
+  // view and focus its first control.
+  useEffect(() => {
+    const target = hash ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+    if (!target) return;
+    target.scrollIntoView({ block: 'center' });
+    target
+      .querySelector<HTMLElement>('button:not(:disabled), a[href]')
+      ?.focus({ preventScroll: true });
+  }, [hash]);
   // Late in a career the honours card carries the retirement decision, so it stays full size.
   const retirement = retirementState(world) !== 'young';
+  const priorities = hubPriorities(world, session);
+  const preview = advancePreview(world, session);
+  // Quiet summaries shrink to tiles; the URL can ask for every summary in full.
+  const full = params.get('summaries') === 'all';
+  const pressActive =
+    full || world.media.some((item) => item.choices.length > 0 && item.answer === null);
+  const marketActive =
+    full || world.offers.some((offer) => offer.status === 'terms' || offer.status === 'agreed');
+  const inboxActive = full || world.inbox.some((message) => !message.read);
+  const active = [inboxActive, pressActive, marketActive].filter(Boolean).length;
+  const span = active === 1 ? 'lg:col-span-12' : active === 2 ? 'lg:col-span-6' : 'lg:col-span-4';
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
       {error && (
@@ -107,27 +146,41 @@ function HubContent({
       >
         {notice && notice !== 'generated' ? t.world.notices[notice] : ''}
       </p>
-      <NextMatch world={world} career={career} club={club} />
+      <NextMatch world={world} career={career} club={club} preview={preview} />
+      <HubPriorities world={world} items={priorities} />
+      <AdvanceDigest world={world} />
       <PlayerCard career={career} player={player} club={club} age={age} />
       <LastResult world={world} career={career} />
       <SeasonStats world={world} career={career} player={player} />
-      <ClubStanding world={world} club={club} />
       <Condition career={career} player={player} />
-      <InboxPreview world={world} />
+      <ClubStanding world={world} club={club} />
       {retirement && <HonoursSummary world={world} className="lg:col-span-12" />}
-      <PressRoom world={world} />
-      <MarketSummary world={world} />
+      {inboxActive && <InboxPreview world={world} span={span} />}
+      {pressActive && <PressRoom world={world} span={span} />}
+      {marketActive && <MarketSummary world={world} span={span} />}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 lg:col-span-12 lg:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]">
+        {!inboxActive && <InboxTile world={world} />}
+        {!pressActive && <PressTile world={world} />}
+        {!marketActive && <MarketTile world={world} />}
         <TrainingSummary career={career} />
         <FameSummary world={world} />
         {!retirement && <HonoursTile world={world} />}
         <RivalWatch world={world} />
       </div>
+      <SummariesToggle full={full} />
       <Tutorial
         track="week"
         enabled={world.phase === 'active' && career.matches.length === 0}
         steps={(
-          ['next-match', 'player-card', 'training', 'career-nav', 'inbox', 'continue'] as const
+          [
+            'next-match',
+            'priorities',
+            'player-card',
+            'training',
+            'career-nav',
+            'inbox',
+            'continue',
+          ] as const
         ).map((target) => ({ target, ...tt.week[target] }))}
       />
     </div>
@@ -138,16 +191,28 @@ function NextMatch({
   world,
   career,
   club,
+  preview,
 }: {
   world: World;
   career: Career;
   club: Club | undefined;
+  preview: AdvancePreview;
 }) {
   const job = useAppStore((s) => s.worldJob);
   const session = useAppStore((s) => s.matchSession);
   const dialog = useUrlDialog('confirm');
+  const [params, setParams] = useSearchParams();
   const pending = pendingCareerFixture(world);
-  const fixture = pending ?? nextCareerFixture(world);
+  // The match Continue heads for; a fixture this week the player was not picked for is
+  // played without them.
+  const fixture = pending ?? preview.fixture ?? nextCareerFixture(world);
+  // Remember where this advance started, so the hub can summarize what actually happened.
+  const advance = (run: () => void) => {
+    const next = new URLSearchParams(params);
+    next.set('since', sinceValue(world.date));
+    setParams(next, { replace: true });
+    run();
+  };
   const opponentId = fixture && (fixture.homeId === club?.id ? fixture.awayId : fixture.homeId);
   const opponent = opponentId ? world.clubs[opponentId] : undefined;
   const home = fixture?.homeId === club?.id;
@@ -170,13 +235,21 @@ function NextMatch({
       {c.hub.play}
       <Icon name="ball" />
     </Link>
+  ) : awaitingRecovery ? (
+    <Link
+      className="button play min-w-48"
+      to={{ search: params.get('save') ? `?save=${params.get('save')}` : '', hash: '#recovery' }}
+      data-tour="continue"
+    >
+      {a.priorities.kinds.recovery}
+      <Icon name="arrow" />
+    </Link>
   ) : (
     <button
       className="button play min-w-48"
-      disabled={busy || awaitingRecovery}
-      aria-describedby={awaitingRecovery ? 'recovery-required' : undefined}
+      disabled={busy}
       data-tour="continue"
-      onClick={continueToMatchday}
+      onClick={() => advance(continueToMatchday)}
     >
       {fixture ? c.hub.continue : c.hub.continueSeason}
       <Icon name="arrow" />
@@ -248,26 +321,22 @@ function NextMatch({
             · {fixture.neutral ? c.common.neutral : home ? c.common.home : c.common.away}
           </p>
         )}
-        <p className="max-w-prose text-sm text-white/85 empty:hidden">
-          {pending ? c.hub.matchdayBody : !complete && !session ? c.hub.continueBody : ''}
-        </p>
+        {pending && !session && (
+          <p className="max-w-prose text-sm text-white/85">{c.hub.matchdayBody}</p>
+        )}
+        {!session && <AdvancePreviewText world={world} preview={preview} />}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           {action}
-          {!complete && !session && (
+          {!complete && !session && !awaitingRecovery && (
             <button
               className="inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-white underline underline-offset-4 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:text-white/60 disabled:no-underline"
-              disabled={busy || awaitingRecovery}
+              disabled={busy}
               onClick={() => dialog.open('autoplay')}
             >
               {c.hub.simulateSeason}
             </button>
           )}
         </div>
-        {awaitingRecovery && !session && (
-          <p id="recovery-required" className="text-sm font-semibold text-gold">
-            {c.hub.injuredBlock}
-          </p>
-        )}
         <div className="text-ink">
           <JobProgress />
         </div>
@@ -281,7 +350,7 @@ function NextMatch({
           onClose={dialog.close}
           onConfirm={() => {
             dialog.close();
-            simulateCareerSeason(true);
+            advance(() => simulateCareerSeason(true));
           }}
         />
       )}
@@ -525,7 +594,7 @@ function ClubStanding({ world, club }: { world: World; club: Club | undefined })
   const standing = club ? leaguePosition(world, club.id) : null;
   const league = club ? world.leagues[club.leagueId] : undefined;
   return (
-    <section aria-labelledby="club-heading" className={`${card} lg:col-span-4`}>
+    <section aria-labelledby="club-heading" className={`${card} lg:col-span-4 lg:self-start`}>
       <h2 id="club-heading" className={ui.heading}>
         {c.hub.club}
       </h2>
@@ -580,7 +649,7 @@ function Condition({ career, player }: { career: Career; player: Player }) {
     useAppStore.getState().setWorld(chooseRecovery(current, recovery));
   };
   return (
-    <section aria-labelledby="condition-heading" className={`${card} lg:col-span-6`}>
+    <section aria-labelledby="condition-heading" className={`${card} lg:col-span-8 lg:self-start`}>
       <h2 id="condition-heading" className={ui.heading}>
         {c.hub.condition}
       </h2>
@@ -610,7 +679,7 @@ function Condition({ career, player }: { career: Career; player: Player }) {
             <p className="mt-2 text-sm font-semibold text-danger">{c.hub.injuryThreatening}</p>
           )}
           {injury.recovery === null ? (
-            <fieldset className="mt-4">
+            <fieldset id="recovery" className="mt-4 scroll-mt-24">
               <legend className="text-sm font-bold">{c.hub.recoveryTitle}</legend>
               {block && <p className="mt-1 text-xs text-muted">{block}</p>}
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -657,13 +726,13 @@ function Condition({ career, player }: { career: Career; player: Player }) {
   );
 }
 
-function InboxPreview({ world }: { world: World }) {
+function InboxPreview({ world, span }: { world: World; span: string }) {
   const latest = [...world.inbox].reverse().slice(0, 4);
   return (
     <section
       aria-labelledby="inbox-preview-heading"
       data-tour="inbox"
-      className={`${card} lg:col-span-6`}
+      className={`${card} ${span}`}
     >
       <h2 id="inbox-preview-heading" className={ui.heading}>
         {m.hub.inbox}
@@ -703,13 +772,13 @@ function InboxPreview({ world }: { world: World }) {
   );
 }
 
-function PressRoom({ world }: { world: World }) {
+function PressRoom({ world, span }: { world: World; span: string }) {
   const pending = world.media.find((item) => item.choices.length > 0 && item.answer === null);
   const headline = [...world.media].reverse().find((item) => item.kind === 'headline');
   return (
     <section
       aria-labelledby="press-room-heading"
-      className={`${card} lg:col-span-6 ${pending ? 'border-gold' : ''}`}
+      className={`${card} ${span} ${pending ? 'border-gold' : ''}`}
     >
       <h2 id="press-room-heading" className={ui.heading}>
         {s.hub.press}
@@ -741,7 +810,7 @@ function PressRoom({ world }: { world: World }) {
   );
 }
 
-function MarketSummary({ world }: { world: World }) {
+function MarketSummary({ world, span }: { world: World; span: string }) {
   const contract = careerContract(world);
   const waiting = world.offers.filter((offer) => offer.status === 'terms').length;
   const following = world.scouting.length;
@@ -756,7 +825,7 @@ function MarketSummary({ world }: { world: World }) {
           ? format(m.window.opens, { week: state.opens })
           : m.window.closed;
   return (
-    <section aria-labelledby="market-summary-heading" className={`${card} lg:col-span-6`}>
+    <section aria-labelledby="market-summary-heading" className={`${card} ${span}`}>
       <h2 id="market-summary-heading" className={ui.heading}>
         {m.hub.market}
       </h2>
@@ -952,5 +1021,82 @@ function RivalWatch({ world }: { world: World }) {
       </p>
       <CardLink to="/career/rival">{s.hub.seeRival}</CardLink>
     </section>
+  );
+}
+
+/** The inbox in brief, when nothing is unread. */
+function InboxTile({ world }: { world: World }) {
+  const latest = world.inbox.at(-1);
+  return (
+    <section aria-labelledby="inbox-tile-heading" data-tour="inbox" className={tile}>
+      <h2 id="inbox-tile-heading" className={tileHeading}>
+        {m.hub.inbox}
+      </h2>
+      <p className="mt-1 text-sm text-muted">
+        {latest ? messageText(latest).subject : m.inbox.empty}
+      </p>
+      <CardLink to="/career/inbox">{m.hub.seeAll}</CardLink>
+    </section>
+  );
+}
+
+/** The press in brief, when no question is waiting. */
+function PressTile({ world }: { world: World }) {
+  const headline = [...world.media].reverse().find((item) => item.kind === 'headline');
+  return (
+    <section aria-labelledby="press-tile-heading" className={tile}>
+      <h2 id="press-tile-heading" className={tileHeading}>
+        {s.hub.press}
+      </h2>
+      <p className="mt-1 text-sm text-muted">{headline ? mediaText(headline) : s.hub.pressNone}</p>
+      <CardLink to="/career/media">{s.hub.seeMedia}</CardLink>
+    </section>
+  );
+}
+
+/** The market in brief, when no offer is open. */
+function MarketTile({ world }: { world: World }) {
+  const state = windowState(world);
+  const text =
+    world.phase === 'complete'
+      ? m.window.between
+      : state.open
+        ? format(m.window.open, { week: state.closes! })
+        : state.opens
+          ? format(m.window.opens, { week: state.opens })
+          : m.window.closed;
+  return (
+    <section aria-labelledby="market-tile-heading" className={tile}>
+      <h2 id="market-tile-heading" className={tileHeading}>
+        {m.hub.market}
+      </h2>
+      <p className="mt-1 text-sm text-muted">{text}</p>
+      <p className="text-sm">
+        {format(m.hub.marketBody, { interest: world.scouting.length, offers: 0 })}
+      </p>
+      <CardLink to="/career/transfers">{m.hub.seeMarket}</CardLink>
+    </section>
+  );
+}
+
+/** Every summary in full, or quiet ones as tiles; the choice lives in the URL. */
+function SummariesToggle({ full }: { full: boolean }) {
+  const [params, setParams] = useSearchParams();
+  return (
+    <div className="lg:col-span-12">
+      <button
+        type="button"
+        className="text-button -ml-3"
+        aria-pressed={full}
+        onClick={() => {
+          const next = new URLSearchParams(params);
+          if (full) next.delete('summaries');
+          else next.set('summaries', 'all');
+          setParams(next, { replace: true });
+        }}
+      >
+        {full ? a.summaries.compact : a.summaries.full}
+      </button>
+    </div>
   );
 }

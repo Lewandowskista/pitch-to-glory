@@ -6,7 +6,7 @@
 
 **Stack:** Existing TypeScript, React 18, Vite, React Router, Zustand, PixiJS, Tailwind, Framer Motion, Dexie, Vitest and Playwright. No new runtime dependency is required by this plan.
 
-**Status:** Phases 1 and 2 complete; Phase 3 not started. The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
+**Status:** Phases 1, 2 and 3 complete; Phase 4 not started. The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
 
 ## Scope and approach
 
@@ -161,11 +161,13 @@ Keep the green/gold identity, existing country profiles and browser-first archit
 
 **Modify:** `src/screens/career/CareerHub.tsx`, `src/screens/career/actions.ts`, `src/App.tsx`, `src/i18n/career.ts`, `src/i18n/en.ts`, `scripts/check-bundle.mjs`, `e2e/accessibility.spec.ts`.
 
-- [ ] Derive a priority queue from existing state: recovery decisions first, playable/resumable fixtures next, expiring negotiations/press actions next, then unspent progression points. Use existing deadlines; label actions with no deadline accurately.
-- [ ] Keep the next-action hero, player summary and condition near the top. Reduce inactive sections to compact links or summaries; expand secondary summaries through URL state rather than a new saved preference system.
-- [ ] Add `/career/calendar` as a lazy route, combining confirmed fixtures, training, recovery and actionable deadlines. Use season/week/day as the game's date model; do not map 60 abstract weeks to misleading real calendar dates.
-- [ ] Show a short preview of the pending advance action and a digest from actual completed world events afterwards. Clarify whether continuing advances one week or runs until the next matchday. Never predict or reveal unrevealed random outcomes.
-- [ ] Test priority conflicts, same-week cup/league fixtures, a completed season, an injured player, an expired offer and an empty inbox. Add Calendar to route-budget and accessibility coverage.
+- [x] Derive a priority queue from existing state: recovery decisions first, playable/resumable fixtures next, expiring negotiations/press actions next, then unspent progression points. Use existing deadlines; label actions with no deadline accurately.
+- [x] Keep the next-action hero, player summary and condition near the top. Reduce inactive sections to compact links or summaries; expand secondary summaries through URL state rather than a new saved preference system.
+- [x] Add `/career/calendar` as a lazy route, combining confirmed fixtures, training, recovery and actionable deadlines. Use season/week/day as the game's date model; do not map 60 abstract weeks to misleading real calendar dates.
+- [x] Show a short preview of the pending advance action and a digest from actual completed world events afterwards. Clarify whether continuing advances one week or runs until the next matchday. Never predict or reveal unrevealed random outcomes.
+- [x] Test priority conflicts, same-week cup/league fixtures, a completed season, an injured player, an expired offer and an empty inbox. Add Calendar to route-budget and accessibility coverage.
+
+**Done:** see `docs/VERIFICATION.md`, Phase 3.2. The pure derivations live in `agenda.ts`; `actions.ts` needed no change because the hub records where an advance starts (`since` in the URL). Browser coverage is in `e2e/agenda.spec.ts`.
 
 **Accept:** the main hub action is visible at 390×844 with normal text; urgent actions take precedence consistently; agenda links restore after refresh; the digest reports what actually happened.
 

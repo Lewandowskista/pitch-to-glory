@@ -78,12 +78,12 @@ test('guides the first week and the first match, and replays from Settings', asy
   await page.goto('/career?save=1');
   const tour = page.getByRole('dialog', { name: 'Your first fixture' });
   await expect(tour).toBeVisible();
-  await expect(tour).toContainText('Step 1 of 6');
+  await expect(tour).toContainText('Step 1 of 7');
   await expect(page.getByRole('heading', { name: 'Your first fixture' })).toBeFocused();
   await expect(page.locator('[data-tour="next-match"]')).toHaveAttribute('data-tour-active', '');
   await page.getByTestId('tutorial').getByRole('button', { name: 'Next' }).click();
-  await expect(page.getByTestId('tutorial')).toContainText('Your footballer');
-  await expect(page.locator('[data-tour="player-card"]')).toHaveAttribute('data-tour-active', '');
+  await expect(page.getByTestId('tutorial')).toContainText('What needs you');
+  await expect(page.locator('[data-tour="priorities"]')).toHaveAttribute('data-tour-active', '');
   await page.getByTestId('tutorial').getByRole('button', { name: 'Back' }).click();
   await expect(page.getByTestId('tutorial')).toContainText('Your first fixture');
   // Escape skips the tour without leaving the page.
@@ -99,6 +99,7 @@ test('guides the first week and the first match, and replays from Settings', asy
   await expect(page.getByText('The tutorial will show again.')).toBeVisible();
   await page.goto('/career?save=1');
   for (const title of [
+    'What needs you',
     'Your footballer',
     'Training',
     'Everything else',

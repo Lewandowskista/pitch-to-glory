@@ -178,9 +178,9 @@ test('creates a career, plays matchdays, develops the player and restores the hu
 
   // Back on the hub, advance the world to the next matchday with live progress.
   await openCareerPage(page, 'Hub');
-  await expect(page.getByRole('link', { name: /attribute points?/ })).toContainText(
-    String(before - 1),
-  );
+  await expect(
+    page.locator('[data-tour="player-card"]').getByRole('link', { name: /attribute points?/ }),
+  ).toContainText(String(before - 1));
   // The player may already have a second fixture this week.
   if (!(await play.isVisible()))
     await page.getByRole('button', { name: 'Continue to next matchday', exact: true }).click();
