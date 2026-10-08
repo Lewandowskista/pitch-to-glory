@@ -3,7 +3,15 @@ import { createRng, type Rng } from '../../rng';
 import { addWeeks, careerContract, compareDates, relationshipValue, today } from '../market/rules';
 import { nextId, postMessage } from '../market/records';
 import { pay } from '../market/moves';
-import { BRAND_BY_ID, BRANDS, COSMETIC_BY_ID, LIFESTYLE_BY_ID } from './catalogue';
+import {
+  assetEffects,
+  BRAND_BY_ID,
+  BRANDS,
+  COSMETIC_BY_ID,
+  LIFESTYLE_BY_ID,
+  type LifestyleItem,
+} from './catalogue';
+import { adjustRelationship } from '../market/records';
 import { careerFameLevel, enforceEquipment, L } from './wardrobe';
 
 const SP = L.sponsor;
@@ -73,7 +81,17 @@ export function makeSponsorOffer(world: World, rng: Rng): Sponsorship | null {
       .filter((deal) => deal.status === 'active' || deal.status === 'offered')
       .map((deal) => deal.category),
   );
-  const brands = BRANDS.filter((brand) => brand.fameLevel <= level && !busy.has(brand.category))
+  // A category whose last deal failed stays closed for a while.
+  const locked = new Set(
+    world.sponsorships
+      .filter(
+        (deal) => deal.status === 'ended' && deal.endSeason >= world.date.season - SP.lockSeasons,
+      )
+      .map((deal) => deal.category),
+  );
+  const brands = BRANDS.filter(
+    (brand) => brand.fameLevel <= level && !busy.has(brand.category) && !locked.has(brand.category),
+  )
     .sort((a, b) => b.fameLevel - a.fameLevel || (a.id < b.id ? -1 : 1))
     .slice(0, 3);
   const remaining = remainingFixtures(world);
@@ -156,7 +174,8 @@ export function sponsorWeek(world: World, rng: Rng): void {
       endDeal(world, deal, 'ended', SP.bootsBreachFame, 'sponsor-dropped');
       continue;
     }
-    pay(world, deal.weeklyFee);
+    pay(world, deal.weeklyFee, false);
+    deal.paid = (deal.paid ?? 0) + deal.weeklyFee;
   }
   const active = world.sponsorships.filter((deal) => deal.status === 'active').length;
   const offered = world.sponsorships.some((deal) => deal.status === 'offered');
@@ -176,26 +195,104 @@ export function sponsorRollover(world: World): void {
     if (deal.status === 'offered') deal.status = 'expired';
     if (deal.status !== 'active' || deal.endSeason >= world.date.season) continue;
     if (deal.obligations.every((obligation) => obligationMet(world, deal, obligation))) {
-      pay(world, deal.bonus);
+      pay(world, deal.bonus, false);
       endDeal(world, deal, 'completed', SP.completedFame, 'sponsor-completed');
-    } else endDeal(world, deal, 'ended', SP.failedFame, 'sponsor-failed');
+      renewSponsor(world, deal);
+    } else {
+      // Failure costs: fame by level and a share of the fees back.
+      const clawback = Math.round((deal.paid ?? 0) * SP.clawback);
+      world.career!.market.finances.cash = Math.max(
+        0,
+        world.career!.market.finances.cash - clawback,
+      );
+      endDeal(world, deal, 'ended', SP.failedFame - careerFameLevel(world), 'sponsor-failed');
+      if (clawback > 0)
+        postMessage(world, 'sponsor-clawback', {
+          brand: BRAND_BY_ID[deal.brandId]!.name,
+          amount: clawback,
+        });
+    }
   }
 }
 
-/** Buy a car, a home or an investment stake from savings. */
+/** A completed deal is offered again at a better fee. */
+function renewSponsor(world: World, deal: Sponsorship): void {
+  const brand = BRAND_BY_ID[deal.brandId];
+  if (!brand || remainingFixtures(world) < 10) return;
+  const renewed: Sponsorship = {
+    ...deal,
+    id: nextId(world, 'sponsor'),
+    status: 'offered',
+    offered: today(world),
+    expires: { ...addWeeks(world, today(world), SP.offerWeeks), day: 7 },
+    start: null,
+    endSeason: world.date.season,
+    weeklyFee: Math.round(deal.weeklyFee * SP.renewalFactor),
+    bonus: Math.round(deal.weeklyFee * SP.renewalFactor) * SP.bonusWeeks,
+    obligations: deal.obligations.map((obligation) => ({ ...obligation })),
+    baseline: null,
+    paid: 0,
+  };
+  world.sponsorships.push(renewed);
+  postMessage(world, 'sponsor-renewal', { brand: brand.name, fee: renewed.weeklyFee }, renewed.id);
+}
+
+/** Weekly income the lifestyle is measured against: wage plus sponsor fees. */
+export function weeklyIncome(world: World): number {
+  return (
+    careerContract(world).weeklyWage +
+    world.sponsorships
+      .filter((deal) => deal.status === 'active')
+      .reduce((sum, deal) => sum + deal.weeklyFee, 0)
+  );
+}
+/** What an item costs now: cars, homes and experiences scale with the wage; staff charge a hire fee. */
+export function priceOf(world: World, item: LifestyleItem): number {
+  const wage = careerContract(world).weeklyWage;
+  if (item.kind === 'investment') return item.cost;
+  if (item.kind === 'staff') return upkeepOf(world, item) * L.hireWeeks;
+  if (item.kind === 'charity') return 0;
+  return Math.max(item.cost, Math.round((item.wageWeeks ?? 0) * wage));
+}
+/** What an item costs a week once owned. */
+export function upkeepOf(world: World, item: LifestyleItem): number {
+  const wage = careerContract(world).weeklyWage;
+  if (item.kind === 'investment' || item.kind === 'experience') return 0;
+  if (item.wageShare !== undefined)
+    return Math.max(item.weeklyUpkeep, Math.round(wage * item.wageShare));
+  return Math.max(item.weeklyUpkeep, Math.round(priceOf(world, item) / L.upkeepDivisor));
+}
+
+/** Buy a car, a home, an investment stake, an experience, or hire staff or fund a charity. */
 export function buyAsset(world: World, itemId: string, amount?: number): void {
   const item = LIFESTYLE_BY_ID[itemId];
   const career = world.career!;
   if (!item) throw new Error('Unknown item');
   if (careerFameLevel(world) < item.fameLevel) throw new Error('Your fame level is too low');
-  const price = item.kind === 'investment' ? (amount ?? item.cost) : item.cost;
+  const price = item.kind === 'investment' ? (amount ?? item.cost) : priceOf(world, item);
   if (
     item.kind === 'investment' &&
     (!(L.investmentAmounts as readonly number[]).includes(price) || price < item.cost)
   )
     throw new Error('Invalid amount');
+  if (
+    (item.kind === 'staff' ||
+      item.kind === 'charity' ||
+      item.kind === 'house' ||
+      item.kind === 'car') &&
+    career.style.assets.some((asset) => asset.itemId === itemId)
+  )
+    throw new Error('You already have this');
   if (career.market.finances.cash < price) throw new Error('Not enough savings');
   career.market.finances.cash -= price;
+  if (item.kind === 'experience') {
+    // Felt at once, nothing kept.
+    const player = world.players[career.playerId]!;
+    player.morale = Math.max(0, Math.min(100, player.morale + item.morale));
+    if (item.effect === 'holiday') player.fatigue = Math.max(0, player.fatigue - 20);
+    postMessage(world, 'experience', { item: itemId });
+    return;
+  }
   career.style.assets.push({
     id: nextId(world, 'asset'),
     itemId,
@@ -203,11 +300,17 @@ export function buyAsset(world: World, itemId: string, amount?: number): void {
     bought: today(world),
     cost: price,
     value: price,
+    upkeep: upkeepOf(world, item),
   });
 }
-/** Resale value: investments return their balance, cars and homes a share of the price. */
+/** Resale value: investments return their balance, cars and homes a share of the price;
+ * staff and charities return nothing when let go. */
 export const resaleValue = (asset: { kind: string; value: number }) =>
-  asset.kind === 'investment' ? asset.value : Math.round(asset.value * L.resale);
+  asset.kind === 'investment'
+    ? asset.value
+    : asset.kind === 'staff' || asset.kind === 'charity'
+      ? 0
+      : Math.round(asset.value * L.resale);
 export function sellAsset(world: World, assetId: string): number {
   const style = world.career!.style;
   const asset = style.assets.find((entry) => entry.id === assetId);
@@ -220,9 +323,13 @@ export function sellAsset(world: World, assetId: string): number {
 
 export function weeklyUpkeep(world: World): number {
   return world.career!.style.assets.reduce(
-    (sum, asset) => sum + (LIFESTYLE_BY_ID[asset.itemId]?.weeklyUpkeep ?? 0),
+    (sum, asset) => sum + (asset.upkeep ?? LIFESTYLE_BY_ID[asset.itemId]?.weeklyUpkeep ?? 0),
     0,
   );
+}
+/** The owned items' effects on the career this week. */
+export function careerAssetEffects(world: World) {
+  return assetEffects(world.career?.style?.assets ?? []);
 }
 
 /**
@@ -242,6 +349,18 @@ export function assetWeek(world: World): void {
       0,
       Math.round(asset.value * (1 + product.mean + product.spread * (rng.next() * 2 - 1))),
     );
+    // A start-up can fold outright.
+    if (item.product === 'startup' && asset.value > 0 && rng.next() < L.startupFoldChance) {
+      postMessage(world, 'investment-lost', { amount: asset.value });
+      asset.value = 0;
+    }
+  }
+  // Charities: the fans notice, and the press does now and then.
+  const effects = careerAssetEffects(world);
+  if (effects.fans) {
+    const player = world.players[career.playerId]!;
+    if (player.clubId) adjustRelationship(world, 'fans', player.clubId, effects.fans);
+    if (world.date.week % L.charityFameWeeks === 0) career.fame += effects.fame;
   }
   let upkeep = weeklyUpkeep(world);
   const finances = career.market.finances;
@@ -262,8 +381,8 @@ export function lifestyleMorale(world: World): number {
       0,
       ...assets.filter((a) => a.kind === kind).map((a) => LIFESTYLE_BY_ID[a.itemId]?.morale ?? 0),
     );
-  const wage = careerContract(world).weeklyWage;
-  const overspend = weeklyUpkeep(world) > wage * L.overspendShare ? L.overspendMorale : 0;
+  const income = weeklyIncome(world);
+  const overspend = weeklyUpkeep(world) > income * L.overspendShare ? L.overspendMorale : 0;
   return Math.max(-L.moraleLimit, Math.min(L.moraleLimit, best('car') + best('house') + overspend));
 }
 

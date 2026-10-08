@@ -15,10 +15,13 @@ import { ageCategory, careerCap, isKeeperKey, type AnyAttribute } from '../agein
 import { getSeasonWeeks } from '../world/calendar';
 import { attributeValue, trainableAttributes } from './progression';
 import { chronicle } from './honours/chronicle';
+import { cultureFit } from './social/rules';
+import { assetEffects } from './lifestyle/catalogue';
 
 const T = CONFIG.career.training;
 const I = CONFIG.career.injuries;
 const DEV = CONFIG.world.development;
+const GROWTH = CONFIG.career.development;
 const POSITIONS: readonly Position[] = ['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST'];
 export const TRAINING_GROUPS: readonly TrainingGroup[] = [
   'technical',
@@ -172,13 +175,56 @@ export function injure(world: World, cause: Injury['cause'], rng: Rng, kind?: st
     chronicle(world, 'injury', { kind: injury.kind, weeks: injury.weeksRemaining });
   return injury;
 }
-/** Injury chance multiplier from fatigue, injury proneness and the Iron Man skill. */
+/** Injury chance multiplier from fatigue, injury proneness, the Iron Man skill and a physio. */
 export function injuryFactor(career: Career, player: Player): number {
   return (
     (1 + player.fatigue / I.fatigueWeight) *
     (0.5 + player.hidden.injuryProneness / 100) *
-    (has(career, 'iron-man') ? I.ironManSkill : 1)
+    (has(career, 'iron-man') ? I.ironManSkill : 1) *
+    assetEffects(career.style?.assets ?? []).injury
   );
+}
+/** Training injury risk by age: the young shrug sessions off, the old do not. */
+export function trainingAgeFactor(age: number): number {
+  return age < 21 ? T.injuryAgeFactor.under21 : age > 30 ? T.injuryAgeFactor.over30 : 1;
+}
+
+/**
+ * Passive development: each trained attribute below its age-adjusted cap moves one point
+ * toward it with a probability proportional to the gap, so about `growthPerSeason` of the
+ * gap closes in a season at full playing time, less for a player who is not playing.
+ */
+export function developCareer(
+  world: World,
+  player: Player,
+  age: number,
+  rng: Rng,
+  report: Pick<TrainingReport, 'improved'>,
+): void {
+  const career = world.career!;
+  const recent = career.matches.slice(-GROWTH.recentMatches);
+  const share = recent.length
+    ? Math.min(
+        1,
+        recent.reduce((sum, match) => sum + Math.min(90, match.minutes), 0) /
+          (GROWTH.recentMatches * 90),
+      )
+    : 0.5;
+  const rate =
+    GROWTH.growthPerSeason *
+    (1 - GROWTH.playingWeight + GROWTH.playingWeight * share) *
+    ((DEV.professionalismBase + player.hidden.professionalism / 100) / 1.1);
+  const seasonWeeks = getSeasonWeeks(world);
+  for (const key of trainableAttributes(player)) {
+    const value = attributeValue(player, key);
+    const gap = careerCap(player, key, age) - value;
+    if (gap <= 0 || value >= 99) continue;
+    if (rng.next() < Math.min(0.9, (gap * rate) / seasonWeeks)) {
+      if (isKeeperKey(key)) player.keeperAttributes[key] = value + 1;
+      else player.attributes[key] = value + 1;
+      if (!report.improved.includes(key)) report.improved.push(key);
+    }
+  }
 }
 
 /** Choose how to recover: a rushed return halves time out but leaves a re-injury risk. */
@@ -189,7 +235,7 @@ export function chooseRecovery(world: World, recovery: 'rehab' | 'rush'): World 
   injury.recovery = recovery;
   if (recovery === 'rush') {
     injury.weeksRemaining = Math.max(1, Math.ceil(injury.weeksRemaining * I.rush.durationFactor));
-    injury.reinjuryRisk = I.rush.reinjuryRisk;
+    injury.reinjuryRisk = I.rush.reinjuryPerSeverity * injury.severity;
   }
   return { ...world, career };
 }
@@ -221,8 +267,11 @@ export function careerWeek(world: World): void {
     report.fatigue = T.fatigue.recovery;
     if (injury.weeksRemaining <= 0) {
       if (injury.careerThreatening)
-        for (const key of ['pace', 'acceleration'] as const)
-          player.attributes[key] = Math.max(1, player.attributes[key] - I.threateningLoss);
+        for (const [key, loss] of Object.entries(I.threateningLoss) as [
+          keyof typeof I.threateningLoss,
+          number,
+        ][])
+          player.attributes[key] = Math.max(1, player.attributes[key] - loss);
       career.reinjury =
         injury.recovery === 'rush'
           ? { risk: injury.reinjuryRisk, weeks: 6, kind: injury.kind }
@@ -235,10 +284,16 @@ export function careerWeek(world: World): void {
       career.reinjury.weeks--;
       if (career.reinjury.weeks <= 0) career.reinjury = null;
     }
+    // Thriving depends on fit: a player at home in the club's culture learns faster.
+    const club = player.clubId ? world.clubs[player.clubId] : undefined;
+    const CT = CONFIG.career.social.cultureTraining;
+    const fit = club ? CT.base + (CT.range * cultureFit(world, player, club).value) / 100 : 1;
     const learning =
       learningRate(age) *
       ((DEV.professionalismBase + player.hidden.professionalism / 100) / 1.1) *
-      (has(career, 'professional') ? T.professionalSkill : 1);
+      (has(career, 'professional') ? T.professionalSkill : 1) *
+      fit *
+      assetEffects(career.style?.assets ?? []).training;
     const sessions = [
       ...career.training.sessions.map((session) => ({ ...session, extra: false })),
       ...(career.training.extra
@@ -275,11 +330,16 @@ export function careerWeek(world: World): void {
         addProgress(world, player, focusAttributes(player, session.focus), gain, report);
       }
       const risk = session.extra ? T.injuryRisk.extra : T.injuryRisk[session.intensity];
-      if (!career.injury && rng.next() < risk * injuryFactor(career, player))
+      if (
+        !career.injury &&
+        rng.next() < risk * injuryFactor(career, player) * trainingAgeFactor(age)
+      )
         report.injuryId = injure(world, 'training', rng).id;
     }
+    developCareer(world, player, age, rng, report);
   }
-  report.fatigue = Math.round(report.fatigue);
+  // A good home and a nutritionist take the week's strain off.
+  report.fatigue = Math.round(report.fatigue - assetEffects(career.style?.assets ?? []).rest);
   player.fatigue = Math.max(0, Math.min(100, player.fatigue + report.fatigue));
   player.fitness = Math.max(0, Math.min(100, Math.round(100 - player.fatigue * 0.2)));
   // Ageing: past a category's peak, attributes above the age-adjusted cap fall back toward it.

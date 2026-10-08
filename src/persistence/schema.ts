@@ -100,7 +100,22 @@ const migrations: Readonly<Record<number, Migration>> = {
   // v16 adds the manager's development promise (optional `career.social.promises`), its inbox
   // messages and its Chronicle entry. Careers saved before receive an offer once eligible.
   15: (old) => ({ ...old, schemaVersion: 16 }),
+  // v17 records the XP at which the career's level began (`career.levelXp`), so the level
+  // curve can change without taking or granting levels: a migrated career keeps its level
+  // and starts the new curve from its current XP.
+  16: (old) => ({ ...old, schemaVersion: 17, payload: withLevelXp(old.payload) }),
 };
+function withLevelXp(payload: unknown): unknown {
+  try {
+    const p = object(payload);
+    if (p.kind !== 'world') return payload;
+    const world = object(p.world) as unknown as World;
+    if (world.career && world.career.levelXp === undefined) world.career.levelXp = world.career.xp;
+  } catch {
+    // Validation reports the problem.
+  }
+  return payload;
+}
 /** Careers saved before milestone 8 gain their honours record and award baselines. */
 function withCareerHonours(payload: unknown): unknown {
   try {

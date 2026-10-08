@@ -14,7 +14,7 @@ import { generateAvatar } from '../assets/avatar';
 import { CREST_SHAPES, CREST_SYMBOLS, generateCrest } from '../assets/crest';
 import { generateKits } from '../assets/kit';
 import { generateAttributes } from '../ageing';
-import { playerAbility } from '../strength';
+import { playerAbility, wageFor } from '../strength';
 import { withContrast } from '../assets/shared';
 import { IDENTITIES, TownPicker, identityProfile, type ReferencedClub } from './identities';
 import { startContinental } from './continental';
@@ -64,6 +64,40 @@ export function generateManager(id: string, rng: Rng, countryIndex?: number): Ma
     formerPlayerId: null,
   };
 }
+/** Share of foreign players a club signs: small clubs almost none, giants over half. */
+export function foreignChance(reputation: number): number {
+  const F = GEN.foreignShare;
+  return F.base + F.slope * Math.max(0, Math.min(1, (reputation - F.from) / (F.to - F.from)));
+}
+/** Squad ages peak in the mid-twenties: a triangular draw between the adult ages. */
+export function triangularAge(rng: Rng): number {
+  const [low, high] = GEN.adultAge;
+  const peak = GEN.adultAgePeak;
+  const u = rng.next();
+  const cut = (peak - low) / (high - low);
+  const value =
+    u < cut
+      ? low + Math.sqrt(u * (high - low) * (peak - low))
+      : high - Math.sqrt((1 - u) * (high - low) * (high - peak));
+  return Math.max(low, Math.min(high, Math.round(value)));
+}
+/**
+ * Peak overall ability of a generated player: the club's standing plus talent. Big clubs
+ * draw talent with a right skew (the better of two draws), so a few players reach the
+ * nineties; academy intakes vary more and sit a little lower, so big clubs also raise
+ * journeymen.
+ */
+export function generatedPotential(reputation: number, age: number, rng: Rng): number {
+  const youth = age <= GEN.youthAge[1];
+  const spread = youth ? GEN.intake.spread : GEN.talentSpread;
+  let draws = 1;
+  for (const [from, count] of GEN.talentSkew) if (reputation >= from) draws = count;
+  let talent = rng.int(-spread, spread);
+  for (let draw = 1; draw < draws; draw++) talent = Math.max(talent, rng.int(-spread, spread));
+  return youth
+    ? reputation * GEN.intake.reputationWeight + GEN.intake.base + talent
+    : reputation * GEN.peakReputationWeight + GEN.peakBase + talent;
+}
 export function generatePlayer(
   id: string,
   club: Club,
@@ -73,17 +107,13 @@ export function generatePlayer(
   rng: Rng,
 ): { player: Player; contract: Contract } {
   const nationalityIndex = club.identity
-    ? rng.next() < 0.08
+    ? rng.next() < foreignChance(club.reputation)
       ? rng.int(0, CONFIG.world.countries - 1)
       : Number(club.countryId.split(':')[1])
     : null;
   // Potential is the player's peak overall ability; attributes sit on the age curve toward it,
   // so generated worlds start at the same equilibrium the weekly development maintains.
-  const potential = clampAttribute(
-    club.reputation * GEN.peakReputationWeight +
-      GEN.peakBase +
-      rng.int(-GEN.talentSpread, GEN.talentSpread),
-  );
+  const potential = clampAttribute(generatedPotential(club.reputation, age, rng));
   const { attributes, keeperAttributes } = generateAttributes(
     { id, primaryPosition: position, potential },
     age,
@@ -91,10 +121,7 @@ export function generatePlayer(
   );
   const base = playerAbility({ primaryPosition: position, attributes, keeperAttributes });
   const contractId = `contract:${id}`;
-  const weeklyWage = Math.max(
-    GEN.wageFloor,
-    Math.round(base * base * (GEN.wageBase + club.reputation / GEN.wageReputationDivisor)),
-  );
+  const weeklyWage = wageFor(base, club.reputation);
   const contract: Contract = {
     id: contractId,
     playerId: id,
@@ -132,7 +159,7 @@ export function generatePlayer(
     nationalityId: nationalityIndex === null ? club.countryId : `country:${nationalityIndex}`,
     clubId: club.id,
     avatar: generateAvatar(rng),
-    foot: rng.pick(['left', 'right', 'right', 'both'] as const),
+    foot: rng.next() < GEN.twoFootedChance ? 'both' : rng.next() < 0.25 ? 'left' : 'right',
     primaryPosition: position,
     secondaryPositions: (alternatives[position] ?? []).map((position) => ({
       position,
@@ -410,7 +437,7 @@ export function generateWorld(
           reputation,
           finances: {
             balance: reputation * reputation * GEN.balanceFactor,
-            weeklyIncome: reputation * reputation * GEN.incomeFactor,
+            weeklyIncome: Math.max(GEN.incomeFloor, reputation * reputation * GEN.incomeFactor),
             weeklyCosts: reputation * reputation * GEN.costsFactor,
             transferBudget: reputation * reputation * GEN.transferFactor,
             wageBudget: reputation * reputation * GEN.wageBudgetFactor,
@@ -453,7 +480,7 @@ export function generateWorld(
           const age =
             playerIndex === CONFIG.world.squadSize - 1
               ? within(scoped, GEN.veteranAge)
-              : within(scoped, GEN.adultAge);
+              : triangularAge(scoped);
           const { player, contract } = generatePlayer(
             id,
             club,

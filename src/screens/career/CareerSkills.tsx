@@ -50,7 +50,7 @@ function systemicText(id: string): string | null {
         : kind === 'injury'
           ? percent(1 - CONFIG.career.injuries.ironManSkill)
           : kind === 'importance'
-            ? percent(CONFIG.match.decision.bigGameMultiplier - 1)
+            ? percent(CONFIG.match.decision.bigGame.skill)
             : 0;
   return format(c.skills.systemic[kind], { value });
 }

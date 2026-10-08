@@ -95,6 +95,10 @@ export const careerTabs = (page: Page, group?: string) =>
  * Open a career page the way a player would: its group in the sidebar (desktop) or the bottom
  * bar or More sheet (phones), then its tab.
  */
+/** A page tab's accessible name, allowing an unread count ("Inbox · 2 unread"). */
+export function tabName(name: string): RegExp {
+  return new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( · \\d+ unread)?$`);
+}
 export async function openCareerPage(page: Page, name: string): Promise<void> {
   const group = CAREER_GROUP[name];
   if (!group) throw new Error(`Unknown career page ${name}`);
@@ -115,5 +119,5 @@ export async function openCareerPage(page: Page, name: string): Promise<void> {
         .getByRole('link', { name: groupLinkName(group) })
         .click();
   }
-  await tabs.getByRole('link', { name, exact: true }).click();
+  await tabs.getByRole('link', { name: tabName(name) }).click();
 }

@@ -22,9 +22,12 @@ import {
   obligationMet,
   sponsorRollover,
   sponsorWeek,
+  priceOf,
+  upkeepOf,
   weeklyUpkeep,
 } from '../src/engine/career/lifestyle';
 import { moraleParts } from '../src/engine/career/social';
+import { LIFESTYLE_BY_ID } from '../src/engine/career/lifestyle/catalogue';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
 
@@ -192,15 +195,20 @@ describe('lifestyle', () => {
     const world = famous(0);
     world.career!.market.finances.cash = 10_000;
     expect(() => applyLifestyleAction(world, { type: 'buy-asset', itemId: 'car:coupe' })).toThrow();
+    // Cars and homes are priced in weeks of wages, at least their floor; upkeep follows.
+    const flat = LIFESTYLE_BY_ID['house:flat']!;
+    const price = priceOf(world, flat);
+    expect(price).toBeGreaterThanOrEqual(flat.cost);
+    world.career!.market.finances.cash = price + 4_000;
     const bought = applyLifestyleAction(world, { type: 'buy-asset', itemId: 'house:flat' });
     expect(bought.career!.market.finances.cash).toBe(4_000);
-    expect(weeklyUpkeep(bought)).toBe(50);
+    expect(weeklyUpkeep(bought)).toBe(upkeepOf(world, flat));
     expect(lifestyleMorale(bought)).toBeGreaterThan(0);
     expect(moraleParts(bought).lifestyle).toBe(lifestyleMorale(bought));
     bought.career!.market.finances.cash = 10;
     assetWeek(bought);
     expect(bought.career!.style.assets).toHaveLength(0);
-    expect(bought.career!.market.finances.cash).toBe(Math.round(6_000 * L.resale) + 10);
+    expect(bought.career!.market.finances.cash).toBe(Math.round(price * L.resale) + 10);
     expect(bought.inbox.at(-1)!.subjectKey).toBe('asset-sold');
     valid(bought);
   });

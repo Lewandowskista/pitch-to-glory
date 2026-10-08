@@ -165,16 +165,17 @@ describe('transfers and negotiation', () => {
     expect(forced).toMatchObject({ status: 'terms', fee: 1000, releaseClauseTriggered: true });
     valid(world);
   });
-  it('accepts terms within limits, counters halfway beyond them and walks away at last', () => {
+  it('accepts terms within limits, counters a third of the way beyond them and walks away at last', () => {
     const world = inWindow();
     const club = buyer(world);
     club.finances.transferBudget = 1e9;
     const offer = makeTransferBid(world, club, 75)!;
     const negotiation = world.negotiations[offer.negotiationId!]!;
     const opening = negotiation.rounds[0]!.terms;
+    // Above the limit but below the club's hidden walk-away point.
     const greedy: ContractTerms = {
       ...opening,
-      weeklyWage: Math.round(negotiation.limits.maxWage * 1.2),
+      weeklyWage: Math.round(negotiation.limits.maxWage * 1.05),
     };
     expect(termsGaps(negotiation, greedy)).toEqual(['wage']);
     const first = applyMarketAction(world, { type: 'counter', offerId: offer.id, terms: greedy });
@@ -184,7 +185,11 @@ describe('transfers and negotiation', () => {
     expect(counter.weeklyWage).toBe(
       Math.min(
         negotiation.limits.maxWage,
-        Math.round((opening.weeklyWage + greedy.weeklyWage) / 2),
+        Math.round(
+          opening.weeklyWage +
+            (greedy.weeklyWage - opening.weeklyWage) *
+              CONFIG.career.market.negotiation.counterShare,
+        ),
       ),
     );
     // The input world is never mutated by an action.
@@ -300,6 +305,11 @@ describe('requests, loans and contracts', () => {
   }, 120000);
   it('refuses a new contract without reason, then renews in the final season', () => {
     const world = clone(career);
+    // No reason: the best role already, paid well above the market, years to run.
+    const contract = world.contracts[player(world).contractId!]!;
+    contract.role = 'key';
+    contract.weeklyWage *= 10;
+    contract.end.season = world.date.season + 3;
     const refused = applyMarketAction(world, { type: 'ask-contract' });
     expect(refused.result).toBe('refused');
     expect(refused.world.career!.market.renewalAskAfter).not.toBeNull();

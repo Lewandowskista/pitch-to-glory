@@ -33,6 +33,7 @@ import {
   openOffers,
   triedRecently,
   windowForOffers,
+  freeTransfer,
 } from './offers';
 
 const S = M.scouting;
@@ -115,7 +116,9 @@ function transferFit(world: World, ctx: Context, club: Club): boolean {
     club.id !== ctx.club.id &&
     isActiveClub(world, club) &&
     !club.identity?.reserveParentId &&
-    club.reputation >= ctx.parent.reputation - M.upwardStep &&
+    club.reputation >=
+      ctx.parent.reputation +
+        (world.career!.market.transferRequest ? -M.requestUpwardStep : -M.upwardStep) &&
     level(world, ctx, club) - S.bandBelow <= ctx.projected &&
     level(world, ctx, club) >= ctx.ownLevel - 2
   );
@@ -208,7 +211,7 @@ function updateScouting(world: World, ctx: Context): void {
         factor *
         ctx.visibility *
         networkBonus *
-        (abroad ? S.foreign * (1 + ctx.network / 150) : 1);
+        (abroad ? S.foreign * (1 + ctx.network / M.agents.foreignReach) : 1);
       if (ctx.rng.next() < chance) {
         addInterest(world, club, 'transfer');
         tracked.add(club.id);
@@ -363,6 +366,13 @@ function reviewSelection(world: World, benched: readonly Fixture[]): void {
     selection.selected / matchdays < M.selection.promise[role]
   ) {
     selection.promiseBroken = true;
+    // A broken promise cuts the release clause, so a way out costs the next club less.
+    const contract = careerContract(world);
+    if (contract.releaseClause !== null)
+      contract.releaseClause = Math.max(
+        100,
+        Math.round(contract.releaseClause * M.selection.brokenClauseFactor),
+      );
     postMessage(world, 'promise-broken', { club: club.name, role });
   }
 }
@@ -436,7 +446,10 @@ export function marketRollover(world: World): void {
     executeTransfer(world, agreed, terms);
   } else if (contract.end.season < world.date.season) {
     if (agreed) agreed.status = 'collapsed';
-    extendContract(world);
+    // The club's option runs once; after that the player is free to leave.
+    if (contract.optionTaken && freeTransfer(world)) {
+      // Moved on a free.
+    } else extendContract(world);
   }
   market.selection = {
     season: world.date.season,

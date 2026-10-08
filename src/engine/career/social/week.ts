@@ -93,6 +93,19 @@ export function socialMatch(world: World, record: CareerMatchRecord, fixture: Fi
     adjustRelationship(world, 'fans', club.id, P.fans[band]);
   }
   if (record.goals) adjustRelationship(world, 'fans', club.id, P.fans.goal * record.goals);
+  // A stance taken to the press is judged by this result.
+  const stance = world.career.social.stance;
+  if (stance && record.result !== 'draw') {
+    const effects = S.stance[stance.tone as keyof typeof S.stance]?.[
+      record.result === 'win' ? 'win' : 'loss'
+    ] as { fame?: number; fans?: number; trust?: number } | undefined;
+    if (effects) {
+      if (effects.fame) world.career.fame = Math.max(0, world.career.fame + effects.fame);
+      if (effects.fans) adjustRelationship(world, 'fans', club.id, effects.fans);
+      if (effects.trust) adjustRelationship(world, 'manager', club.managerId, effects.trust);
+    }
+    delete world.career.social.stance;
+  }
   const C = S.cliques;
   if (record.rating >= C.goodRating) adjustCliques(world, C.performance);
   else if (record.rating < C.poorRating) adjustCliques(world, -C.performance);
@@ -121,6 +134,16 @@ export function socialWeek(world: World): void {
       fee: moved.fee,
     });
   }
+  // Standing has to be kept up: trust and affection drift toward a middling level.
+  const D = S.relationshipDecay;
+  const club = careerClub(world);
+  for (const entry of world.relationships)
+    if (
+      entry.sourceId === player.id &&
+      ((entry.kind === 'manager' && entry.targetId === club.managerId) ||
+        (entry.kind === 'fans' && entry.targetId === club.id))
+    )
+      entry.value = Math.round((entry.value + (D.toward - entry.value) * D.rate) * 10) / 10;
   const social = career.social;
   social.coverage =
     Math.round(

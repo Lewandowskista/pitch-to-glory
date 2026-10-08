@@ -109,6 +109,7 @@ function finish(
     return;
   }
   adjustRelationship(world, 'manager', promise.managerId, P.trust[status]);
+  adjustRelationship(world, 'fans', promise.clubId, P.fans[status]);
   postMessage(
     world,
     status === 'achieved' ? 'promise-achieved' : 'promise-missed',

@@ -24,8 +24,8 @@ export interface RoleEffect {
   situations?: Partial<Record<string, number>>;
   /** Choices receiving the role multiplier on success odds. */
   choices?: readonly string[];
-  /** Shift of the selected team's goal share (positive is more attacking). */
-  share?: number;
+  /** Scales [own, opposition] expected goals: an attacking role opens the game both ways. */
+  totals?: readonly [number, number];
   /** Covering runs reduce the danger of failed choices. */
   counterRelief?: boolean;
 }
@@ -46,14 +46,13 @@ export const ROLE_EFFECTS: Record<RoleId, RoleEffect> = {
   'hold-position': {
     situations: { 'defend-attack': 1.3, 'build-out': 0.8 },
     choices: ['jockey', 'intercept'],
-    share: -0.01,
     counterRelief: true,
   },
   'ball-winner': { situations: { 'defend-attack': 1.4 }, choices: ['tackle'] },
   'push-forward': {
     situations: { 'build-out': 1.3, 'build-up': 1.6 },
     choices: ['carry-out', 'carry-forward', 'cross-switch'],
-    share: 0.01,
+    totals: [1.05, 1.04],
   },
   'hug-touchline': {
     situations: { 'build-up': 1.6, 'box-chance': 0.8 },
@@ -62,12 +61,11 @@ export const ROLE_EFFECTS: Record<RoleId, RoleEffect> = {
   'cut-inside': {
     situations: { 'box-chance': 1.3, 'edge-of-area': 1.4, 'build-up': 0.8 },
     choices: ['far-post', 'drive-inside', 'long-shot'],
-    share: 0.01,
+    totals: [1.05, 1.04],
   },
   'track-back': {
     situations: { 'build-up': 1.2, 'box-chance': 0.8 },
     choices: ['lay-off', 'cross-switch'],
-    share: -0.01,
     counterRelief: true,
   },
   playmaker: {

@@ -152,6 +152,7 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
     startSeason: world.date.season,
     level: 1,
     xp: 0,
+    levelXp: 0,
     attributePoints: 0,
     skillPoints: 0,
     skills: [],

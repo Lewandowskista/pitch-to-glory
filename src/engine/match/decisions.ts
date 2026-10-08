@@ -27,7 +27,7 @@ export const scaleOdds = (p: number, multiplier: number) =>
   (p * multiplier) / (1 - p + p * multiplier);
 
 export interface DecisionContext {
-  player: Pick<Player, 'attributes' | 'keeperAttributes' | 'traits' | 'morale'>;
+  player: Pick<Player, 'attributes' | 'keeperAttributes' | 'traits' | 'morale' | 'hidden'>;
   situation: Situation;
   /** Expected goals this moment replaces for and against the selected team. */
   budget: { for: number; against: number };
@@ -43,6 +43,16 @@ export interface DecisionContext {
   strengthGap: number;
   /** Ability of the direct opponent each choice is measured against. */
   opponents: Record<Opponent, number>;
+  /** Momentum from the selected team's side (50 even, 100 all theirs). */
+  momentum: number;
+  /** Second-half multiplier from the half-time talk (1 before it). */
+  talkOdds: number;
+  /** Finishing of the teammates a created chance falls to. */
+  teammateFinishing: number;
+  /** This match's shift of the player's governing attributes (consistency). */
+  consistencyShift: number;
+  /** Chemistry with teammates (0–100): what a chance made for them is worth. */
+  chemistry: number;
 }
 
 export function governingValue(
@@ -121,17 +131,47 @@ export const TRAIT_BOOSTS: Readonly<Record<string, readonly string[]>> = {
   'aerial-command': ['claim', 'punch', 'hold-line'],
   wall: ['hold', 'parry', 'tip-over', 'stay-line', 'rush', 'smother', 'claim', 'punch'],
 };
-/** Odds multiplier from the player's skills for one choice. */
+/** How many of the player's skills improve one choice. */
+export function traitCount(
+  traits: readonly string[],
+  template: Pick<ChoiceTemplate, 'id' | 'traitId'>,
+): number {
+  return traits.filter(
+    (trait) =>
+      (template.traitId !== null && trait === template.traitId) ||
+      TRAIT_BOOSTS[trait]?.includes(template.id),
+  ).length;
+}
+/** Odds multiplier from the player's skills: each further skill stacks, to a limit. */
+export function traitOdds(count: number): number {
+  return count ? Math.min(D.traitStackMaximum, D.traitMultiplier * D.traitStack ** (count - 1)) : 1;
+}
+/**
+ * Odds multiplier for the occasion: in a fixture that matters, big-match temperament (hidden)
+ * decides whether the player rises or shrinks, and the Big Game Player skill adds to it.
+ */
+export function occasionMultiplier(
+  traits: readonly string[],
+  temperament: number,
+  importance: number,
+): number {
+  if (importance <= 1) return 1;
+  return (
+    D.bigGame.base +
+    temperament * D.bigGame.slope +
+    (traits.includes('big-game-player') ? D.bigGame.skill : 0)
+  );
+}
+/** Odds multiplier from the player's skills for one choice, with the occasion. */
 export function traitMultiplier(
   traits: readonly string[],
   template: Pick<ChoiceTemplate, 'id' | 'traitId'>,
   importance: number,
+  temperament = 50,
 ): number {
-  const boosted =
-    (template.traitId !== null && traits.includes(template.traitId)) ||
-    traits.some((trait) => TRAIT_BOOSTS[trait]?.includes(template.id));
-  const bigGame = importance > 1 && traits.includes('big-game-player');
-  return (boosted ? D.traitMultiplier : 1) * (bigGame ? D.bigGameMultiplier : 1);
+  return (
+    traitOdds(traitCount(traits, template)) * occasionMultiplier(traits, temperament, importance)
+  );
 }
 
 /** Confidence: morale above the generated average helps, low morale hurts (milestone 6). */
@@ -148,7 +188,7 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
     .filter((t) => !t.requiredTraitId || player.traits.includes(t.requiredTraitId))
     .map((t) => {
       const value = governingValue(player, t.attributes);
-      const relative = value - context.matchLevel;
+      const relative = value + context.consistencyShift - context.matchLevel;
       const attribute = clamp(
         1 + relative * D.attributeSlope,
         D.attributeMinimum,
@@ -175,11 +215,32 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
       const relief = role.counterRelief ? D.roleCounterRelief : 1;
       const riskImpact = t.direct ? 1 : risk.impact;
       const conversion = (n: number) => round6(clamp(n, 0, D.maximumConversion));
+      // Skills on an already likely choice sharpen what it leads to instead of its odds.
+      const skills = traitCount(player.traits, t);
+      const traitOnImpact = !t.direct && t.base >= D.traitImpactThreshold;
+      const traitImpact = traitOnImpact && skills ? D.traitImpact : 1;
+      // A chance made for a teammate is worth more when they finish better than the player
+      // would, and less when they do not.
+      const CH = CONFIG.career.social.chemistry;
+      const receiver =
+        t.scorer === 'teammate' && !t.direct
+          ? clamp(
+              1 + (context.teammateFinishing - player.attributes.finishing) * D.receiver.slope,
+              D.receiver.minimum,
+              D.receiver.maximum,
+            ) * clamp(1 + (context.chemistry - 60) * CH.slope, CH.minimum, CH.maximum)
+          : 1;
       const stakes = {
         successGoal:
           t.direct === 'for'
             ? 1
-            : conversion(((goalsFor * t.forOnSuccess) / reference) * impact * riskImpact),
+            : conversion(
+                ((goalsFor * t.forOnSuccess) / reference) *
+                  impact *
+                  riskImpact *
+                  traitImpact *
+                  receiver,
+              ),
         failureGoal: conversion(((goalsFor * (1 - t.forOnSuccess)) / (1 - reference)) * impact),
         successConcede: conversion(
           ((goalsAgainst * (1 - t.againstOnFailure)) / reference / impact) * relief,
@@ -203,14 +264,30 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
         D.fatigueMinimum,
         1,
       );
+      const momentum = clamp(1 + (context.momentum - 50) * D.momentumSlope, 0.9, 1.1);
       const steps: [string, ProbabilityFactor['source'], number][] = [
         ['match.factor.defender', 'defender', (t.direct ? 1 : team) * matchup],
         ['match.factor.attribute', 'attribute', attribute],
-        ['match.factor.trait', 'trait', traitMultiplier(player.traits, t, context.importance)],
+        [
+          'match.factor.trait',
+          'trait',
+          (traitOnImpact ? 1 : traitOdds(skills)) *
+            occasionMultiplier(
+              player.traits,
+              player.hidden.bigMatchTemperament,
+              context.importance,
+            ),
+        ],
         ['match.factor.fatigue', 'fatigue', fatigue],
         ['match.factor.morale', 'attribute', moraleMultiplier(player.morale)],
+        ['match.factor.momentum', 'attribute', momentum],
+        ['match.factor.talk', 'attribute', context.talkOdds],
         ['match.factor.role', 'attribute', role.choices?.includes(t.id) ? D.roleMultiplier : 1],
-        ['match.factor.risk', 'attribute', t.direct ? 1 : risk.odds],
+        [
+          'match.factor.risk',
+          'attribute',
+          t.direct === 'for' ? D.riskShot[tactics.risk] : t.direct ? 1 : risk.odds,
+        ],
         [
           'match.factor.conditions',
           'attribute',

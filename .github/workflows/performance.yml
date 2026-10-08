@@ -38,3 +38,33 @@ jobs:
             artifacts/performance/results.json
             artifacts/lighthouse-*.json
           if-no-files-found: warn
+  balance:
+    # The balance gates (docs/GAME-DESIGN-REVIEW.md, pass E): a career to retirement per
+    # position, the match profile and a twelve-season world, each checked against its gates.
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run profile -- --seed review-a --position ST
+      - run: npm run profile -- --seed review-b --position CM
+      - run: npm run profile -- --seed review-c --position CB
+      - run: npm run profile -- --check
+      - run: npm run profile:match -- --matches 300
+        if: always()
+      - run: npm run profile:match -- --check
+        if: always()
+      - run: npm run profile:world -- --seasons 12 --seed review-world
+        if: always()
+      - run: npm run profile:world -- --check
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: balance-profiles
+          path: artifacts/profile/*.json
+          if-no-files-found: warn

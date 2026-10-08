@@ -161,32 +161,103 @@ export const BRAND_BY_ID: Readonly<Record<string, Brand>> = Object.fromEntries(
   BRANDS.map((brand) => [brand.id, brand]),
 );
 
+export type LifestyleKind = 'car' | 'house' | 'investment' | 'staff' | 'experience' | 'charity';
+/** What an item does for the career beyond money and morale. */
+export type LifestyleEffect =
+  'physio' | 'nutrition' | 'coach' | 'analyst' | 'holiday' | 'family' | 'foundation' | 'camp';
 export interface LifestyleItem {
   id: string;
-  kind: 'car' | 'house' | 'investment';
+  kind: LifestyleKind;
   fameLevel: number;
-  /** Purchase price; for investments, the minimum stake. */
+  /** Purchase price floor; for investments, the minimum stake. */
   cost: number;
+  /** Cars, homes and experiences are priced at this many weeks of wages, at least `cost`. */
+  wageWeeks?: number;
+  /** Upkeep floor a week; staff and charities cost `wageShare` of the wage instead. */
   weeklyUpkeep: number;
+  wageShare?: number;
   morale: number;
   product?: 'bond' | 'fund' | 'startup';
+  effect?: LifestyleEffect;
+  /** Homes rest a player: weekly fatigue relief. */
+  rest?: number;
 }
 export const LIFESTYLE: readonly LifestyleItem[] = [
-  { id: 'car:hatch', kind: 'car', fameLevel: 1, cost: 2_500, weeklyUpkeep: 20, morale: 1 },
-  { id: 'car:coupe', kind: 'car', fameLevel: 3, cost: 18_000, weeklyUpkeep: 120, morale: 2 },
-  { id: 'car:grand-tourer', kind: 'car', fameLevel: 5, cost: 60_000, weeklyUpkeep: 320, morale: 3 },
-  { id: 'car:hypercar', kind: 'car', fameLevel: 8, cost: 180_000, weeklyUpkeep: 800, morale: 4 },
-  { id: 'house:flat', kind: 'house', fameLevel: 1, cost: 6_000, weeklyUpkeep: 50, morale: 1 },
+  {
+    id: 'car:hatch',
+    kind: 'car',
+    fameLevel: 1,
+    cost: 2_500,
+    wageWeeks: 25,
+    weeklyUpkeep: 20,
+    morale: 1,
+  },
+  {
+    id: 'car:coupe',
+    kind: 'car',
+    fameLevel: 3,
+    cost: 18_000,
+    wageWeeks: 60,
+    weeklyUpkeep: 120,
+    morale: 2,
+  },
+  {
+    id: 'car:grand-tourer',
+    kind: 'car',
+    fameLevel: 5,
+    cost: 60_000,
+    wageWeeks: 120,
+    weeklyUpkeep: 320,
+    morale: 3,
+  },
+  {
+    id: 'car:hypercar',
+    kind: 'car',
+    fameLevel: 8,
+    cost: 180_000,
+    wageWeeks: 200,
+    weeklyUpkeep: 800,
+    morale: 4,
+  },
+  {
+    id: 'house:flat',
+    kind: 'house',
+    fameLevel: 1,
+    cost: 6_000,
+    wageWeeks: 60,
+    weeklyUpkeep: 50,
+    morale: 1,
+  },
   {
     id: 'house:townhouse',
     kind: 'house',
     fameLevel: 3,
     cost: 40_000,
+    wageWeeks: 150,
     weeklyUpkeep: 220,
     morale: 2,
+    rest: 1,
   },
-  { id: 'house:family', kind: 'house', fameLevel: 5, cost: 110_000, weeklyUpkeep: 450, morale: 3 },
-  { id: 'house:villa', kind: 'house', fameLevel: 8, cost: 320_000, weeklyUpkeep: 1_200, morale: 5 },
+  {
+    id: 'house:family',
+    kind: 'house',
+    fameLevel: 5,
+    cost: 110_000,
+    wageWeeks: 250,
+    weeklyUpkeep: 450,
+    morale: 3,
+    rest: 2,
+  },
+  {
+    id: 'house:villa',
+    kind: 'house',
+    fameLevel: 8,
+    cost: 320_000,
+    wageWeeks: 400,
+    weeklyUpkeep: 1_200,
+    morale: 5,
+    rest: 3,
+  },
   {
     id: 'invest:bond',
     kind: 'investment',
@@ -214,7 +285,146 @@ export const LIFESTYLE: readonly LifestyleItem[] = [
     morale: 0,
     product: 'startup',
   },
+  // Personal staff: a weekly salary tied to the wage, paid from the first week.
+  {
+    id: 'staff:physio',
+    kind: 'staff',
+    fameLevel: 2,
+    cost: 0,
+    weeklyUpkeep: 60,
+    wageShare: 0.15,
+    morale: 0,
+    effect: 'physio',
+  },
+  {
+    id: 'staff:nutritionist',
+    kind: 'staff',
+    fameLevel: 3,
+    cost: 0,
+    weeklyUpkeep: 40,
+    wageShare: 0.1,
+    morale: 0,
+    effect: 'nutrition',
+  },
+  {
+    id: 'staff:coach',
+    kind: 'staff',
+    fameLevel: 4,
+    cost: 0,
+    weeklyUpkeep: 80,
+    wageShare: 0.2,
+    morale: 0,
+    effect: 'coach',
+  },
+  {
+    id: 'staff:analyst',
+    kind: 'staff',
+    fameLevel: 5,
+    cost: 0,
+    weeklyUpkeep: 60,
+    wageShare: 0.15,
+    morale: 0,
+    effect: 'analyst',
+  },
+  // Experiences: paid once, felt at once.
+  {
+    id: 'experience:holiday',
+    kind: 'experience',
+    fameLevel: 1,
+    cost: 500,
+    wageWeeks: 4,
+    weeklyUpkeep: 0,
+    morale: 6,
+    effect: 'holiday',
+  },
+  {
+    id: 'experience:family',
+    kind: 'experience',
+    fameLevel: 1,
+    cost: 150,
+    wageWeeks: 1,
+    weeklyUpkeep: 0,
+    morale: 3,
+    effect: 'family',
+  },
+  // Giving back: the fans notice.
+  {
+    id: 'charity:foundation',
+    kind: 'charity',
+    fameLevel: 4,
+    cost: 0,
+    weeklyUpkeep: 50,
+    wageShare: 0.1,
+    morale: 1,
+    effect: 'foundation',
+  },
+  {
+    id: 'charity:camp',
+    kind: 'charity',
+    fameLevel: 6,
+    cost: 0,
+    weeklyUpkeep: 100,
+    wageShare: 0.15,
+    morale: 2,
+    effect: 'camp',
+  },
 ];
+/** The effects of owned items on the career, from the assets alone (pure). */
+export interface AssetEffects {
+  /** Multiplier on injury chance. */
+  injury: number;
+  /** Weekly fatigue relief (homes and the nutritionist). */
+  rest: number;
+  /** Multiplier on training gains. */
+  training: number;
+  /** Extra XP for each key decision that comes off. */
+  decisionXp: number;
+  /** Weekly fan affection from charities, and fame every four weeks. */
+  fans: number;
+  fame: number;
+}
+export function assetEffects(assets: readonly { itemId: string }[]): AssetEffects {
+  const effects: AssetEffects = {
+    injury: 1,
+    rest: 0,
+    training: 1,
+    decisionXp: 0,
+    fans: 0,
+    fame: 0,
+  };
+  let bestRest = 0;
+  for (const asset of assets) {
+    const item = LIFESTYLE_BY_ID[asset.itemId];
+    if (!item) continue;
+    if (item.rest) bestRest = Math.max(bestRest, item.rest);
+    switch (item.effect) {
+      case 'physio':
+        effects.injury *= 0.8;
+        break;
+      case 'nutrition':
+        effects.rest += 2;
+        break;
+      case 'coach':
+        effects.training *= 1.15;
+        break;
+      case 'analyst':
+        effects.decisionXp += 2;
+        break;
+      case 'foundation':
+        effects.fans += 0.4;
+        effects.fame += 1;
+        break;
+      case 'camp':
+        effects.fans += 0.6;
+        effects.fame += 2;
+        break;
+      default:
+        break;
+    }
+  }
+  effects.rest += bestRest;
+  return effects;
+}
 export const LIFESTYLE_BY_ID: Readonly<Record<string, LifestyleItem>> = Object.fromEntries(
   LIFESTYLE.map((item) => [item.id, item]),
 );

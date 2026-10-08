@@ -89,10 +89,10 @@ export const ARCHETYPE_BY_ID: Readonly<Record<string, Archetype>> = Object.fromE
 
 /** Point cost and minimum level by tier. */
 const TIER: Record<number, { cost: number; level: number }> = {
-  1: { cost: 1, level: 1 },
-  2: { cost: 2, level: 5 },
-  3: { cost: 2, level: 12 },
-  4: { cost: 3, level: 20 },
+  1: { cost: 2, level: 1 },
+  2: { cost: 3, level: 8 },
+  3: { cost: 4, level: 16 },
+  4: { cost: 5, level: 25 },
 };
 const skill = (
   id: string,

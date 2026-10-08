@@ -22,10 +22,35 @@ export type RetirementState = 'young' | 'season' | 'available' | 'forced';
 export function retirementState(world: World): RetirementState {
   const age = retirementAge(world);
   if (age >= H.retirement.forcedAge) return 'forced';
+  // Decline forces it too: past the decline age, a player well below their peak is done.
+  const career = world.career!;
+  const player = world.players[career.playerId]!;
+  if (
+    age >= H.retirement.declineAge &&
+    world.phase === 'complete' &&
+    career.honours.peakAbility > 0 &&
+    playerAbility(player) < career.honours.peakAbility * H.retirement.declineShare
+  )
+    return 'forced';
   if (age < H.retirement.optionalAge) return 'young';
   return world.phase === 'complete' ? 'available' : 'season';
 }
+/** What an award is worth in the Hall of Fame, by kind. */
+export function awardWeight(kind: string): number {
+  return (H.hallOfFame.awardWeights as Record<string, number>)[kind] ?? 10;
+}
 
+/** Award points for the Hall of Fame: each award's weight, in units of a season honour. */
+export function awardPoints(world: World, awardIds: readonly string[], playerId: string): number {
+  let points = 0;
+  for (const id of awardIds) {
+    const award = world.awards.find((entry) => entry.id === id);
+    if (!award || award.kind === 'golden-ball') continue;
+    if (!award.winnerIds.includes(playerId)) continue;
+    points += awardWeight(award.kind) / H.hallOfFame.award;
+  }
+  return Math.round(points * 100) / 100;
+}
 /** Hall of Fame score: what any player's record is worth, with honours for careers. */
 export function hallOfFameScore(
   stats: { appearances: number; goals: number; assists: number },
@@ -63,8 +88,27 @@ export function hallOfFameRank(
     if (value > score) better++;
   };
   for (const legacy of world.legacies) compare(legacy.playerId, legacy.hallOfFame.score);
+  // Other players count their awards too (their trophies are not recorded).
+  const awards = new Map<string, number>();
+  for (const award of world.awards)
+    for (const id of award.winnerIds)
+      awards.set(
+        id,
+        (awards.get(id) ?? 0) +
+          (award.kind === 'golden-ball' && award.winnerIds[0] === id
+            ? H.hallOfFame.goldenBall / H.hallOfFame.award
+            : awardWeight(award.kind) / H.hallOfFame.award),
+      );
   for (const player of Object.values(world.players))
-    compare(player.id, hallOfFameScore(player.stats));
+    compare(
+      player.id,
+      hallOfFameScore(player.stats, {
+        caps: 0,
+        trophies: 0,
+        awards: awards.get(player.id) ?? 0,
+        goldenBalls: 0,
+      }),
+    );
   for (const [id, record] of Object.entries(world.archive?.players ?? {}))
     compare(id, hallOfFameScore(record.stats));
   return { rank: better + 1, of };
@@ -98,10 +142,11 @@ export function retireCareer(world: World): Legacy {
     (sum, value) => sum + value,
     0,
   );
+  // Caps at every level count, as the legacy's statistics record them.
   const score = hallOfFameScore(player.stats, {
-    caps: career.honours.caps.senior,
+    caps,
     trophies: trophyIds.length,
-    awards: awardIds.length - goldenBalls,
+    awards: awardPoints(world, awardIds, player.id),
     goldenBalls,
   });
   const teammateIds = world.relationships

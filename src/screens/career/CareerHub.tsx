@@ -644,7 +644,7 @@ function Condition({ career, player }: { career: Career; player: Player }) {
   const rushWeeks = injury
     ? Math.max(1, Math.ceil(injury.weeksRemaining * I.rush.durationFactor))
     : 0;
-  const risk = Math.round(I.rush.reinjuryRisk * 100);
+  const risk = injury ? Math.round(I.rush.reinjuryPerSeverity * injury.severity * 100) : 0;
   const choose = (recovery: 'rehab' | 'rush') => {
     const current = useAppStore.getState().world;
     if (!current || block) return;

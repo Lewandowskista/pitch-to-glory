@@ -76,6 +76,9 @@ function Attributes({
               below: CONFIG.career.costs.belowCap,
               near: CONFIG.career.costs.nearCap,
               beyond: CONFIG.career.costs.beyondCap,
+              step: CONFIG.career.costs.beyondCapStep,
+              hardAge: CONFIG.career.costs.hardCapAge,
+              hardMargin: CONFIG.career.costs.hardCapMargin,
               surcharge: CONFIG.career.costs.physicalSurcharge,
               age: CONFIG.career.costs.physicalAge,
             })}

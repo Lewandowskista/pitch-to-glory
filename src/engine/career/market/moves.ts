@@ -14,6 +14,7 @@ import {
   M,
   money,
   today,
+  marketWage,
 } from './rules';
 import {
   adjustRelationship,
@@ -52,11 +53,12 @@ export function contractFromTerms(
   };
 }
 
-/** Pay the player; the agent takes their commission. */
-export function pay(world: World, amount: number): number {
+/** Pay the player; the agent takes their commission on football income, not sponsors'. */
+export function pay(world: World, amount: number, commissionable = true): number {
   const market = world.career!.market;
   const agent = market.agentId ? world.agents[market.agentId] : undefined;
-  const commission = agent ? Math.round((amount * agent.commissionPercent) / 100) : 0;
+  const commission =
+    agent && commissionable ? Math.round((amount * agent.commissionPercent) / 100) : 0;
   market.finances.cash += amount - commission;
   market.finances.lifetimeEarnings += amount;
   market.finances.agentFees += commission;
@@ -311,6 +313,15 @@ export function signRenewal(world: World, offer: TransferOffer, terms: ContractT
 export function extendContract(world: World): void {
   const contract = careerContract(world);
   if (contract.loyaltyBonus > 0) pay(world, contract.loyaltyBonus);
+  // A second extension (nobody came in for the player) at least pays the market rate.
+  if (contract.optionTaken) {
+    const player = world.players[world.career!.playerId]!;
+    contract.weeklyWage = Math.max(
+      contract.weeklyWage,
+      marketWage(world.clubs[contract.clubId]!, player, contract.role),
+    );
+  }
+  contract.optionTaken = true;
   contract.end = { season: world.date.season, week: getSeasonWeeks(world), day: 7 };
   recordMove(world, {
     kind: 'extension',

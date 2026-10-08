@@ -11,6 +11,7 @@ import {
   isBrowserNoise,
   openCareerPage,
   skipTutorial,
+  tabName,
 } from './support';
 
 /**
@@ -134,13 +135,13 @@ test('the page tabs never move between career pages, and every page is reachable
       .click();
     const tabs = careerTabs(page, group);
     await expect(tabs.getByRole('link')).toHaveCount(pages.length);
-    await expect(tabs.getByRole('link', { name: pages[0]!, exact: true })).toHaveAttribute(
+    await expect(tabs.getByRole('link', { name: tabName(pages[0]!) })).toHaveAttribute(
       'aria-current',
       'page',
     );
     for (const name of pages) {
       await openCareerPage(page, name);
-      await expect(tabs.getByRole('link', { name, exact: true })).toHaveAttribute(
+      await expect(tabs.getByRole('link', { name: tabName(name) })).toHaveAttribute(
         'aria-current',
         'page',
       );

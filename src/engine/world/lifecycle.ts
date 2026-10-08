@@ -4,7 +4,7 @@ import { createRng, type Rng } from '../rng';
 import { getSeasonWeeks } from './calendar';
 import { recordEvent } from './events';
 import { generatePlayer } from './generate';
-import { playerAbility } from '../strength';
+import { playerAbility, wageFor } from '../strength';
 import { isActiveClub, refreshDressingRoom } from './dressing';
 
 /**
@@ -108,7 +108,8 @@ function contractYears(age: number, rng: Rng): number {
         : L.contractYears.prime;
   return rng.int(range[0], range[1]);
 }
-function role(world: World, rank: number, player: Player): Contract['role'] {
+export const groupOf = (position: Position): Group => GROUP[position];
+export function squadRole(world: World, rank: number, player: Player): Contract['role'] {
   return ageOf(world, player) < GEN.youngAge
     ? 'youth'
     : rank < 11
@@ -118,18 +119,14 @@ function role(world: World, rank: number, player: Player): Contract['role'] {
         : 'backup';
 }
 /** Fresh terms for a player at a club, priced from current ability and club stature. */
-function terms(
+export function contractTerms(
   world: World,
   club: Club,
   player: Player,
   contract: Pick<Contract, 'id' | 'role'>,
   rng: Rng,
 ): Contract {
-  const ability = playerAbility(player);
-  const weeklyWage = Math.max(
-    GEN.wageFloor,
-    Math.round(ability * ability * (GEN.wageBase + club.reputation / GEN.wageReputationDivisor)),
-  );
+  const weeklyWage = wageFor(playerAbility(player), club.reputation);
   return {
     id: contract.id,
     playerId: player.id,
@@ -175,13 +172,13 @@ function releasePlayer(world: World, player: Player, club: Club): void {
 function signPlayer(world: World, player: Player, club: Club, rng: Rng): void {
   player.clubId = club.id;
   delete player.releasedSeason;
-  const contract = terms(
+  const contract = contractTerms(
     world,
     club,
     player,
     {
       id: `contract:${player.id}:${world.date.season}:${world.date.week}`,
-      role: role(world, club.playerIds.length, player),
+      role: squadRole(world, club.playerIds.length, player),
     },
     rng,
   );
@@ -243,11 +240,11 @@ export function seasonalSquadReview(world: World, rng: Rng): void {
         rivalIds.has(player.id) ||
         ((rank < L.renewalRank || age <= L.renewalYouthAge) && age <= L.renewalMaximumAge)
       )
-        world.contracts[contract.id] = terms(
+        world.contracts[contract.id] = contractTerms(
           world,
           club,
           player,
-          { id: contract.id, role: role(world, rank, player) },
+          { id: contract.id, role: squadRole(world, rank, player) },
           rng,
         );
       else releasePlayer(world, player, club);
@@ -370,7 +367,7 @@ export function refreshReturningClub(world: World, club: Club): void {
     }
     const contract = world.contracts[player.contractId!]!;
     if (contract.end.season < world.date.season)
-      world.contracts[contract.id] = terms(
+      world.contracts[contract.id] = contractTerms(
         world,
         club,
         player,

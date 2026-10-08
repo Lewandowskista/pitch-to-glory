@@ -5,6 +5,8 @@ import { CONFIG } from '../src/engine/config';
 import { createRng, type Rng } from '../src/engine/rng';
 import {
   expectedGoals,
+  ABILITY_WEIGHTS,
+  managerStrengthBonus,
   playerAbility,
   selectStartingPlayers,
   teamStrength,
@@ -31,11 +33,16 @@ function poisson(rng: Rng, mean: number): number {
 describe('shared strength model', () => {
   it('averages outfield or goalkeeping attributes', () => {
     for (const player of Object.values(world.players).slice(0, 50)) {
-      const values = Object.values(
-        player.primaryPosition === 'GK' ? player.keeperAttributes : player.attributes,
-      );
+      // A keeper's plain mean; an outfielder's mean weighted by what the position relies on.
+      const weights = ABILITY_WEIGHTS[player.primaryPosition];
+      const entries =
+        player.primaryPosition === 'GK'
+          ? Object.values(player.keeperAttributes).map((value) => [value, 1] as const)
+          : Object.entries(player.attributes).map(
+              ([key, value]) => [value, weights[key as keyof typeof weights] ?? 1] as const,
+            );
       expect(playerAbility(player)).toBeCloseTo(
-        values.reduce((a, b) => a + b, 0) / values.length,
+        entries.reduce((a, [v, w]) => a + v * w, 0) / entries.reduce((a, [, w]) => a + w, 0),
         12,
       );
     }
@@ -91,12 +98,19 @@ describe('shared strength model', () => {
     const next = simulateWeek(world);
     const fixtures = fixturesOf(world, next);
     expect(fixtures.length).toBeGreaterThan(20);
-    const strength = (club: Club) =>
-      strengthFromAbility(club.reputation, lineupAbility(clubLineup(world, club)!, world.players));
+    // Background elevens rotate by a fixture-seeded jitter; the manager adds to strength.
+    const strength = (club: Club, seed: string) =>
+      strengthFromAbility(
+        club.reputation,
+        lineupAbility(
+          clubLineup(world, club, { seed, rotation: CONFIG.world.background.rotation.jitter })!,
+          world.players,
+        ),
+      ) + managerStrengthBonus(world.managers[club.managerId]!.ability);
     for (const fixture of fixtures) {
       const [lambdaHome, lambdaAway] = expectedGoals(
-        strength(world.clubs[fixture.homeId]!),
-        strength(world.clubs[fixture.awayId]!),
+        strength(world.clubs[fixture.homeId]!, `${fixture.id}:home`),
+        strength(world.clubs[fixture.awayId]!, `${fixture.id}:away`),
         !!fixture.neutral,
       );
       const rng = createRng(`${world.seed}:result:${fixture.id}`);
@@ -115,8 +129,10 @@ describe('shared strength model', () => {
       const home = world.clubs[fixture.homeId]!,
         away = world.clubs[fixture.awayId]!;
       const [lambdaHome, lambdaAway] = expectedGoals(
-        teamStrength(home.reputation, selectStartingPlayers(squad(world, home))),
-        teamStrength(away.reputation, selectStartingPlayers(squad(world, away))),
+        teamStrength(home.reputation, selectStartingPlayers(squad(world, home))) +
+          managerStrengthBonus(world.managers[home.managerId]!.ability),
+        teamStrength(away.reputation, selectStartingPlayers(squad(world, away))) +
+          managerStrengthBonus(world.managers[away.managerId]!.ability),
         !!fixture.neutral,
       );
       const rng = createRng(`${world.seed}:result:${fixture.id}`);

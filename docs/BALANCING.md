@@ -555,3 +555,75 @@ Coaching (`CONFIG.career.coaching`): the last 40 key decisions are kept (`recent
 ## The manager's promise (Phase 6)
 
 `CONFIG.career.promise`: offered at the end of a week once the season goal is accepted, if the player is fit and the whole six-week window (`weeks`) fits in the season; it must be answered within two weeks (`respondWeeks`). The milestone follows the goal: appearances in two thirds of the club's fixtures in the window (`appearanceShare`), 35 completed passes (`passes`) or 7 tackles (`tackles`); with fewer than 3 fixtures in the window (`minimumFixtures`), or for an attribute goal, +1 in the goal's or a key development attribute (`attribute`). Met: manager trust +6; missed: −3 (`trust`). Declined, unanswered, or called off by a move, a new manager or an injury lasting the rest of the window: no change. The last 10 promises are kept (`historyLimit`).
+
+## Balance pass A: one ability scale (October 2026)
+
+The [game design review](GAME-DESIGN-REVIEW.md) found two ability scales that disagreed: matches resolved on the attribute a choice used, while selection, market value, the national team and awards used the plain mean of 22 attributes, which the career's points could never lift past the mid-40s. This pass gives the game one scale and makes development come from playing.
+
+**Ability (`strength.ts`, `ABILITY_WEIGHTS`).** `playerAbility` is a weighted mean: the three attributes a position relies on count three times, five supporting ones twice, the rest once (weights sum to 33, so a flat profile scores its plain mean; keepers keep the plain mean of their seven). Every use of ability (selection, strength, value, wages, national team, awards, the Hall of Fame) follows.
+
+**Passive development (`CONFIG.career.development`, `training.ts` `developCareer`).** Each week, every trained attribute below its age-adjusted cap moves one point toward it with probability `gap × rate / seasonWeeks`, where `rate = growthPerSeason (0.35) × (0.5 + 0.5 × share of the last 8 matches' minutes) × professionalism`. A player who plays closes about 35% of the gap a season (AI players close 75%); one who does not play closes 17%. Points and training now buy emphasis above that drift.
+
+**Levels and points.** `levelXpBase` 500, `levelXpGrowth` 1.02 (level 13 at ~6,800 XP, 52 at ~43,000, 82 at ~100,000, 99 at ~149,000), `attributePointsPerLevel` 5. The career records `levelXp`, the XP at which its level began (schema 17); a migrated career keeps its level and starts the new curve from its current XP, and validation accepts any level whose `levelXp` is at least the sum of the cheaper step of either curve.
+
+**XP (`match.xp`, `career.decisionXp`, `career.opposition*`).** `0.5 × minutes + 50 × max(0, rating − 5.5) + 40 × goals + 28 × assists + 15 × objectives`, plus 4 XP for each key decision that came off (8 when its odds were under a half), times `clamp(0.75 + 0.005 × opponent reputation, 0.6, 1.3)` (a tier-6 opponent 0.8, a tier-1 giant 1.17) and the fixture's importance. A 5.0 rating earns ~45, an 8.5 with two goals and an assist ~290. International caps pay 120 XP and 30 a goal.
+
+**Caps (`career.costs`).** Beyond cap + 5 the cost is 3 and rises by one every 4 points; before 24 nothing goes more than 12 past its cap.
+
+**Training and recovery.** Gains low 0.09 / normal 0.13 / high 0.24; fatigue low 0.5 / normal 1.5 / high 4 / extra 2 / recovery −8, with `weeklyRecovery` 14, so the default plan nets about +2 a week instead of +7; injury risk high 0.009, × 0.7 under 21 and × 1.3 over 30; mentor base 0.12. A rushed return takes half the time with a per-match re-injury risk of 2% × severity for six weeks (a knock 2%, a ligament 10%). A career-threatening injury costs 12 pace and acceleration and 6 agility and jumping.
+
+**Skills.** Tier costs 2/3/4/5 at minimum levels 1/8/16/25 (outfield tree 135 points, keeper 64), against ~80 points in a long career.
+
+**Archetypes.** `emphasisScale` 2.5, so a finisher starts a season ahead on finishing rather than a week.
+
+**Measured (`npm run profile`, four careers to 34).** Ability at 25: striker 80.5, centre-back 77.8, midfielder 67.5, specialised striker 84.5 (before: 27–37). Top tier reached at 21–25; 20–50 appearances a season; 19–33 senior caps by 25 for the three who got there; the specialised and balanced strikers end 4 points apart. Stated key-moment odds still match outcomes within 3 points except defending choices above 80% (84 stated, 77 actual), which pass B addresses.
+
+## Balance pass B: decisions with trade-offs
+
+Match constants and the measured results are in [MATCH-BALANCING.md](MATCH-BALANCING.md) ("Balance pass B"). Career-side changes: the half-time talk's trust delta reaches the manager relationship; minutes in a secondary position add familiarity (`career.training.familiarityPerMatch` 3 per ninety); fame per match counts assists and clean sheets.
+
+## Balance pass C: a world that moves
+
+The [game design review](GAME-DESIGN-REVIEW.md) found a static world: reputations never changed, AI transfers were random free swaps, benches never played, background goals ignored ability, title races were near coin-flips and only the bottom club ever sacked its manager. This pass applies to national worlds; worlds from before the pyramid keep their rules (fixed reputations, exchanges, no AI injuries).
+
+**Reputation (`background.reputation`, `updateReputations` in `simulate.ts`).** At each season's end a club moves by its finish in its league (`rankStep` 1.5 from top to bottom) plus, when outside the band of the tier it will play in next season, `seasonStep` 0.5 of the distance back in, within `maximumChange` 4 a season; a club inside the band's `bandMargin` 5 stays within it. Champions Cup winners +2, Shield winners +1. Finances follow the new standing: income `max(incomeFloor 4,800, 12 × rep²)`, costs `3 × rep²`, a fresh transfer budget `60 × rep²` each season, wage budget at least `8 × rep²`. Bands are generation's: floor `87 − 15 × tier`, ceiling `99 − 15 × tier` (tier 1: 72–84).
+
+**The AI transfer market (`world.aiMarket`, `transfers.ts`).** In each transfer week (national worlds: 6%, 13%, 50% and 55% of the season, inside the career's windows), each active club with at least 20,000 of budget and room in its squad shops with probability 0.4: it looks at its weakest starting slot and signs the best player at that position who improves it by at least 3, from a club of lower reputation (abroad with probability 0.2), at `market value × askingFactor` by the player's role (key 1.4, rotation 1.2, backup 1, youth 1.1) if the fee fits its budget. A seller sells at most 2 a window and keeps every positional group at its minimum; it banks the fee and reinvests half in its own budget. The player signs fresh terms at the buyer (`contractTerms`) with a role by rank. The career player, the rival and loaned players never move this way. Sellers refill from free agents afterwards.
+
+**Rotation (`background.rotation`, `selectLineup`).** Background elevens value each player at `effective ability × (1 − max(0, fatigue − 40)/150) + jitter`, the jitter drawn per fixture from ± 6 (± 14 in domestic cups), so near-equals share matches and tired players sit. The career player is judged on ability alone, as the selection explanation shows them.
+
+**AI injuries (`background.aiInjuries`).** After every fixture each participant other than the career player is injured with probability `0.012 × (0.5 + proneness/100) × (1 + fatigue/50)` for a spell drawn from the career's injury table (`Player.injuryWeeks`, counted down weekly). Injured players are unavailable to selection, the market and loans.
+
+**Goals follow ability.** Background scorers are weighted by position × `max(0.2, 1 + (finishing − team mean)/25)`; assists by `passing + vision` around the team mean; a background rating adds `(ability − match mean) × 0.02`.
+
+**Managers.** Team strength adds `(manager ability − 60) × 0.05` in every fixture, played or simulated. Sackings run weekly from week 8 to two weeks before the end: a manager whose points a game trail what the club's reputation rank in its league expects (`expectedPointsRange` 0.8–2.2 from bottom to top) goes with probability `0.012 × shortfall`; a new appointment has 15 weeks' grace (`Manager.appointed`).
+
+**Strength scale.** `strengthScale` 0.024 (was 0.012): the favourite's edge in a tier-1 match is now 60–63% of decided matches (was 53–57%).
+
+**Generation.** Squad ages are a triangular draw peaking at 25; the foreign share is `0.05 + 0.6 × clamp((rep − 40)/50)` (a giant over half, a small club 5%); 5% are two-footed; potential is `0.75 × rep + 13 ± 12`, the best of two draws at reputation 84 and of three at 90, so a few players reach the nineties; academy intakes use the same scale with the wider spread.
+
+**Continental cups** pay both clubs `40 × rep²` (Champions) or `20 × rep²` (Shield) per match played.
+
+**Lifecycle weeks** come from the season length: the academy intake at 95% of the season (week 57 of 60), transfer activity at the four fractions above. Legacy worlds keep weeks 8/18/31 and 31.
+
+**Measured (`npm run profile:world`, 12 seasons, two seeds).** Tier-1 champions take 60–68% of their points (rising as dynasties form; six to nine different champions in twelve seasons); the higher-reputation side wins 60–63% of decided tier-1 matches; 65–67% of tier-1 squad members make five appearances; Spearman(goals, finishing) among tier-1 strikers 0.67–0.74; 900–1,300 paid transfers and 108–148 sackings a season; ~430 players injured mid-season; ~95 players at 85+ and 2–3 at 90+; tier means within a point of where they started; no club broke.
+
+## Balance pass D: stakes, and things worth buying
+
+The [game design review](GAME-DESIGN-REVIEW.md) found money without stakes (compressed wages, nothing to buy, solvable talks, offer spam, contracts extended forever) and relationships that only went up. This pass gives both sides consequences and adds content to spend on.
+
+**Wages (`wageFor` in `strength.ts`).** `ability² × (0.05 + 0.45 × (reputation/100)²)`, at least the floor of 50: a tier-6 start ~50, a tier-1 regular ~1,700, a star at a giant ~3,400, the same star at a tier-3 club under half of that. AI contracts, the career's offers and renewals all price from it.
+
+**Offers.** A buyer bids up to `value × (1 + confidence × 0.01)`, so a key player can be bought below total confidence (D1 in the review). At most 5 clubs track the player at once; an offer comes with probability 0.25 a week per ready club; a declined, lapsed or collapsed offer drops the club's confidence to 25 and keeps it out for 20 weeks. A buying club must stand at least 3 reputation above the parent, or within 10 below it after a transfer request.
+
+**Talks.** The club's wage limit is its opening offer × (1.12 + agent stretch × skill + desire); its hidden walk-away point is drawn once per negotiation between 1.2× and 1.35× the opening (always at least 1.1 × the limit, so there is room to haggle). A counter moves the club a third of the gap toward the ask, never past its limit; asking above the limits on three or more items at once risks a 20% walk-away; every counter in renewal talks costs 2 trust. Agents stretch limits by personality (aggressive 0.004 a skill point, connected 0.0025, economical 0.001), pitch rarely (0.001 × network a week) but a connected one reaches abroad (`1 + network/60`), and take commission on wages, signing-on and loyalty money, never on sponsors.
+
+**Contracts.** At expiry without a deal the club takes up its one-season option once (`Contract.optionTaken`); at the next expiry the player leaves on a free to the most reputable club that has been scouting them, on that club's opening terms, or stays at the market wage if nobody has. A key player's selection floor (0.75) applies only while they are at most one place outside the eleven; a promise breaks below 80% of matchdays (rotation 50%) and halves the release clause.
+
+**Relationships.** Manager trust and fan affection drift 3% of the way toward 60 every week, so standing has to be kept up. A stance to the press is judged by the next result: confident then a loss costs 2 fame and 3 affection (a win +2 fame); provocative then a loss −3 fame, −4 affection, −2 trust; humble then a win +3 trust. Chemistry with teammates scales what a chance made for them is worth (`1 + (chemistry − 60) × 0.004`, 0.85–1.15, engine `match-10`); culture fit multiplies training gains by `0.8 + 0.4 × fit/100`; morale's match effect is `1 + (morale − 65) × 0.004` within 0.88–1.12; form keeps 75% of itself and takes 25% of the rating, so it swings. The manager's challenge also moves fan affection (+5 / −3), and its targets are real: 140 passes or 10 tackles in six weeks, +3 on an attribute; the season goal asks 600 passes or +6.
+
+**Honours.** Young Player of the Year and the Golden Ball weigh a season by the scouting visibility of its tier (1, 0.85, 0.7, 0.55, 0.45, 0.4), so a tier-6 season does not beat a tier-1 one. The Hall of Fame weighs awards by kind (month 2, team of the season 3, season honours 10, Golden Ball 40) and counts other players' awards too. At youth levels the career player is judged as a prospect (potential on the age curve); the senior score counts fame up to 14 at 0.03 a point. Retirement is forced at 38, or from 33 once ability falls below 78% of its peak. Fame above 100 fades by 10% at each new season.
+
+**Things worth buying (`lifestyle/catalogue.ts`).** Cars, homes and experiences are priced in weeks of wages (hatchback 25, coupé 60, grand tourer 120, hypercar 200; flat 60, townhouse 150, family home 250, villa 400; a week away 4, a family visit 1), at least their old floors, with upkeep of price ÷ 250 a week fixed at purchase; a better home rests 1–3 fatigue a week. Personal staff charge a share of the wage (physio 15%: injuries × 0.8; nutritionist 10%: 2 fatigue a week; coach 20%: training × 1.15; analyst 15%: +2 XP per key decision that comes off) and four weeks' salary to hire. A foundation (10% of the wage) or a youth camp (15%) earns fan affection every week (0.4 / 0.6) and fame every month (1 / 2). Experiences are felt at once (a holiday shakes off 20 fatigue). Living beyond half of wage plus sponsor income costs morale. The property fund now dips (± 1.2% a week) and a start-up swings ± 8% and can fold (0.04% a week). A failed sponsorship costs fame by level and claws back 25% of the fees, and closes the category for two seasons; a completed one is offered again at 1.25× the fee.
+
+**Measured (`npm run profile`, with a spending policy).** Trust below 70 in 16% of weeks (it never fell below 90 before); 24% of earnings spent on the lifestyle; at most 33 declined offers in a career (were ~300); no national award below tier 3; tier-1 wages of 1,400–2,700 a week by 23. Details in VERIFICATION.md, pass D.

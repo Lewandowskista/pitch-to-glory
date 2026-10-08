@@ -456,10 +456,20 @@ class Director {
     fixed?: Map<string, Point>,
     exact = false,
   ): Point {
-    const length = span(this.ball, target);
-    const dt = air ? 1300 + length * 55 : 700 + length * 60;
-    // An exact pass waits for the receiver to arrive (scene set-ups).
-    const reach = exact ? { ...target } : this.reachable(receiver.id, target, dt);
+    const flight = (end: Point) => {
+      const length = span(this.ball, end);
+      return air ? 1300 + length * 55 : 700 + length * 60;
+    };
+    let dt = flight(target);
+    // An exact pass waits for the receiver to arrive (scene set-ups). Otherwise the receiver
+    // meets the ball where they can reach it, and the ball's flight is timed to that point,
+    // which may be further from the ball than the target itself.
+    let reach = exact ? { ...target } : this.reachable(receiver.id, target, dt);
+    if (!exact) {
+      dt = Math.max(dt, flight(reach));
+      reach = this.reachable(receiver.id, target, dt);
+      dt = Math.max(dt, flight(reach));
+    }
     this.emit({ dt, ball: reach, motion: air ? 'air' : 'ground', carrier: receiver.id, fixed });
     return reach;
   }
@@ -483,14 +493,16 @@ class Director {
         }
       }
     }
-    const length = span(from, point);
-    const dt = air ? 1200 + length * 55 : 600 + length * 60;
-    this.emit({
-      dt,
-      ball: this.reachable(best.id, point, dt),
-      motion: air ? 'air' : 'ground',
-      carrier: best.id,
-    });
+    const flight = (end: Point) => {
+      const length = span(from, end);
+      return air ? 1200 + length * 55 : 600 + length * 60;
+    };
+    let dt = flight(point);
+    let ball = this.reachable(best.id, point, dt);
+    dt = Math.max(dt, flight(ball));
+    ball = this.reachable(best.id, point, dt);
+    dt = Math.max(dt, flight(ball));
+    this.emit({ dt, ball, motion: air ? 'air' : 'ground', carrier: best.id });
     return best;
   }
   carry(actor: Actor, target: Point, fixed?: Map<string, Point>): void {

@@ -95,9 +95,10 @@ describe('league awards count league football only', () => {
     world.players[cupScorer]!.stats.goals += best + 5;
     // A striker from another league joins the league with a big tally from there.
     const other = Object.values(world.leagues).find((l) => l.id !== leagueId && l.tier === 1)!;
-    const elsewhere = [...competitionGoals(world, other.id).entries()].sort(
-      (a, b) => b[1] - a[1],
-    )[0]![0];
+    // The best scorer still at a club: a prolific veteran can retire at the intake week.
+    const elsewhere = [...competitionGoals(world, other.id).entries()]
+      .sort((a, b) => b[1] - a[1])
+      .find(([id]) => world.players[id]!.clubId)![0];
     world.players[elsewhere]!.stats.goals += best + 5;
     move(world, elsewhere, world.leagues[leagueId]!.clubIds[0]!);
     const boot = rerunAwards(world);
@@ -257,7 +258,7 @@ describe('season competition statistics', () => {
       schemaVersion: 13,
     };
     const migrated = migrateSave(JSON.parse(JSON.stringify(old)));
-    expect(migrated.schemaVersion).toBe(16);
+    expect(migrated.schemaVersion).toBe(17);
     if (migrated.payload.kind !== 'world') throw new Error('Expected a world save');
     const loaded = migrated.payload.world;
     expect(hasSeasonStatistics(loaded)).toBe(false);

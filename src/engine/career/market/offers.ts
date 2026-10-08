@@ -26,7 +26,7 @@ import {
   windowState,
   type Role,
 } from './rules';
-import { nextId, postMessage } from './records';
+import { adjustRelationship, nextId, postMessage } from './records';
 import { executeTransfer, signRenewal, startLoan } from './moves';
 
 const N = M.negotiation;
@@ -83,6 +83,7 @@ function openTerms(world: World, offer: TransferOffer, club: Club, desire: numbe
   const player = world.players[career.playerId]!;
   const agent = career.market.agentId ? world.agents[career.market.agentId] : undefined;
   const skill = agent?.negotiation ?? 0;
+  const stretch = agent ? N.agentStretch[agent.personality] : 0;
   const current = careerContract(world);
   const deserved = deservedRole(world, club, player);
   const role =
@@ -106,7 +107,13 @@ function openTerms(world: World, offer: TransferOffer, club: Club, desire: numbe
   };
   const id = nextId(world, 'negotiation');
   const maxWage = Math.round(
-    wage * (1 + N.wageStretch + skill * N.agentStretch + (desire - 70) * N.desireStretch),
+    wage * (1 + N.wageStretch + skill * stretch + (desire - 70) * N.desireStretch),
+  );
+  // The club's hidden walk-away point, drawn once for these talks.
+  const walkAway = Math.round(
+    wage *
+      (N.walkAway[0] +
+        createRng(`${world.seed}:${id}:walk`).next() * (N.walkAway[1] - N.walkAway[0])),
   );
   const negotiation: Negotiation = {
     id,
@@ -115,6 +122,8 @@ function openTerms(world: World, offer: TransferOffer, club: Club, desire: numbe
     status: 'open',
     limits: {
       maxWage: Math.max(wage, maxWage),
+      // Always a band above the limit to haggle in before the club walks.
+      walkAwayWage: Math.max(Math.round(maxWage * 1.1), walkAway),
       bestRole: desire >= N.roleConfidence ? ROLE_UP[role] : role,
       years: [Math.max(1, years - 1), Math.min(N.maximumYears, years + 1)],
       minimumClause: clauseAllowed ? Math.max(100, fee(value * N.minimumClauseFactor)) : null,
@@ -309,8 +318,9 @@ export function declineOffer(world: World, offerId: string): void {
 function coolInterest(world: World, clubId: string): void {
   for (const interest of world.scouting)
     if (interest.clubId === clubId) {
-      interest.stage = 'scouting';
-      interest.confidence = Math.min(interest.confidence, M.scouting.offerAt - 10);
+      interest.stage = 'watching';
+      interest.confidence = Math.min(interest.confidence, M.scouting.declineConfidence);
+      interest.weeksObserved = 0;
       interest.lastOffer = today(world);
     }
 }
@@ -375,7 +385,17 @@ export function counterOffer(world: World, offerId: string, terms: ContractTerms
     return 'accept';
   }
   const L = negotiation.limits;
-  if (negotiation.patience <= 0 || terms.weeklyWage > L.maxWage * N.walkAwayWage) {
+  const rounds = negotiation.rounds.filter((r) => r.actor === 'player').length;
+  // Asking far above the club's hidden walk-away point, asking too much on too many items at
+  // once, or wearing its patience out, ends the talks.
+  const overAsk =
+    reasons.length >= N.overAskItems &&
+    createRng(`${world.seed}:${negotiation.id}:over:${rounds}`).next() < N.overAskWalkChance;
+  if (
+    negotiation.patience <= 0 ||
+    terms.weeklyWage > (L.walkAwayWage ?? L.maxWage * 1.3) ||
+    overAsk
+  ) {
     round.response = 'walk-away';
     negotiation.status = 'collapsed';
     offer.status = 'collapsed';
@@ -384,15 +404,26 @@ export function counterOffer(world: World, offerId: string, terms: ContractTerms
   }
   round.response = 'counter';
   negotiation.patience--;
+  // Haggling with your own club costs a little trust each time.
+  if (offer.kind === 'renewal')
+    adjustRelationship(
+      world,
+      'manager',
+      world.clubs[offer.clubId]!.managerId,
+      N.renewalCounterTrust,
+    );
   const last = negotiation.rounds.filter((r) => r.actor === 'club').at(-1)!.terms;
   const clamp = (value: number, [low, high]: [number, number]) =>
     Math.max(low, Math.min(high, value));
+  // The club moves a share of the gap toward the ask, never past its limit.
+  const toward = (from: number, ask: number, limit: number) =>
+    Math.min(limit, Math.round(from + (ask - from) * N.counterShare));
   negotiation.rounds.push({
     actor: 'club',
     date: today(world),
     terms: {
       weeklyWage: reasons.includes('wage')
-        ? Math.min(L.maxWage, Math.round((last.weeklyWage + terms.weeklyWage) / 2))
+        ? toward(last.weeklyWage, terms.weeklyWage, L.maxWage)
         : terms.weeklyWage,
       role: reasons.includes('role') ? L.bestRole : terms.role,
       years: clamp(terms.years, L.years),
@@ -402,7 +433,7 @@ export function counterOffer(world: World, offerId: string, terms: ContractTerms
           ? null
           : Math.max(L.minimumClause, terms.releaseClause),
       signingBonus: reasons.includes('bonus')
-        ? Math.min(L.maxSigningBonus, Math.round((last.signingBonus + terms.signingBonus) / 2))
+        ? toward(last.signingBonus, terms.signingBonus, L.maxSigningBonus)
         : terms.signingBonus,
     },
   });
@@ -426,13 +457,40 @@ export function expireOffers(world: World): void {
   }
 }
 
-/** Whether a club already tried during the current window (or recently, outside windows). */
+/** Whether a club already tried during the current window, or within the decline cooldown. */
 export function triedRecently(world: World, interest: ScoutingInterest): boolean {
   if (!interest.lastOffer) return false;
+  if (
+    compareDates(addWeeks(world, interest.lastOffer, M.scouting.declineCooldownWeeks), world.date) >
+    0
+  )
+    return true;
   const window = transferWindows(world).find(
     ([from, to]) => world.date.week >= from && world.date.week <= to,
   );
   if (window && interest.lastOffer.season === world.date.season)
     return interest.lastOffer.week >= window[0];
-  return compareDates(addWeeks(world, interest.lastOffer, 8), world.date) > 0;
+  return false;
+}
+/**
+ * At the end of a contract the club has already extended once, the player leaves on a free
+ * to the most reputable club that has been scouting them, on that club's opening terms. With
+ * nobody scouting, the club keeps them on at the market wage.
+ */
+export function freeTransfer(world: World): boolean {
+  const interests = world.scouting
+    .filter((interest) => interest.kind === 'transfer' && interest.stage !== 'watching')
+    .map((interest) => ({ interest, club: world.clubs[interest.clubId]! }))
+    .filter(({ club }) => club)
+    .sort((a, b) => b.club.reputation - a.club.reputation || (a.club.id < b.club.id ? -1 : 1));
+  const best = interests[0];
+  if (!best) return false;
+  const offer = newOffer(world, 'pre-contract', best.club, false);
+  const negotiation = openTerms(world, offer, best.club, best.interest.confidence);
+  negotiation.status = 'accepted';
+  offer.status = 'agreed';
+  const terms = negotiation.rounds[0]!.terms;
+  executeTransfer(world, offer, terms);
+  postMessage(world, 'free-transfer', { club: best.club.name });
+  return true;
 }

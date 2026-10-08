@@ -110,6 +110,7 @@ export const SITUATIONS: readonly Situation[] = [
       }),
       choice({
         id: 'far-post',
+        forOnSuccess: 0.9,
         attributes: { finishing: 0.5, composure: 0.3, vision: 0.2 },
         direct: 'for',
         scorer: 'self',
@@ -210,6 +211,7 @@ export const SITUATIONS: readonly Situation[] = [
     choices: [
       choice({
         id: 'long-shot',
+        forOnSuccess: 0.8,
         attributes: { longShots: 0.8, composure: 0.2 },
         direct: 'for',
         scorer: 'self',
@@ -247,6 +249,7 @@ export const SITUATIONS: readonly Situation[] = [
       }),
       choice({
         id: 'curler',
+        forOnSuccess: 0.85,
         attributes: { longShots: 0.5, setPieces: 0.3, composure: 0.2 },
         direct: 'for',
         scorer: 'self',
@@ -270,6 +273,7 @@ export const SITUATIONS: readonly Situation[] = [
     choices: [
       choice({
         id: 'header',
+        forOnSuccess: 0.9,
         attributes: { heading: 0.5, jumping: 0.3, strength: 0.2 },
         direct: 'for',
         scorer: 'self',
@@ -306,6 +310,7 @@ export const SITUATIONS: readonly Situation[] = [
       }),
       choice({
         id: 'bicycle-kick',
+        forOnSuccess: 0.7,
         attributes: { agility: 0.4, finishing: 0.4, jumping: 0.2 },
         direct: 'for',
         scorer: 'self',
@@ -474,8 +479,8 @@ export const SITUATIONS: readonly Situation[] = [
   {
     id: 'one-on-one',
     attackWeight: 0,
-    defenceWeight: 1.4,
-    positions: { GK: 2 },
+    defenceWeight: 4,
+    positions: { GK: 0.7 },
     spot: { depth: 6, width: 50 },
     choices: [
       choice({

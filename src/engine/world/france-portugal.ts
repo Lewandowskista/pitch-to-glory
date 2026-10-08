@@ -2,6 +2,7 @@
 import { rankStandings } from './ranking';
 import {
   barrage,
+  barrageChallenger,
   createLeaguePhase,
   eligiblePhaseTable,
   eligibleTable,
@@ -242,14 +243,21 @@ export function advancePortugal(world: World, countryId: string): boolean {
       for (const row of b.slice(-2)) recordMovement(world, row.clubId, 3);
       for (const row of eligible.slice(0, 2)) recordMovement(world, row.clubId, 1);
     });
-    topDone = barrage(world, countryId, 'primeira-barrage', a[15]!.clubId, eligible[2]!.clubId, 1);
+    topDone = barrage(
+      world,
+      countryId,
+      'primeira-barrage',
+      a[15]!.clubId,
+      barrageChallenger(world, eligible),
+      1,
+    );
     if (promotion?.status === 'complete')
       secondDone = barrage(
         world,
         countryId,
         'liga-2-barrage',
         b[15]!.clubId,
-        eligiblePhaseTable(world, promotion, 2)[2]!.clubId,
+        barrageChallenger(world, eligiblePhaseTable(world, promotion, 2)),
         2,
       );
   }

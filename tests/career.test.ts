@@ -168,9 +168,10 @@ describe('progression', () => {
     const world = clone(career);
     expect(skillState(world, 'long-ranger')).toBe('locked');
     expect(skillState(world, 'safe-hands')).toBe('unavailable');
-    world.career!.xp = xpForLevel(6);
-    world.career!.level = 6;
-    world.career!.skillPoints = 4;
+    world.career!.xp = xpForLevel(8);
+    world.career!.levelXp = xpForLevel(8);
+    world.career!.level = 8;
+    world.career!.skillPoints = 5;
     expect(skillState(world, 'long-ranger')).toBe('available');
     const before = player(world).attributes.longShots;
     const unlocked = unlockSkill(world, 'long-ranger');
@@ -233,13 +234,17 @@ describe('training, injuries and ageing', () => {
     expect(() => validateWorld(clone(world))).not.toThrow();
     const weeks = injury.weeksRemaining;
     const rushed = chooseRecovery(world, 'rush');
-    expect(rushed.career!.injury!.weeksRemaining).toBe(Math.max(1, Math.ceil(weeks * 0.6)));
+    expect(rushed.career!.injury!.weeksRemaining).toBe(
+      Math.max(1, Math.ceil(weeks * CONFIG.career.injuries.rush.durationFactor)),
+    );
     expect(() => chooseRecovery(rushed, 'rehab')).toThrow();
     const healing = clone(rushed);
     for (let week = 0; week < 20 && healing.career!.injury; week++) careerWeek(healing);
     expect(healing.career!.injury).toBeNull();
     expect(player(healing).injuryId).toBeNull();
-    expect(healing.career!.reinjury?.risk).toBe(CONFIG.career.injuries.rush.reinjuryRisk);
+    expect(healing.career!.reinjury?.risk).toBe(
+      CONFIG.career.injuries.rush.reinjuryPerSeverity * rushed.career!.injury!.severity,
+    );
   });
   it('lets ageing pull attributes above the age-adjusted cap back down after the peak', () => {
     const world = clone(career);
@@ -466,6 +471,7 @@ describe('career lifecycle and saves', () => {
       return () => createSave(1, 'Forged', { ...payload, world });
     };
     expect(forge((w) => (w.career!.level = 30))).toThrow();
+    expect(forge((w) => (w.career!.levelXp = w.career!.xp + 1))).toThrow();
     expect(forge((w) => (w.career!.attributePoints = 999))).toThrow();
     expect(forge((w) => w.career!.skills.push('acrobat'))).toThrow();
     expect(forge((w) => (player(w).traits = ['wall']))).toThrow();

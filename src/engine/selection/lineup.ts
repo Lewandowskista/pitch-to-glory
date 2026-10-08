@@ -9,6 +9,7 @@
  */
 import type { Id, Player, Position } from '../../model/domain';
 import { CONFIG } from '../config';
+import { createRng } from '../rng';
 import { playerAbility } from '../strength';
 import { FORMATION_SLOTS, type Formation } from './formations';
 
@@ -47,7 +48,7 @@ export function selectLineup(
   playerIds: readonly Id[],
   players: Readonly<Record<Id, Player>>,
   formation: Formation,
-  options: { selected?: Id; exclude?: readonly Id[] } = {},
+  options: { selected?: Id; exclude?: readonly Id[]; seed?: string; rotation?: number } = {},
 ): LineupChoice {
   const slots = FORMATION_SLOTS[formation];
   const excluded = new Set(options.exclude ?? []);
@@ -55,8 +56,25 @@ export function selectLineup(
     .map((id) => players[id])
     .filter(available)
     .filter((player) => !excluded.has(player.id));
+  // Rotation (background fixtures): tiredness lowers a player's value for this match and a
+  // fixture-seeded jitter lets near-equals share the matches. The selected (career) player
+  // is judged on ability alone, as the selection explanation shows them.
+  const R = CONFIG.world.background.rotation;
+  const jitter = new Map<Id, number>();
+  if (options.seed) {
+    const rng = createRng(`${options.seed}:lineup`);
+    const range = options.rotation ?? R.jitter;
+    for (const player of [...pool].sort((a, b) => (a.id < b.id ? -1 : 1)))
+      jitter.set(player.id, rng.int(-range, range));
+  }
+  const condition = (player: Player) =>
+    player.id === options.selected || !options.seed
+      ? 1
+      : 1 - Math.max(0, player.fatigue - R.fatigueFrom) / R.fatigueDivisor;
+  const valueIn = (player: Player, position: Position) =>
+    effectiveAbility(player, position) * condition(player) + (jitter.get(player.id) ?? 0);
   const byAbility = (a: Player, b: Player) =>
-    playerAbility(b) - playerAbility(a) || (a.id < b.id ? -1 : 1);
+    valueIn(b, b.primaryPosition) - valueIn(a, a.primaryPosition) || (a.id < b.id ? -1 : 1);
   const filled: (Id | null)[] = slots.map(() => null);
   const taken = new Set<Id>();
   const place = (index: number, id: Id) => {
@@ -91,7 +109,7 @@ export function selectLineup(
         pairs.push({
           index,
           player,
-          value: effectiveAbility(player, position),
+          value: valueIn(player, position),
           fit: slotFit(player, position),
         });
   }

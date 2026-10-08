@@ -127,10 +127,14 @@ describe('the offer', () => {
     const after = week(declined);
     expect(after.career!.social.promises).toHaveLength(1);
     let lapsed = offered();
-    for (let guard = 0; guard < 4 && currentPromise(lapsed)!.status === 'offered'; guard++)
+    // The same weeks without the offer are the control: matches move trust on their own.
+    let control = declinePromise(offered());
+    for (let guard = 0; guard < 4 && currentPromise(lapsed)!.status === 'offered'; guard++) {
       lapsed = week(lapsed);
+      control = week(control);
+    }
     expect(currentPromise(lapsed)).toMatchObject({ status: 'cancelled', end: 'expired' });
-    expect(trust(lapsed)).toBe(before);
+    expect(trust(lapsed)).toBe(trust(control));
   });
 });
 
@@ -141,13 +145,16 @@ describe('the milestone', () => {
     expect(start).toMatchObject({ status: 'active', progress: 0 });
     expect(start.baseline).toBe(promiseMeasure(accepted, start.kind, start.attribute));
     expect(start.deadline).toBe(accepted.date.week + P.weeks - 1);
-    const before = trust(accepted);
+    const startWeek = accepted.date.week;
     const done = conclude(accepted);
     const promise = currentPromise(done)!;
     const reached = promise.progress >= promise.target;
     expect(promise.status).toBe(reached ? 'achieved' : 'missed');
+    // The same weeks with the offer declined are the control: matches move trust on their own.
+    let control = declinePromise(offered());
+    for (let week_ = startWeek; week_ < done.date.week; week_++) control = week(control);
     expect(trust(done)).toBeCloseTo(
-      Math.max(0, Math.min(100, before + P.trust[promise.status as 'achieved' | 'missed'])),
+      Math.max(0, Math.min(100, trust(control) + P.trust[promise.status as 'achieved' | 'missed'])),
       0,
     );
     const entries = done.chronicle.filter((entry) => entry.kind === 'promise');

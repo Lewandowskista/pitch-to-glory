@@ -197,3 +197,35 @@ Earlier engines placed the ball at a uniformly random point every minute and jit
 - **Moments.** The selected player's goals keep up to 12 keyframes of build-up, strike and celebration (`state.highlights`), and Moments clips are cut from them.
 - **Cost.** Motion adds about 4 ms per match in Node. The 10,000-match gate therefore has a 240 s budget.
 - **Restarts after goals.** The passage containing a goal ends with the celebration; the next passage, even a quiet minute without events, walks both teams back and takes the kickoff.
+
+## Balance pass B: decisions with trade-offs (engine `match-9`)
+
+The [game design review](GAME-DESIGN-REVIEW.md) found that every choice in a situation had the same expected goals at the reference player, that attacking mentality was a pure buff, and that momentum, substitutions and the half-time talk changed nothing. This pass makes decisions decisions. Saved sessions from `match-8` are discarded on load (the world is kept); Moments keep their stored keyframes.
+
+**Choices differ in what they lead to.** Direct shots differ in risk: `far-post`, `long-shot`, `curler`, `header` and `bicycle-kick` keep 90 / 80 / 85 / 90 / 70% of their expected goals on success and leave the rest as rebounds after a miss (`forOnSuccess`), so a surer finish and an ambitious one are different bets with the same expected value at the reference. A chance made for a teammate converts by the finishers it falls to: `successGoal x clamp(1 + (mean finishing of the best three teammate attackers - own finishing) x 0.005, 0.9, 1.1)`. Risk applies to direct shots (`riskShot`: low x 1.03, high x 0.95 on odds).
+
+**Mentality and roles scale both ends.** `rates()` multiplies [own, opposition] expected goals: attacking [1.08, 1.06], defensive [0.92, 0.90]; `push-forward` and `cut-inside` [1.05, 1.04]; `hold-position` and `track-back` keep only their counter relief (failed choices concede 0.85x). Risk still scales the total (0.95 / 1 / 1.06).
+
+**Momentum and the talk feed the odds.** Every choice carries `1 + (own momentum - 50) x 0.002` (0.9-1.1) as a shown factor. At half-time _motivate_ moves momentum 8 toward the player's side (x 1.5 with the Leader skill) and multiplies second-half odds by 1.03; _complain_ multiplies them by 0.97; a granted role request is neutral. The captain's call with Captain's Voice also moves momentum (push 6, calm 3). The talk's trust delta now reaches the manager relationship after the match.
+
+**Fatigue and substitutions happen.** `fatiguePerMinute` 0.6 (keepers use at least 70 stamina); a player at 75 fatigue comes off from the 65th minute; at 60, 70 and 80 minutes a manager may also replace an outfielder rating below 6 or protect a two-goal lead (8% each). Second Wind slows in-match fatigue by 15%. Measured: 5-8% of outfield matches end with the career player substituted.
+
+**Skills stack and fit their choice.** Each further skill covering a choice multiplies its odds by 1.1 (1.2, 1.32, 1.45 at most). On a choice already at 75% or more the skill sharpens the outcome (x 1.1 on the goal it leads to) instead of its odds. The occasion: in a fixture of importance above 1 every choice is multiplied by `0.9 + big-match temperament x 0.002` (0.9-1.1, a hidden attribute) plus 0.1 with Big Game Player. Consistency (hidden) shifts the player's governing attributes by up to +/- 8 x (1 - consistency/100) per match, drawn by the match seed.
+
+**Goals are shared.** Key-moment shares of the team's attack: ST 0.40, wingers and AM 0.32 (were 0.55 / 0.42 / 0.40). Measured over 300 matches a position: a striker 0.48 goals and 0.12 assists a match, a winger 0.2 and 0.26, an attacking midfielder 0.2 and 0.3.
+
+**Rating.** Stops credit 2.0 (was 1.5); the team's result adds +/- 0.25 and a clean sheet 0.4 for keepers and the back four (`team` part). Measured means: GK 7.0, CB 6.95, ST 6.7, CM 6.5; p90 8.0-8.5; 1-4% of matches rate 9 or more at every position.
+
+**Fame** = 3 x max(0, rating - 6.3) + 1.5 x goals + 1 x assists + 1.5 per clean sheet (keepers and defenders), so a defender's good game counts.
+
+**Objectives.** A rating target of 7 and one objective drawn for the position each match: keepers a clean sheet or 5 saves; defenders a clean sheet, 3 tackles or a passing rate; defensive midfielders a passing rate, 2 tackles or a clean sheet; central midfielders a passing rate or an assist; attacking midfielders a passing rate, an assist or 2 shots; strikers a goal or 4 shots; wingers a goal, 2 shots or an assist. The passing target is the player's routine completion (`0.68 + passing x 0.002`) minus 3 points, within 65-90. Measured completion 15-72% by kind.
+
+**Headless matches choose like a player.** `autoPlayCommand` draws, by the moment's seed, among the choices within 0.02 expected goals of the best (`autoPlayMargin`), so simulated careers shoot, pass and carry rather than always making the single best call; wingers and attacking midfielders now score in simulated seasons.
+
+**Minutes teach positions.** Ninety minutes in a secondary slot add 3 familiarity (`familiarityPerMatch`).
+
+**Gate.** `npm run profile:match` (`scripts/match-profile.ts`) plays 300 matches a position with the best policy, and the worst on a specialised profile, and asserts: striker 0.35-0.55 goals a match; keeper p90 rating at least 7.6 and every position reaching 9; every objective kind 14-75% complete; outfield substitutions 4-25%; an attacker's goal involvement at least 25% higher under the best policy than the worst; stated odds within 7 points of actual over 100 decisions and 4 over 500 (sampling noise; a direct probe of 36,000 seeded rolls showed no bias).
+
+## Balance pass D (engine `match-10`)
+
+Chemistry with teammates scales a created chance for them (`successGoal × clamp(1 + (chemistry − 60) × 0.004, 0.85, 1.15)`, from `MatchSetup.chemistry`); morale's factor is `1 + (morale − 65) × 0.004` within 0.88–1.12. Saved sessions from `match-9` are discarded on load.

@@ -358,6 +358,10 @@ export const marketText = {
       subject: 'New contract signed',
       body: 'You signed new terms with {club}: {wage} for {years} more seasons.',
     },
+    'free-transfer': {
+      subject: 'A free transfer to {club}',
+      body: 'Your contract ran out and the club had used its option, so you were free to go. {club} had been watching you and you joined them on their terms.',
+    },
     'contract-extended': {
       subject: 'Contract extended by the club',
       body: 'Your contract ran out, so {club} took up their option for one more season, to the end of {season}.',

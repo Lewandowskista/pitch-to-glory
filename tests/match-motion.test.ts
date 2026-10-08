@@ -54,7 +54,8 @@ const POSITIONS: Position[] = ['ST', 'CB', 'GK', 'LW', 'CM', 'RB'];
 const matches = POSITIONS.flatMap((position, p) =>
   [0, 1, 2].map((i) => play(setupAt(position, `motion-${position}-${i}`, p % 2, 2 + (i % 2)))),
 );
-const homeIds = (session: MatchSession) => new Set(session.state.match.home.starterIds);
+// Sides come from the rosters: a substituted player leaves the lineup but not their team.
+const homeIds = (session: MatchSession) => new Set(session.setup.home.playerIds);
 const depth = (side: number, minute: number, x: number) =>
   attacksRightAt(side, minute) ? x : 100 - x;
 

@@ -16,7 +16,7 @@ describe('national world persistence', () => {
       gallery: { seed: 'art', generation: 0 },
     });
     const migrated = migrateSave({ ...save, schemaVersion: 3 });
-    expect(migrated.schemaVersion).toBe(16);
+    expect(migrated.schemaVersion).toBe(17);
     expect(migrated.payload).toEqual(save.payload);
     expect(world.format).toBeUndefined();
   });
@@ -39,7 +39,7 @@ describe('national world persistence', () => {
     const upgraded = new SaveDatabase(name);
     try {
       const read = await new SaveRepository(upgraded).read(1);
-      expect(read?.schemaVersion).toBe(16);
+      expect(read?.schemaVersion).toBe(17);
       expect(read?.payload).toEqual(save.payload);
     } finally {
       upgraded.close();

@@ -57,8 +57,16 @@ function player(traits: string[]): DecisionContext['player'] {
       KEEPING.map((key) => [key, 60]),
     ) as Player['keeperAttributes'],
     traits,
-    // Neutral morale, so skill effects are measured on their own.
+    // Neutral morale and temperament, so skill effects are measured on their own.
     morale: CONFIG.career.social.matchMorale.neutral,
+    hidden: {
+      injuryProneness: 50,
+      bigMatchTemperament: 50,
+      consistency: 100,
+      professionalism: 50,
+      ambition: 50,
+      revealed: [],
+    },
   };
 }
 function contexts(position: Position, traits: string[], importance = 1): DecisionContext[] {
@@ -82,6 +90,11 @@ function contexts(position: Position, traits: string[], importance = 1): Decisio
     pitchCondition: 90,
     strengthGap: 0,
     opponents: { keeper: 60, defender: 60, attacker: 60 },
+    momentum: 50,
+    talkOdds: 1,
+    teammateFinishing: 60,
+    consistencyShift: 0,
+    chemistry: 60,
   }));
 }
 
@@ -119,8 +132,17 @@ describe('skills in key moments', () => {
       CONFIG.match.decision.traitMultiplier,
     );
     expect(traitMultiplier(['big-game-player'], template, 1)).toBe(1);
-    expect(traitMultiplier(['big-game-player'], template, 1.5)).toBe(
-      CONFIG.match.decision.bigGameMultiplier,
+    // In a big game a neutral temperament is even; the skill adds on top of it.
+    const B = CONFIG.match.decision.bigGame;
+    expect(traitMultiplier([], template, 1.5, 50)).toBeCloseTo(B.base + 50 * B.slope, 10);
+    expect(traitMultiplier(['big-game-player'], template, 1.5, 50)).toBeCloseTo(
+      B.base + 50 * B.slope + B.skill,
+      10,
+    );
+    // Skills stack, to a limit.
+    expect(traitMultiplier(['long-ranger', 'finesse-shot'], template, 1)).toBeCloseTo(
+      CONFIG.match.decision.traitMultiplier * CONFIG.match.decision.traitStack,
+      10,
     );
     const [plain, skilled] = [[], ['long-ranger']].map(
       (traits) =>

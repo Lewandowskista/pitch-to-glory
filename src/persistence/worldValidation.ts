@@ -281,11 +281,11 @@ export function validateEntities(
       requireValue(registered.has(String(player.id)));
     }
     for (const key of ['fitness', 'fatigue', 'morale', 'form']) number(player[key], 0, 100);
-    // Only the career player can be injured; validateCareer checks the link.
+    // The career player's injury is linked by validateCareer; an AI injury carries its weeks.
     if (player.injuryId !== null) {
       id(player.injuryId);
-      requireValue(object(w.career ?? {}).playerId === player.id);
-    }
+      if (object(w.career ?? {}).playerId !== player.id) number(player.injuryWeeks, 1, 60, true);
+    } else requireValue(player.injuryWeeks === undefined);
     ids(player.traits, 50);
     const stats = object(player.stats);
     for (const key of ['appearances', 'minutes', 'goals', 'assists', 'cleanSheets'])
@@ -326,6 +326,7 @@ export function validateEntities(
     personality(manager.personality);
     number(manager.age, 25, 120, true);
     text(manager.preferredFormation, 20);
+    if (manager.appointed !== undefined) date(manager.appointed);
     number(manager.ability, 1, 99);
     // A former player turned manager may since have been archived.
     if (manager.formerPlayerId !== null) {

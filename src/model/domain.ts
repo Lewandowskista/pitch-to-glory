@@ -101,6 +101,8 @@ export interface Manager {
   preferredFormation: string;
   ability: number;
   formerPlayerId: Id | null;
+  /** When the manager took the job (absent for managers in place since the world began). */
+  appointed?: GameDate;
 }
 export interface ClubCulture {
   youth: number;
@@ -308,6 +310,8 @@ export interface Contract {
   /** The club owed `sellOnPercent` of the next fee: the club that sold the player. */
   sellOnClubId?: Id;
   loyaltyBonus: number;
+  /** The club has already taken up its one-season option on this contract (balance pass D). */
+  optionTaken?: boolean;
 }
 export interface PlayerStats {
   appearances: number;
@@ -340,6 +344,8 @@ export interface Player {
   morale: number;
   form: number;
   injuryId: Id | null;
+  /** An AI player's weeks left out (the career player's injury is in `career.injury`). */
+  injuryWeeks?: number;
   retired: boolean;
   stats: PlayerStats;
   /** Season in which an unattached player was released; absent while under contract. */
@@ -458,6 +464,8 @@ export interface Career {
   level: number;
   /** Total XP earned in the career. */
   xp: number;
+  /** XP at which the current level began (schema 17); absent in older saves until migrated. */
+  levelXp?: number;
   attributePoints: number;
   skillPoints: number;
   skills: Id[];
@@ -556,13 +564,15 @@ export interface CareerStyle {
 }
 export interface LifestyleAsset {
   id: Id;
-  /** Catalogue item: a car, a home or an investment product. */
+  /** Catalogue item: a car, a home, an investment product, staff, an experience or a charity. */
   itemId: Id;
-  kind: 'car' | 'house' | 'investment';
+  kind: 'car' | 'house' | 'investment' | 'staff' | 'experience' | 'charity';
   bought: GameDate;
   cost: number;
   /** Current resale value (an investment's balance). */
   value: number;
+  /** Weekly cost fixed at purchase (balance pass D); absent for older assets. */
+  upkeep?: number;
 }
 export interface WellbeingPoint {
   season: number;
@@ -592,6 +602,8 @@ export interface CareerSocial {
   coverage: number;
   /** The manager's development promises, at most one a season, newest last (Phase 6). */
   promises?: ManagerPromise[];
+  /** A stance taken to the press, judged by the next result (balance pass D). */
+  stance?: { tone: MediaTone; date: GameDate };
 }
 export type PromiseStatus = 'offered' | 'active' | 'achieved' | 'missed' | 'cancelled';
 export type PromiseEnd =
@@ -746,6 +758,8 @@ export interface Negotiation {
   /** The club's private limits. An agent's estimate is derived from them. */
   limits: {
     maxWage: number;
+    /** The club's hidden walk-away wage (balance pass D); absent in older talks. */
+    walkAwayWage?: number;
     bestRole: Contract['role'];
     years: [number, number];
     minimumClause: number | null;
@@ -887,6 +901,8 @@ export interface Sponsorship {
   obligations: SponsorObligation[];
   /** Career counters when the deal started, to measure obligations. */
   baseline: { matches: number; answered: number } | null;
+  /** Fees paid so far (balance pass D): a failed deal claws a share back. */
+  paid?: number;
 }
 export type ChallengeKind =
   'play' | 'goals' | 'assists' | 'wins' | 'rating' | 'clean-sheets' | 'press' | 'weeks' | 'xp';
@@ -1113,7 +1129,7 @@ export interface Tactics {
 }
 export interface Objective {
   id: Id;
-  kind: 'goals' | 'assists' | 'passing' | 'clean-sheet' | 'rating';
+  kind: 'goals' | 'assists' | 'passing' | 'clean-sheet' | 'rating' | 'tackles' | 'saves' | 'shots';
   target: number;
   progress: number;
 }
@@ -1396,7 +1412,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 16;
+  schemaVersion: 17;
   engineVersion: string;
   slot: SlotId;
   name: string;

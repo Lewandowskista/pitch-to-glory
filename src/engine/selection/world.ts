@@ -20,7 +20,7 @@ export const clubFormation = (world: World, club: Club): Formation =>
 export function clubLineup(
   world: World,
   club: Club,
-  options: { exclude?: readonly Id[] } = {},
+  options: { exclude?: readonly Id[]; seed?: string; rotation?: number } = {},
 ): LineupChoice | null {
   if (!usesFormations(world)) return null;
   return selectLineup(club.playerIds, world.players, clubFormation(world, club), options);

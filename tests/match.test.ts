@@ -26,9 +26,11 @@ function finish(session: MatchSession, api: Awaited<ReturnType<typeof engine>>) 
       value,
       state.currentMoment
         ? { type: 'choose', choiceId: state.currentMoment.choices[0]!.id }
-        : state.match.status === 'halftime'
-          ? { type: 'halftime', response: 'motivate' }
-          : { type: 'advance' },
+        : state.substitutionDecisionPending
+          ? { type: 'substitution', response: 'accept' }
+          : state.match.status === 'halftime'
+            ? { type: 'halftime', response: 'motivate' }
+            : { type: 'advance' },
     );
   }
   return value;

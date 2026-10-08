@@ -22,9 +22,13 @@ export function lifestyleWeek(world: World): void {
   assetWeek(world);
 }
 
-/** Season change: sponsorship deals are judged. */
+/** Season change: sponsorship deals are judged, and fame above the floor fades a little. */
 export function lifestyleRollover(world: World): void {
   sponsorRollover(world);
+  const career = world.career!;
+  const F = L.fameDecay;
+  if (career.fame > F.above)
+    career.fame = Math.round(F.above + (career.fame - F.above) * (1 - F.share));
 }
 
 /**

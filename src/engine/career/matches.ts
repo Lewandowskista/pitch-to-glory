@@ -1,4 +1,5 @@
 import type {
+  Player,
   CareerMatchRecord,
   Fixture,
   Injury,
@@ -7,6 +8,10 @@ import type {
   World,
 } from '../../model/domain';
 import { matchDecisions, recordDecisions } from './coaching';
+import { adjustRelationship } from './market/records';
+import { chemistry } from './social/dressing';
+import { assetEffects } from './lifestyle/catalogue';
+import { FORMATION_SLOTS, type Formation } from '../selection/formations';
 import { CONFIG } from '../config';
 import { createRng } from '../rng';
 import {
@@ -48,6 +53,7 @@ export function careerMatchSetup(world: World, fixture: Fixture): MatchSetup {
         competitionId: fixture.competitionId,
         importance: fixtureImportance(world, fixture),
       },
+      chemistry: Math.round(chemistry(world)),
     },
   );
 }
@@ -177,19 +183,25 @@ export function commitCareerMatch(
   const opponentId = ownHome ? fixture.awayId : fixture.homeId;
   const outcome =
     result.winnerId === player.clubId ? 'win' : result.winnerId === opponentId ? 'loss' : 'draw';
-  // XP: the report's performance XP, weighted by opposition and the occasion.
+  // XP: the report's performance XP plus the key decisions that came off, weighted by the
+  // opposition's standing and the occasion.
   const [low, high] = C.oppositionRange;
   const opposition = Math.min(
     high,
-    Math.max(
-      low,
-      1 +
-        (world.clubs[opponentId]!.reputation - world.clubs[player.clubId!]!.reputation) *
-          C.oppositionSlope,
-    ),
+    Math.max(low, C.oppositionBase + world.clubs[opponentId]!.reputation * C.oppositionSlope),
+  );
+  const decisions = matchDecisions(session, world.date);
+  const analyst = assetEffects(career.style?.assets ?? []).decisionXp;
+  const decisionXp = decisions.reduce(
+    (sum, decision) =>
+      sum +
+      (decision.success
+        ? (decision.probability < 0.5 ? C.decisionXp.underdog : C.decisionXp.success) + analyst
+        : 0),
+    0,
   );
   const importance = session.setup.fixture!.importance;
-  const xp = Math.round(performance * opposition * importance);
+  const xp = Math.round((performance + decisionXp) * opposition * importance);
   const previousLevel = career.level;
   const levelsGained = addXp(career, xp);
   career.fame += fame;
@@ -218,7 +230,16 @@ export function commitCareerMatch(
     tackles: state.stats.tackles,
   };
   career.matches.push(record);
-  recordDecisions(career, matchDecisions(session, world.date));
+  recordDecisions(career, decisions);
+  // The half-time talk and the response to a substitution reach the manager.
+  if (session.state.managerTrustDelta)
+    adjustRelationship(
+      world,
+      'manager',
+      world.clubs[player.clubId!]!.managerId,
+      session.state.managerTrustDelta,
+    );
+  learnSlot(session, player, minutesPlayed);
   accrueMatchBonuses(world, record.goals, record.cleanSheet);
   socialMatch(world, record, fixture);
   const signature = celebrationFame(world, record.goals, importance);
@@ -250,6 +271,29 @@ export function commitCareerMatch(
   return { record, final, previousLevel, levelsGained, injury, celebrationFame: signature };
 }
 
+/** Minutes in a secondary position teach it: familiarity grows with time played there. */
+function learnSlot(session: MatchSession, player: Player, minutes: number): void {
+  const own =
+    player.clubId === session.setup.home.id ? session.state.match.home : session.state.match.away;
+  const index = own.starterIds.indexOf(player.id);
+  const formation = own.formation as Formation | undefined;
+  if (index < 0 || !formation || !FORMATION_SLOTS[formation] || minutes <= 0) return;
+  const slot = FORMATION_SLOTS[formation][index]?.position;
+  if (
+    !slot ||
+    slot === player.primaryPosition ||
+    (slot === 'GK') !== (player.primaryPosition === 'GK')
+  )
+    return;
+  const gain = Math.round(
+    (CONFIG.career.training.familiarityPerMatch * Math.min(90, minutes)) / 90,
+  );
+  if (!gain) return;
+  const entry = player.secondaryPositions.find((p) => p.position === slot);
+  const familiarity = Math.min(100, (entry?.familiarity ?? 0) + gain);
+  if (entry) entry.familiarity = familiarity;
+  else player.secondaryPositions.push({ position: slot, familiarity });
+}
 /** Headless decision policy for simulated career matches: best expected goal difference. */
 export function autoPlayCommand(session: MatchSession): MatchCommand {
   const s = session.state;
@@ -265,10 +309,20 @@ export function autoPlayCommand(session: MatchSession): MatchCommand {
     return { type: 'captain', instruction: behind ? 'push' : 'calm' };
   }
   if (s.currentMoment) {
-    const best = [...s.currentMoment.choices].sort(
-      (a, b) => expectedImpact(b).net - expectedImpact(a).net || (a.id < b.id ? -1 : 1),
-    )[0]!;
-    return { type: 'choose', choiceId: best.id };
+    // Any choice close to the best in expected goals is a reasonable one; which of them is
+    // taken is drawn by the moment's seed, so simulated careers shoot, pass and carry the way
+    // a player would rather than always making the single best call.
+    const ranked = [...s.currentMoment.choices]
+      .map((choice) => ({ choice, net: expectedImpact(choice).net }))
+      .sort((a, b) => b.net - a.net || (a.choice.id < b.choice.id ? -1 : 1));
+    const best = ranked[0]!.net;
+    const margin = CONFIG.match.autoPlayMargin;
+    const near = ranked.filter((entry) => entry.net >= best - margin);
+    const pick = createRng(`${session.setup.seed}:auto:${s.currentMoment.id}`).int(
+      0,
+      near.length - 1,
+    );
+    return { type: 'choose', choiceId: near[pick]!.choice.id };
   }
   return { type: 'advance' };
 }

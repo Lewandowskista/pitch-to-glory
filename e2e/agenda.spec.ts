@@ -5,6 +5,7 @@ import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCareerFixture } from '../src/engine/career/matches';
+import { addXp, xpToNext } from '../src/engine/career/progression';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
 import { careerTabs, isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
@@ -45,6 +46,8 @@ function between(seed: string): World {
   // Play this week's match, as a player would: Continue is then the next action.
   for (let pending = pendingCareerFixture(world); pending; pending = pendingCareerFixture(world))
     autoPlayCareerFixture(world, pending);
+  // Enough XP for level 3, so the two skill points below are ones the career has earned.
+  while (world.career!.level < 3) addXp(world.career!, xpToNext(world.career!.level));
   return world;
 }
 test.beforeAll(async ({ browserName }, workerInfo) => {

@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
-import { makeSponsorOffer, BRAND_BY_ID } from '../src/engine/career/lifestyle';
+import { makeSponsorOffer, BRAND_BY_ID, priceOf } from '../src/engine/career/lifestyle';
+import { LIFESTYLE_BY_ID } from '../src/engine/career/lifestyle/catalogue';
 import { createRng } from '../src/engine/rng';
 import { CONFIG } from '../src/engine/config';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
@@ -56,7 +57,7 @@ async function accessibilityViolations(page: Page): Promise<string[]> {
 }
 
 /** A career at fame level 4 with savings and a sponsor offer waiting, built with the engine. */
-function lifestyleSave(): { json: string; brand: string } {
+function lifestyleSave(): { json: string; brand: string; left: number } {
   const base = generateWorld('lifestyle-browser', { format: 'legacy' });
   const trial = trialOffers(base, 'country:0', 'lifestyle-browser')[0]!;
   const world: World = createCareer(
@@ -86,6 +87,8 @@ function lifestyleSave(): { json: string; brand: string } {
   world.career!.style.fameLevel = 4;
   world.career!.market.finances.cash = 30_000;
   world.career!.market.finances.lifetimeEarnings = 30_000;
+  // Cars are priced in weeks of wages: what the hatchback leaves of the savings.
+  const left = 30_000 - priceOf(world, LIFESTYLE_BY_ID['car:hatch']!);
   const offer = makeSponsorOffer(world, createRng('lifestyle-browser-offer'))!;
   const save = createSave(1, 'Lifestyle career', {
     kind: 'world',
@@ -93,7 +96,7 @@ function lifestyleSave(): { json: string; brand: string } {
     gallery: { seed: 'lifestyle-browser', generation: 0 },
     settings: DEFAULT_SETTINGS,
   });
-  return { json: JSON.stringify(save), brand: BRAND_BY_ID[offer.brandId]!.name };
+  return { json: JSON.stringify(save), brand: BRAND_BY_ID[offer.brandId]!.name, left };
 }
 
 test('signs a sponsor, buys a car, dresses up and picks a celebration', async ({
@@ -101,7 +104,7 @@ test('signs a sponsor, buys a car, dresses up and picks a celebration', async ({
   browserName,
 }) => {
   test.setTimeout(180000);
-  const { json, brand } = lifestyleSave();
+  const { json, brand, left } = lifestyleSave();
   await page.goto('/saves');
   await page
     .locator('.slot-card')
@@ -125,7 +128,7 @@ test('signs a sponsor, buys a car, dresses up and picks a celebration', async ({
   await page.getByRole('button', { name: 'Buy — City hatchback' }).click();
   const owned = page.getByRole('region', { name: 'Lifestyle' });
   await expect(owned.getByRole('button', { name: /Sell for .* — City hatchback/ })).toBeVisible();
-  await expect(owned.getByText('27,500 Cr')).toBeVisible();
+  await expect(owned.getByText(`${left.toLocaleString('en-GB')} Cr`)).toBeVisible();
 
   // Wardrobe: today's challenges arrive, a free hairstyle, long sleeves and a celebration.
   await openCareerPage(page, 'Wardrobe');

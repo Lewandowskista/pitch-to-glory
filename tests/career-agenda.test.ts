@@ -39,7 +39,8 @@ beforeAll(() => {
   const base = generateWorld('agenda-tests', { format: 'legacy' });
   const trial = trialOffers(base, 'country:0', 'agenda-tests')[0]!;
   start = createCareer(base, draft, trial.id, 'agenda-tests');
-});
+  between = findBetweenMatches();
+}, 60000);
 const player = (world: World) => world.players[world.career!.playerId]!;
 const clubId = (world: World) => player(world).clubId!;
 /** Simulate weeks with the career's own matches auto-played, as a season simulation does. */
@@ -49,13 +50,30 @@ function weeks(world: World, count: number): World {
     next = advanceCareerWeek(next, { inPlace: true, autoPlay: true }).world;
   return next;
 }
-/** The world at a week with no match ready, so Continue is available. */
-function betweenMatches(): World {
+/** The world at a week with no match ready, so Continue is available (computed once). */
+let between: World;
+function findBetweenMatches(): World {
   let world = clone(start);
-  for (let guard = 0; guard < 10 && pendingCareerFixture(world); guard++) world = weeks(world, 1);
+  // A week with nothing to play, and more of the season to come.
+  const later = (w: World) =>
+    Object.values(w.fixtures).some(
+      (f) =>
+        f.date.season === w.date.season &&
+        f.date.week > w.date.week &&
+        (f.homeId === clubId(w) || f.awayId === clubId(w)),
+    );
+  world = weeks(world, 1);
+  // The club plays every week, so the quiet week is one the player is not yet registered for.
+  world.career!.market.registeredFrom = {
+    season: world.date.season,
+    week: world.date.week + 1,
+    day: 1,
+  };
   expect(pendingCareerFixture(world)).toBeNull();
+  expect(later(world)).toBe(true);
   return quiet(world);
 }
+const betweenMatches = (): World => clone(between);
 /** Close the world's own open actions, so each test controls what is waiting. */
 function quiet(world: World): World {
   world.media = world.media.filter((item) => !item.choices.length || item.answer !== null);

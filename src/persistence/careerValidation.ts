@@ -1,7 +1,7 @@
 import type { Player, TrainingFocus } from '../model/domain';
 import { CONFIG } from '../engine/config';
 import { ARCHETYPE_BY_ID, SKILL_BY_ID } from '../engine/career/catalogue';
-import { levelForXp, trainableAttributes } from '../engine/career/progression';
+import { trainableAttributes, xpToNext } from '../engine/career/progression';
 import { validFocus } from '../engine/career/training';
 import {
   array,
@@ -21,6 +21,17 @@ import {
  * (level from XP, traits from skills, the injury link) must agree, so an imported save cannot
  * claim progress it never earned.
  */
+/**
+ * The least XP a level can have needed: every step costs at least the cheaper of the current
+ * curve and the one before schema 17, whichever curve a career climbed it on.
+ */
+function cheapestXpForLevel(level: number): number {
+  const { base, growth } = CONFIG.career.legacyLevelCurve;
+  let total = 0;
+  for (let current = 1; current < level; current++)
+    total += Math.min(Math.round(base * growth ** (current - 1)), xpToNext(current));
+  return total;
+}
 export function validateCareer(w: Record<string, unknown>): void {
   if (w.career === undefined) return;
   const career = object(w.career);
@@ -34,8 +45,16 @@ export function validateCareer(w: Record<string, unknown>): void {
   number(career.startSeason, 1800, Number(current.season), true);
   number(career.xp, 0, 1e9, true);
   number(career.level, 1, CONFIG.career.maximumLevel, true);
-  requireValue(career.level === levelForXp(Number(career.xp)));
-  const earned = (Number(career.level) - 1) * CONFIG.career.attributePointsPerLevel;
+  // The level began at `levelXp`: no earlier than the cheapest curve ever shipped allows,
+  // and it has not yet earned the next one.
+  number(career.levelXp, cheapestXpForLevel(Number(career.level)), Number(career.xp), true);
+  requireValue(
+    career.level === CONFIG.career.maximumLevel ||
+      Number(career.xp) - Number(career.levelXp) < xpToNext(Number(career.level)),
+  );
+  const earned =
+    (Number(career.level) - 1) *
+    Math.max(CONFIG.career.attributePointsPerLevel, CONFIG.career.legacyAttributePointsPerLevel);
   number(career.attributePoints, 0, earned, true);
   number(
     career.skillPoints,

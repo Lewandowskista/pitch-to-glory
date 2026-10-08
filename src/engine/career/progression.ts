@@ -32,11 +32,17 @@ export function levelForXp(xp: number): number {
   }
   return level;
 }
+/**
+ * The XP at which the current level began. Careers record it from schema 17, so a level
+ * curve change never takes or grants levels; older records are read as if at the curve.
+ */
+export function levelStart(career: Pick<Career, 'xp' | 'level' | 'levelXp'>): number {
+  return career.levelXp ?? Math.min(career.xp, xpForLevel(career.level));
+}
 /** Progress within the current level, for the XP bar. */
-export function levelProgress(career: Pick<Career, 'xp' | 'level'>) {
-  const start = xpForLevel(career.level);
+export function levelProgress(career: Pick<Career, 'xp' | 'level' | 'levelXp'>) {
   const needed = career.level >= C.maximumLevel ? 0 : xpToNext(career.level);
-  return { into: career.xp - start, needed };
+  return { into: career.xp - levelStart(career), needed };
 }
 
 export const careerPlayer = (world: World): Player => {
@@ -63,7 +69,8 @@ function setAttribute(player: Player, key: AnyAttribute, value: number): void {
 
 /**
  * Attribute points needed to raise `key` by one, or null when it cannot be raised. Costs rise
- * at the age-adjusted soft cap and again beyond it; physical attributes cost more from 29.
+ * at the age-adjusted soft cap and keep rising beyond it; before `hardCapAge` an attribute
+ * stops at cap + `hardCapMargin`; physical attributes cost more from 29.
  */
 export function attributeCost(world: World, key: AnyAttribute): number | null {
   const player = careerPlayer(world);
@@ -72,12 +79,14 @@ export function attributeCost(world: World, key: AnyAttribute): number | null {
   if (value >= 99) return null;
   const age = careerAge(world);
   const cap = careerCap(player, key, age);
+  if (age < C.costs.hardCapAge && value >= cap + C.costs.hardCapMargin) return null;
+  const beyond = value - (cap + C.costs.capMargin);
   const base =
     value < cap
       ? C.costs.belowCap
-      : value < cap + C.costs.capMargin
+      : beyond < 0
         ? C.costs.nearCap
-        : C.costs.beyondCap;
+        : C.costs.beyondCap + Math.floor(beyond / C.costs.beyondCapStep);
   const category = ageCategory(key);
   const physical = category === 'pace' || category === 'physical';
   return base + (physical && age >= C.costs.physicalAge ? C.costs.physicalSurcharge : 0);
@@ -142,7 +151,12 @@ export function grantStartingSkill(career: Career, player: Player, id: string): 
 export function addXp(career: Career, xp: number): number {
   const before = career.level;
   career.xp += Math.max(0, Math.round(xp));
-  career.level = levelForXp(career.xp);
+  let start = levelStart(career);
+  while (career.level < C.maximumLevel && career.xp - start >= xpToNext(career.level)) {
+    start += xpToNext(career.level);
+    career.level++;
+  }
+  career.levelXp = start;
   const gained = career.level - before;
   career.attributePoints += gained * C.attributePointsPerLevel;
   career.skillPoints += gained * C.skillPointsPerLevel;

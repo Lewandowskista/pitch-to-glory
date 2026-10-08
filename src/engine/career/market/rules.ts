@@ -11,7 +11,7 @@ import type {
 } from '../../../model/domain';
 import { CONFIG } from '../../config';
 import { createRng } from '../../rng';
-import { playerAbility } from '../../strength';
+import { playerAbility, wageFor } from '../../strength';
 import { effectiveAbility, available, selectLineup, slotFit } from '../../selection/lineup';
 import { FORMATION_SLOTS, type Formation } from '../../selection/formations';
 import { clubFormation, clubStarters, usesFormations } from '../../selection/world';
@@ -143,16 +143,9 @@ export function marketValue(world: World, player: Player): number {
 
 /** Weekly wage a club pays for this ability and role (the generation formula, by role). */
 export function marketWage(club: Club, player: Player, role: Role): number {
-  const G = CONFIG.world.generation;
-  const ability = playerAbility(player);
   return Math.max(
-    G.wageFloor,
-    Math.round(
-      ability *
-        ability *
-        (G.wageBase + club.reputation / G.wageReputationDivisor) *
-        M.roleWage[role],
-    ),
+    CONFIG.world.generation.wageFloor,
+    Math.round(wageFor(playerAbility(player), club.reputation) * M.roleWage[role]),
   );
 }
 export function bonusesFor(weeklyWage: number) {
@@ -344,7 +337,8 @@ export function careerSelection(world: World, fixture: Fixture): Selection {
   ];
   const raw = reasons.reduce((sum, reason) => sum + reason.contribution!, 0);
   let probability = Math.max(S.minimum, Math.min(1, raw));
-  if (role === 'key') probability = Math.max(probability, S.keyFloor);
+  if (role === 'key' && competition.placesOutside <= S.keyFloorPlaces)
+    probability = Math.max(probability, S.keyFloor);
   if (probability !== raw) reasons.push({ kind: 'limit', contribution: probability - raw });
   if (!registered) reasons.push({ kind: 'registration', contribution: null });
   const draw = createRng(`${world.seed}:selection:${fixture.id}`).next();

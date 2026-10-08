@@ -300,7 +300,7 @@ export const careerText = {
     eyebrow: 'Player profile',
     attributes: 'Attributes',
     attributesBody:
-      'Each +1 costs {below} point below your age-adjusted soft cap, {near} at it and {beyond} beyond it. Pace and physical attributes cost {surcharge} more from age {age}.',
+      'Each +1 costs {below} point below your age-adjusted soft cap, {near} at it and {beyond} or more beyond it, rising every {step} points. Before {hardAge} nothing goes more than {hardMargin} past its cap. Pace and physical attributes cost {surcharge} more from age {age}. Attributes below their cap also grow on their own, faster the more you play.',
     available: 'Available',
     groups: {
       technical: 'Technical',

@@ -93,8 +93,9 @@ function uniform(value: number): DecisionContext['player'] {
   for (const key of Object.keys(player.keeperAttributes) as (keyof Player['keeperAttributes'])[])
     player.keeperAttributes[key] = value;
   player.traits = [];
-  // Reference conditions include neutral morale.
+  // Reference conditions include neutral morale and temperament, and perfect consistency.
   player.morale = CONFIG.career.social.matchMorale.neutral;
+  player.hidden = { ...player.hidden, bigMatchTemperament: 50, consistency: 100 };
   return player;
 }
 /** Neutral analytic context: reference conditions, equal teams and a 60-rated opponent. */
@@ -119,6 +120,11 @@ function contexts(position: Position, value = 60): DecisionContext[] {
     pitchCondition: 90,
     strengthGap: 0,
     opponents: { keeper: 60, defender: 60, attacker: 60 },
+    momentum: 50,
+    talkOdds: 1,
+    teammateFinishing: 60,
+    consistencyShift: 0,
+    chemistry: 60,
   }));
 }
 const sideOf = (s: MatchSetup) => (s.players[s.selectedPlayerId]!.clubId === s.home.id ? 0 : 1);
@@ -355,10 +361,10 @@ describe('decision fairness', () => {
       buildChoices(contexts('ST', value).find((c) => c.situation.id === 'box-chance')!).filter(
         (c) => c.stakes.successGoal === 1,
       );
-    for (const shot of at(40)) expect(shot.probability).toBeGreaterThanOrEqual(0.07);
+    for (const shot of at(40)) expect(shot.probability).toBeGreaterThanOrEqual(0.045);
     for (const shot of at(60)) {
-      expect(shot.probability).toBeGreaterThan(0.1);
-      expect(shot.probability).toBeLessThan(0.22);
+      expect(shot.probability).toBeGreaterThan(0.075);
+      expect(shot.probability).toBeLessThan(0.2);
     }
     for (const shot of at(80)) expect(shot.probability).toBeLessThanOrEqual(0.3);
   });

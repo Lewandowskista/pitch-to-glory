@@ -83,6 +83,13 @@ function monthBaselines(world: World, league: League): Record<string, StatLine> 
 }
 const score = (l: Line) =>
   l.rating * A.score.rating + l.goals * A.score.goal + l.assists * A.score.assist;
+/** A season's numbers weighed by the level they came at (the scouting visibility of the tier). */
+function visibilityOf(world: World, player: Player): number {
+  const club = player.clubId ? world.clubs[player.clubId] : undefined;
+  const tier = club ? (world.leagues[club.leagueId]?.tier ?? 6) : 6;
+  const V = CONFIG.career.market.scouting.visibility;
+  return V[Math.min(V.length, tier) - 1]!;
+}
 
 const careerLeague = (world: World): League | undefined => {
   const player = world.players[world.career!.playerId]!;
@@ -416,7 +423,11 @@ export function seasonAwards(world: World): void {
         entry.player.nationalityId === nationality &&
         season - entry.player.birthSeason <= A.youngAge,
     )
-    .sort((a, b) => score(b.line) - score(a.line) || (a.player.id < b.player.id ? -1 : 1));
+    .sort(
+      (a, b) =>
+        score(b.line) * visibilityOf(world, b.player) -
+          score(a.line) * visibilityOf(world, a.player) || (a.player.id < b.player.id ? -1 : 1),
+    );
   if (young[0])
     celebrate(
       world,
@@ -427,7 +438,7 @@ export function seasonAwards(world: World): void {
         competitionId: null,
         winnerIds: [young[0].player.id],
         shortlist: [],
-        value: Math.round(score(young[0].line) * 10) / 10,
+        value: Math.round(score(young[0].line) * visibilityOf(world, young[0].player) * 10) / 10,
       }),
       A.fame.season,
     );
@@ -468,7 +479,8 @@ export function seasonAwards(world: World): void {
       return {
         playerId: entry.player.id,
         clubId,
-        score: Math.round((score(entry.line) + bonus) * 10) / 10,
+        score:
+          Math.round((score(entry.line) * visibilityOf(world, entry.player) + bonus) * 10) / 10,
       };
     })
     .sort((a, b) => b.score - a.score || (a.playerId < b.playerId ? -1 : 1));

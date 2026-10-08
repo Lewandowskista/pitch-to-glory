@@ -7,32 +7,38 @@ export const CONFIG = {
     maximumMoments: 15,
     momentBase: 8,
     involvement: { attack: 1, other: 0, keeper: -1 },
-    formStep: 15,
-    fatiguePerMinute: 0.48,
+    formStep: 10,
+    fatiguePerMinute: 0.6,
+    /** Keepers' outfield stamina is untrained; their in-match fatigue uses at least this. */
+    keeperStamina: 70,
     highRiskFatigue: 0.08,
     halftimeRecovery: 8,
-    substitutionFatigue: 82,
+    substitutionFatigue: 75,
     minimumSubstitutionMinute: 65,
     /** No new substitution is triggered from this minute onwards. */
     substitutionCutoffMinute: 90,
+    /** A manager may also replace a poor or well-protected player at these minutes. */
+    tacticalSubstitution: { minutes: [60, 70, 80], chance: 0.08, ratingBelow: 6, leadingBy: 2 },
     /** Background shot → goal conversion, and created-chance goal probability per recorded shot. */
     shotConversion: 0.12,
     chanceConversion: 0.3,
     passPerMinute: 0.48,
     routinePass: { base: 0.68, passing: 0.002, fatigue: 0.0008, minimum: 0.4, maximum: 0.96 },
-    /** Personal tactics adjust strength-model expectations: mentality moves goal share, risk total. */
+    /**
+     * Personal tactics adjust strength-model expectations. Mentality and some roles scale
+     * [own, opposition] expected goals: attacking opens the game both ways, defensive closes
+     * it; risk scales the total.
+     */
     tactics: {
-      mentalityShare: 0.03,
+      mentality: { attacking: [1.08, 1.06], defensive: [0.92, 0.9] } as const,
       riskTotal: { low: 0.95, balanced: 1, high: 1.06 },
-      minimumShare: 0.1,
-      maximumShare: 0.9,
     },
     /** Fraction of own [attack] and opposition [defence] expected goals replaced by key moments. */
     shares: {
-      ST: [0.55, 0.04],
-      LW: [0.42, 0.05],
-      RW: [0.42, 0.05],
-      AM: [0.4, 0.05],
+      ST: [0.37, 0.04],
+      LW: [0.32, 0.05],
+      RW: [0.32, 0.05],
+      AM: [0.32, 0.05],
       CM: [0.26, 0.12],
       DM: [0.1, 0.26],
       CB: [0.07, 0.32],
@@ -50,8 +56,27 @@ export const CONFIG = {
       impactMinimum: 0.7,
       impactMaximum: 1.3,
       traitMultiplier: 1.2,
-      /** All choices in a fixture of importance above 1, with the Big Game Player skill. */
-      bigGameMultiplier: 1.1,
+      /** Each further skill covering a choice multiplies its odds again, to a limit. */
+      traitStack: 1.1,
+      traitStackMaximum: 1.45,
+      /** A choice already this likely takes its trait bonus on impact instead of odds. */
+      traitImpactThreshold: 0.75,
+      traitImpact: 1.1,
+      /** In a fixture of importance above 1: base + temperament × slope, plus the Big Game
+       * Player skill. */
+      bigGame: { base: 0.9, slope: 0.002, skill: 0.1 },
+      /** Per match, governing attributes shift by up to ± spread × (1 − consistency / 100). */
+      consistencySpread: 8,
+      /** Odds × (1 + (own momentum − 50) × slope): a team on top finds everything easier. */
+      momentumSlope: 0.002,
+      /** Half-time: the talk's effect on second-half odds and on momentum. */
+      talk: { motivate: 1.03, complain: 0.97, momentum: 8, leaderBonus: 1.5 },
+      /** The captain's call with the Captain's Voice skill also moves momentum. */
+      captainsVoice: { push: 6, calm: 3 },
+      /** Second Wind slows in-match fatigue. */
+      secondWindFatigue: 0.85,
+      /** A chance made for a teammate converts by their finishing against the player's own. */
+      receiver: { slope: 0.005, minimum: 0.9, maximum: 1.1 },
       roleMultiplier: 1.12,
       roleCounterRelief: 0.85,
       /** Non-direct base odds × (1 + (own − opposition strength) × slope), bounded. */
@@ -70,6 +95,8 @@ export const CONFIG = {
         balanced: { odds: 1, impact: 1 },
         high: { odds: 0.9, impact: 1.1 },
       },
+      /** Risk on direct shots: careful shots go in more often, ambitious ones less. */
+      riskShot: { low: 1.03, balanced: 1, high: 0.95 },
       /** Defensive choices concede this fraction of the replaced opposition expectation. */
       defensiveEdge: 0.9,
       minimumProbability: 0.02,
@@ -91,46 +118,85 @@ export const CONFIG = {
       goal: 0.6,
       assist: 0.6,
       /** Saves and defensive stops: stop × expected goals removed ÷ success probability. */
-      stop: 1.5,
+      stop: 2,
       /** Every goal conceded from the player's own key moment. */
       error: -0.45,
+      /** The team's result (± for a win or loss) and a clean sheet for keepers and defenders. */
+      result: 0.25,
+      cleanSheet: 0.4,
       minimum: 3,
       maximum: 10,
     },
     momentum: { decay: 0.85, shot: 4, goal: 12, success: 3, failure: 2, minimum: 5, maximum: 95 },
     possession: { strengthSlope: 0.45, mentality: 3, momentum: 0.08, minimum: 30, maximum: 70 },
     commentaryVariants: 3,
+    /** Simulated career matches pick among choices within this many expected goals of the best. */
+    autoPlayMargin: 0.02,
     xp: {
-      perMinute: 1.2,
-      ratingThreshold: 6,
-      perRating: 25,
-      perGoal: 30,
-      perAssist: 20,
+      perMinute: 0.5,
+      ratingThreshold: 5.5,
+      perRating: 50,
+      perGoal: 40,
+      perAssist: 28,
       perObjective: 15,
     },
-    fame: { ratingThreshold: 6.5, perRating: 2, perGoal: 2 },
+    fame: { ratingThreshold: 6.3, perRating: 3, perGoal: 1.5, perAssist: 1, perCleanSheet: 1.5 },
+    /** Personal objectives: a rating target and one drawn for the position each match. */
+    objectives: {
+      rating: 7,
+      /** Passing target: the player's routine completion plus a margin, within the range. */
+      passingMargin: -3,
+      passingRange: [65, 90] as const,
+      tackles: { defender: 3, midfield: 2 },
+      saves: 5,
+      shots: { striker: 4, other: 2 },
+    },
   },
   /** Career player progression (milestone 4). See docs/BALANCING.md. */
   career: {
     /** XP needed from level n to n + 1 is levelXpBase × levelXpGrowth^(n − 1). */
-    levelXpBase: 300,
-    levelXpGrowth: 1.06,
+    levelXpBase: 500,
+    levelXpGrowth: 1.02,
     maximumLevel: 99,
-    attributePointsPerLevel: 8,
+    attributePointsPerLevel: 5,
+    /** Careers saved before schema 17 earned this many a level and climbed this curve;
+     * validation allows a level reached under either. */
+    legacyAttributePointsPerLevel: 8,
+    legacyLevelCurve: { base: 300, growth: 1.06 },
     skillPointsPerLevel: 1,
     /** Fixture importance multiplies match XP and powers big-game skills. */
     importance: { league: 1, phase: 1.1, cup: 1.15, tie: 1.25, final: 1.5 },
-    /** XP multiplier from opposition reputation relative to the player's club. */
-    oppositionSlope: 0.01,
-    oppositionRange: [0.8, 1.3] as const,
+    /** XP multiplier from the opposition's reputation: base + reputation × slope, in range. */
+    oppositionBase: 0.75,
+    oppositionSlope: 0.005,
+    oppositionRange: [0.6, 1.3] as const,
+    /** XP for each successful key-moment decision, more when its odds were below a half. */
+    decisionXp: { success: 4, underdog: 8 },
     /** Attribute point costs relative to the age-adjusted soft cap. */
     costs: {
       belowCap: 1,
       nearCap: 2,
       beyondCap: 3,
       capMargin: 5,
+      /** Beyond cap + capMargin the cost rises by one for every this many points. */
+      beyondCapStep: 4,
+      /** Before hardCapAge an attribute cannot be raised past cap + hardCapMargin. */
+      hardCapMargin: 12,
+      hardCapAge: 24,
       physicalAge: 29,
       physicalSurcharge: 1,
+    },
+    /**
+     * Passive development: the career player's attributes below their age-adjusted cap drift
+     * toward it, faster with playing time, so points buy emphasis rather than existence.
+     */
+    development: {
+      /** Fraction of the gap to the cap closed per season at full playing time. */
+      growthPerSeason: 0.35,
+      /** Share of that growth that depends on recent minutes; the rest comes regardless. */
+      playingWeight: 0.5,
+      /** Matches counted for recent playing time. */
+      recentMatches: 8,
     },
     start: {
       ageRange: [16, 18] as const,
@@ -138,7 +204,7 @@ export const CONFIG = {
       /** Starting attributes sit this far below the trial club's squad average... */
       belowClub: 3,
       /** ...plus the archetype's emphasis, scaled by this factor. */
-      emphasisScale: 1,
+      emphasisScale: 2.5,
       noise: 2,
       offers: 3,
     },
@@ -156,20 +222,22 @@ export const CONFIG = {
       fatigue: 60,
       goals: {
         appearances: { key: 30, rotation: 22, backup: 12, youth: 14 },
-        passes: 150,
+        passes: 600,
         tackles: 30,
-        attributeGain: 3,
+        attributeGain: 6,
       },
       historyLimit: 10,
     },
     training: {
       sessions: 3,
-      gain: { low: 0.08, normal: 0.13, high: 0.19 },
-      mentorGain: 0.15,
+      gain: { low: 0.09, normal: 0.13, high: 0.24 },
+      mentorGain: 0.12,
       /** Mentor quality multiplies gain by up to 1 + this, from the mentor's lead in the focus. */
       mentorBonus: 0.5,
-      fatigue: { low: 1, normal: 2, high: 5, extra: 3, recovery: -12 },
-      injuryRisk: { low: 0.002, normal: 0.005, high: 0.013, extra: 0.004 },
+      fatigue: { low: 0.5, normal: 1.5, high: 4, extra: 2, recovery: -8 },
+      injuryRisk: { low: 0.002, normal: 0.005, high: 0.009, extra: 0.004 },
+      /** Training injury risk by age: the young recover, the old break. */
+      injuryAgeFactor: { under21: 0.7, over30: 1.3 },
       /** Learning speed by age: [age, multiplier]. */
       ageLearning: [
         [16, 1.3],
@@ -180,6 +248,8 @@ export const CONFIG = {
         [36, 0.5],
       ] as const,
       familiarity: { low: 2, normal: 4, high: 6 },
+      /** Familiarity gained per ninety minutes played in a secondary position. */
+      familiarityPerMatch: 3,
       /** Training progress above the soft cap is slowed by this factor and stops at cap + margin. */
       beyondCapFactor: 0.5,
       professionalSkill: 1.2,
@@ -199,9 +269,10 @@ export const CONFIG = {
         { kind: 'broken-foot', weight: 2.5, weeks: [8, 14], severity: 4, threatening: 0 },
         { kind: 'knee-ligament', weight: 1.2, weeks: [16, 30], severity: 5, threatening: 0.25 },
       ] as const,
-      rush: { durationFactor: 0.6, reinjuryRisk: 0.15 },
-      /** A career-threatening injury permanently costs this much pace and acceleration. */
-      threateningLoss: 6,
+      /** A rushed return: this share of the time out, then a per-match re-injury risk for six weeks. */
+      rush: { durationFactor: 0.5, reinjuryPerSeverity: 0.02 },
+      /** A career-threatening injury permanently costs these attribute points. */
+      threateningLoss: { pace: 12, acceleration: 12, agility: 6, jumping: 6 },
     },
     /** Hidden attributes revealed at these appearance counts, in this order. */
     reveal: {
@@ -245,23 +316,27 @@ export const CONFIG = {
       transferRequestDiscount: 0.85,
       openingBid: 0.8,
       /** A buyer bids up to value × (1 + confidence × bidConfidenceWeight), within its budget. */
-      bidConfidenceWeight: 0.005,
+      bidConfidenceWeight: 0.01,
       /** Lines a squad fields, for the role a player can be promised. */
       slots: { GK: 1, DEF: 4, MID: 3, ATT: 3 },
       /** Selection: chance of starting by role, then adjustments. */
       selection: {
         base: { key: 0.97, rotation: 0.85, backup: 0.45, youth: 0.6 },
         inTeam: 0.08,
-        perPlaceOutside: 0.05,
+        perPlaceOutside: 0.08,
         maximumPlacesOutside: 4,
         form: 0.003,
         trust: 0.002,
         tiredFatigue: 70,
         tired: 0.15,
         minimum: 0.05,
-        keyFloor: 0.9,
+        /** A key player's floor applies only while they are at most this many places outside. */
+        keyFloor: 0.75,
+        keyFloorPlaces: 1,
         /** Share of matchdays a promise guarantees; below it the promise is broken. */
-        promise: { key: 0.7, rotation: 0.4 },
+        promise: { key: 0.8, rotation: 0.5 },
+        /** A broken promise halves the release clause, so a move costs the next club less. */
+        brokenClauseFactor: 0.5,
         promiseMinimumMatchdays: 10,
       },
       /** Interest and scouting. */
@@ -270,7 +345,7 @@ export const CONFIG = {
         visibility: [1, 0.85, 0.7, 0.55, 0.45, 0.4] as const,
         foreign: 0.35,
         startChance: 0.04,
-        maximumTransfer: 10,
+        maximumTransfer: 5,
         maximumLoan: 4,
         /** Interested clubs' level against the player's projected ability. */
         bandBelow: 6,
@@ -287,8 +362,11 @@ export const CONFIG = {
         loanOfferAt: 50,
         weeks: 4,
         loanWeeks: 2,
-        offerChance: 0.4,
+        offerChance: 0.25,
         maximumOpenOffers: 2,
+        /** After a declined, lapsed or collapsed offer the club waits this long to bid again. */
+        declineCooldownWeeks: 20,
+        declineConfidence: 25,
         /** Recent ratings: the last n matches within this many weeks. */
         recentMatches: 6,
         recentWeeks: 12,
@@ -299,10 +377,19 @@ export const CONFIG = {
         renewalWeeks: 4,
         /** The club's wage ceiling above its opening offer, plus agent and desire bonuses. */
         wageStretch: 0.12,
-        agentStretch: 0.0025,
+        /** Agents stretch the club's limits by their skill, by personality. */
+        agentStretch: { aggressive: 0.004, connected: 0.0025, economical: 0.001 },
         desireStretch: 0.0025,
         openingWage: 0.95,
-        walkAwayWage: 1.3,
+        /** The club walks away above a hidden multiple of its opening wage, drawn in this range. */
+        walkAway: [1.2, 1.35] as const,
+        /** A counter moves the club this share of the gap toward the player's ask. */
+        counterShare: 1 / 3,
+        /** Asking above the limits on this many items at once risks the club walking away. */
+        overAskItems: 3,
+        overAskWalkChance: 0.2,
+        /** Every counter in renewal talks costs manager trust. */
+        renewalCounterTrust: -2,
         patience: 2,
         agentPatienceAt: 60,
         /** A key role is conceded one step above the club's view only with this confidence. */
@@ -348,8 +435,10 @@ export const CONFIG = {
       agents: {
         pool: 8,
         changeCooldownWeeks: 4,
-        pitchChance: 0.0025,
-        connectedPitch: 2,
+        pitchChance: 0.001,
+        connectedPitch: 1,
+        /** A connected agent's reach abroad: 1 + network / this. */
+        foreignReach: 60,
         adviceWeeks: 8,
         underpaid: 1.3,
       },
@@ -359,8 +448,10 @@ export const CONFIG = {
       sellOnAge: 23,
       sellOnPercent: 10,
       inboxLimit: 200,
-      /** Every interest from bigger clubs also counts for the buyer's reputation step. */
-      upwardStep: 5,
+      /** A buying club must stand this much above the parent in reputation (negative: better),
+       * or this much below it after a transfer request. */
+      upwardStep: -3,
+      requestUpwardStep: 10,
     },
     /** Morale, relationships, dressing room, rival and media (milestone 6). See BALANCING.md. */
     /** The manager's development promise (Phase 6). */
@@ -371,9 +462,10 @@ export const CONFIG = {
       respondWeeks: 2,
       /** Fewer club fixtures than this in the window turn a match milestone into training. */
       minimumFixtures: 3,
-      targets: { appearanceShare: 0.67, passes: 35, tackles: 7, attribute: 1 },
-      /** Manager trust when the milestone is met or missed (cancelled changes nothing). */
+      targets: { appearanceShare: 0.67, passes: 140, tackles: 10, attribute: 3 },
+      /** Manager trust and fan affection when the milestone is met or missed. */
       trust: { achieved: 6, missed: -3 },
+      fans: { achieved: 5, missed: -3 },
       historyLimit: 10,
     },
     social: {
@@ -400,7 +492,20 @@ export const CONFIG = {
       formRest: 50,
       formRestStep: 0.1,
       /** Key-moment odds × (1 + (morale − neutral) × slope), within the bounds. */
-      matchMorale: { neutral: 70, slope: 0.002, minimum: 0.92, maximum: 1.08 },
+      matchMorale: { neutral: 65, slope: 0.004, minimum: 0.88, maximum: 1.12 },
+      /** Manager trust and fan affection drift toward this level each week, so standing
+       * has to be kept up. */
+      relationshipDecay: { toward: 60, rate: 0.03 },
+      /** A chance made for a teammate: successGoal × (1 + (chemistry − 60) × slope). */
+      chemistry: { slope: 0.004, minimum: 0.85, maximum: 1.15 },
+      /** Culture fit multiplies training gains: base + range × fit/100. */
+      cultureTraining: { base: 0.8, range: 0.4 },
+      /** A stance taken to the press is judged by the next result. */
+      stance: {
+        confident: { win: { fame: 2 }, loss: { fame: -2, fans: -3 } },
+        provocative: { win: { fame: 3 }, loss: { fame: -3, fans: -4, trust: -2 } },
+        humble: { win: { trust: 3 }, loss: {} },
+      },
       /** Cliques: ages and the minimum size for an international group. */
       cliques: {
         youngAge: 22,
@@ -473,6 +578,8 @@ export const CONFIG = {
     lifestyle: {
       /** Fame needed for levels 1–10. */
       fameLevels: [0, 20, 50, 100, 170, 260, 380, 530, 720, 950] as const,
+      /** At each new season fame above the floor fades by this share: fame is a standing. */
+      fameDecay: { above: 100, share: 0.1 },
       /** Active sponsorship deals allowed at each fame level. */
       maxDeals: [0, 1, 1, 2, 2, 2, 3, 3, 3, 4] as const,
       sponsor: {
@@ -483,7 +590,12 @@ export const CONFIG = {
         feeGrowth: 1.6,
         bonusWeeks: 8,
         completedFame: 3,
+        /** A failed deal: fame −(failedFame + level), a share of the fees clawed back, and the
+         * category closed for lockSeasons. A completed deal renews at renewalFactor. */
         failedFame: -3,
+        clawback: 0.25,
+        lockSeasons: 2,
+        renewalFactor: 1.25,
         bootsBreachFame: -2,
         /** Obligation targets per remaining season fraction. */
         starts: 0.45,
@@ -497,16 +609,23 @@ export const CONFIG = {
       signatureFame: 2,
       bigMatchImportance: 1.15,
       moraleLimit: 8,
-      /** Upkeep above this share of the weekly wage weighs on morale. */
+      /** Upkeep above this share of weekly income (wage and sponsors) weighs on morale. */
       overspendShare: 0.5,
       overspendMorale: -3,
       resale: 0.6,
-      /** Weekly investment returns: mean ± spread. */
+      /** Cars, homes and experiences cost their wage-weeks; upkeep is price ÷ this a week. */
+      upkeepDivisor: 250,
+      /** Hiring staff costs this many weeks of their salary up front. */
+      hireWeeks: 4,
+      /** Weekly investment returns: mean ± spread; a start-up can fold (chance a week). */
       investments: {
         bond: { mean: 0.001, spread: 0 },
-        fund: { mean: 0.0025, spread: 0.004 },
-        startup: { mean: 0.004, spread: 0.03 },
+        fund: { mean: 0.0025, spread: 0.012 },
+        startup: { mean: 0.004, spread: 0.08 },
       },
+      startupFoldChance: 0.0004,
+      /** Charities: fame arrives every this many weeks. */
+      charityFameWeeks: 4,
       investmentAmounts: [1_000, 5_000, 10_000, 25_000, 50_000, 100_000] as const,
       challenges: {
         daily: 3,
@@ -524,8 +643,9 @@ export const CONFIG = {
         matchesPerWindow: 2,
         squad: { GK: 3, DEF: 8, MID: 7, ATT: 5 },
         ages: { U19: 19, U21: 21 },
-        /** Selection score: ability + form × form + min(fameCap, fame × fame). */
-        selection: { form: 0.1, fame: 0.02, fameCap: 8 },
+        /** Selection score: ability + form × form + min(fameCap, fame × fame). At youth levels
+         * the career player counts by projected ability, as academy players effectively do. */
+        selection: { form: 0.1, fame: 0.03, fameCap: 14 },
         starterSlots: { GK: 1, DEF: 4, MID: 3, ATT: 3 },
         benchChance: 0.4,
         baseGoals: 1.3,
@@ -534,7 +654,7 @@ export const CONFIG = {
         assistShare: { GK: 0, DEF: 0.05, MID: 0.14, ATT: 0.12 },
         youthRating: 10,
         fame: { cap: 1, goal: 2, tournament: 10 },
-        xp: { cap: 25, goal: 15 },
+        xp: { cap: 120, goal: 30 },
         matchLimit: 120,
         tournamentLimit: 30,
       },
@@ -543,7 +663,8 @@ export const CONFIG = {
         monthMinimumApps: 2,
         seasonMinimumApps: 10,
         youngAge: 21,
-        /** Score: average rating × rating + goals × goal + assists × assist. */
+        /** Score: average rating × rating + goals × goal + assists × assist, times the league
+         * tier's visibility for Young Player and the Golden Ball. */
         score: { rating: 10, goal: 1.5, assist: 1, monthGoal: 0.6, monthAssist: 0.4 },
         /** Golden Ball bonuses for team success. */
         champion: 10,
@@ -561,7 +682,9 @@ export const CONFIG = {
         maxRecords: 2000,
         fame: { month: 3, season: 6, goldenBall: 25, shortlist: 5 },
       },
-      retirement: { optionalAge: 32, forcedAge: 40 },
+      /** Retirement is forced at the age, or from declineAge once ability falls below this
+       * share of its peak. */
+      retirement: { optionalAge: 32, forcedAge: 38, declineAge: 33, declineShare: 0.78 },
       moments: { limit: 40, lateMinute: 85, wonderProbability: 0.2 },
       /** Hall of Fame score. */
       hallOfFame: {
@@ -570,7 +693,16 @@ export const CONFIG = {
         assist: 1,
         cap: 1,
         trophy: 15,
+        /** A season honour's worth; other kinds are weighed against it. */
         award: 10,
+        /** By kind: routine awards are worth less than season honours. */
+        awardWeights: {
+          month: 2,
+          'team-season': 3,
+          'young-player': 10,
+          'golden-boot': 10,
+          mvp: 10,
+        },
         goldenBall: 40,
       },
       child: { potential: 3, fameShare: 0.1, fameCap: 30, inheritance: 0.1 },
@@ -589,7 +721,7 @@ export const CONFIG = {
     unfamiliarFactor: 0.8,
   },
   saves: {
-    schemaVersion: 16,
+    schemaVersion: 17,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,
@@ -616,11 +748,30 @@ export const CONFIG = {
     movementPlaces: 2,
     baseGoals: 1.35,
     homeAdvantage: 0.14,
-    strengthScale: 0.012,
+    strengthScale: 0.024,
     maxGoals: 10,
+    /**
+     * The AI transfer market (balance pass C): in each transfer week, a club with budget may
+     * sign, for its weakest starting slot, the best affordable player who improves it by at
+     * least `improvement`, from a smaller club (abroad with `abroadChance`); the seller asks a
+     * multiple of market value by the player's role and sells at most `salesPerWindow`.
+     */
+    aiMarket: {
+      signingChance: 0.4,
+      improvement: 3,
+      maximumAge: 31,
+      abroadChance: 0.2,
+      salesPerWindow: 2,
+      minimumBudget: 20_000,
+      reinvestShare: 0.5,
+      askingFactor: { key: 1.4, rotation: 1.2, backup: 1, youth: 1.1 },
+    },
+    /** Legacy (34-week) worlds: AI transfer weeks and the academy intake week. */
     transferWeeks: [8, 18, 31] as const,
-    managerWeeks: [12, 24] as const,
     intakeWeek: 31,
+    /** National worlds derive them from the season length: transfer activity at these
+     * fractions of the season (inside the summer and winter windows), the intake near the end. */
+    lifecycleFractions: { transfer: [0.06, 0.13, 0.5, 0.55] as const, intake: 0.95 },
     /** Continental cups for national worlds (milestone 8). */
     continental: {
       /** Places per country in the Champions Cup and the Shield, from last season's table. */
@@ -631,6 +782,8 @@ export const CONFIG = {
       day: 2,
       /** Scouting visibility bonus for a player whose club plays in a continental cup. */
       visibility: 0.2,
+      /** Prize money per match played, as a multiple of reputation²: the cups pay to play. */
+      prize: { champions: 40, continental: 20 },
     },
     youthIntakePerClub: 2,
     /** Squad lifecycle: retirement, contracts, releases, free-agent signings and pruning. */
@@ -674,20 +827,35 @@ export const CONFIG = {
       managerAbility: [25, 95],
       personality: [15, 95],
       adultAge: [17, 36],
+      /** Generated squads peak in age here (a triangular draw between the adult ages). */
+      adultAgePeak: 25,
       veteranAge: [32, 37],
       youthAge: [16, 18],
       /** Peak overall ability (potential): reputation × weight + base ± talent. */
       peakReputationWeight: 0.75,
       peakBase: 13,
-      talentSpread: 8,
+      talentSpread: 12,
+      /** Clubs at or above each reputation draw talent as the best of that many draws. */
+      talentSkew: [
+        [84, 2],
+        [90, 3],
+      ] as const,
+      /** Academy intake: reputation × weight + base ± spread, so big clubs also raise journeymen. */
+      intake: { reputationWeight: 0.75, base: 13, spread: 12 },
+      /** Foreign players: base + slope × how far the club sits between the two reputations. */
+      foreignShare: { base: 0.05, slope: 0.6, from: 40, to: 90 },
+      twoFootedChance: 0.05,
       youngAge: 20,
       secondaryFamiliarity: [35, 85],
       morale: [55, 85],
       form: [45, 75],
       contractYears: [1, 4],
       wageFloor: 50,
-      wageBase: 0.12,
-      wageReputationDivisor: 1000,
+      /** Weekly wage: ability² × (wageBase + wageReputationWeight × (reputation/100)²), so the
+       * club a player reaches matters: a tier-6 start ~50, a tier-1 regular ~1,700, a star
+       * at a giant ~3,400, the same star at a tier-3 club under half of that. */
+      wageBase: 0.05,
+      wageReputationWeight: 0.45,
       appearanceBonus: 0.1,
       goalBonus: 0.15,
       cleanSheetBonus: 0.12,
@@ -699,6 +867,8 @@ export const CONFIG = {
       pitchQuality: [45, 95],
       balanceFactor: 200,
       incomeFactor: 12,
+      /** The smallest club still draws this much a week, so the lowest tiers stay solvent. */
+      incomeFloor: 4800,
       costsFactor: 3,
       transferFactor: 60,
       wageBudgetFactor: 8,
@@ -721,14 +891,47 @@ export const CONFIG = {
       ratingVariation: 0.8,
       minimumRating: 3,
       maximumRating: 10,
-      formRetention: 0.85,
-      formRatingWeight: 0.15,
+      formRetention: 0.75,
+      formRatingWeight: 0.25,
       moraleResultDelta: 2,
       matchFatigue: 12,
-      weeklyRecovery: 10,
+      weeklyRecovery: 14,
       fitnessFatigueWeight: 0.2,
-      managerPointsThreshold: 0.9,
-      managerDismissalChance: 0.8,
+      /**
+       * Sackings: every week from `sackingFromWeek`, a manager whose points a game trail what
+       * the club's standing in its league expects (from `expectedPointsRange` by reputation
+       * rank) goes with probability hazard × shortfall; a new manager gets a grace period.
+       */
+      sacking: { fromWeek: 8, hazard: 0.012, cooldownWeeks: 15, expectedPointsRange: [0.8, 2.2] },
+      /** Team strength adds (manager ability − 60) × this. */
+      managerAbilityWeight: 0.05,
+      /**
+       * Reputation moves at each season's end: by the finish within the league (± rankStep
+       * from top to bottom), plus a share of the distance back into the new tier's band when
+       * outside it, within a maximum change; it stays within a margin of the band.
+       * Continental winners gain.
+       */
+      reputation: {
+        seasonStep: 0.5,
+        rankStep: 1.5,
+        maximumChange: 4,
+        bandMargin: 5,
+        championsWinner: 2,
+        shieldWinner: 1,
+      },
+      /**
+       * AI squads rotate: a tired player's value in selection falls from `fatigueFrom`, and a
+       * fixture-seeded jitter of ± `jitter` (± `cupJitter` in domestic cups) lets near-equals
+       * share the matches.
+       */
+      rotation: { fatigueFrom: 40, fatigueDivisor: 150, jitter: 6, cupJitter: 14 },
+      /** AI players get injured too: chance per match × (0.5 + proneness/100) × (1 + fatigue/weight). */
+      aiInjuries: { matchChance: 0.012, fatigueWeight: 50 },
+      /** Background goals follow finishing (and assists passing and vision) around the team mean. */
+      abilityScorerSlope: 1 / 25,
+      abilityScorerFloor: 0.2,
+      /** Background ratings add (ability − match mean) × this. */
+      abilityRatingSlope: 0.02,
       transferContractYears: 2,
       transferBudgetBalanceShare: 0.35,
     },

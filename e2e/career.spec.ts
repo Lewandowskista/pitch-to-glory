@@ -139,7 +139,10 @@ test('creates a career, plays matchdays, develops the player and restores the hu
     await expect(page.getByRole('button', { name: 'Play again' })).toHaveCount(0);
     levelled = await page.getByTestId('level-up').isVisible();
     if (levelled) break;
-    await page.getByRole('button', { name: 'Continue to next matchday', exact: true }).click();
+    // A second fixture the same week (a cup tie) comes first; otherwise the week moves on.
+    const next = page.getByRole('button', { name: 'Your next fixture', exact: true });
+    if (await next.isVisible()) await next.click();
+    else await page.getByRole('button', { name: 'Continue to next matchday', exact: true }).click();
     await expect(
       page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }),
     ).toBeVisible({ timeout: 120000 });
@@ -166,7 +169,8 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await page.keyboard.press('ArrowDown');
   await expect(page.locator('[data-skill]').nth(1)).toBeFocused();
   const available = page.locator('[data-skill][aria-label*="Available"]').first();
-  if (Number(await page.getByTestId('skill-points').textContent()) > 0) {
+  // Skills cost two points or more: unlock one if the points already cover it.
+  if ((await available.count()) > 0) {
     await available.click();
     await page.getByRole('button', { name: 'Unlock skill', exact: true }).click();
     const dialog = page.getByRole('dialog');

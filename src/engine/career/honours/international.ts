@@ -12,6 +12,7 @@ import type {
 import { CONFIG } from '../../config';
 import { createRng, type Rng } from '../../rng';
 import { playerAbility } from '../../strength';
+import { ageCurve } from '../../ageing';
 import { getSeasonWeeks } from '../../world/calendar';
 import { addXp } from '../progression';
 import { postMessage } from '../market/records';
@@ -129,10 +130,20 @@ export function createInternational(world: World): InternationalState {
 const ageAt = (world: World, player: Player) => world.date.season - player.birthSeason;
 const eligible = (world: World, player: Player, level: NationalLevel) =>
   level === 'senior' || ageAt(world, player) <= I.ages[level];
-function selectionScore(world: World, player: Player): number {
-  const fame = player.id === world.career?.playerId ? world.career.fame : 0;
+function selectionScore(world: World, player: Player, level: NationalLevel): number {
+  const career = player.id === world.career?.playerId;
+  const fame = career ? world.career!.fame : 0;
+  // At youth levels the career player is judged as a prospect: their potential on the age
+  // curve, which is what academy players of the same age effectively are.
+  const ability =
+    career && level !== 'senior'
+      ? Math.max(
+          playerAbility(player),
+          player.potential * ageCurve('technical', ageAt(world, player)),
+        )
+      : playerAbility(player);
   return (
-    playerAbility(player) +
+    ability +
     player.form * I.selection.form +
     Math.min(I.selection.fameCap, fame * I.selection.fame)
   );
@@ -148,7 +159,7 @@ export function selectSquad(world: World, countryId: string, level: NationalLeve
       !player.injuryId &&
       eligible(world, player, level),
   );
-  const scores = new Map(pool.map((player) => [player.id, selectionScore(world, player)]));
+  const scores = new Map(pool.map((player) => [player.id, selectionScore(world, player, level)]));
   const squad: Player[] = [];
   for (const line of ['GK', 'DEF', 'MID', 'ATT'] as const)
     squad.push(

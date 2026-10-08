@@ -12,12 +12,12 @@ import type { Formation } from '../selection/formations';
 export type { Tactics } from '../../model/domain';
 
 /** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
-export const MATCH_ENGINE_VERSION = 'match-8';
+export const MATCH_ENGINE_VERSION = 'match-10';
 /**
  * The engine before formations (Phase 5.1). A setup without `formations` still replays with
  * its 4-3-3 lineup and strength, so sessions saved before keep playing.
  */
-export const LEGACY_MATCH_ENGINE = 'match-7';
+export const LEGACY_MATCH_ENGINE = 'match-10-lines';
 /** The engine a setup replays with. */
 export const engineFor = (setup: Pick<MatchSetup, 'formations'>): string =>
   setup.formations ? MATCH_ENGINE_VERSION : LEGACY_MATCH_ENGINE;
@@ -35,6 +35,10 @@ export interface MatchSetup {
   fixture?: MatchFixture;
   /** Home and away managers' formations; absent for a world on the earlier 4-3-3 selection. */
   formations?: [Formation, Formation];
+  /** Each side's team-strength bonus from its manager's ability (0 when absent). */
+  strengthBonus?: [number, number];
+  /** The selected player's chemistry with their teammates (0–100; 60 when absent). */
+  chemistry?: number;
 }
 export interface MatchFixture {
   id: string;
@@ -59,11 +63,13 @@ export interface LiveStats {
   saves: number;
   goals: number;
   assists: number;
+  /** The selected player's own shots. */
+  shots: number;
   errors: number;
   rating: number;
   fatigue: number;
 }
-export type RatingPart = RatingFamily | 'goals' | 'assists' | 'saves' | 'errors';
+export type RatingPart = RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team';
 /** How play restarts at the start of the next passage (see motion.ts). */
 export type Restart = 'kickoff' | 'goal' | 'second-half' | 'goal-kick' | 'corner';
 /** Who has the ball between passages. */
@@ -109,6 +115,10 @@ export interface MatchState {
   ratingParts: Record<RatingPart, number>;
   report: MatchReport | null;
   momentMinutes: number[];
+  /** Second-half odds multiplier from the half-time talk. */
+  talkOdds: number;
+  /** This match's shift of the player's governing attributes, from their consistency. */
+  consistencyShift: number;
   managerTrustDelta: number;
   managerReactionKey: string;
   fanReactionKey: string;

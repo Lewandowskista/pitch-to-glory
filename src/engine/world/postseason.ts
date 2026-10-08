@@ -246,6 +246,19 @@ export function tieId(world: World, countryId: string, key: string): string {
 export function winner(world: World, countryId: string, key: string): string | null {
   return tieWinner(world, tieId(world, countryId, key));
 }
+/**
+ * The club a division sends to a promotion barrage: the best eligible club not already moving.
+ * Eligibility can change between postseason steps (a reserve becomes eligible once its parent
+ * is promoted), so a fixed table index could land on a club promoted automatically, whose win
+ * would record no movement and leave the division a club short.
+ */
+export function barrageChallenger(world: World, rows: readonly Standing[]): string {
+  const row = rows.find(
+    (entry) => !world.pyramid!.movements.some((movement) => movement.clubId === entry.clubId),
+  );
+  if (!row) throw new Error('No eligible barrage challenger');
+  return row.clubId;
+}
 export function barrage(
   world: World,
   countryId: string,

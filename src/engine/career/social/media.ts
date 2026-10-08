@@ -190,6 +190,12 @@ export function answerPress(world: World, mediaId: string, choiceId: string): vo
   item.answer = choice.id;
   const social = world.career!.social;
   social.answered++;
+  // Bold words are judged by the next result; humble ones earn trust from a win.
+  if (choice.tone === 'confident' || choice.tone === 'provocative' || choice.tone === 'humble')
+    social.stance = { tone: choice.tone, date: today(world) };
+  // Bold words are judged by the next result; humble ones earn trust from a win.
+  if (choice.tone === 'confident' || choice.tone === 'provocative' || choice.tone === 'humble')
+    social.stance = { tone: choice.tone, date: today(world) };
   social.coverage = Math.max(-10, Math.min(10, social.coverage + Math.sign(e.fans + e.fame / 2)));
   // The rival bites back at a provocation.
   const rival = rivalOf(world);

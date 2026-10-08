@@ -1,7 +1,13 @@
 import type { BackgroundResult, Fixture, Id, Player, World } from '../../model/domain';
 import { CONFIG } from '../config';
 import { createRng, type Rng } from '../rng';
-import { expectedGoals, strengthFromAbility, teamStrength } from '../strength';
+import {
+  expectedGoals,
+  managerStrengthBonus,
+  playerAbility,
+  strengthFromAbility,
+  teamStrength,
+} from '../strength';
 import { lineupAbility } from '../selection/lineup';
 import { clubLineup, clubStarters } from '../selection/world';
 import { isKnockoutFixture } from './continental';
@@ -78,17 +84,36 @@ function poisson(rng: Rng, mean: number): number {
   return Math.min(CONFIG.world.maxGoals, count - 1);
 }
 /** Background scorers by position, each assisted with the configured chance. */
+/** How far a player's attribute sits from the team's, as a weight multiplier. */
+function aroundTeam(value: number, mean: number): number {
+  return Math.max(
+    BACKGROUND.abilityScorerFloor,
+    1 + (value - mean) * BACKGROUND.abilityScorerSlope,
+  );
+}
 function scoreGoals(players: Player[], teamId: Id, count: number, rng: Rng): FixtureGoal[] {
-  const weights = players.map((player) =>
-    player.primaryPosition === 'GK'
-      ? BACKGROUND.scorerWeights.GK
-      : player.primaryPosition === 'ST'
-        ? BACKGROUND.scorerWeights.ST
-        : ['LW', 'RW', 'AM'].includes(player.primaryPosition)
-          ? BACKGROUND.scorerWeights.winger
-          : ['CM', 'DM'].includes(player.primaryPosition)
-            ? BACKGROUND.scorerWeights.midfield
-            : BACKGROUND.scorerWeights.defender,
+  // Position decides who is in scoring positions; finishing decides who takes the chances.
+  const outfield = players.filter((player) => player.primaryPosition !== 'GK');
+  const meanFinishing =
+    outfield.reduce((sum, player) => sum + player.attributes.finishing, 0) /
+    Math.max(1, outfield.length);
+  const meanCreation =
+    outfield.reduce(
+      (sum, player) => sum + player.attributes.passing + player.attributes.vision,
+      0,
+    ) / Math.max(1, outfield.length);
+  const weights = players.map(
+    (player) =>
+      (player.primaryPosition === 'GK'
+        ? BACKGROUND.scorerWeights.GK
+        : player.primaryPosition === 'ST'
+          ? BACKGROUND.scorerWeights.ST
+          : ['LW', 'RW', 'AM'].includes(player.primaryPosition)
+            ? BACKGROUND.scorerWeights.winger
+            : ['CM', 'DM'].includes(player.primaryPosition)
+              ? BACKGROUND.scorerWeights.midfield
+              : BACKGROUND.scorerWeights.defender) *
+      aroundTeam(player.attributes.finishing, meanFinishing),
   );
   const sum = weights.reduce((total, weight) => total + weight, 0);
   return Array.from({ length: count }, () => {
@@ -104,7 +129,21 @@ function scoreGoals(players: Player[], teamId: Id, count: number, rng: Rng): Fix
     let assistId: Id | undefined;
     if (rng.next() < BACKGROUND.assistedGoalChance) {
       const pool = players.filter((p) => p.id !== scorer.id && p.primaryPosition !== 'GK');
-      if (pool.length) assistId = rng.pick(pool).id;
+      if (pool.length) {
+        // Creators: the better a teammate passes and sees, the likelier the assist.
+        const creation = pool.map((p) =>
+          aroundTeam(p.attributes.passing + p.attributes.vision, meanCreation),
+        );
+        let pick = rng.next() * creation.reduce((total, weight) => total + weight, 0);
+        assistId = pool[pool.length - 1]!.id;
+        for (let index = 0; index < pool.length; index++) {
+          pick -= creation[index]!;
+          if (pick < 0) {
+            assistId = pool[index]!.id;
+            break;
+          }
+        }
+      }
     }
     // The minute is drawn after the assist, keeping simulated seasons' random sequence.
     const goal: FixtureGoal = {
@@ -137,8 +176,17 @@ export function finalizeFixture(
   const appeared = (side: Record<Id, number>) => Object.keys(side).map((id) => world.players[id]!);
   // The eleven each club fields; with formations, each starter is valued in their slot.
   const exclude = benched ? [benched] : [];
-  const homeLineup = played ? null : clubLineup(world, home, { exclude });
-  const awayLineup = played ? null : clubLineup(world, away, { exclude });
+  // Background elevens rotate by fatigue and a fixture-seeded jitter, more in domestic cups.
+  const rotation =
+    world.competitions[fixture.competitionId]?.kind === 'domestic'
+      ? BACKGROUND.rotation.cupJitter
+      : BACKGROUND.rotation.jitter;
+  const homeLineup = played
+    ? null
+    : clubLineup(world, home, { exclude, seed: `${fixture.id}:home`, rotation });
+  const awayLineup = played
+    ? null
+    : clubLineup(world, away, { exclude, seed: `${fixture.id}:away`, rotation });
   const homePlayers = played
     ? appeared(played.minutes.home)
     : (homeLineup?.starterIds.map((id) => world.players[id]!) ??
@@ -148,12 +196,16 @@ export function finalizeFixture(
     : (awayLineup?.starterIds.map((id) => world.players[id]!) ??
       clubStarters(world, away, { exclude }));
   // Shared with the interactive match engine so played and simulated fixtures agree.
-  const homeStrength = homeLineup
-    ? strengthFromAbility(home.reputation, lineupAbility(homeLineup, world.players))
-    : teamStrength(home.reputation, homePlayers);
-  const awayStrength = awayLineup
-    ? strengthFromAbility(away.reputation, lineupAbility(awayLineup, world.players))
-    : teamStrength(away.reputation, awayPlayers);
+  const bonus = (club: typeof home) =>
+    managerStrengthBonus(world.managers[club.managerId]?.ability ?? 60);
+  const homeStrength =
+    (homeLineup
+      ? strengthFromAbility(home.reputation, lineupAbility(homeLineup, world.players))
+      : teamStrength(home.reputation, homePlayers)) + bonus(home);
+  const awayStrength =
+    (awayLineup
+      ? strengthFromAbility(away.reputation, lineupAbility(awayLineup, world.players))
+      : teamStrength(away.reputation, awayPlayers)) + bonus(away);
   const difference = (homeStrength - awayStrength) * CONFIG.world.strengthScale;
   const [homeGoals, awayGoals] = expectedGoals(
     homeStrength,
@@ -276,6 +328,9 @@ export function finalizeFixture(
   ).sort((a, b) => a.minute - b.minute);
 
   const participants: FixtureParticipant[] = [];
+  const everyone = [...homePlayers, ...awayPlayers];
+  const matchMean =
+    everyone.reduce((sum, player) => sum + playerAbility(player), 0) / Math.max(1, everyone.length);
   for (const [players, teamId, ownGoals, oppositionGoals] of [
     [homePlayers, home.id, score[0], score[1]],
     [awayPlayers, away.id, score[1], score[0]],
@@ -294,6 +349,7 @@ export function finalizeFixture(
                 ? BACKGROUND.ratingLoss
                 : 0) +
             own.length * BACKGROUND.ratingGoal +
+            (playerAbility(player) - matchMean) * BACKGROUND.abilityRatingSlope +
             rng.next() * BACKGROUND.ratingVariation,
         ),
       );
@@ -404,6 +460,61 @@ export function applyFinalizedFixture(world: World, final: FinalizedFixture): vo
         row.points++;
       }
     }
+  }
+  injureParticipants(world, final);
+  // Continental matches pay both clubs to play, so a cup run shows in the accounts.
+  const competition = world.competitions[fixture.competitionId];
+  if (competition && (competition.kind === 'champions' || competition.kind === 'continental')) {
+    const rate = CONFIG.world.continental.prize[competition.kind];
+    for (const id of [fixture.homeId, fixture.awayId]) {
+      const club = world.clubs[id];
+      if (club)
+        club.finances.balance = Math.round(club.finances.balance + club.reputation ** 2 * rate);
+    }
+  }
+}
+/**
+ * AI players get injured too (the career player's injuries are their own system): a chance
+ * per match that grows with fatigue and injury proneness, for a spell drawn from the same
+ * table as the career's. Injured players are unavailable until their weeks run out.
+ */
+function injureParticipants(world: World, final: FinalizedFixture): void {
+  // Worlds from before the national pyramid keep their rules: no AI injuries.
+  if (world.format !== 'national-v1') return;
+  const I = CONFIG.career.injuries;
+  const A = BACKGROUND.aiInjuries;
+  const rng = createRng(`${world.seed}:injuries:${final.fixtureId}`);
+  const careerId = world.career?.playerId;
+  for (const participant of final.participants) {
+    const player = world.players[participant.playerId];
+    if (!player || player.id === careerId || player.injuryId || participant.minutes <= 0) continue;
+    const chance =
+      A.matchChance *
+      (0.5 + player.hidden.injuryProneness / 100) *
+      (1 + player.fatigue / A.fatigueWeight);
+    if (rng.next() >= chance) continue;
+    // A club always keeps one fit keeper.
+    if (player.primaryPosition === 'GK') {
+      const club = player.clubId ? world.clubs[player.clubId] : undefined;
+      const fitKeepers = club
+        ? club.playerIds.filter((id) => {
+            const other = world.players[id]!;
+            return other.primaryPosition === 'GK' && !other.injuryId && !other.retired;
+          }).length
+        : 0;
+      if (fitKeepers <= 1) continue;
+    }
+    let pick = rng.next() * I.types.reduce((sum, type) => sum + type.weight, 0);
+    let type = I.types[I.types.length - 1]!;
+    for (const candidate of I.types) {
+      pick -= candidate.weight;
+      if (pick < 0) {
+        type = candidate;
+        break;
+      }
+    }
+    player.injuryId = `injury:${final.fixtureId}:${player.id}`;
+    player.injuryWeeks = rng.int(type.weeks[0], type.weeks[1]);
   }
 }
 const clampPercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));

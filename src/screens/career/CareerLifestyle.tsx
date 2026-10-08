@@ -15,6 +15,8 @@ import {
   obligationMet,
   obligationProgress,
   resaleValue,
+  priceOf,
+  upkeepOf,
   weeklyUpkeep,
   type LifestyleItem,
 } from '../../engine/career/lifestyle';
@@ -297,20 +299,29 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
     (value) => value >= item.cost && value <= cash,
   );
   const chosen = amounts.includes(amount) ? amount : (amounts.at(-1) ?? item.cost);
-  const price = item.kind === 'investment' ? chosen : item.cost;
+  const price = item.kind === 'investment' ? chosen : priceOf(world, item);
+  const upkeep = upkeepOf(world, item);
+  const owned = world.career!.style.assets.some((asset) => asset.itemId === item.id);
   const name = l.lifestyle.items[item.id] ?? item.id;
+  const effect = item.effect
+    ? l.lifestyle.effects[item.effect]
+    : item.rest
+      ? format(l.lifestyle.effects.rest!, { value: item.rest })
+      : null;
   const lock =
     level < item.fameLevel
       ? {
           chip: format(l.lifestyle.lockedFame, { level: item.fameLevel }),
           reason: format(l.lifestyle.requires, { level: item.fameLevel }),
         }
-      : cash < item.cost
-        ? {
-            chip: format(l.lifestyle.lockedCash, { amount: money(item.cost) }),
-            reason: l.lifestyle.afford,
-          }
-        : null;
+      : owned && item.kind !== 'investment' && item.kind !== 'experience'
+        ? { chip: l.lifestyle.ownedChip, reason: l.lifestyle.ownedReason }
+        : cash < price
+          ? {
+              chip: format(l.lifestyle.lockedCash, { amount: money(price) }),
+              reason: l.lifestyle.afford,
+            }
+          : null;
   return (
     <li className="flex flex-col gap-2 rounded-control border border-line bg-surface-soft p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
@@ -320,7 +331,17 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
       <p className="text-xs text-muted">
         {item.kind === 'investment'
           ? l.lifestyle.returns[item.product!]
-          : `${format(l.lifestyle.upkeepValue, { amount: money(item.weeklyUpkeep) })} · ${format(l.lifestyle.moraleValue, { value: item.morale })}`}
+          : item.kind === 'staff'
+            ? `${format(l.lifestyle.salaryValue, { amount: money(upkeep), hire: money(price) })} · ${effect}`
+            : item.kind === 'charity'
+              ? `${format(l.lifestyle.donationValue, { amount: money(upkeep) })} · ${effect}`
+              : item.kind === 'experience'
+                ? effect
+                : [
+                    format(l.lifestyle.upkeepValue, { amount: money(upkeep) }),
+                    format(l.lifestyle.moraleValue, { value: item.morale }),
+                    ...(effect ? [effect] : []),
+                  ].join(' · ')}
       </p>
       {item.kind === 'investment' && !lock && (
         <div>
@@ -446,7 +467,7 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
       <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
         {l.lifestyle.shop}
       </h3>
-      {(['car', 'house', 'investment'] as const).map((kind) => (
+      {(['car', 'house', 'staff', 'experience', 'charity', 'investment'] as const).map((kind) => (
         <div key={kind} className="mt-3">
           <h4 className="text-sm font-semibold">{l.lifestyle.kinds[kind]}</h4>
           <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">

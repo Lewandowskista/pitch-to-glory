@@ -19,9 +19,17 @@ export function performanceXp(p: Performance): number {
       p.objectives * C.xp.perObjective,
   );
 }
-/** Fame from a rating above the threshold and from goals. */
-export function performanceFame(rating: number, goals: number): number {
+/** Fame from a rating above the threshold, goals, assists and (for the back line) clean sheets. */
+export function performanceFame(
+  rating: number,
+  goals: number,
+  assists = 0,
+  cleanSheet = false,
+): number {
   return Math.round(
-    Math.max(0, rating - C.fame.ratingThreshold) * C.fame.perRating + goals * C.fame.perGoal,
+    Math.max(0, rating - C.fame.ratingThreshold) * C.fame.perRating +
+      goals * C.fame.perGoal +
+      assists * C.fame.perAssist +
+      (cleanSheet ? C.fame.perCleanSheet : 0),
   );
 }

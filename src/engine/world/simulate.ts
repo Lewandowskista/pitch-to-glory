@@ -1,9 +1,10 @@
-import type { Club, Player, SeasonSummary, World } from '../../model/domain';
+import type { Club, League, Player, SeasonSummary, World } from '../../model/domain';
 import { coachingRollover } from '../career/coaching';
 import { CONFIG } from '../config';
 import { restoreRng, type Rng } from '../rng';
 import { developWeek, recalibratePotential } from '../ageing';
 import { generateManager } from './generate';
+import { aiTransferWindow } from './transfers';
 import { addCupRound, createLeagueFixtures, emptyStanding, sortStandings } from './schedule';
 import { advanceNationalPyramid } from './pyramid';
 import { resolvePostseasonTie } from './postseason';
@@ -90,6 +91,14 @@ function developPlayers(world: World, rng: Rng): void {
     // The career player grows through XP and training; their ageing runs in the career week.
     if (player.id !== careerId)
       developWeek(player, world.date.season - player.birthSeason, seasonWeeks, rng);
+    // An AI injury runs its weeks down; the career player's is handled in the career week.
+    if (player.id !== careerId && player.injuryWeeks !== undefined) {
+      player.injuryWeeks--;
+      if (player.injuryWeeks <= 0) {
+        player.injuryId = null;
+        delete player.injuryWeeks;
+      }
+    }
     player.fatigue = clampPercent(player.fatigue - BACKGROUND.weeklyRecovery);
     player.fitness = clampPercent(100 - player.fatigue * BACKGROUND.fitnessFatigueWeight);
   }
@@ -202,44 +211,144 @@ function exchangeTransfers(world: World, rng: Rng): void {
     refreshDressingRoom(world, b);
   }
 }
+/** Points a game a club's standing in its league expects, by reputation rank. */
+function expectedPointsPerGame(world: World, league: League, clubId: string): number {
+  const [low, high] = BACKGROUND.sacking.expectedPointsRange;
+  const ranked = [...league.clubIds].sort(
+    (a, b) => world.clubs[b]!.reputation - world.clubs[a]!.reputation || (a < b ? -1 : 1),
+  );
+  const rank = ranked.indexOf(clubId);
+  return ranked.length > 1 ? high - ((high - low) * rank) / (ranked.length - 1) : (low + high) / 2;
+}
+/**
+ * Sackings, every week from the configured one: a manager whose points a game trail what the
+ * club's standing expects goes with probability hazard × shortfall, after a grace period.
+ */
 function managerChanges(world: World, rng: Rng): void {
+  const S = BACKGROUND.sacking;
+  if (world.date.week < S.fromWeek || world.date.week > getSeasonWeeks(world) - 2) return;
   for (const league of Object.values(world.leagues)) {
     const table =
       world.format === 'national-v1'
         ? rankStandings(world, league.standings, league.fixtureIds)
         : sortStandings(league.standings);
-    const bottom = table.at(-1)!;
-    if (
-      bottom.played === 0 ||
-      bottom.points / bottom.played > BACKGROUND.managerPointsThreshold ||
-      rng.next() > BACKGROUND.managerDismissalChance
-    )
-      continue;
-    const club = world.clubs[bottom.clubId]!;
-    const old = world.managers[club.managerId]!;
-    const id = `manager:${club.id}:${world.date.season}:${world.date.week}`;
-    const manager = generateManager(
-      id,
-      rng,
-      world.format === 'national-v1' ? Number(club.countryId.split(':')[1]) : undefined,
-    );
-    // A retired teammate of a past career may return as a manager (AGENTS.md §9.2).
-    const former = formerTeammates(world);
-    if (former.length && rng.next() < CONFIG.career.honours.formerTeammateManager) {
-      const person = former[0]!;
-      manager.name = person.name;
-      manager.avatar = { ...person.avatar };
-      manager.formerPlayerId = person.id;
-      manager.age = Math.max(35, world.date.season - person.birthSeason);
+    for (const row of table) {
+      if (row.played < 5) continue;
+      const club = world.clubs[row.clubId]!;
+      if (!isActiveClub(world, club)) continue;
+      const old = world.managers[club.managerId]!;
+      if (old.appointed) {
+        const weeksInPost =
+          (world.date.season - old.appointed.season) * getSeasonWeeks(world) +
+          (world.date.week - old.appointed.week);
+        if (weeksInPost < S.cooldownWeeks) continue;
+      }
+      const shortfall = expectedPointsPerGame(world, league, club.id) - row.points / row.played;
+      if (shortfall <= 0 || rng.next() >= S.hazard * shortfall) continue;
+      const id = `manager:${club.id}:${world.date.season}:${world.date.week}`;
+      const manager = generateManager(
+        id,
+        rng,
+        world.format === 'national-v1' ? Number(club.countryId.split(':')[1]) : undefined,
+      );
+      manager.appointed = { ...world.date };
+      // A retired teammate of a past career may return as a manager (AGENTS.md §9.2).
+      const former = formerTeammates(world);
+      if (former.length && rng.next() < CONFIG.career.honours.formerTeammateManager) {
+        const person = former[0]!;
+        manager.name = person.name;
+        manager.avatar = { ...person.avatar };
+        manager.formerPlayerId = person.id;
+        manager.age = Math.max(35, world.date.season - person.birthSeason);
+      }
+      world.managers[id] = manager;
+      club.managerId = id;
+      event(world, 'manager-change', [club.id, old.id, id], {
+        name: club.name,
+        old: old.name,
+        new: manager.name,
+      });
     }
-    world.managers[id] = manager;
-    club.managerId = id;
-    event(world, 'manager-change', [club.id, old.id, id], {
-      name: club.name,
-      old: old.name,
-      new: manager.name,
+  }
+}
+/** The reputation band of a tier: generation's floor and ceiling. */
+export function reputationBand(tier: number): [number, number] {
+  const G = CONFIG.world.generation;
+  return [
+    Math.max(5, G.reputationFloor - tier * G.reputationTierStep),
+    Math.max(15, G.reputationCeiling - tier * G.reputationTierStep),
+  ];
+}
+/**
+ * Reputation moves with results at each season's end: toward the middle of the band of the
+ * tier the club will play in, and with its finish in the league, within a maximum change and
+ * a margin around the band. Continental winners gain. Finances follow the new standing.
+ */
+function updateReputations(world: World, summary: SeasonSummary): void {
+  // Worlds from before the national pyramid keep their fixed reputations.
+  if (world.format !== 'national-v1') return;
+  const R = BACKGROUND.reputation;
+  const G = CONFIG.world.generation;
+  const destination = new Map(summary.movements.map((m) => [m.clubId, m.toLeagueId]));
+  const champions = new Set<string>();
+  const shields = new Set<string>();
+  for (const cup of Object.values(world.competitions)) {
+    if (!cup.winnerId) continue;
+    if (cup.kind === 'champions') champions.add(cup.winnerId);
+    if (cup.kind === 'continental') shields.add(cup.winnerId);
+  }
+  for (const league of Object.values(world.leagues)) {
+    const table = summary.tables[league.id] ?? [];
+    const size = table.length;
+    table.forEach((row, index) => {
+      const club = world.clubs[row.clubId];
+      if (!club) return;
+      const next = world.leagues[destination.get(club.id) ?? club.leagueId];
+      const tier = next?.tier ?? league.tier;
+      const [floor, ceiling] = reputationBand(tier);
+      // Inside its tier's band a club moves by its finish alone, so a run of titles builds a
+      // dynasty and a run of poor seasons erodes one; outside the band it is pulled back in.
+      const pull =
+        club.reputation < floor
+          ? floor - club.reputation
+          : club.reputation > ceiling
+            ? ceiling - club.reputation
+            : 0;
+      const finish = size > 1 ? (size / 2 - (index + 1)) / (size / 2) : 0;
+      let delta = R.seasonStep * pull + R.rankStep * finish;
+      delta = Math.max(-R.maximumChange, Math.min(R.maximumChange, delta));
+      if (champions.has(club.id)) delta += R.championsWinner;
+      else if (shields.has(club.id)) delta += R.shieldWinner;
+      // A club already within the band's margin stays within it; one arriving from outside
+      // closes the distance by at most the maximum change a season.
+      const low = floor - R.bandMargin;
+      const high = ceiling + R.bandMargin;
+      const inside = club.reputation >= low && club.reputation <= high;
+      let reputation = Math.round(Math.min(99, club.reputation + delta));
+      if (inside) reputation = Math.max(low, Math.min(high, reputation));
+      club.reputation = Math.max(1, reputation);
+      club.finances.weeklyIncome = money(
+        Math.max(G.incomeFloor, club.reputation * club.reputation * G.incomeFactor),
+      );
+      club.finances.weeklyCosts = money(club.reputation * club.reputation * G.costsFactor);
+      // A new season's transfer budget, from standing, not from what was left unspent.
+      club.finances.transferBudget = money(club.reputation * club.reputation * G.transferFactor);
+      club.finances.wageBudget = money(
+        Math.max(club.finances.wageBudget, club.reputation * club.reputation * G.wageBudgetFactor),
+      );
     });
   }
+}
+/** The weeks of AI transfer activity and the academy intake for this world's season length. */
+export function lifecycleWeeks(world: World): { transfer: number[]; intake: number } {
+  if (world.format !== 'national-v1')
+    return { transfer: [...CONFIG.world.transferWeeks], intake: CONFIG.world.intakeWeek };
+  const weeks = getSeasonWeeks(world);
+  const F = CONFIG.world.lifecycleFractions;
+  return {
+    transfer: F.transfer.map((fraction) => Math.max(1, Math.round(fraction * weeks))),
+    intake: Math.round(F.intake * weeks),
+  };
 }
 function advanceCups(world: World): void {
   for (const cup of Object.values(world.competitions)) {
@@ -321,6 +430,7 @@ function archiveSeason(world: World): void {
   }
   for (const cup of Object.values(world.competitions))
     if (cup.winnerId) summary.cupWinners[cup.id] = cup.winnerId;
+  updateReputations(world, summary);
   world.history.push(summary);
   world.phase = 'complete';
 }
@@ -448,13 +558,15 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
     lifestyleWeek(world);
     honoursWeek(world);
   }
-  if ((CONFIG.world.transferWeeks as readonly number[]).includes(world.date.week)) {
-    exchangeTransfers(world, rng);
+  const lifecycle = lifecycleWeeks(world);
+  if (lifecycle.transfer.includes(world.date.week)) {
+    // National worlds run a market; worlds from before the pyramid keep their exchanges.
+    if (world.format === 'national-v1') aiTransferWindow(world, rng);
+    else exchangeTransfers(world, rng);
     fillSquads(world, rng);
   }
-  if ((CONFIG.world.managerWeeks as readonly number[]).includes(world.date.week))
-    managerChanges(world, rng);
-  if (world.date.week === CONFIG.world.intakeWeek) seasonalSquadReview(world, rng);
+  managerChanges(world, rng);
+  if (world.date.week === lifecycle.intake) seasonalSquadReview(world, rng);
   updateFinances(world);
   if (world.date.week === getSeasonWeeks(world)) {
     archiveSeason(world);

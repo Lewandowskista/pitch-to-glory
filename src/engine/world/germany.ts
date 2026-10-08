@@ -2,6 +2,7 @@
 import { admitFeeder, createFeederClub } from './feeder';
 import {
   barrage,
+  barrageChallenger,
   eligibleTable,
   leaguesAt,
   makeTie,
@@ -43,7 +44,7 @@ export function advanceGermany(world: World, countryId: string): boolean {
     countryId,
     'bundesliga-barrage',
     rankStandings(world, first.standings)[15]!.clubId,
-    eligibleTable(world, second)[2]!.clubId,
+    barrageChallenger(world, eligibleTable(world, second)),
     1,
   );
   const secondDone = barrage(
@@ -51,7 +52,7 @@ export function advanceGermany(world: World, countryId: string): boolean {
     countryId,
     'second-barrage',
     rankStandings(world, second.standings)[15]!.clubId,
-    eligibleTable(world, third)[2]!.clubId,
+    barrageChallenger(world, eligibleTable(world, third)),
     2,
   );
   const regionalWinner = winner(world, countryId, 'regionalliga-promotion');
