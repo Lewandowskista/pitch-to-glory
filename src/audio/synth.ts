@@ -6,7 +6,7 @@ import { createRng, type Rng } from '../engine/rng';
  * Pure and deterministic: the same name always renders the same samples, which keeps tests
  * and the offline cache honest. Rendering runs in a worker; playback goes through Howler.
  */
-export const SAMPLE_RATE = 22050;
+export const SAMPLE_RATE = 44100;
 export type SoundName =
   | 'tap'
   | 'toggle'
@@ -47,7 +47,7 @@ const TAU = Math.PI * 2;
 const length = (seconds: number) => Math.round(seconds * SAMPLE_RATE);
 
 /** RBJ biquad filter with coefficients that can be retuned while running. */
-class Biquad {
+export class Biquad {
   private b0 = 0;
   private b1 = 0;
   private b2 = 0;
@@ -61,11 +61,12 @@ class Biquad {
     private kind: 'lowpass' | 'highpass' | 'bandpass',
     frequency: number,
     q = Math.SQRT1_2,
+    private sampleRate = SAMPLE_RATE,
   ) {
     this.tune(frequency, q);
   }
   tune(frequency: number, q = Math.SQRT1_2): void {
-    const w0 = (TAU * Math.min(frequency, SAMPLE_RATE * 0.45)) / SAMPLE_RATE;
+    const w0 = (TAU * Math.min(frequency, this.sampleRate * 0.45)) / this.sampleRate;
     const cos = Math.cos(w0);
     const alpha = Math.sin(w0) / (2 * q);
     const a0 = 1 + alpha;
@@ -115,7 +116,7 @@ interface Voice {
 }
 /** Add a decaying note. */
 function note(out: Float32Array, start: number, frequency: number, voice: Voice): void {
-  const { wave = 'sine', attack = 0.004, decay, gain = 1, bell } = voice;
+  const { wave = 'sine', attack = 0.009, decay, gain = 1, bell } = voice;
   const from = length(start);
   const count = Math.min(out.length - from, length(attack + decay * 5));
   for (let i = 0; i < count; i++) {
@@ -124,7 +125,7 @@ function note(out: Float32Array, start: number, frequency: number, voice: Voice)
     const phase = (frequency * t) % 1;
     const tone = wave === 'sine' ? Math.sin(TAU * phase) : 1 - 4 * Math.abs(phase - 0.5);
     const partial = bell
-      ? 0.35 * Math.sin(TAU * frequency * bell * t) * Math.exp(-t / (decay * 0.35))
+      ? 0.12 * Math.sin(TAU * frequency * bell * t) * Math.exp(-t / (decay * 0.35))
       : 0;
     out[from + i]! += (tone + partial) * envelope * gain;
   }
@@ -132,10 +133,12 @@ function note(out: Float32Array, start: number, frequency: number, voice: Voice)
 
 /** Scale to a peak, with short fades so nothing clicks. */
 function finish(out: Float32Array, peak: number): Float32Array {
+  const filter = new Biquad('lowpass', 3600);
+  for (let i = 0; i < out.length; i++) out[i] = filter.next(out[i]!);
   let max = 0;
   for (const value of out) max = Math.max(max, Math.abs(value));
   const scale = max ? peak / max : 0;
-  const fade = Math.min(length(0.004), out.length >> 2);
+  const fade = Math.min(length(0.01), out.length >> 2);
   for (let i = 0; i < out.length; i++) {
     const edge = Math.min(1, i / fade, (out.length - 1 - i) / fade);
     out[i] = out[i]! * scale * edge;
@@ -147,15 +150,15 @@ function finish(out: Float32Array, peak: number): Float32Array {
 function whistle(out: Float32Array, start: number, seconds: number, rng: Rng): void {
   const from = length(start);
   const count = Math.min(out.length - from, length(seconds));
-  const breath = new Biquad('bandpass', 2900, 3);
+  const breath = new Biquad('bandpass', 2200, 0.8);
   let phase = 0;
   for (let i = 0; i < count; i++) {
     const t = i / SAMPLE_RATE;
-    const rattle = Math.sin(TAU * 36 * t);
-    phase += (2860 + 110 * rattle) / SAMPLE_RATE;
-    const envelope = Math.min(1, t / 0.018, (seconds - t) / 0.05);
-    const tone = Math.sin(TAU * phase) * (0.72 + 0.28 * rattle);
-    out[from + i]! += (tone * 0.8 + breath.next(white(rng)) * 0.9) * Math.max(0, envelope);
+    const rattle = Math.sin(TAU * 18 * t);
+    phase += (2320 + 22 * rattle) / SAMPLE_RATE;
+    const envelope = Math.min(1, t / 0.035, (seconds - t) / 0.09);
+    const tone = Math.sin(TAU * phase) * (0.92 + 0.08 * rattle);
+    out[from + i]! += (tone * 0.65 + breath.next(white(rng)) * 0.25) * Math.max(0, envelope);
   }
 }
 
@@ -172,7 +175,7 @@ function crowd(
   const out = new Float32Array(length(seconds));
   const pink = pinkSource(rng);
   const band = new Biquad('bandpass', 520 * options.brightness, 0.6);
-  const top = new Biquad('lowpass', 2600 * options.brightness);
+  const top = new Biquad('lowpass', 1400 * options.brightness);
   const phases = [rng.next(), rng.next(), rng.next()].map((p) => p * TAU);
   for (let i = 0; i < out.length; i++) {
     const t = i / SAMPLE_RATE;
@@ -189,7 +192,7 @@ function crowd(
     const start = rng.next() * seconds;
     const duration = 0.12 + rng.next() * 0.5;
     const centre = low * (high / low) ** rng.next();
-    const filter = new Biquad('bandpass', centre, 5 + rng.next() * 6);
+    const filter = new Biquad('bandpass', centre, 1 + rng.next() * 1.5);
     const gain = 0.25 + rng.next() * 0.6;
     const from = length(start);
     const count = Math.min(out.length - from, length(duration));
@@ -199,11 +202,11 @@ function crowd(
     }
   }
   const claps = Math.round(seconds * 3 * options.brightness);
-  const crisp = new Biquad('highpass', 1600);
+  const crisp = new Biquad('bandpass', 900, 0.6);
   for (let c = 0; c < claps; c++) {
     const from = length(rng.next() * seconds);
     const count = Math.min(out.length - from, length(0.025));
-    const gain = 0.1 + rng.next() * 0.2;
+    const gain = 0.025 + rng.next() * 0.045;
     for (let i = 0; i < count; i++)
       out[from + i]! += crisp.next(white(rng)) * Math.exp(-i / (count / 4)) * gain;
   }
@@ -216,67 +219,72 @@ export function renderSound(name: SoundName): Float32Array {
   switch (name) {
     case 'tap': {
       const out = new Float32Array(length(0.09));
-      note(out, 0, 1250, { decay: 0.012, gain: 1 });
-      note(out, 0, 2500, { decay: 0.006, gain: 0.3 });
-      return finish(out, 0.35);
+      note(out, 0, 390, { attack: 0.006, decay: 0.015 });
+      note(out, 0, 780, { attack: 0.007, decay: 0.01, gain: 0.08 });
+      return finish(out, 0.14);
     }
     case 'toggle': {
       const out = new Float32Array(length(0.14));
-      note(out, 0, 880, { decay: 0.018 });
-      note(out, 0.045, 1320, { decay: 0.02 });
-      return finish(out, 0.35);
+      note(out, 0, 330, { decay: 0.025 });
+      note(out, 0.05, 440, { decay: 0.025, gain: 0.7 });
+      return finish(out, 0.16);
     }
     case 'confirm': {
       const out = new Float32Array(length(0.45));
-      note(out, 0, 880, { wave: 'triangle', decay: 0.05, gain: 0.8 });
-      note(out, 0.085, 1318.5, { decay: 0.08, bell: 2.76 });
-      return finish(out, 0.5);
+      note(out, 0, 329.63, { decay: 0.075, gain: 0.8, bell: 2 });
+      note(out, 0.085, 493.88, { decay: 0.095, bell: 2 });
+      return finish(out, 0.23);
     }
     case 'error': {
       const out = new Float32Array(length(0.4));
       note(out, 0, 330, { wave: 'triangle', decay: 0.05 });
       note(out, 0.11, 247, { wave: 'triangle', decay: 0.07 });
-      return finish(out, 0.45);
+      return finish(out, 0.22);
     }
     case 'moment': {
       const out = new Float32Array(length(0.6));
-      note(out, 0, 659.3, { decay: 0.07, bell: 2.0 });
-      note(out, 0.12, 987.8, { decay: 0.1, bell: 2.0 });
-      return finish(out, 0.45);
+      note(out, 0, 392, { decay: 0.1, bell: 2.0 });
+      note(out, 0.14, 587.33, { decay: 0.12, bell: 2.0 });
+      return finish(out, 0.25);
     }
     case 'reward': {
       const out = new Float32Array(length(1.1));
-      [1046.5, 1318.5, 1568, 2093].forEach((frequency, index) =>
-        note(out, index * 0.085, frequency, { decay: 0.12, bell: 2.76, gain: 0.8 + index * 0.1 }),
+      [261.63, 329.63, 392, 493.88].forEach((frequency, index) =>
+        note(out, index * 0.09, frequency, {
+          attack: 0.012,
+          decay: 0.16,
+          bell: 2,
+          gain: 0.8 + index * 0.05,
+        }),
       );
-      return finish(out, 0.55);
+      return finish(out, 0.31);
     }
     case 'levelUp': {
       const out = new Float32Array(length(1.8));
-      [784, 1046.5, 1318.5, 1568].forEach((frequency, index) =>
-        note(out, index * 0.09, frequency, { wave: 'triangle', decay: 0.06, gain: 0.7 }),
+      [196, 261.63, 329.63, 392].forEach((frequency, index) =>
+        note(out, index * 0.1, frequency, { decay: 0.1, gain: 0.7 }),
       );
-      // A sustained, shimmering chord to finish.
-      for (const frequency of [1046.5, 1318.5, 1568, 2093])
-        note(out, 0.38, frequency, { attack: 0.02, decay: 0.28, bell: 2.76, gain: 0.5 });
-      return finish(out, 0.6);
+      // A mellow major seventh chord rather than a metallic fanfare.
+      for (const frequency of [261.63, 329.63, 392, 493.88])
+        note(out, 0.42, frequency, { attack: 0.03, decay: 0.28, bell: 2, gain: 0.5 });
+      return finish(out, 0.36);
     }
     case 'whistle': {
       const out = new Float32Array(length(0.45));
-      whistle(out, 0, 0.4, rng);
-      return finish(out, 0.5);
+      whistle(out, 0, 0.28, rng);
+      return finish(out, 0.2);
     }
     case 'whistleLong': {
-      const out = new Float32Array(length(1.15));
-      whistle(out, 0, 1.1, rng);
-      return finish(out, 0.5);
+      const out = new Float32Array(length(0.8));
+      whistle(out, 0, 0.65, rng);
+      return finish(out, 0.2);
     }
     case 'whistleFull': {
-      const out = new Float32Array(length(2.1));
-      whistle(out, 0, 0.3, rng);
-      whistle(out, 0.42, 0.3, rng);
-      whistle(out, 0.84, 1.15, rng);
-      return finish(out, 0.5);
+      const out = new Float32Array(length(1.5));
+      whistle(out, 0, 0.2, rng);
+      whistle(out, 0.33, 0.2, rng);
+      whistle(out, 0.66, 0.65, rng);
+      return finish(out, 0.21);
     }
     case 'kick': {
       const out = new Float32Array(length(0.25));
@@ -286,29 +294,29 @@ export function renderSound(name: SoundName): Float32Array {
         phase += (55 + 110 * Math.exp(-t / 0.03)) / SAMPLE_RATE;
         out[i] = Math.sin(TAU * phase) * Math.exp(-t / 0.05);
       }
-      const click = new Biquad('highpass', 2200);
+      const click = new Biquad('bandpass', 850, 0.6);
       for (let i = 0; i < length(0.012); i++)
-        out[i]! += click.next(white(rng)) * 0.6 * (1 - i / length(0.012));
-      return finish(out, 0.55);
+        out[i]! += click.next(white(rng)) * 0.25 * (1 - i / length(0.012));
+      return finish(out, 0.32);
     }
     case 'net': {
       const out = new Float32Array(length(0.45));
-      const filter = new Biquad('bandpass', 3200, 0.9);
+      const filter = new Biquad('bandpass', 1150, 0.65);
       for (let i = 0; i < out.length; i++) {
         const t = i / SAMPLE_RATE;
         out[i] = filter.next(white(rng)) * Math.min(1, t / 0.02) * Math.exp(-t / 0.12);
       }
-      return finish(out, 0.4);
+      return finish(out, 0.2);
     }
     case 'roar': {
       const seconds = 4;
-      const out = crowd(seconds, rng, { brightness: 1.5, density: 160, formants: [500, 2200] });
+      const out = crowd(seconds, rng, { brightness: 1.15, density: 160, formants: [350, 1500] });
       for (let i = 0; i < out.length; i++) {
         const t = i / SAMPLE_RATE;
         const envelope = t < 0.35 ? (t / 0.35) ** 1.5 : t < 1.9 ? 1 : Math.exp(-(t - 1.9) / 0.7);
         out[i] = out[i]! * envelope;
       }
-      return finish(out, 0.85);
+      return finish(out, 0.5);
     }
     case 'ooh': {
       const seconds = 1.9;
@@ -319,7 +327,7 @@ export function renderSound(name: SoundName): Float32Array {
           t < 0.4 ? Math.sin(((t / 0.4) * Math.PI) / 2) : Math.exp(-(t - 0.4) / 0.45);
         out[i] = out[i]! * envelope;
       }
-      return finish(out, 0.75);
+      return finish(out, 0.4);
     }
     case 'crowd': {
       // An eight-second loop: render nine and cross-fade the extra second into the start.
@@ -335,36 +343,54 @@ export function renderSound(name: SoundName): Float32Array {
       // No edge fades: the loop must join seamlessly.
       let max = 0;
       for (const value of out) max = Math.max(max, Math.abs(value));
-      for (let i = 0; i < out.length; i++) out[i] = (out[i]! / max) * 0.6;
+      for (let i = 0; i < out.length; i++) out[i] = (out[i]! / max) * 0.38;
       return out;
     }
   }
 }
 
-/** 16-bit PCM mono WAV bytes. */
+/** 16-bit PCM mono or interleaved stereo WAV bytes. */
 export function encodeWav(
-  samples: Float32Array,
+  samples: Float32Array | readonly Float32Array[],
   sampleRate = SAMPLE_RATE,
 ): Uint8Array<ArrayBuffer> {
-  const bytes = new Uint8Array(44 + samples.length * 2);
+  const channels = samples instanceof Float32Array ? [samples] : samples;
+  if (
+    channels.length < 1 ||
+    channels.length > 2 ||
+    !Number.isInteger(sampleRate) ||
+    sampleRate <= 0
+  )
+    throw new RangeError('Invalid WAV format');
+  const frames = channels[0]!.length;
+  if (channels.some((channel) => channel.length !== frames))
+    throw new RangeError('Unequal WAV channels');
+  const dataSize = frames * channels.length * 2;
+  const bytes = new Uint8Array(44 + dataSize);
   const view = new DataView(bytes.buffer);
   const ascii = (offset: number, text: string) =>
     [...text].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
   ascii(0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * 2, true);
+  view.setUint32(4, 36 + dataSize, true);
   ascii(8, 'WAVE');
   ascii(12, 'fmt ');
   view.setUint32(16, 16, true);
   view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
+  view.setUint16(22, channels.length, true);
   view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
+  view.setUint32(28, sampleRate * channels.length * 2, true);
+  view.setUint16(32, channels.length * 2, true);
   view.setUint16(34, 16, true);
   ascii(36, 'data');
-  view.setUint32(40, samples.length * 2, true);
-  samples.forEach((sample, index) =>
-    view.setInt16(44 + index * 2, Math.round(Math.max(-1, Math.min(1, sample)) * 32767), true),
-  );
+  view.setUint32(40, dataSize, true);
+  for (let i = 0; i < frames; i++)
+    for (let c = 0; c < channels.length; c++) {
+      const sample = channels[c]![i]!;
+      view.setInt16(
+        44 + (i * channels.length + c) * 2,
+        Math.round(Math.max(-1, Math.min(1, sample)) * 32767),
+        true,
+      );
+    }
   return bytes;
 }

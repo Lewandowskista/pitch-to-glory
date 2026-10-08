@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CROWD_SOUNDS, encodeWav, renderSound, SAMPLE_RATE, SOUND_NAMES } from '../src/audio/synth';
+import { DEFAULT_SETTINGS, validateSettings } from '../src/persistence/settings';
 
 const peak = (samples: Float32Array) => samples.reduce((max, s) => Math.max(max, Math.abs(s)), 0);
 const rms = (samples: Float32Array, from = 0, to = samples.length) => {
@@ -26,9 +27,27 @@ describe('procedural audio', () => {
       expect(samples.length / SAMPLE_RATE).toBeLessThan(0.2);
       expect(peak(samples)).toBeLessThanOrEqual(0.36);
     }
-    expect(peak(renderSound('roar'))).toBeGreaterThan(0.8);
+    expect(peak(renderSound('roar'))).toBeGreaterThan(0.35);
+    expect(peak(renderSound('roar'))).toBeLessThanOrEqual(0.55);
     expect(CROWD_SOUNDS.has('crowd')).toBe(true);
     expect(CROWD_SOUNDS.has('whistle')).toBe(false);
+  });
+
+  it('keeps repeated clicks low and warm rather than piercing', () => {
+    for (const name of ['tap', 'toggle'] as const) {
+      const samples = renderSound(name);
+      expect(peak(samples), name).toBeLessThanOrEqual(0.18);
+      // Differentiation weights high frequencies: a signal-level brightness guard.
+      const differences = samples.slice(1).map((value, i) => value - samples[i]!);
+      expect(rms(differences) / rms(samples), name).toBeLessThan(0.12);
+    }
+  });
+
+  it('keeps whistles and reward peaks restrained', () => {
+    for (const name of ['whistle', 'whistleLong', 'whistleFull'] as const)
+      expect(peak(renderSound(name)), name).toBeLessThanOrEqual(0.23);
+    for (const name of ['reward', 'levelUp'] as const)
+      expect(peak(renderSound(name)), name).toBeLessThanOrEqual(0.38);
   });
 
   it('starts and ends one-shot sounds at silence so nothing clicks', () => {
@@ -69,5 +88,44 @@ describe('procedural audio', () => {
     expect([1, 2, 3, 4].map((i) => view.getInt16(44 + i * 2, true))).toEqual([
       16384, -16383, 32767, -32767,
     ]);
+  });
+
+  it('interleaves stereo samples with the correct WAV format', () => {
+    const wav = encodeWav([new Float32Array([0.5, -0.5]), new Float32Array([0.25, -0.25])], 32000);
+    const view = new DataView(wav.buffer);
+    expect(view.getUint16(22, true)).toBe(2);
+    expect(view.getUint32(24, true)).toBe(32000);
+    expect(view.getUint32(28, true)).toBe(128000);
+    expect(view.getUint16(32, true)).toBe(4);
+    expect(view.getUint32(40, true)).toBe(8);
+    expect([0, 1, 2, 3].map((i) => view.getInt16(44 + i * 2, true))).toEqual([
+      16384, 8192, -16383, -8192,
+    ]);
+  });
+});
+
+describe('music preferences', () => {
+  it('adds music defaults to older audio preferences without changing their volumes', () => {
+    const oldAudio = { muted: true, master: 0.5, effects: 0.4, crowd: 0 };
+    const next = validateSettings({ ...DEFAULT_SETTINGS, audio: oldAudio });
+    expect(next.audio).toEqual({ ...oldAudio, music: 0.35, musicEnabled: true });
+  });
+  it('rejects invalid music preferences and preserves explicit silence', () => {
+    for (const music of [-1, 2, NaN, 'loud'])
+      expect(() =>
+        validateSettings({ ...DEFAULT_SETTINGS, audio: { ...DEFAULT_SETTINGS.audio, music } }),
+      ).toThrow();
+    expect(() =>
+      validateSettings({
+        ...DEFAULT_SETTINGS,
+        audio: { ...DEFAULT_SETTINGS.audio, musicEnabled: 'yes' },
+      }),
+    ).toThrow();
+    expect(
+      validateSettings({
+        ...DEFAULT_SETTINGS,
+        audio: { ...DEFAULT_SETTINGS.audio, music: 0, musicEnabled: false },
+      }).audio,
+    ).toMatchObject({ music: 0, musicEnabled: false });
   });
 });

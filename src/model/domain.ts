@@ -1394,6 +1394,8 @@ export interface AudioSettings {
   master: number;
   effects: number;
   crowd: number;
+  music: number;
+  musicEnabled: boolean;
 }
 export interface GalleryState {
   seed: string;

@@ -318,7 +318,7 @@ describe('settings and saves', () => {
       gallery: { seed: 'e', generation: 0 },
       settings: {
         ...DEFAULT_SETTINGS,
-        audio: { muted: true, master: 0.5, effects: 0.4, crowd: 0 },
+        audio: { ...DEFAULT_SETTINGS.audio, muted: true, master: 0.5, effects: 0.4, crowd: 0 },
       },
     };
     const save = createSave(1, 'Edited', payload);

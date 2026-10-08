@@ -21,16 +21,25 @@ export const audio = {
     player?.configure(next);
   },
   /** Call from a user gesture. Safe to call repeatedly. */
-  unlock(): void {
-    if (loading || typeof window === 'undefined') return;
+  async unlock(): Promise<void> {
+    if (player) {
+      player.unlock();
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    if (loading) {
+      await loading.catch(() => undefined);
+      return;
+    }
     loading = import('./player').then((loaded) => {
       player = loaded;
+      void loaded.prepare(['tap', 'toggle', 'confirm', ...warm]);
       if (settings) loaded.configure(settings);
-      loaded.prepare(['tap', 'toggle', 'confirm', ...warm]);
+      loaded.unlock();
       if (crowdLevel !== null) loaded.crowd(crowdLevel);
       return loaded;
     });
-    loading.catch(() => {
+    await loading.catch(() => {
       loading = null;
     });
   },
@@ -38,12 +47,16 @@ export const audio = {
     return player !== null;
   },
   /** Render sounds ahead of need, such as the match sounds when the match screen opens. */
-  prepare(names: SoundName[]): void {
-    if (player) player.prepare(names);
+  async prepare(names: SoundName[]): Promise<void> {
+    if (player) await player.prepare(names);
     else warm = [...new Set([...warm, ...names])];
   },
   play(name: SoundName): void {
     player?.play(name);
+  },
+  async preview(name: SoundName): Promise<void> {
+    await audio.unlock();
+    await player?.preview(name);
   },
   crowd(level: number | null): void {
     crowdLevel = level;

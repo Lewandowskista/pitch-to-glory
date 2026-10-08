@@ -145,7 +145,7 @@ test('sound settings mute, set volumes and preview procedural sounds', async ({ 
   await page.keyboard.press('ArrowLeft');
   await expect(master).toHaveValue('75');
   await expect(page.getByText('75%')).toBeVisible();
-  await page.getByRole('button', { name: 'Whistle' }).click();
+  await page.getByRole('button', { name: 'Whistle', exact: true }).click();
   // Howler and the synthesiser load after the first interaction, as their own chunk.
   await expect
     .poll(() => page.evaluate(() => Boolean((window as unknown as { Howler?: unknown }).Howler)))
@@ -158,5 +158,67 @@ test('sound settings mute, set volumes and preview procedural sounds', async ({ 
   const stored = await page.evaluate(
     () => JSON.parse(localStorage.getItem('ptg-preferences') ?? '{}').audio,
   );
-  expect(stored).toEqual({ muted: true, master: 0.75, effects: 0.8, crowd: 0.6 });
+  expect(stored).toEqual({
+    muted: true,
+    master: 0.75,
+    effects: 0.65,
+    crowd: 0.45,
+    music: 0.35,
+    musicEnabled: true,
+  });
+});
+
+test('lo-fi music has its own persistent controls', async ({ page }) => {
+  await page.goto('/settings');
+  const music = page.getByRole('switch', { name: 'Background music' });
+  const volume = page.getByLabel('Music volume');
+  await expect(music).toBeChecked();
+  await expect(volume).toHaveValue('35');
+  await page.getByRole('button', { name: 'Interface', exact: true }).click();
+  await page.getByLabel('Effects and interface').fill('0');
+  await page.getByLabel('Crowd', { exact: true }).fill('0');
+  await volume.fill('20');
+  await music.uncheck();
+  await expect(volume).toBeDisabled();
+  await music.check();
+  await page.getByRole('switch', { name: 'Mute all sound' }).check();
+  await page.reload();
+  await expect(volume).toHaveValue('20');
+  await expect(music).toBeChecked();
+  await expect(music).toBeDisabled();
+});
+
+test('lo-fi loop plays after a gesture and pauses independently of other channels', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName === 'webkit' && process.platform === 'win32',
+    'Windows WebKit exposes no AudioContext and rejects PCM WAV with media error 4; playback requires Linux/macOS WebKit or real Safari.',
+  );
+  await page.goto('/settings');
+  expect(
+    await page.evaluate(() => Boolean((window as unknown as { Howler?: unknown }).Howler)),
+  ).toBe(false);
+  await page.getByRole('button', { name: 'Interface', exact: true }).click();
+  const musicPlaying = () =>
+    page.evaluate(() => {
+      const howler = (
+        window as unknown as {
+          Howler?: { _howls: { duration: () => number; playing: () => boolean }[] };
+        }
+      ).Howler;
+      return howler?._howls.some((sound) => sound.duration() > 90 && sound.playing()) ?? false;
+    });
+  await expect.poll(musicPlaying, { timeout: 20000 }).toBe(true);
+  await page.getByLabel('Effects and interface').fill('0');
+  await page.getByLabel('Crowd', { exact: true }).fill('0');
+  await expect.poll(musicPlaying).toBe(true);
+  const music = page.getByRole('switch', { name: 'Background music' });
+  await music.uncheck();
+  await expect.poll(musicPlaying).toBe(false);
+  await music.check();
+  await expect.poll(musicPlaying).toBe(true);
+  await page.getByRole('switch', { name: 'Mute all sound' }).check();
+  await expect.poll(musicPlaying).toBe(false);
 });

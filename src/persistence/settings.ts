@@ -12,7 +12,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reducedMotion: false,
   backupReminder: true,
   simulationOnly: false,
-  audio: { muted: false, master: 0.8, effects: 0.8, crowd: 0.6 },
+  audio: { muted: false, master: 0.8, effects: 0.65, crowd: 0.45, music: 0.35, musicEnabled: true },
   tutorial: { week: false, match: false },
 };
 
@@ -58,6 +58,9 @@ function validateAudio(value: unknown): Settings['audio'] {
     master: volume(a.master),
     effects: volume(a.effects),
     crowd: volume(a.crowd),
+    music: a.music === undefined ? DEFAULT_SETTINGS.audio.music : volume(a.music),
+    musicEnabled:
+      a.musicEnabled === undefined ? DEFAULT_SETTINGS.audio.musicEnabled : boolean(a.musicEnabled),
   };
 }
 function validateTutorial(value: unknown): Settings['tutorial'] {

@@ -10,6 +10,7 @@ export default tseslint.config(
       'dist-custom/**',
       'dist-next/**',
       'node_modules/**',
+      'artifacts/**',
       'playwright-report/**',
       'test-results/**',
       '.npm-cache/**',

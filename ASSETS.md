@@ -31,6 +31,20 @@ All of these are original, authored in code; no external images are used.
 
 No audio files are included. Every sound is synthesised on the player's device by original code in `src/audio/synth.ts` (oscillators, seeded noise and filters) and played with Howler.js (MIT licence, `node_modules/howler/LICENSE.md`). The sounds are interface taps, toggles, confirmations and errors; reward chimes and a level-up fanfare; a pea whistle, kick, net, goal roar, groan and a looping crowd. Nothing is downloaded or recorded, and nothing needs attribution.
 
+## Audio refresh (9 October 2026)
+
+The effects now use a softer, lower-register palette, restrained peaks and less resonant crowd
+textures. **After the Floodlights** is an original 76 BPM instrumental lo-fi composition in
+`src/audio/music.ts`: electric keys, bass, swung brushed percussion, sparse melody and stereo
+room echoes. All instruments, notes and effects are authored here and synthesised from seeded
+noise and oscillators. Balatro is a mood reference only; no soundtrack audio, samples, melody
+or arrangement from it are used. There are no third-party music assets or remote media requests.
+
+The stereo loop is generated in the audio worker after the first interaction, when enabled.
+`node --import tsx scripts/render-audio.ts` exports the original track and all effects into
+`artifacts/audio/` for listening; these generated WAVs are not shipped in the app. See
+`docs/AUDIO-REVIEW.md` for the review, rationale and listening limitations.
+
 ## Release images and fonts (milestone 10)
 
 - **PNG derivatives**: `public/share.png` (1200×630 share card), `public/icon-192.png`, `public/icon-512.png`, `public/icon-maskable-512.png` and `public/apple-touch-icon.png` are rendered from the original `public/share.svg`, `public/icon.svg` and `public/icon-maskable.svg` by `scripts/raster.mjs`, because social cards and iOS home-screen icons do not accept SVG. The share card's text is set in the game's own self-hosted fonts. The SVGs remain the source; regenerate with `npm run raster`.
