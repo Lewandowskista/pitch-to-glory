@@ -15,6 +15,8 @@ export interface PitchProps {
   rate?: number;
   maxMs?: number;
   reducedMotion: boolean;
+  /** Freeze a live passage when the player pauses or switches away from the tab. */
+  paused?: boolean;
   onUnavailable?: () => void;
   /** The selected player's latest goal celebration: replayed when its key changes. */
   celebration?: { key: string; motion: string } | null;
@@ -24,8 +26,9 @@ const viewOf = (props: PitchProps): PitchView => ({
   frame: props.frame,
   motion: props.motion ?? null,
   rate: props.rate ?? 18,
-  maxMs: props.maxMs ?? 800,
+  maxMs: props.maxMs ?? 2100,
   reducedMotion: props.reducedMotion,
+  paused: props.paused ?? false,
 });
 
 export default function Pitch(props: PitchProps) {
@@ -92,7 +95,7 @@ export default function Pitch(props: PitchProps) {
   }, [props.home.id, props.away.id, props.selectedPlayerId]);
   useEffect(() => {
     scene.current?.update(viewOf(latest.current));
-  }, [props.frame, props.motion, props.rate, props.maxMs, props.reducedMotion]);
+  }, [props.frame, props.motion, props.rate, props.maxMs, props.reducedMotion, props.paused]);
   const celebrationKey = props.celebration?.key;
   useEffect(() => {
     if (celebrationKey && latest.current.celebration)

@@ -8,7 +8,6 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../store';
 import {
   applyMatchCommand,
@@ -41,19 +40,19 @@ import { lifestyleText as l } from '../i18n/lifestyle';
 import '../styles/match.css';
 
 import { useMatchAudio } from './match/useMatchAudio';
+import { preparePlayback } from './match/playback';
 import { Tutorial } from '../ui/Tutorial';
 import { tutorialText as tt } from '../i18n/tutorial';
 const Pitch = lazy(() => import('./match/Pitch'));
 /** Real milliseconds per simulated minute at 1× speed. */
-const MINUTE_MS = 850;
+const MINUTE_MS = 2200;
 /**
- * How fast a passage of play is shown: live minutes run at a steady 18× real time and always
- * finish before the next minute; the build-up to a decision and its outcome play slower.
+ * Normal play leaves time to follow the ball; decision build-ups and outcomes play slower.
  */
 function motionPace(kind: MatchMotion['kind'], speed: number) {
   if (kind === 'minute') return { rate: 18 * speed, maxMs: (MINUTE_MS / speed) * 0.95 };
   if (kind === 'kickoff') return { rate: 1, maxMs: 0 };
-  return { rate: 8, maxMs: 3200 };
+  return { rate: 6, maxMs: 4200 };
 }
 function commentaryText(event: MatchEvent): string {
   return matchFormat(matchLabel(event.commentaryKey), event.commentaryParams ?? {});
@@ -79,7 +78,7 @@ export default function MatchScreen() {
   const session = useAppStore((store) => store.matchSession);
   const active = useAppStore((store) => store.activeSave);
   const settings = useAppStore((store) => store.settings);
-  const systemReduced = useReducedMotion();
+  const systemReduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [params, setParams] = useSearchParams();
   const attemptedSlot = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -91,6 +90,7 @@ export default function MatchScreen() {
   const wide = useMediaQuery(WIDE);
   const [outcomeId, setOutcomeId] = useState<string | null>(null);
   const state = session?.state;
+  const motion = state?.motion;
   const status = state?.match.status;
   const [announcement, setAnnouncement] = useState('');
   const announcedScore = useRef('');
@@ -201,20 +201,26 @@ export default function MatchScreen() {
       job
     )
       return;
-    const timer = window.setInterval(() => {
-      if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) {
-        setPlaying(false);
-        return;
-      }
-      command({ type: 'advance' });
-    }, MINUTE_MS / speed);
-    return () => window.clearInterval(timer);
+    const pace = motionPace(motion!.kind, speed);
+    const passage = preparePlayback(motion!.frames, pace.rate, pace.maxMs);
+    const timer = window.setTimeout(
+      () => {
+        if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) {
+          setPlaying(false);
+          return;
+        }
+        command({ type: 'advance' });
+      },
+      Math.max(MINUTE_MS / speed, passage.duration + 80 / speed),
+    );
+    return () => window.clearTimeout(timer);
   }, [
     playing,
     speed,
     status,
     state?.captainDecisionPending,
     state?.substitutionDecisionPending,
+    motion,
     job,
     command,
   ]);
@@ -605,6 +611,7 @@ export default function MatchScreen() {
                           motion={state!.motion.frames}
                           {...motionPace(state!.motion.kind, speed)}
                           reducedMotion={settings.reducedMotion || !!systemReduced}
+                          paused={!playing && status === 'live' && !outcomeId}
                           celebration={celebration}
                         />
                       </Suspense>

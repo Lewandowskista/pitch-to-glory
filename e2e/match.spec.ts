@@ -237,6 +237,62 @@ test('playback pauses when hidden and the pitch survives resize and context loss
   await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
   await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
 });
+test('pausing freezes pitch movement and resuming continues the action', async ({
+  page,
+  browserName,
+}) => {
+  test.setTimeout(90000);
+  await prepare(page);
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.getByTestId('match-state')).not.toHaveAttribute('data-minute', '0');
+  await pause(page);
+  const pitch = page.locator('.match-pitch-panel figure').first();
+  await expect(pitch).toBeVisible();
+  if (browserName === 'chromium') await expect(pitch.locator('canvas')).toHaveCount(1);
+  const frozen = await pitch.screenshot();
+  await page.waitForTimeout(350);
+  expect((await pitch.screenshot()).equals(frozen)).toBe(true);
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(async () => expect((await pitch.screenshot()).equals(frozen)).toBe(false)).toPass({
+    timeout: 8000,
+  });
+});
+
+test('the vector fallback animates decisions and respects reduced motion', async ({ page }) => {
+  test.setTimeout(90000);
+  await prepare(page);
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  const canvas = page.locator('.match-pitch-panel canvas');
+  await expect
+    .poll(
+      async () =>
+        (await canvas.count()) > 0 ||
+        (await page.getByText('Using the accessible pitch view.', { exact: false }).isVisible()),
+      { timeout: 20000 },
+    )
+    .toBe(true);
+  if (await canvas.count())
+    await canvas.evaluate((node) =>
+      node.dispatchEvent(new Event('webglcontextlost', { cancelable: true })),
+    );
+  await expect(page.getByText('Using the accessible pitch view.', { exact: false })).toBeVisible();
+  const pitch = page.locator('.match-pitch-panel svg').first();
+  await expect(pitch.locator('text')).toHaveCount(22);
+  for (const number of await pitch.locator('text').all())
+    await expect(number).toHaveAttribute('text-anchor', 'middle');
+  const start = await pitch.screenshot();
+  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
+  await expect(async () => expect((await pitch.screenshot()).equals(start)).toBe(false)).toPass({
+    timeout: 5000,
+  });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForTimeout(150);
+  const still = await pitch.screenshot();
+  await page.waitForTimeout(350);
+  expect((await pitch.screenshot()).equals(still)).toBe(true);
+});
+
 test('captain and substitution responses stop skip before completing the match', async ({
   page,
 }) => {

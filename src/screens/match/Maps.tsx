@@ -1,6 +1,7 @@
 import type { Club, MatchReport } from '../../model/domain';
 import { chooseMatchKits } from '../../engine/assets/clash';
 import { pitchCopy as copy } from '../../i18n/pitch';
+import { pitchArt } from './pitchArt';
 
 /**
  * Token colours for a match, shared by the SVG fallback and GPU scene (importing this does
@@ -14,7 +15,7 @@ export function kitAppearance(home: Club, away: Club) {
 
 export function PitchMarkings() {
   return (
-    <g fill="none" stroke="#d5e8cc" strokeWidth="0.45" opacity="0.8">
+    <g fill="none" stroke={pitchArt.line} strokeWidth="0.38" opacity="0.85">
       <rect x="8" y="8" width="100" height="64" />
       <path d="M58 8V72" />
       <circle cx="58" cy="40" r="9.15" />
@@ -24,6 +25,15 @@ export function PitchMarkings() {
       <rect x="102.5" y="30.5" width="5.5" height="19" />
       <rect x="5" y="35.8" width="3" height="8.4" />
       <rect x="108" y="35.8" width="3" height="8.4" />
+      {[5, 6, 7, 109, 110, 111].map((x) => (
+        <path key={x} d={`M${x} 35.8V44.2`} strokeWidth=".15" opacity=".5" />
+      ))}
+      {[5, 108].flatMap((x) =>
+        [37.2, 38.6, 40, 41.4, 42.8].map((y) => (
+          <path key={`${x}-${y}`} d={`M${x} ${y}h3`} strokeWidth=".12" opacity=".35" />
+        )),
+      )}
+      <path d="M9 8A1 1 0 0 1 8 9M108 9A1 1 0 0 1 107 8M107 72A1 1 0 0 1 108 71M8 71A1 1 0 0 1 9 72" />
       <circle cx="19" cy="40" r="0.5" />
       <circle cx="97" cy="40" r="0.5" />
       <circle cx="58" cy="40" r="0.5" />

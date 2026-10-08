@@ -1,4 +1,4 @@
-import type { Point, ReplayFrame } from '../../model/domain';
+import type { BallMotion, Point, ReplayFrame } from '../../model/domain';
 
 /**
  * Plays a passage of engine keyframes (see engine/match/motion.ts) in real time. Keyframe
@@ -16,14 +16,38 @@ export interface PlaybackSample {
   ball: Point;
   /** Height of a lofted ball, 0 on the ground to 1 at the top of the arc. */
   height: number;
+  motion: BallMotion | undefined;
+  carrierId: string | null;
+  /** Flight endpoints and progress, used for direction, foot offsets and impact cues. */
+  from: ReplayFrame;
+  to: ReplayFrame;
+  progress: number;
 }
 
 export function preparePlayback(frames: ReplayFrame[], rate: number, maxMs: number): Playback {
-  const start = frames[0]?.timeMs ?? 0;
-  const sporting = (frames[frames.length - 1]?.timeMs ?? start) - start;
-  const duration = Math.max(0, Math.min(maxMs, sporting / Math.max(rate, 0.001)));
-  const scale = sporting > 0 ? duration / sporting : 0;
-  return { frames, times: frames.map((frame) => (frame.timeMs - start) * scale), duration };
+  // Quick actions need time to register even when a long run precedes them. At higher
+  // speeds the cap compresses the passage, retaining its relative action timing.
+  const minimum: Partial<Record<BallMotion, number>> = {
+    ground: 160,
+    air: 300,
+    over: 300,
+    shot: 240,
+    loose: 160,
+    carry: 120,
+    dead: 100,
+  };
+  const steps = frames.slice(1).map((frame, i) => {
+    const sporting = Math.max(0, frame.timeMs - frames[i]!.timeMs);
+    return sporting === 0
+      ? 0
+      : Math.max(sporting / Math.max(rate, 0.001), minimum[frame.ballMotion ?? 'carry'] ?? 0);
+  });
+  const total = steps.reduce((sum, step) => sum + step, 0);
+  const duration = Math.max(0, Math.min(maxMs, total));
+  const scale = total > 0 ? duration / total : 0;
+  const times = [0];
+  for (const step of steps) times.push(times[times.length - 1]! + step * scale);
+  return { frames, times, duration };
 }
 
 const easeOut = (u: number) => 1 - (1 - u) * (1 - u);
@@ -31,12 +55,33 @@ const mix = (a: Point, b: Point, u: number): Point => ({
   x: a.x + (b.x - a.x) * u,
   y: a.y + (b.y - a.y) * u,
 });
-/** Uniform Catmull-Rom through p1 → p2, so runs curve smoothly through keyframes. */
-function spline(p0: Point, p1: Point, p2: Point, p3: Point, u: number): Point {
+/** Time-aware monotone Hermite: continuous velocity without overshoot at stops/turns. */
+function spline(
+  p0: Point,
+  p1: Point,
+  p2: Point,
+  p3: Point,
+  u: number,
+  before: number,
+  length: number,
+  after: number,
+): Point {
   const u2 = u * u,
     u3 = u2 * u;
-  const axis = (a: number, b: number, c: number, d: number) =>
-    0.5 * (2 * b + (c - a) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (3 * b - a - 3 * c + d) * u3);
+  const axis = (a: number, b: number, c: number, d: number) => {
+    const slope = length > 0 ? (c - b) / length : 0;
+    if (slope === 0) return b;
+    const tangent = (left: number, right: number) =>
+      left * right <= 0
+        ? 0
+        : Math.sign(left) *
+          Math.min(Math.abs((left + right) / 2), 3 * Math.min(Math.abs(left), Math.abs(right)));
+    const m1 = tangent(before > 0 ? (b - a) / before : slope, slope) * length;
+    const m2 = tangent(slope, after > 0 ? (d - c) / after : slope) * length;
+    return (
+      (2 * u3 - 3 * u2 + 1) * b + (u3 - 2 * u2 + u) * m1 + (-2 * u3 + 3 * u2) * c + (u3 - u2) * m2
+    );
+  };
   return { x: axis(p0.x, p1.x, p2.x, p3.x), y: axis(p0.y, p1.y, p2.y, p3.y) };
 }
 function pointOf(frame: ReplayFrame | undefined, id: string): Point | undefined {
@@ -66,13 +111,23 @@ export function samplePlayback(playback: Playback, elapsed: number): PlaybackSam
       players.set(player.id, snap && u > 0 ? player.point : p1);
       continue;
     }
+    // A restart is a discontinuity, not an upcoming run to curve towards.
+    const before = a.ballMotion === 'reset' ? 0 : times[i]! - (times[i - 1] ?? times[i]!);
+    const after =
+      frames[i + 2]?.ballMotion === 'reset' ? 0 : (times[i + 2] ?? times[i + 1]!) - times[i + 1]!;
     const p0 = pointOf(frames[i - 1], player.id) ?? p1;
     const p3 = pointOf(frames[i + 2], player.id) ?? player.point;
-    players.set(player.id, spline(p0, p1, player.point, p3, u));
+    const point = spline(p0, p1, player.point, p3, u, before, length, after);
+    players.set(player.id, {
+      x: Math.max(0, Math.min(100, point.x)),
+      y: Math.max(0, Math.min(100, point.y)),
+    });
   }
   let ball: Point,
     height = 0;
-  const motion = b.ballMotion;
+  // A skipped passage can start from the positions still on screen, with a different
+  // carrier. Show the connecting pass instead of snapping the ball to the new runner.
+  const motion = b.ballMotion === 'carry' && a.carrierId !== b.carrierId ? 'ground' : b.ballMotion;
   if (snap) ball = u > 0 ? b.ball : a.ball;
   else if (motion === 'carry' && b.carrierId && b.carrierId === a.carrierId)
     // A dribble: the ball stays at the runner's feet.
@@ -85,6 +140,12 @@ export function samplePlayback(playback: Playback, elapsed: number): PlaybackSam
     );
     height = 4 * u * (1 - u) * reach * (motion === 'over' ? 1.3 : 1);
   } else if (motion === 'shot') ball = mix(a.ball, b.ball, 0.5 * u + 0.5 * easeOut(u));
-  else ball = mix(a.ball, b.ball, easeOut(u));
-  return { players, ball, height };
+  else ball = mix(a.ball, b.ball, motion === 'loose' ? easeOut(u) : u);
+  const carrierId =
+    motion === 'carry' && a.carrierId === b.carrierId
+      ? (b.carrierId ?? null)
+      : u >= 1
+        ? (b.carrierId ?? null)
+        : null;
+  return { players, ball, height, motion, carrierId, from: a, to: b, progress: u };
 }

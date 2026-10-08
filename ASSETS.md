@@ -8,6 +8,11 @@
 
 ## Wardrobe and celebration artwork (milestone 7)
 
+The live pitch's circular player tokens, keeper gloves, direction markers, panelled football,
+goal nets, corner arcs, flight trails and arrival rings are original procedural vector artwork
+in `src/screens/match/pitchScene.ts` and `SvgPitch.tsx`. `pitchArt.ts` shares dimensions and
+contrast choices between the GPU and SVG renderers. These assets use no downloaded images.
+
 All of these are original, authored in code; no external images are used.
 
 - **Dressed shirt** (sleeve length, captain's armband) and the **socks and boots**: flat SVG shapes from `src/engine/assets/gear.ts`, in each club's kit colours.
