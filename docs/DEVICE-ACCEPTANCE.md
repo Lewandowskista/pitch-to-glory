@@ -5,6 +5,9 @@ audio, input or rendering (Phase 4.2 of the [improvement plan](superpowers/plans
 Automated browser engines cannot stand in for these: a result counts only when a person has
 run it on the named device, and records the date, build and anything that went wrong.
 
+**Status:** these checks are skipped until further notice (decision of 2026-10-08). Releases ship on the automated
+Chromium, Firefox and WebKit coverage alone until the checks are picked up again.
+
 ## Devices
 
 | Device                  | Browser                     | Why                                                |
@@ -47,4 +50,4 @@ device; "Pass" needs the build (commit) it was run against.
 
 | Date | Build | Device and browser | Checks run | Result and notes |
 | ---- | ----- | ------------------ | ---------- | ---------------- |
-|      |       |                    |            | Not yet run      |
+|      |       |                    |            | Skipped for now  |

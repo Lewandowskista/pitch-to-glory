@@ -6,7 +6,7 @@
 
 **Stack:** Existing TypeScript, React 18, Vite, React Router, Zustand, PixiJS, Tailwind, Framer Motion, Dexie, Vitest and Playwright. No new runtime dependency is required by this plan.
 
-**Status:** Phases 1–3, 5 and 6 complete; Phase 4 complete except physical-device acceptance (deferred to the end). The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
+**Status:** Phases 1–6 complete. Physical-device acceptance (Phase 4.2) is skipped until further notice (decision of 2026-10-08). The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
 
 ## Scope and approach
 
@@ -200,7 +200,7 @@ Keep the green/gold identity, existing country profiles and browser-first archit
 - [x] Record Lighthouse performance/accessibility, interactive readiness, input-to-next-paint, long tasks, renderer frame pacing and browser memory where available. Run audits without concurrent browser/season jobs.
 - [x] Use release targets from AGENTS.md: desktop Lighthouse >90, mobile >85, accessibility >95, initial JavaScript <300 KB gzip and interactive readiness <3 seconds on the agreed phone/4G profile. Aim for 60 fps on the target laptop and phone; persist the hardware/profile used so comparisons are meaningful.
 - [x] Run the fast route budget on each change, populated audits on a serialized scheduled/release job, and upload results. Fail gates rather than hiding regressions through repeated averaging.
-- [ ] Add manual acceptance for Safari macOS/iOS and a mid-range Android browser: IndexedDB storage pressure, install/offline, audio gesture unlock, background/resume, large text, touch decisions and sustained rendering. Manual results require a real device run, not an automated tick. _(Checklist in `docs/DEVICE-ACCEPTANCE.md`; results need real devices and are not yet recorded.)_
+- [ ] Add manual acceptance for Safari macOS/iOS and a mid-range Android browser: IndexedDB storage pressure, install/offline, audio gesture unlock, background/resume, large text, touch decisions and sustained rendering. Manual results require a real device run, not an automated tick. _(Checklist in `docs/DEVICE-ACCEPTANCE.md`; the device runs are skipped until further notice (decision of 2026-10-08), so no results are recorded.)_
 - [x] Cover an old build receiving a new service worker while a saved career is active, checkpointing safely, reloading and continuing offline. Reuse the existing update manager; add an actual two-build journey.
 
 **Done** apart from device acceptance: see `docs/VERIFICATION.md`, Phase 4. Interaction latency uses Event Timing durations as a stand-in for INP.

@@ -71,6 +71,8 @@ The hub puts the next action first. _Needs you_ lists what is waiting, most urge
 
 - **Play the moments that matter.** 6–15 key moments a match, depending on your role and form: chances in the box, build-up play, crosses, aerial duels, last-ditch defending and, for keepers, saves and distribution, each a situation drawn on the pitch. Half-time talks with the manager, substitutions and captain's calls.
 - **Grow from a trial to a star.** XP from every match, attribute points against age-adjusted soft caps, a 49-skill tree that changes the odds and unlocks new choices, weekly training plans and injuries that need managing. Players peak in their late twenties; pace goes first, experience keeps rising.
+- **Earn your place.** Managers pick their eleven for their formation (4-3-3, 4-4-2, 4-2-3-1 or 3-5-2), weighing how well each player fits each position, and the hub explains your selection: your slot and familiarity, who is ahead of you, and what raises or lowers your chance of starting.
+- **Get coached.** The coach reads the pattern in your recent key decisions, says which attribute governed the misses and turns it into training sessions. Accept a season goal and the manager may set you a six-week challenge towards it: meet it and their trust grows, miss it and it costs a little, and either way it is written into your Chronicle.
 - **Build a career off the pitch.** Contracts with role promises and clauses, agents, scouting interest, multi-step transfer negotiations and loans. Press conferences and a social feed, teammate chemistry, dressing-room groups, culture fit, and a rival from your generation tracked against you.
 - **Live the life.** Fame levels, sponsors with obligations, cars, homes and investments, a wardrobe of boots, socks and armbands, signature celebrations that play on the pitch, and daily and weekly cosmetic challenges.
 - **Win everything.** Domestic cups, a Champions Cup and a Shield with groups and knockouts, call-ups from Under-19 to senior level, tournaments every two years, and a Golden Ball ceremony.
@@ -120,7 +122,7 @@ flowchart LR
 
 - **A pure engine.** Everything that decides results lives in `src/engine/`: plain, deterministic TypeScript with a seedable RNG and no browser globals or imports (enforced by lint). The same code runs in the UI, in Web Workers and in Node tests, so any career or match replays exactly from its seed.
 - **Workers for heavy work.** Season simulation and save validation run off the main thread, with progress and cancellation, so the interface never freezes.
-- **Saves you can trust.** Versioned save schema (now 14) with migrations from every earlier version, strict validation of every record, revision checks, and one browser tab per save slot.
+- **Saves you can trust.** Versioned save schema (now 16) with migrations from every earlier version, strict validation of every record, revision checks, and one browser tab per save slot.
 - **Code-split by route.** Each screen is its own chunk; PixiJS, the save system, audio and animation features load only when needed.
 
 ### The match engine is calibrated
@@ -155,7 +157,7 @@ xychart-beta
 
 ```mermaid
 flowchart LR
-  Push["Push to main"] --> Verify["verify (Linux)<br/>Prettier · ESLint · 295 unit tests<br/>typecheck · build · bundle budget"]
+  Push["Push to main"] --> Verify["verify (Linux)<br/>Prettier · ESLint · 330 unit tests<br/>one-season soak · typecheck<br/>build · bundle budget"]
   Verify --> C["Chromium journeys<br/>(Windows)"]
   Verify --> F["Firefox journeys<br/>(Windows)"]
   Verify --> W["WebKit journeys<br/>(Windows)"]
@@ -164,7 +166,7 @@ flowchart LR
   W --> Deploy
 ```
 
-Every push to `main` is formatted, linted, unit-tested, type-checked and built, then played through in Chromium, Firefox and WebKit under the production security headers before it deploys. Pull requests run the same checks without deploying. Both GitHub Actions and Cloudflare Pages are free for this public repository. See [deploying](docs/DEPLOY.md).
+Every push to `main` is formatted, linted, unit-tested, type-checked, played for a full simulated season and built, then played through in Chromium, Firefox and WebKit under the production security headers, with an update from one deployed build to the next, before it deploys. Pull requests run the same checks without deploying. Scheduled workflows go further: a nightly five-season soak replayed twice for identical results, a weekly two-generation career, and weekly performance checks on real late-career saves on desktop and throttled phone profiles. Both GitHub Actions and Cloudflare Pages are free for this public repository. See [deploying](docs/DEPLOY.md).
 
 ## Tech stack
 
@@ -196,6 +198,7 @@ npm run build        # typecheck, production build, per-route bundle budget
 npx playwright install chromium firefox webkit
 npm run test:e2e     # browser journeys under the production headers
 npm run audit        # Lighthouse quality targets
+npm run soak -- --seasons 1   # play a whole career season and check its invariants
 ```
 
 On Windows PowerShell with blocked script shims, use `npm.cmd` and `npx.cmd`. Browser tests start a production preview on port 4173; Lighthouse uses 4180. After changing `public/share.svg` or the icons, run `npm run raster` to regenerate their PNG copies.
@@ -236,9 +239,9 @@ After the web release, a [high-value improvements plan](docs/superpowers/plans/2
 - [x] Trustworthy results, statistics, awards, trophies and legacies
 - [x] Key moments that keep the situation in view on desktop and phone
 - [x] Grouped career navigation, a prioritized hub and a personal calendar
-- [ ] Multi-generation endurance tests and performance gates on real play states
-- [ ] Formation-aware selection, positions and coaching advice
-- [ ] One sustained story arc: a manager's development promise
+- [x] Multi-generation endurance tests and performance gates on real play states
+- [x] Formation-aware selection, positions and coaching advice
+- [x] One sustained story arc: a manager's development promise
 
 ## Documentation
 
