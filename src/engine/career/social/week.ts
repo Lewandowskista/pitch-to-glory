@@ -5,6 +5,7 @@ import type {
   MoralePart,
   World,
 } from '../../../model/domain';
+import { promiseRollover, promiseWeek } from '../stories/promise';
 import { createRng } from '../../rng';
 import { adjustRelationship, postMessage } from '../market/records';
 import { currentRole, relationshipValue } from '../market/rules';
@@ -139,6 +140,7 @@ export function socialWeek(world: World): void {
     morale: player.morale,
     form: player.form,
   });
+  promiseWeek(world);
   if (social.history.length > S.historyLimit)
     social.history.splice(0, social.history.length - S.historyLimit);
 }
@@ -146,6 +148,7 @@ export function socialWeek(world: World): void {
 /** Season change: the rival comparison closes and the dressing room regroups. */
 export function socialRollover(world: World): void {
   rivalSeasonEnd(world, world.date.season - 1);
+  promiseRollover(world);
   syncCliques(world);
   ensureTeammates(world);
 }

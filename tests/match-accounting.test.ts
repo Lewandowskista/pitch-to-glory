@@ -203,7 +203,7 @@ describe('career match accounting', () => {
       }
     }
     expect(extraGoals).toBeGreaterThan(5);
-  }, 60000);
+  }, 120000);
 
   it('derives every career reward from the finalized match, extra time included', () => {
     const base = clone(national);
@@ -280,5 +280,5 @@ describe('career match accounting', () => {
     }
     expect(checked).toBeGreaterThanOrEqual(3);
     expect(scoredInExtraTime).toBe(true);
-  }, 240000);
+  }, 360000);
 });

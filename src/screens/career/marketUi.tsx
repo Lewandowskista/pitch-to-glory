@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { storiesText } from '../../i18n/stories';
+const storiesMessages: Record<string, { subject: string; body: string }> = storiesText.messages;
 import { useAppStore } from '../../store';
 import {
   applyMarketAction,
@@ -55,7 +57,8 @@ export function messageText(message: InboxMessage): { subject: string; body: str
   const template = m.messages[message.subjectKey] ??
     socialMessages[message.subjectKey] ??
     lifestyleMessages[message.subjectKey] ??
-    honoursMessages[message.subjectKey] ?? { subject: message.subjectKey, body: '' };
+    honoursMessages[message.subjectKey] ??
+    storiesMessages[message.subjectKey] ?? { subject: message.subjectKey, body: '' };
   const params: Record<string, string | number> = { ...message.params };
   for (const key of ['fee', 'bid', 'bonus', 'proceeds'] as const)
     if (typeof params[key] === 'number') params[key] = money(params[key]);

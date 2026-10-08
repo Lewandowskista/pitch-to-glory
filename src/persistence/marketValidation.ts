@@ -64,6 +64,10 @@ const INBOX_KINDS = [
   'trophy',
   'record',
   'retirement-due',
+  'promise-offer',
+  'promise-achieved',
+  'promise-missed',
+  'promise-cancelled',
 ];
 
 const nullableDate = (value: unknown) => {

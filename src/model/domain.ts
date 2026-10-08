@@ -590,6 +590,40 @@ export interface CareerSocial {
   answered: number;
   /** Sentiment of recent coverage, decaying weekly (−10 to 10). */
   coverage: number;
+  /** The manager's development promises, at most one a season, newest last (Phase 6). */
+  promises?: ManagerPromise[];
+}
+export type PromiseStatus = 'offered' | 'active' | 'achieved' | 'missed' | 'cancelled';
+export type PromiseEnd =
+  'declined' | 'expired' | 'transfer' | 'manager' | 'injury' | 'retirement' | 'season';
+/**
+ * A six-week milestone the manager proposes towards the accepted season goal: offered, then
+ * active, then achieved or missed; cancelled without penalty when declined, unanswered or made
+ * unfair by a move, a new manager or an injury.
+ */
+export interface ManagerPromise {
+  /** Stable per season (`promise:<season>`), so reprocessing never repeats its effects. */
+  id: Id;
+  version: 1;
+  season: number;
+  clubId: Id;
+  managerId: Id;
+  status: PromiseStatus;
+  kind: SeasonGoalKind;
+  target: number;
+  attribute: string | null;
+  /** The measure when accepted: matches, completed passes, tackles or the attribute value. */
+  baseline: number;
+  offered: GameDate;
+  /** The last week to answer the offer. */
+  respondBy: number;
+  started: GameDate | null;
+  /** The last week that counts. */
+  deadline: number | null;
+  /** Progress at the latest weekly update. */
+  progress: number;
+  resolved: GameDate | null;
+  end: PromiseEnd | null;
 }
 export interface Payslip {
   season: number;
@@ -1010,6 +1044,7 @@ export type ChronicleKind =
   | 'fame'
   | 'record'
   | 'moment'
+  | 'promise'
   | 'retirement';
 export interface ChronicleEntry {
   id: Id;
@@ -1361,7 +1396,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 15;
+  schemaVersion: 16;
   engineVersion: string;
   slot: SlotId;
   name: string;

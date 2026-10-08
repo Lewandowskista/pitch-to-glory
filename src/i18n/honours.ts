@@ -197,6 +197,8 @@ export const honoursText = {
       record: 'Sets a world record: {record} ({value}).',
       moment: 'A moment to remember against {opponent}: {moment} in the {minute} minute.',
       retirement: 'Retires at {age}, after {appearances} and {goals}.',
+      'promise-achieved': 'Rises to {manager}’s six-week challenge: {goal}.',
+      'promise-missed': 'Falls short of {manager}’s six-week challenge: {goal}.',
     } as Record<string, string>,
   },
   moments: {

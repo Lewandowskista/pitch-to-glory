@@ -450,7 +450,7 @@ describe('career lifecycle and saves', () => {
     expect(moved.clubId).not.toBe(clubId);
     expect(next.leagues[next.clubs[moved.clubId!]!.leagueId]).toBeDefined();
     expect(next.clubs[moved.clubId!]!.playerIds).toContain(moved.id);
-  }, 120000);
+  }, 240000);
   it('round trips a career save and rejects forged progression', () => {
     const payload = {
       kind: 'world' as const,

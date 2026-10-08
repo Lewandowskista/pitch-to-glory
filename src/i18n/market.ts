@@ -267,6 +267,7 @@ export const marketText = {
     goAgent: 'See your agent',
     goTransfers: 'See transfers',
     goMedia: 'Go to the media room',
+    goClub: 'Go to Club life',
     goRival: 'See your rival',
     goLifestyle: 'Go to Lifestyle',
     goWardrobe: 'Go to the wardrobe',

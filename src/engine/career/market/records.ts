@@ -54,7 +54,11 @@ export type InboxKind =
   | 'golden-ball'
   | 'trophy'
   | 'record'
-  | 'retirement-due';
+  | 'retirement-due'
+  | 'promise-offer'
+  | 'promise-achieved'
+  | 'promise-missed'
+  | 'promise-cancelled';
 
 /** Post an inbox message; old read messages are dropped beyond the limit. */
 export function postMessage(

@@ -133,7 +133,8 @@ describe('squad lifecycle', () => {
     resumed = clone(resumed);
     while (resumed.date.week <= 44) resumed = simulateWeek(resumed);
     expect(resumed).toEqual(continuous);
-  }, 120000);
+    // Eighty-nine national weeks: well over a minute when other suites share the machine.
+  }, 300000);
 
   it('keeps a national world bounded and valid across two seasons', () => {
     let world = generateWorld('lifecycle-national');

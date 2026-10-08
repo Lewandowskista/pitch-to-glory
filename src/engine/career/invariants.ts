@@ -59,6 +59,19 @@ export function careerInvariants(world: World, options: InvariantOptions = {}): 
       fail(`the last history entry is not season ${world.date.season}`);
   }
 
+  // At most one promise a season, and at most one open at a time.
+  if (career?.social.promises) {
+    const seasons = career.social.promises.map((promise) => promise.season);
+    if (new Set(seasons).size !== seasons.length) fail('two promises in one season');
+    const open = career.social.promises.filter(
+      (promise) => promise.status === 'offered' || promise.status === 'active',
+    );
+    if (open.length > 1) fail(`${open.length} promises open at once`);
+    const concluded = world.chronicle.filter((entry) => entry.kind === 'promise');
+    if (new Set(concluded.map((entry) => entry.params.promise)).size !== concluded.length)
+      fail('a promise concluded twice in the Chronicle');
+  }
+
   // Trophies are awarded once per competition and season.
   const trophyIds = new Set<string>();
   for (const trophy of world.trophies) {

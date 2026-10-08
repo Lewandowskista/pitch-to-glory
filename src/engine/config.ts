@@ -363,6 +363,19 @@ export const CONFIG = {
       upwardStep: 5,
     },
     /** Morale, relationships, dressing room, rival and media (milestone 6). See BALANCING.md. */
+    /** The manager's development promise (Phase 6). */
+    promise: {
+      /** The milestone runs this many weeks from acceptance. */
+      weeks: 6,
+      /** Weeks to answer the offer, including the week it arrives. */
+      respondWeeks: 2,
+      /** Fewer club fixtures than this in the window turn a match milestone into training. */
+      minimumFixtures: 3,
+      targets: { appearanceShare: 0.67, passes: 35, tackles: 7, attribute: 1 },
+      /** Manager trust when the milestone is met or missed (cancelled changes nothing). */
+      trust: { achieved: 6, missed: -3 },
+      historyLimit: 10,
+    },
     social: {
       historyLimit: 160,
       /** Weekly morale moves this share of the way to its target. */
@@ -576,7 +589,7 @@ export const CONFIG = {
     unfamiliarFactor: 0.8,
   },
   saves: {
-    schemaVersion: 15,
+    schemaVersion: 16,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,

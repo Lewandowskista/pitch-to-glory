@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { PromiseCard } from './storiesUi';
 import { Link } from 'react-router-dom';
 import type { Career, Club, Player, World } from '../../model/domain';
 import { moraleMultiplier } from '../../engine/match/decisions';
@@ -59,6 +60,7 @@ function ClubContent({
         <MoraleBreakdown career={career} />
         <PeopleCard world={world} club={club} />
         <SelectionCard world={world} club={club} />
+        <PromiseCard world={world} className="order-4 lg:order-none" />
         <FitCard world={world} player={player} club={club} />
       </div>
     </div>

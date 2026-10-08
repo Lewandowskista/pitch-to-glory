@@ -28,6 +28,7 @@ export type PriorityKind =
   | 'play'
   | 'offer'
   | 'press'
+  | 'promise'
   | 'sponsor'
   | 'attributes'
   | 'skills';
@@ -85,6 +86,18 @@ export function deadlineItems(world: World): Priority[] {
       params: { outlet: item.authorName },
     });
   }
+  const promise = world.career?.social.promises?.find(
+    (entry) => entry.season === world.date.season && entry.status === 'offered',
+  );
+  if (promise)
+    items.push({
+      id: `promise:${promise.id}`,
+      kind: 'promise',
+      group: 'deadline',
+      deadline: { season: promise.season, week: promise.respondBy, day: 7 },
+      to: '/career/club',
+      params: { manager: world.managers[promise.managerId]?.name ?? '' },
+    });
   for (const deal of world.sponsorships) {
     if (deal.status !== 'offered') continue;
     items.push({

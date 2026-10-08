@@ -38,6 +38,8 @@ import {
 import { SKILLS } from '../src/engine/career/catalogue';
 import { applyHonoursAction } from '../src/engine/career/honours/actions';
 import { retirementState } from '../src/engine/career/honours/retirement';
+import { acceptGoal, goalOffer } from '../src/engine/career/coaching';
+import { acceptPromise, currentPromise } from '../src/engine/career/stories/promise';
 import { careerInvariants } from '../src/engine/career/invariants';
 import { createSave, DEFAULT_SETTINGS, parseSave } from '../src/persistence/schema';
 
@@ -176,6 +178,16 @@ export function decide(input: World, state: PolicyState, note: (action: string) 
     world = result.world;
     state.requestedTransfer = true;
     note(`transfer-request-${result.result}`);
+  }
+  // Take on the season goal and the manager's challenge when offered, so long runs exercise
+  // the coaching and story records too.
+  if (goalOffer(world)) {
+    world = acceptGoal(world);
+    note('goal');
+  }
+  if (currentPromise(world)?.status === 'offered') {
+    world = acceptPromise(world);
+    note('promise');
   }
   // Spend points the way a player might: the cheapest useful attribute, then any skill.
   for (let guard = 0; guard < 50 && world.career!.attributePoints > 0; guard++) {

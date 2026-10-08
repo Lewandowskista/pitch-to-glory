@@ -81,6 +81,7 @@ export function validateSocial(w: Record<string, unknown>): void {
   }
   number(social.answered, 0, 1e6, true);
   number(social.coverage, -10, 10);
+  if (social.promises !== undefined) validatePromises(social.promises, current);
 
   const rivalries = array(w.rivalries, 1);
   for (const value of rivalries) {
@@ -149,4 +150,55 @@ export function validateSocial(w: Record<string, unknown>): void {
       date(item.expires);
     }
   }
+}
+
+/** The manager's development promises (Phase 6): one a season, at most one open. */
+function validatePromises(value: unknown, current: Record<string, unknown>): void {
+  const P = CONFIG.career.promise;
+  const seasons = new Set<number>();
+  let open = 0;
+  for (const entry of array(value, P.historyLimit)) {
+    const promise = object(entry);
+    requireValue(promise.version === 1);
+    number(promise.season, 1800, Number(current.season), true);
+    requireValue(promise.id === `promise:${promise.season}`);
+    requireValue(!seasons.has(Number(promise.season)));
+    seasons.add(Number(promise.season));
+    id(promise.clubId);
+    id(promise.managerId);
+    options(promise.status, ['offered', 'active', 'achieved', 'missed', 'cancelled']);
+    options(promise.kind, ['appearances', 'passing', 'defending', 'attribute']);
+    number(promise.target, 1, 1000, true);
+    requireValue(
+      promise.kind === 'attribute'
+        ? typeof promise.attribute === 'string'
+        : promise.attribute === null,
+    );
+    number(promise.baseline, 0, 1e5, true);
+    date(promise.offered);
+    number(promise.respondBy, 1, 80, true);
+    number(promise.progress, 0, 1e5, true);
+    const active = promise.status === 'active';
+    const done = ['achieved', 'missed', 'cancelled'].includes(String(promise.status));
+    if (promise.status === 'offered' || active) open++;
+    if (promise.started === null) requireValue(!active && promise.deadline === null);
+    else {
+      date(promise.started);
+      number(promise.deadline, 1, 80, true);
+    }
+    if (done) date(promise.resolved);
+    else requireValue(promise.resolved === null && promise.end === null);
+    if (promise.end !== null)
+      options(promise.end, [
+        'declined',
+        'expired',
+        'transfer',
+        'manager',
+        'injury',
+        'retirement',
+        'season',
+      ]);
+    requireValue(promise.status === 'cancelled' ? promise.end !== null : promise.end === null);
+  }
+  requireValue(open <= 1);
 }

@@ -62,6 +62,8 @@ export function messageLink(
     return { to: join('/career/wardrobe'), label: m.inbox.goWardrobe };
   if (message.subjectKey === 'rival-transfer')
     return { to: join('/career/rival'), label: m.inbox.goRival };
+  if (message.subjectKey.startsWith('promise-'))
+    return { to: join('/career/club'), label: m.inbox.goClub };
   if (message.subjectKey.startsWith('agent-'))
     return { to: join('/career/agent'), label: m.inbox.goAgent };
   if (message.subjectKey === 'new-manager' || message.subjectKey === 'welcome-market') return null;

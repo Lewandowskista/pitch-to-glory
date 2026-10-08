@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { promiseMilestone } from './storiesUi';
+import type { ManagerPromise } from '../../model/domain';
 import { useAppStore } from '../../store';
 import { applyHonoursAction, type HonoursAction } from '../../engine/career/honours';
 import type { ChronicleEntry, World } from '../../model/domain';
@@ -103,6 +105,7 @@ export const CHRONICLE_GLYPH: Record<ChronicleEntry['kind'], GlyphName> = {
   fame: 'fame',
   record: 'record',
   moment: 'moment',
+  promise: 'check',
   retirement: 'retirement',
 };
 
@@ -138,11 +141,19 @@ export function chronicleSentence(world: World, entry: ChronicleEntry): string {
     p.moment = (
       h.moments.kinds[String(p.kind) as keyof typeof h.moments.kinds] ?? ''
     ).toLowerCase();
+  if (entry.kind === 'promise')
+    p.goal = promiseMilestone({
+      kind: String(p.kind) as ManagerPromise['kind'],
+      target: Number(p.target),
+      attribute: p.attribute ? String(p.attribute) : null,
+    }).toLowerCase();
   const key =
-    entry.kind === 'move'
-      ? `move-${p.kind}`
-      : entry.kind === 'start' && p.parent
-        ? 'startChild'
-        : entry.kind;
+    entry.kind === 'promise'
+      ? `promise-${p.outcome}`
+      : entry.kind === 'move'
+        ? `move-${p.kind}`
+        : entry.kind === 'start' && p.parent
+          ? 'startChild'
+          : entry.kind;
   return format(h.chronicle.entries[key] ?? '', p);
 }

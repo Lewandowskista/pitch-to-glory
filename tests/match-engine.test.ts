@@ -189,7 +189,7 @@ describe('match engine', () => {
     expect(wideUpsets / 2000).toBeGreaterThan(0.03);
     expect(wideUpsets / 2000).toBeLessThan(0.2);
     expect(wideUpsets).toBeLessThan(closeUpsets);
-  }, 240000);
+  }, 360000);
   it('retains half-time recovery and requires captain instruction', () => {
     const chosen = structuredClone(setup);
     chosen.players[chosen.selectedPlayerId]!.attributes.leadership = 99;

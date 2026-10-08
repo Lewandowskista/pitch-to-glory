@@ -6,7 +6,7 @@
 
 **Stack:** Existing TypeScript, React 18, Vite, React Router, Zustand, PixiJS, Tailwind, Framer Motion, Dexie, Vitest and Playwright. No new runtime dependency is required by this plan.
 
-**Status:** Phases 1–3 and 5 complete; Phase 4 complete except physical-device acceptance; Phase 6 not started. The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
+**Status:** Phases 1–3, 5 and 6 complete; Phase 4 complete except physical-device acceptance (deferred to the end). The review in [PROJECT-REVIEW.md](../../PROJECT-REVIEW.md) is the evidence base; [AGENTS.md](../../../AGENTS.md) remains the product authority.
 
 ## Scope and approach
 
@@ -251,11 +251,13 @@ Keep the green/gold identity, existing country profiles and browser-first archit
 
 **Modify:** `src/engine/career/social/week.ts`, `src/engine/career/honours/chronicle.ts`, `src/engine/career/market/records.ts`, `src/screens/career/CareerClub.tsx`, `src/screens/career/CareerHub.tsx`, `src/model/domain.ts`, `src/persistence/schema.ts`, `src/persistence/socialValidation.ts`, `src/engine/config.ts`.
 
-- [ ] Build one arc around the accepted development goal: the manager proposes a quantified six-week milestone toward that goal, the player accepts or declines, weekly progress updates, and the outcome follows actual progress. Offer it only when at least six weeks remain in the season; use a trainable attribute milestone if the fixture schedule cannot support an appearance/performance milestone.
-- [ ] Persist a finite state machine with offered, active, achieved, missed and cancelled states; only one active promise is allowed. Offer and outcome events use stable IDs so loading/retrying cannot duplicate rewards or Chronicle entries.
-- [ ] Cancel without punishment if transfer, manager replacement, retirement or injury makes the promise unavailable. Reuse configured manager-trust/morale rewards; do not introduce a new currency or routine daily obligation.
-- [ ] Surface the promise in Club life, urgent hub actions and inbox. Record one meaningful Chronicle conclusion. Keep rival and comeback arcs as later extensions after this first arc is playtested.
-- [ ] Test every transition, save/load in the middle, duplicate processing, injury/transfer cancellation, deterministic outcomes and a browser journey from acceptance to conclusion.
+- [x] Build one arc around the accepted development goal: the manager proposes a quantified six-week milestone toward that goal, the player accepts or declines, weekly progress updates, and the outcome follows actual progress. Offer it only when at least six weeks remain in the season; use a trainable attribute milestone if the fixture schedule cannot support an appearance/performance milestone.
+- [x] Persist a finite state machine with offered, active, achieved, missed and cancelled states; only one active promise is allowed. Offer and outcome events use stable IDs so loading/retrying cannot duplicate rewards or Chronicle entries.
+- [x] Cancel without punishment if transfer, manager replacement, retirement or injury makes the promise unavailable. Reuse configured manager-trust/morale rewards; do not introduce a new currency or routine daily obligation.
+- [x] Surface the promise in Club life, urgent hub actions and inbox. Record one meaningful Chronicle conclusion. Keep rival and comeback arcs as later extensions after this first arc is playtested.
+- [x] Test every transition, save/load in the middle, duplicate processing, injury/transfer cancellation, deterministic outcomes and a browser journey from acceptance to conclusion.
+
+**Done:** see `docs/VERIFICATION.md`, Phase 6. The promise is stored in `career.social.promises`; weekly progress shows on Club life rather than as a weekly inbox message, to avoid busywork. Rival and comeback arcs remain later extensions.
 
 **Accept:** one coherent story spans several weeks, responds to real football events and leaves a lasting record without becoming repetitive busywork.
 

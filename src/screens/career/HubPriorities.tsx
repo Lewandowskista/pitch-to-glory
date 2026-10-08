@@ -61,6 +61,8 @@ function priorityDetail(item: Priority): string | null {
       });
     case 'press':
       return a.priorities.details.press;
+    case 'promise':
+      return a.priorities.details.promise;
     case 'sponsor':
       return a.priorities.details.sponsor;
     default:

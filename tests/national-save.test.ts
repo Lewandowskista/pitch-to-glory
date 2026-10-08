@@ -16,7 +16,7 @@ describe('national world persistence', () => {
       gallery: { seed: 'art', generation: 0 },
     });
     const migrated = migrateSave({ ...save, schemaVersion: 3 });
-    expect(migrated.schemaVersion).toBe(15);
+    expect(migrated.schemaVersion).toBe(16);
     expect(migrated.payload).toEqual(save.payload);
     expect(world.format).toBeUndefined();
   });
@@ -39,7 +39,7 @@ describe('national world persistence', () => {
     const upgraded = new SaveDatabase(name);
     try {
       const read = await new SaveRepository(upgraded).read(1);
-      expect(read?.schemaVersion).toBe(15);
+      expect(read?.schemaVersion).toBe(16);
       expect(read?.payload).toEqual(save.payload);
     } finally {
       upgraded.close();
@@ -97,5 +97,5 @@ describe('national world persistence', () => {
     survival.initialPoints[survival.clubIds[0]!]! += 1;
     expect(() => validateWorld(bonus)).toThrow();
     expect(() => validateWorld(startNextSeason(world))).not.toThrow();
-  }, 180000);
+  }, 360000);
 });

@@ -97,6 +97,9 @@ const migrations: Readonly<Record<number, Migration>> = {
   // keep line-based selection and 4-3-3 matches until their next season; match sessions saved
   // before replay with their original 4-3-3 engine; coaching starts from the next match.
   14: (old) => ({ ...old, schemaVersion: 15 }),
+  // v16 adds the manager's development promise (optional `career.social.promises`), its inbox
+  // messages and its Chronicle entry. Careers saved before receive an offer once eligible.
+  15: (old) => ({ ...old, schemaVersion: 16 }),
 };
 /** Careers saved before milestone 8 gain their honours record and award baselines. */
 function withCareerHonours(payload: unknown): unknown {

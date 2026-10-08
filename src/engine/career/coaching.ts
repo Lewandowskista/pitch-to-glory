@@ -217,6 +217,15 @@ const DEVELOP: Partial<Record<Position, string[]>> = {
   RW: ['dribbling', 'crossing', 'acceleration'],
 };
 
+/** A key attribute for the player's position they can still develop, if any. */
+export function developmentAttribute(world: World): string | null {
+  const player = world.players[world.career!.playerId]!;
+  const preferred = DEVELOP[player.primaryPosition] ?? [];
+  const found = preferred.find((key) => useful(world, key));
+  if (found) return found;
+  return trainableAttributes(player).find((key) => useful(world, key)) ?? null;
+}
+
 /** The goal a player would be offered this season, from their squad role and position. */
 export function goalOffer(world: World): Omit<SeasonGoal, 'accepted'> | null {
   const career = world.career!;

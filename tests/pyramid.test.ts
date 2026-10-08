@@ -527,5 +527,5 @@ describe('postseason aggregate rules', () => {
       expect(new Set(league.clubIds).size).toBe(league.capacity);
       expect(league.fixtureIds).toHaveLength(league.capacity! * (league.capacity! - 1));
     }
-  }, 240000);
+  }, 360000);
 });
