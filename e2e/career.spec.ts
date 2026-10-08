@@ -34,7 +34,7 @@ async function playMatch(page: Page) {
   await page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }).click();
   await expect(state(page)).toHaveAttribute('data-status', 'preview');
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  for (let turns = 0; turns < 60; turns++) {
+  for (let turns = 0; turns < 120; turns++) {
     const status = await state(page).getAttribute('data-status');
     if (status === 'finished') return;
     if (status === 'decision') {
@@ -51,7 +51,12 @@ async function playMatch(page: Page) {
     else {
       const pause = page.getByRole('button', { name: 'Pause', exact: true });
       if (await pause.isVisible()) await pause.click();
-      await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
+      // The match can reach a decision or a prompt between reading the state and clicking,
+      // which disables the button: try briefly, then read the state again.
+      await page
+        .getByRole('button', { name: 'Next key moment', exact: true })
+        .click({ timeout: 3000 })
+        .catch(() => {});
     }
   }
   throw new Error('Career match did not reach full time');
