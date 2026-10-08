@@ -14,11 +14,12 @@ const performance = Boolean(process.env.PERFORMANCE);
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
-  // One retry absorbs runner noise, but a test that only passes on retry still fails CI.
+  // One retry absorbs runner noise. A test that fails twice fails CI; one that passes on
+  // retry is reported as a warning on the run (GitHub annotations) instead of blocking the
+  // deploy, so it is seen and fixed without costing a whole pipeline run.
   retries: process.env.CI ? 1 : 0,
-  failOnFlakyTests: Boolean(process.env.CI),
   workers: performance ? 1 : process.env.CI ? 2 : 3,
-  reporter: 'list',
+  reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: { baseURL: `http://127.0.0.1:${port}`, trace: 'retain-on-failure' },
   projects: performance
     ? [

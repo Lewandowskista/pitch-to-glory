@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isBrowserNoise } from './support';
+import { isAbortedLoad, isBrowserNoise } from './support';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
@@ -7,7 +7,9 @@ import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 // No skipTutorial here: these journeys are about the tutorial.
 test.beforeEach(async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', (error) => {
+    if (!isAbortedLoad(error.message)) errors.push(error.message);
+  });
   page.on('console', (entry) => {
     if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
   });

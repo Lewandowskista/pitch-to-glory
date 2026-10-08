@@ -10,7 +10,7 @@ The game is a static site. It is built and tested by GitHub Actions and publishe
 2. **browsers** (Windows, one job each for Chromium, Firefox and WebKit, in parallel): the Playwright journeys against that exact build, served with the production headers. The Chromium job also builds a second release and replaces the first under a saved career (`npm run test:update`). Windows runners are used because Linux WebKit runners have no GPU and crash in the WebGL match renderer.
 3. **deploy** (pushes to `main` only, after both pass): uploads `dist/` to the Cloudflare Pages project `pitch-to-glory` with Wrangler. It creates the project on the first deploy. Until the two secrets below exist, this job reports a notice and skips, without failing.
 
-Pull requests run the checks but never deploy.
+Pull requests run the checks but never deploy. Each browser test gets one retry: a test that fails twice blocks the deploy, while one that passes on retry shows as a warning on the run to fix without blocking it. Browser errors from loads a navigation cancelled are ignored (`isAbortedLoad` in `e2e/support.ts`); every other console or page error fails the test.
 
 Two scheduled workflows run longer checks off the critical path and keep their reports as artifacts:
 

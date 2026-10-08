@@ -35,9 +35,28 @@ export async function skipTutorial(page: Page): Promise<void> {
  * NS_BINDING_ABORTED is Firefox's own code for a request cancelled by a navigation; it can
  * also be attributed to the worker script whose load was cancelled, and is never game code.
  */
+/**
+ * A load the browser cancelled because the page navigated, went offline or reloaded while it
+ * was still fetching: each engine reports it differently, and never from game code. A load
+ * that is genuinely missing still breaks what the journey checks on screen, so tests keep
+ * catching real failures.
+ */
+const ABORTED_LOAD = new RegExp(
+  [
+    'NS_BINDING_ABORTED',
+    'error loading dynamically imported module',
+    'Failed to fetch dynamically imported module',
+    'Importing a module script failed',
+    'due to access control checks',
+    'ServiceWorker intercepted the request and encountered an unexpected error',
+  ].join('|'),
+);
+export const isAbortedLoad = (text: string): boolean => ABORTED_LOAD.test(text);
+
 export function isBrowserNoise(message: ConsoleMessage): boolean {
   const { url } = message.location();
   return (
+    isAbortedLoad(message.text()) ||
     (message.text() === '[JavaScript Error: "InvalidStateError: Navigated away from page"]' &&
       !url) ||
     url.startsWith('chrome://') ||

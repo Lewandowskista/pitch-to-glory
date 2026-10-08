@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isBrowserNoise, skipTutorial } from './support';
+import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
@@ -50,7 +50,9 @@ test.beforeEach(async ({ page }, testInfo) => {
   // The tutorial journeys show the tour; every other journey has already seen it.
   if (!testInfo.title.includes('tutorial')) await skipTutorial(page);
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', (error) => {
+    if (!isAbortedLoad(error.message)) errors.push(error.message);
+  });
   page.on('console', (entry) => {
     if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
   });

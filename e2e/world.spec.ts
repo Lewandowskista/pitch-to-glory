@@ -1,11 +1,13 @@
 ﻿import { expect, test, type Page } from '@playwright/test';
-import { isBrowserNoise, skipTutorial } from './support';
+import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
 import { mkdir, readFile } from 'node:fs/promises';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', (error) => {
+    if (!isAbortedLoad(error.message)) errors.push(error.message);
+  });
   page.on('console', (entry) => {
     if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
   });

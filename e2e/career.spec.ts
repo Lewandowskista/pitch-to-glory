@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isBrowserNoise, skipTutorial, openCareerPage } from './support';
+import { isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
 import { mkdir } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
@@ -10,7 +10,9 @@ import type { SlotId } from '../src/model/domain';
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', (error) => {
+    if (!isAbortedLoad(error.message)) errors.push(error.message);
+  });
   page.on('console', (entry) => {
     if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
   });

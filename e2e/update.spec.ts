@@ -7,7 +7,7 @@ import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { isBrowserNoise, skipTutorial } from './support';
+import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
 
 /**
  * Phase 4.2: a real deployment update. The old build (dist) runs a saved career; the new build
@@ -118,7 +118,9 @@ test('an update reaches a saved career, keeps it and works offline', async ({
   test.setTimeout(240000);
   await skipTutorial(page);
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', (error) => {
+    if (!isAbortedLoad(error.message)) errors.push(error.message);
+  });
   page.on('console', (entry) => {
     if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
   });

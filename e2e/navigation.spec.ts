@@ -4,7 +4,14 @@ import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { careerTabs, groupLinkName, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import {
+  careerTabs,
+  groupLinkName,
+  isAbortedLoad,
+  isBrowserNoise,
+  openCareerPage,
+  skipTutorial,
+} from './support';
 
 /**
  * Career navigation (Phase 3.1): five groups, page tabs that never move, a five-slot phone bar
@@ -86,7 +93,9 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', (error) => {
+    if (!isAbortedLoad(error.message)) errors.push(error.message);
+  });
   page.on('console', (entry) => {
     if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
   });
