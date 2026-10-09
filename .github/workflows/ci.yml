@@ -14,7 +14,23 @@ concurrency:
 env:
   SITE_URL: ${{ vars.SITE_URL }}
 jobs:
-  verify:
+  # The deployable build first, on its own, so the browser journeys can start on it while the
+  # unit tests run. The build script runs the strict typecheck and the per-route bundle budget.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: dist
+  checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +41,6 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run lint
-      - run: npm test
       # One national season of headless career play: invariants, export, import and the size
       # limit at its end (scripts/soak-career.ts). Longer runs are in endurance.yml.
       - run: npm run soak -- --seasons 1
@@ -35,21 +50,31 @@ jobs:
           name: soak-smoke
           path: artifacts/soak/*.json
           if-no-files-found: ignore
-      # The build script runs the strict typecheck and the per-route bundle budget.
-      - run: npm run build
-      - uses: actions/upload-artifact@v4
+  # Every unit test, split across three machines.
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          name: web-build
-          path: dist
-  # Browser journeys run on Windows, one job per engine, against the verified build. Linux
-  # WebKit runners have no GPU, and its WebGL crashes the browser during the match renderer.
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --shard=${{ matrix.shard }}/3
+  # Browser journeys run on Windows, two machines per engine, against the build. Linux WebKit
+  # runners have no GPU, and its WebGL crashes the browser during the match renderer.
   browsers:
-    needs: verify
+    needs: build
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
         browser: [chromium, firefox, webkit]
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -62,14 +87,14 @@ jobs:
           name: web-build
           path: dist
       - run: npx playwright install ${{ matrix.browser }}
-      - run: npx playwright test --project=${{ matrix.browser }}
+      - run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2
       # A second release replaces the first under a saved career (e2e/update.spec.ts).
-      - if: matrix.browser == 'chromium'
+      - if: matrix.browser == 'chromium' && matrix.shard == 1
         run: npm run test:update
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: browser-test-results-${{ matrix.browser }}
+          name: browser-test-results-${{ matrix.browser }}-${{ matrix.shard }}
           path: test-results
   # The release journey for a separately built custom domain (dist-custom, never the deployed
   # dist), so the documented SITE_URL override keeps passing the gate.
@@ -90,7 +115,7 @@ jobs:
           name: custom-domain-results
           path: test-results
   deploy:
-    needs: [verify, browsers, custom-domain]
+    needs: [build, checks, unit, browsers, custom-domain]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:

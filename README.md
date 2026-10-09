@@ -157,11 +157,15 @@ xychart-beta
 
 ```mermaid
 flowchart LR
-  Push["Push to main"] --> Verify["verify (Linux)<br/>Prettier · ESLint · 330 unit tests<br/>one-season soak · typecheck<br/>build · bundle budget"]
-  Verify --> C["Chromium journeys<br/>(Windows)"]
-  Verify --> F["Firefox journeys<br/>(Windows)"]
-  Verify --> W["WebKit journeys<br/>(Windows)"]
-  C --> Deploy["Deploy to<br/>Cloudflare Pages"]
+  Push["Push to main"] --> Build["build (Linux)<br/>typecheck · build · bundle budget"]
+  Push --> Checks["checks (Linux)<br/>Prettier · ESLint · one-season soak"]
+  Push --> Unit["unit tests<br/>(3 Linux machines)"]
+  Build --> C["Chromium journeys<br/>(2 Windows machines)"]
+  Build --> F["Firefox journeys<br/>(2 Windows machines)"]
+  Build --> W["WebKit journeys<br/>(2 Windows machines)"]
+  Checks --> Deploy["Deploy to<br/>Cloudflare Pages"]
+  Unit --> Deploy
+  C --> Deploy
   F --> Deploy
   W --> Deploy
 ```

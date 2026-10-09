@@ -26,6 +26,7 @@ import {
 } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { validateNationalWorld } from '../src/persistence/nationalWorldSchema';
+import { withDeviceTutorial } from '../src/store';
 
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const valid = (world: World) => expect(() => validateWorld(clone(world))).not.toThrow();
@@ -285,6 +286,22 @@ describe('edit mode', () => {
 });
 
 describe('settings and saves', () => {
+  it('lets a tutorial replay asked for on this device win over a save that saw it', () => {
+    const seen = { ...DEFAULT_SETTINGS, tutorial: { week: true, match: true } };
+    const fresh = { ...DEFAULT_SETTINGS, tutorial: { week: false, match: false } };
+    const replay = {
+      ...DEFAULT_SETTINGS,
+      tutorial: { week: false, match: false, replay: true as const },
+    };
+    // Seen anywhere stays seen, unless this device asked to see it again.
+    expect(withDeviceTutorial(seen, fresh).tutorial).toEqual({ week: true, match: true });
+    expect(withDeviceTutorial(fresh, seen).tutorial).toEqual({ week: true, match: true });
+    expect(withDeviceTutorial(seen, replay).tutorial).toEqual(replay.tutorial);
+    expect(validateSettings(replay).tutorial).toEqual(replay.tutorial);
+    expect(() =>
+      validateSettings({ ...DEFAULT_SETTINGS, tutorial: { week: false, match: false, replay: 1 } }),
+    ).toThrow();
+  });
   it('fills audio and tutorial defaults for older preferences and validates them', () => {
     const old = {
       theme: 'dark',

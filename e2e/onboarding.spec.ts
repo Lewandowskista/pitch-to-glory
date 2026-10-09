@@ -94,6 +94,10 @@ test('guides the first week and the first match, and replays from Settings', asy
   await expect(page).toHaveURL(/\/career\?/);
   expect(await tutorialSeen(page)).toEqual({ week: true, match: false });
   await expect(page.locator('[data-tour-active]')).toHaveCount(0);
+  // The save records the skipped tour too; asking to see it again must still bring it back.
+  await expect(page.locator('.save-indicator')).toContainText('All changes saved', {
+    timeout: 30000,
+  });
 
   // Settings brings it back; the week tour then runs to the end.
   await page.goto('/settings');

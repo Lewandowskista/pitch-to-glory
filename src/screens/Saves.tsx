@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { lazyPage } from '../ui/lazyPage';
 import { t } from '../i18n';
 import { Page } from '../ui/Page';
 
 // The slots need the whole save system; the heading should not wait for it.
-const SavesContent = lazy(() => import('./SavesContent'));
+const SavesContent = lazyPage(() => import('./SavesContent'));
 
 /**
  * On a fresh page load, run once the first content has painted and the browser is idle, so

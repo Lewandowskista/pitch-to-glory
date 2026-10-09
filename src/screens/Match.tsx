@@ -1,12 +1,5 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { lazyPage } from '../ui/lazyPage';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import {
@@ -43,7 +36,7 @@ import { useMatchAudio } from './match/useMatchAudio';
 import { preparePlayback } from './match/playback';
 import { Tutorial } from '../ui/Tutorial';
 import { tutorialText as tt } from '../i18n/tutorial';
-const Pitch = lazy(() => import('./match/Pitch'));
+const Pitch = lazyPage(() => import('./match/Pitch'));
 /** Real milliseconds per simulated minute at 1× speed. */
 const MINUTE_MS = 2200;
 /**

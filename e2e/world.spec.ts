@@ -32,6 +32,8 @@ test('generates a world and browses real countries, divisions, clubs and squads'
   page,
   browserName,
 }) => {
+  // Near the default 30 seconds on a busy Windows WebKit runner.
+  test.setTimeout(90000);
   await generate(page);
   if (browserName === 'chromium') {
     await mkdir('artifacts', { recursive: true });
