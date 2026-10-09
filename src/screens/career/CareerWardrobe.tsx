@@ -19,7 +19,8 @@ import { renderDressedKit, renderSocksAndBoots } from '../../engine/assets/gear'
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
-import { CareerPage, plural, ui } from './shared';
+import { CareerPage, filterButton, plural, ui } from './shared';
+import { useSearchParams } from 'react-router-dom';
 import { ActionError, BlockNote, money } from './marketUi';
 import { CelebrationPreview, useChallengeRefresh, useLifestyleAction } from './lifestyleUi';
 import { Glyph } from './honoursUi';
@@ -46,6 +47,8 @@ export default function CareerWardrobe() {
   );
 }
 
+const SECTIONS = ['challenges', 'look', 'kit', 'celebrations'] as const;
+
 function WardrobeContent({
   world,
   career,
@@ -60,14 +63,47 @@ function WardrobeContent({
   age: number;
 }) {
   const action = useLifestyleAction();
+  const [params, setParams] = useSearchParams();
+  // One section at a time or all of them (the default), kept in the URL.
+  const chosen = SECTIONS.find((section) => section === params.get('show'));
+  const visible = (section: (typeof SECTIONS)[number]) => !chosen || chosen === section;
+  const show = (section: (typeof SECTIONS)[number] | null) => {
+    const next = new URLSearchParams(params);
+    if (section) next.set('show', section);
+    else next.delete('show');
+    setParams(next, { replace: true });
+  };
+  const names = {
+    challenges: l.challenges.title,
+    look: W.look,
+    kit: W.kit,
+    celebrations: l.celebrations.title,
+  } as const;
   // The preview spans every row of the left column and stays in view while choosing.
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
       <Preview career={career} player={player} club={club} age={age} />
-      <Challenges world={world} action={action} />
-      <Look world={world} player={player} age={age} action={action} />
-      <KitOptions world={world} career={career} kit={club.kits.home} action={action} />
-      <Celebrations world={world} career={career} action={action} />
+      <div role="group" aria-label={W.sections} className={`lg:col-span-8 ${ui.filters}`}>
+        {[null, ...SECTIONS].map((section) => {
+          const pressed = (section ?? undefined) === chosen;
+          return (
+            <button
+              key={section ?? 'all'}
+              aria-pressed={pressed}
+              onClick={() => show(section)}
+              className={filterButton(pressed)}
+            >
+              {section ? names[section] : W.allSections}
+            </button>
+          );
+        })}
+      </div>
+      {visible('challenges') && <Challenges world={world} action={action} />}
+      {visible('look') && <Look world={world} player={player} age={age} action={action} />}
+      {visible('kit') && (
+        <KitOptions world={world} career={career} kit={club.kits.home} action={action} />
+      )}
+      {visible('celebrations') && <Celebrations world={world} career={career} action={action} />}
     </div>
   );
 }
@@ -114,9 +150,10 @@ function Preview({
   return (
     <section
       aria-labelledby="preview-heading"
-      className={`${ui.panel} bg-art-blue lg:sticky lg:top-6 lg:col-span-4 lg:row-span-4`}
+      // Phones: a compact figure beside the tokens, so the choices start in the first view.
+      className={`${ui.panel} grid grid-cols-[5.5rem_minmax(0,1fr)] content-center gap-x-4 bg-art-blue sm:block lg:sticky lg:top-6 lg:col-span-4 lg:row-span-5`}
     >
-      <h2 id="preview-heading" className={ui.heading}>
+      <h2 id="preview-heading" className={`${ui.heading} col-start-2 self-end`}>
         {W.preview}
       </h2>
       <div
@@ -125,7 +162,7 @@ function Preview({
           boots: W.bootNames[equipped.boots] ?? '',
           socks: W.sockNames[equipped.socks] ?? '',
         })}`}
-        className="mx-auto mt-4 w-36 sm:w-44 lg:w-48"
+        className="col-start-1 row-span-3 row-start-1 w-full self-center sm:mx-auto sm:mt-4 sm:w-44 lg:w-48"
       >
         <div className="relative z-0 mx-auto w-[95%] overflow-hidden [aspect-ratio:200/166]">
           <Artwork svg={portrait} alt="" className="block w-full" />
@@ -138,10 +175,12 @@ function Preview({
           className="mx-auto -mt-[3%] block h-3 w-3/4 rounded-[50%] bg-ink/10"
         />
       </div>
-      <p className="mt-4 text-center font-display text-2xl leading-none">
+      <p className="col-start-2 mt-2 font-display text-2xl leading-none sm:mt-4 sm:text-center">
         {plural(tokens, W.tokensOne, W.tokens)}
       </p>
-      <p className="mx-auto mt-1 max-w-xs text-center text-xs text-muted">{W.tokensBody}</p>
+      <p className="col-start-2 mt-1 max-w-xs self-start text-xs text-muted sm:mx-auto sm:text-center">
+        {W.tokensBody}
+      </p>
     </section>
   );
 }
@@ -206,7 +245,8 @@ function Tile({
           else if (item && affordable && action.run({ type: 'buy-cosmetic', id: item.id }))
             audio.play('confirm');
         }}
-        className={`group flex h-full min-h-24 w-full flex-col items-center justify-center gap-1 rounded-control border-2 p-2 text-center transition disabled:cursor-not-allowed ${
+        // A locked tile keeps its name and price at full contrast; only the artwork recedes.
+        className={`group flex h-full min-h-24 w-full flex-col items-center justify-center gap-1 rounded-control border-2 p-2 text-center transition disabled:cursor-not-allowed disabled:opacity-100 [&:disabled_img]:opacity-50 ${
           selected
             ? 'border-accent bg-accent-soft'
             : usable || affordable

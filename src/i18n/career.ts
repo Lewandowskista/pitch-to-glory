@@ -299,6 +299,9 @@ export const careerText = {
   profile: {
     eyebrow: 'Player profile',
     attributes: 'Attributes',
+    attributesSummary:
+      'Spend points to raise an attribute. Each point costs more at and beyond its soft cap, the marker on its bar.',
+    costRules: 'How points are priced',
     attributesBody:
       'Each +1 costs {below} point below your age-adjusted soft cap, {near} at it and {beyond} or more beyond it, rising every {step} points. Before {hardAge} nothing goes more than {hardMargin} past its cap. Pace and physical attributes cost {surcharge} more from age {age}. Attributes below their cap also grow on their own, faster the more you play.',
     available: 'Available',
@@ -424,6 +427,8 @@ export const careerText = {
     families: { outfield: 'outfield players', keeper: 'goalkeepers' },
     select: 'Choose a skill to see its details.',
     backToTree: 'Back to the tree',
+    branchFilter: 'Branches',
+    allBranches: 'All',
     keyboard: 'Arrow keys move through the tree. Enter opens a skill.',
   },
   branches: {

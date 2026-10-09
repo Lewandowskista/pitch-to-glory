@@ -71,6 +71,32 @@ careers. Geometry that a page-width check misses is covered by `e2e/layout.spec.
   4,669 → 4,362 px. The populated desktop hub is about the same height (2,450 → 2,415 px)
   but without the stretched cards and holes.
 
+## Development, catalogue and calendar (Phase 4)
+
+- **Profile**: the attributes panel is a container. Below 38rem (tablets beside the sidebar,
+  phones, 130% text) it is one readable list; from 38rem the three groups sit side by side
+  (Technical, Physical, Mental), so there is no long empty column under Technical. The side
+  column is a fixed 20–24rem. The points counter stays beside the heading; a one-line
+  summary replaces the long cost paragraph, which moves behind "How points are priced".
+- **Skills**: a branch filter (All or one branch, `branch` in the URL) narrows the tree. The
+  odd last branch no longer spans the row. Below xl, choosing a skill opens its detail as a
+  bottom sheet (`detail=1`, pushed after the selection is recorded), so Back, Escape, Close
+  and the backdrop all close it and focus returns to the skill. Unlock confirmation still
+  opens over it. The desktop sticky detail is unchanged.
+- **Lifestyle**: fame, then a row of sponsorships and money (savings, upkeep, morale, owned
+  items), then the catalogue across the full width in 2/4 columns with category filters
+  (`shop` in the URL). Prices and lock reasons stay on each card. Desktop 2,480 → 2,078 px.
+- **Wardrobe**: section filters (All, Challenges, Look, Kit, Celebrations; `show` in the URL)
+  and a compact phone preview (figure beside the token count). The sticky desktop preview is
+  kept. Locked tiles keep their names and prices at full contrast; only the artwork fades.
+- **Calendar**: "From this week" shows the next 8 weeks with a button for the rest
+  (`rest=1`); "Whole season" is unchanged. Wide screens flow the weeks in two balanced
+  columns read top-down, so a busy week no longer stretches its neighbour. Desktop 2,998 →
+  929 px, phone 6,493 → 1,600 px.
+- Filter rows share `ui.filters` / `filterButton`: they wrap on wider screens and scroll
+  sideways on phones instead of taking three rows.
+- Continental competition lists move to Phase 5 with the Trophies empty states.
+
 ## Findings
 
 | #   | Finding                                   | Status                                                                                                                        |
@@ -81,9 +107,9 @@ careers. Geometry that a page-width check misses is covered by `e2e/layout.spec.
 | 4   | Hub rows stretch cards                    | **Resolved** — explicit main/side column stacks; the side stack spans both main rows, so no card stretches or leaves a hole   |
 | 5   | Hub summary tiles, 5 + 3 rows             | **Resolved** — quiet tiles use 4 columns for 4, 7 or 8 tiles and 3 for 5 or 6                                                 |
 | 6   | Phone hub condition far from action       | **Resolved** — phones show level, fitness, fatigue, form and morale in the match card above its action (e2e)                  |
-| 7   | Lifestyle unused column                   | Pending — Phase 4                                                                                                             |
-| 8   | Profile attribute columns uneven          | Pending — Phase 4                                                                                                             |
-| 9   | Skills tall tree, short detail            | Pending — Phase 4                                                                                                             |
+| 7   | Lifestyle unused column                   | **Resolved** — compact sponsor/money row, then a full-width catalogue with category filters                                   |
+| 8   | Profile attribute columns uneven          | **Resolved** — one list in narrow panels, three group columns from 38rem; cost rules disclosed (e2e)                          |
+| 9   | Skills tall tree, short detail            | **Resolved** — branch filter; below xl the detail opens as a URL sheet with Back, Escape and focus return (e2e)               |
 | 10  | National team column proportions          | Pending — Phase 5                                                                                                             |
 | 11  | Briefing, report, Legacy equal heights    | Partly resolved — briefing and report no longer stretch; Legacy in Phase 5                                                    |
 | 12  | Page chrome too tall                      | **Resolved** — compact functional header; content 78 px earlier on desktop, 44 px on phones                                   |
@@ -105,3 +131,7 @@ careers. Geometry that a page-width check misses is covered by `e2e/layout.spec.
   1 skipped); layout, agenda, stories, onboarding, career, update and accessibility specs
   pass in Chromium, Firefox and WebKit. States checked: new career, populated season with
   unread inbox and a press question, season complete with unspent points and retirement.
+- **Phase 4**: typecheck, lint, format, build pass. Full Chromium e2e suite passes (79 passed,
+  1 skipped); layout, agenda, lifestyle, career, navigation and accessibility specs pass in
+  Chromium, Firefox and WebKit, including the new Skills sheet (Back, Escape, focus return,
+  branch filter) and tablet Profile readability checks.

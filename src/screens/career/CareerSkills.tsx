@@ -1,5 +1,14 @@
-import { useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { m, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../../store';
 import { Dialog } from '../../ui/Dialog';
@@ -17,7 +26,7 @@ import type { Career, Player, Skill, World } from '../../model/domain';
 import { format, t } from '../../i18n';
 import { matchLabel } from '../../i18n/match';
 import { careerText as c } from '../../i18n/career';
-import { CareerPage, plural, ui, useEditBlock } from './shared';
+import { CareerPage, filterButton, plural, ui, useEditBlock } from './shared';
 import { useUrlDialog } from './useUrlDialog';
 import { audio } from '../../audio';
 
@@ -28,6 +37,18 @@ const choiceName = (id: string) => matchLabel(`match.choice.${id}`);
 const percent = (value: number) => Math.round(Math.abs(value) * 100);
 /** Tailwind `xl`: the skill detail sits beside the tree and stays in view. */
 const SIDE_BY_SIDE = '(min-width: 1280px)';
+/** Whether the detail sits beside the tree; narrower screens open it as a sheet. */
+function useSideBySide(): boolean {
+  return useSyncExternalStore(
+    (change) => {
+      const list = window.matchMedia(SIDE_BY_SIDE);
+      list.addEventListener('change', change);
+      return () => list.removeEventListener('change', change);
+    },
+    () => window.matchMedia(SIDE_BY_SIDE).matches,
+    () => true,
+  );
+}
 
 /** Key-moment choices a skill unlocks (choices requiring it as a trait). */
 const UNLOCKED_CHOICES: Readonly<Record<string, string[]>> = (() => {
@@ -80,6 +101,10 @@ export default function CareerSkills() {
 
 function SkillTree({ world, career, player }: { world: World; career: Career; player: Player }) {
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const wide = useSideBySide();
+  // The phone sheet's open state lives in the URL, so Back closes it.
+  const sheetPushed = useRef(false);
   const dialog = useUrlDialog('unlock');
   const block = useEditBlock();
   const [announcement, setAnnouncement] = useState('');
@@ -97,42 +122,73 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
       ),
     [keeper],
   );
+  // One branch at a time, or all of them (the default); the choice is kept in the URL.
+  const branch = params.get('branch');
+  const shown = columns.some((column) => column.branch === branch)
+    ? columns.filter((column) => column.branch === branch)
+    : columns;
   const selectedId =
     SKILL_BY_ID[params.get('skill') ?? ''] &&
-    columns.some(({ skills }) => skills.some((skill) => skill.id === params.get('skill')))
+    shown.some(({ skills }) => skills.some((skill) => skill.id === params.get('skill')))
       ? params.get('skill')!
-      : columns[0]!.skills[0]!.id;
+      : shown[0]!.skills[0]!.id;
+  const showBranch = (next: string | null) => {
+    const query = new URLSearchParams(params);
+    if (next) query.set('branch', next);
+    else query.delete('branch');
+    query.delete('skill');
+    setParams(query, { replace: true });
+  };
   const [focusId, setFocusId] = useState(selectedId);
   const tree = useRef<HTMLDivElement>(null);
   const detail = useRef<HTMLHeadingElement>(null);
-  const behavior: ScrollBehavior = reduced ? 'auto' : 'smooth';
   const select = (id: string) => {
     const next = new URLSearchParams(params);
     next.set('skill', id);
-    setParams(next, { replace: true });
     setFocusId(id);
-    // Below xl the detail sits under the whole tree: bring it to the player.
-    if (!window.matchMedia(SIDE_BY_SIDE).matches) {
-      detail.current?.scrollIntoView({ behavior, block: 'start' });
-      detail.current?.focus({ preventScroll: true });
+    if (wide) {
+      setParams(next, { replace: true });
+      return;
+    }
+    // Narrower screens: the detail opens as a sheet over the tree, beside the choice. The
+    // selection is recorded first, so closing the sheet (Back) returns to the same skill.
+    setParams(next, { replace: true });
+    const sheet = new URLSearchParams(next);
+    sheet.set('detail', '1');
+    sheetPushed.current = true;
+    setParams(sheet);
+  };
+  const closeSheet = () => {
+    if (sheetPushed.current) {
+      sheetPushed.current = false;
+      navigate(-1);
+    } else {
+      const next = new URLSearchParams(params);
+      next.delete('detail');
+      setParams(next, { replace: true });
     }
   };
-  const backToTree = () => {
-    const node = tree.current?.querySelector<HTMLButtonElement>(`[data-skill="${selectedId}"]`);
-    node?.scrollIntoView({ behavior, block: 'center' });
-    node?.focus({ preventScroll: true });
-  };
+  const sheetOpen = !wide && params.get('detail') === '1';
+  // Focus returns to the skill the sheet described, however it closed (button, Escape, Back).
+  const wasOpen = useRef(sheetOpen);
+  useEffect(() => {
+    if (wasOpen.current && !sheetOpen)
+      tree.current
+        ?.querySelector<HTMLButtonElement>(`[data-skill="${selectedId}"]`)
+        ?.focus({ preventScroll: true });
+    wasOpen.current = sheetOpen;
+  }, [sheetOpen, selectedId]);
   const move = (event: KeyboardEvent<HTMLButtonElement>, id: string) => {
-    const column = columns.findIndex(({ skills }) => skills.some((skill) => skill.id === id));
-    const row = columns[column]!.skills.findIndex((skill) => skill.id === id);
+    const column = shown.findIndex(({ skills }) => skills.some((skill) => skill.id === id));
+    const row = shown[column]!.skills.findIndex((skill) => skill.id === id);
     let target: string | undefined;
-    if (event.key === 'ArrowDown') target = columns[column]!.skills[row + 1]?.id;
-    else if (event.key === 'ArrowUp') target = columns[column]!.skills[row - 1]?.id;
+    if (event.key === 'ArrowDown') target = shown[column]!.skills[row + 1]?.id;
+    else if (event.key === 'ArrowUp') target = shown[column]!.skills[row - 1]?.id;
     else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-      const next = columns[column + (event.key === 'ArrowRight' ? 1 : -1)];
+      const next = shown[column + (event.key === 'ArrowRight' ? 1 : -1)];
       if (next) target = next.skills[Math.min(row, next.skills.length - 1)]?.id;
-    } else if (event.key === 'Home') target = columns[0]!.skills[0]!.id;
-    else if (event.key === 'End') target = columns.at(-1)!.skills.at(-1)!.id;
+    } else if (event.key === 'Home') target = shown[0]!.skills[0]!.id;
+    else if (event.key === 'End') target = shown.at(-1)!.skills.at(-1)!.id;
     else return;
     event.preventDefault();
     if (!target) return;
@@ -155,22 +211,39 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
   };
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-      <section aria-label={c.titles.skills} className={ui.panel}>
+      <section aria-label={c.titles.skills} className={`${ui.panel} self-start`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="min-w-0 flex-1 basis-48 text-sm text-muted">{c.skills.keyboard}</p>
           <div
-            className={`rounded-control px-4 py-2 text-center ${
+            role="group"
+            aria-label={c.skills.branchFilter}
+            className={`min-w-0 flex-1 basis-72 ${ui.filters}`}
+          >
+            {[null, ...columns.map((column) => column.branch)].map((id) => {
+              const pressed = id === null ? shown.length === columns.length : branch === id;
+              return (
+                <button
+                  key={id ?? 'all'}
+                  aria-pressed={pressed}
+                  onClick={() => showBranch(id)}
+                  className={filterButton(pressed)}
+                >
+                  {id === null ? c.skills.allBranches : c.branches[id]}
+                </button>
+              );
+            })}
+          </div>
+          <div
+            className={`flex shrink-0 items-baseline gap-2 rounded-control px-3 py-1.5 ${
               career.skillPoints ? 'bg-gold text-[#1d3127]' : 'bg-surface-soft text-muted'
             }`}
           >
-            <span className="block text-xs font-bold uppercase tracking-wider">
-              {c.skills.points}
-            </span>
-            <strong className="font-display text-3xl leading-none" data-testid="skill-points">
+            <span className="text-xs font-bold uppercase tracking-wider">{c.skills.points}</span>
+            <strong className="font-display text-2xl leading-none" data-testid="skill-points">
               {career.skillPoints}
             </strong>
           </div>
         </div>
+        <p className="mt-3 text-xs text-muted">{c.skills.keyboard}</p>
         <p className="sr-only" role="status" aria-live="polite">
           {announcement}
         </p>
@@ -178,17 +251,12 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
           ref={tree}
           className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 2xl:grid-cols-4"
         >
-          {columns.map(({ branch, skills }, index) => (
+          {shown.map(({ branch, skills }) => (
             <div
               key={branch}
               role="group"
               aria-labelledby={`branch-${branch}`}
-              className={`rounded-control border border-line bg-bg/60 p-3 ${
-                // An odd last branch spans the row in two columns instead of sitting alone.
-                index === columns.length - 1 && columns.length % 2 === 1
-                  ? 'sm:col-span-2 2xl:col-span-1'
-                  : ''
-              }`}
+              className="rounded-control border border-line bg-bg/60 p-3"
             >
               <h3
                 id={`branch-${branch}`}
@@ -249,15 +317,29 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
           ))}
         </div>
       </section>
-      <SkillDetail
-        world={world}
-        career={career}
-        skill={selected}
-        block={block}
-        headingRef={detail}
-        onBack={backToTree}
-        onUnlock={() => dialog.open(selected.id)}
-      />
+      {wide && (
+        <SkillDetail
+          world={world}
+          career={career}
+          skill={selected}
+          block={block}
+          headingRef={detail}
+          onUnlock={() => dialog.open(selected.id)}
+        />
+      )}
+      {sheetOpen && (
+        <SkillSheet labelledBy="skill-detail-heading" onClose={closeSheet}>
+          <SkillDetail
+            world={world}
+            career={career}
+            skill={selected}
+            block={block}
+            headingRef={detail}
+            onClose={closeSheet}
+            onUnlock={() => dialog.open(selected.id)}
+          />
+        </SkillSheet>
+      )}
       {unlocking && (
         <Dialog
           title={format(c.skills.unlockTitle, { name: skillName(unlocking.id) })}
@@ -278,13 +360,57 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
   );
 }
 
+/**
+ * Below xl, a skill's detail rises as a sheet over the tree instead of sitting after every
+ * branch. Escape, the backdrop, Close and browser Back all close it.
+ */
+function SkillSheet({
+  labelledBy,
+  onClose,
+  children,
+}: {
+  labelledBy: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby={labelledBy}
+      className="mx-0 mt-auto mb-0 max-h-[88dvh] w-full max-w-full rounded-t-[1.25rem] border-0 bg-surface p-0 text-ink shadow-[0_-12px_40px_rgb(0_0_0/0.25)] backdrop:bg-[rgb(8_20_14/0.55)] sm:mx-auto sm:max-w-2xl"
+      // Escape closes here and stops, so the shell's Escape shortcut never adds a second "back".
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="pb-[env(safe-area-inset-bottom)]">{children}</div>
+    </dialog>
+  );
+}
+
 function SkillDetail({
   world,
   career,
   skill,
   block,
   headingRef,
-  onBack,
+  onClose,
   onUnlock,
 }: {
   world: World;
@@ -292,7 +418,8 @@ function SkillDetail({
   skill: Skill;
   block: string | null;
   headingRef: RefObject<HTMLHeadingElement>;
-  onBack: () => void;
+  /** In the sheet: close it and return to the tree. */
+  onClose?: () => void;
   onUnlock: () => void;
 }) {
   const state = skillState(world, skill.id);
@@ -320,14 +447,18 @@ function SkillDetail({
   return (
     <aside
       aria-labelledby="skill-detail-heading"
-      className={`${ui.panel} self-start xl:sticky xl:top-6`}
+      className={onClose ? 'p-panel sm:p-panel-lg' : `${ui.panel} self-start xl:sticky xl:top-6`}
     >
-      <button className="text-button -mt-2 -ml-3 mb-2 xl:hidden" onClick={onBack}>
-        ← {c.skills.backToTree}
-      </button>
-      <p className="text-sm font-semibold text-accent">
-        {c.branches[skill.branch]} · {format(c.skills.tier, { tier: skill.tier })}
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-semibold text-accent">
+          {c.branches[skill.branch]} · {format(c.skills.tier, { tier: skill.tier })}
+        </p>
+        {onClose && (
+          <button className="text-button -mt-2.5 -mr-3 shrink-0" onClick={onClose}>
+            {c.skills.backToTree}
+          </button>
+        )}
+      </div>
       <h2
         id="skill-detail-heading"
         ref={headingRef}

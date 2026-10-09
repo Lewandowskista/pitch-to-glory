@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { m } from 'framer-motion';
 import type { Career, Sponsorship, World } from '../../model/domain';
 import { CONFIG } from '../../engine/config';
@@ -23,7 +24,7 @@ import {
 } from '../../engine/career/lifestyle';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
-import { CareerPage, plural, ui } from './shared';
+import { CareerPage, filterButton, plural, ui } from './shared';
 import { ActionError, BlockNote, money, Stat, weekly } from './marketUi';
 import { fameName, useLifestyleAction } from './lifestyleUi';
 import { audio } from '../../audio';
@@ -41,10 +42,13 @@ export default function CareerLifestyle() {
 function LifestyleContent({ world, career }: { world: World; career: Career }) {
   const action = useLifestyleAction();
   return (
+    // Fame, then a compact row of sponsors and money, then the catalogue across the full
+    // width: a short sponsor list never leaves a long empty column beside the shop.
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
       <FameCard career={career} />
       <Sponsors world={world} action={action} />
       <Assets world={world} career={career} action={action} />
+      <Shop world={world} action={action} />
     </div>
   );
 }
@@ -229,7 +233,7 @@ function Sponsors({ world, action }: { world: World; action: Action }) {
   // The first fame level any brand will talk to the player at.
   const firstLevel = Math.min(...BRANDS.map((brand) => brand.fameLevel));
   return (
-    <section aria-labelledby="sponsors-heading" className={`${ui.panel} lg:col-span-5`}>
+    <section aria-labelledby="sponsors-heading" className={`${ui.panel} lg:col-span-6`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="sponsors-heading" className={ui.heading}>
           {l.sponsors.title}
@@ -423,7 +427,7 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
   const morale = lifestyleMorale(world);
   const overspending = upkeep > weeklyIncome(world) * L.overspendShare;
   return (
-    <section aria-label={l.lifestyle.title} className={`${ui.panel} lg:col-span-7`}>
+    <section aria-label={l.lifestyle.title} className={`${ui.panel} lg:col-span-6`}>
       <h2 className={ui.heading}>{l.lifestyle.heading}</h2>
       <p className={`${ui.muted} mt-1`}>{l.lifestyle.body}</p>
       <dl className="mt-4 grid gap-2 sm:grid-cols-3 sm:gap-3">
@@ -442,7 +446,7 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
         {l.lifestyle.owned}
       </h3>
       {career.style.assets.length ? (
-        <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+        <ul className="mt-2 grid gap-2">
           {career.style.assets.map((asset) => {
             const name = l.lifestyle.items[asset.itemId] ?? asset.itemId;
             return (
@@ -471,13 +475,47 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
       ) : (
         <p className={`${ui.muted} mt-2`}>{l.lifestyle.none}</p>
       )}
-      <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
+    </section>
+  );
+}
+
+const KINDS = ['car', 'house', 'staff', 'experience', 'charity', 'investment'] as const;
+
+/** The catalogue across the full width, one category or all of them (kept in the URL). */
+function Shop({ world, action }: { world: World; action: Action }) {
+  const [params, setParams] = useSearchParams();
+  const chosen = KINDS.find((kind) => kind === params.get('shop'));
+  const show = (kind: (typeof KINDS)[number] | null) => {
+    const next = new URLSearchParams(params);
+    if (kind) next.set('shop', kind);
+    else next.delete('shop');
+    setParams(next, { replace: true });
+  };
+  return (
+    <section aria-labelledby="shop-heading" className={`${ui.panel} lg:col-span-12`}>
+      <h2 id="shop-heading" className={ui.heading}>
         {l.lifestyle.shop}
-      </h3>
-      {(['car', 'house', 'staff', 'experience', 'charity', 'investment'] as const).map((kind) => (
-        <div key={kind} className="mt-3">
-          <h4 className="text-sm font-semibold">{l.lifestyle.kinds[kind]}</h4>
-          <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
+      </h2>
+      <p className={ui.helper}>{l.lifestyle.shopBody}</p>
+      <div role="group" aria-label={l.lifestyle.categories} className={`mt-4 ${ui.filters}`}>
+        {[null, ...KINDS].map((kind) => {
+          const pressed = (kind ?? undefined) === chosen;
+          return (
+            <button
+              key={kind ?? 'all'}
+              aria-pressed={pressed}
+              onClick={() => show(kind)}
+              className={filterButton(pressed)}
+            >
+              {kind ? l.lifestyle.kinds[kind] : l.lifestyle.allKinds}
+            </button>
+          );
+        })}
+      </div>
+      {(chosen ? [chosen] : KINDS).map((kind) => (
+        <div key={kind} className="mt-5">
+          <h3 className="text-sm font-semibold">{l.lifestyle.kinds[kind]}</h3>
+          <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {LIFESTYLE.filter((item) => item.kind === kind).map((item) => (
               <ShopItem
                 key={item.id}

@@ -153,3 +153,52 @@ test('the phone hub shows the next action and the player’s condition in the fi
   expect(boxes.action).toBeLessThanOrEqual(boxes.bar);
   await expect(hero.getByText('Fatigue', { exact: true })).toBeVisible();
 });
+
+test('a phone opens a skill beside the tree, and Back returns to it', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openCareerPage(page, 'Skills');
+  const node = page.locator('[data-skill]').nth(3);
+  const id = await node.getAttribute('data-skill');
+  await node.click();
+  const sheet = page.getByRole('dialog');
+  await expect(sheet).toBeVisible();
+  await expect(page).toHaveURL(/detail=1/);
+  // The detail is on screen at once, without a trip past every branch.
+  const box = (await sheet.boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeLessThan(844);
+  await page.goBack();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`skill=${id}`));
+  await expect(page.locator(`[data-skill="${id}"]`)).toBeFocused();
+  // Escape closes it too, keeping the selection.
+  await page.locator(`[data-skill="${id}"]`).click();
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(page.locator(`[data-skill="${id}"]`)).toBeFocused();
+  // A branch filter narrows the tree.
+  await page.getByRole('button', { name: 'Defending', exact: true }).click();
+  await expect(page.getByRole('group', { name: 'Defending' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Finishing' })).toHaveCount(0);
+});
+
+test('profile attribute controls stay readable beside the tablet sidebar', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await openCareerPage(page, 'Profile');
+  await expect(page.locator('button[data-attribute]').first()).toBeVisible();
+  for (const percent of [100, 130]) {
+    await page.evaluate((scale) => {
+      document.documentElement.style.fontSize = `${scale}%`;
+    }, percent);
+    const narrowest = await page.evaluate(() =>
+      Math.min(
+        ...Array.from(document.querySelectorAll('button[data-attribute]')).map(
+          (button) => button.closest('li')!.getBoundingClientRect().width,
+        ),
+      ),
+    );
+    // One list in this narrow panel: each row keeps room for its label, value and button.
+    expect(narrowest, `${percent}% text`).toBeGreaterThan(300);
+  }
+});

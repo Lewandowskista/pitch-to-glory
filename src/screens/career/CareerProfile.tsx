@@ -20,7 +20,7 @@ export default function CareerProfile() {
       {(context) => (
         // Phones read who the player is first, then the attributes; on wide screens the
         // attributes take the left column beside the summary.
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] xl:grid-rows-[auto_auto_1fr_auto]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)] xl:grid-rows-[auto_auto_1fr_auto]">
           <Summary {...context} />
           <Positions player={context.player} />
           <Attributes {...context} />
@@ -64,47 +64,52 @@ function Attributes({
   return (
     <section
       aria-labelledby="attributes-heading"
-      className={`${ui.panel} xl:col-start-1 xl:row-span-3 xl:row-start-1`}
+      className={`${ui.panel} @container xl:col-start-1 xl:row-span-3 xl:row-start-1`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 basis-64">
-          <h2 id="attributes-heading" className={ui.heading}>
-            {c.profile.attributes}
-          </h2>
-          <p className={`${ui.muted} mt-2 max-w-prose`}>
-            {format(c.profile.attributesBody, {
-              below: CONFIG.career.costs.belowCap,
-              near: CONFIG.career.costs.nearCap,
-              beyond: CONFIG.career.costs.beyondCap,
-              step: CONFIG.career.costs.beyondCapStep,
-              hardAge: CONFIG.career.costs.hardCapAge,
-              hardMargin: CONFIG.career.costs.hardCapMargin,
-              surcharge: CONFIG.career.costs.physicalSurcharge,
-              age: CONFIG.career.costs.physicalAge,
-            })}
-          </p>
-        </div>
+      {/* The points to spend stay beside the heading at every width. */}
+      <div className="flex items-center justify-between gap-4">
+        <h2 id="attributes-heading" className={ui.heading}>
+          {c.profile.attributes}
+        </h2>
         <div
-          className={`rounded-control px-4 py-2 text-center ${
+          className={`flex shrink-0 items-baseline gap-2 rounded-control px-3 py-1.5 ${
             career.attributePoints ? 'bg-gold text-[#1d3127]' : 'bg-surface-soft text-muted'
           }`}
         >
-          <span className="block text-xs font-bold uppercase tracking-wider">
-            {c.profile.available}
-          </span>
-          <strong className="font-display text-3xl leading-none" data-testid="attribute-points">
+          <span className="text-xs font-bold uppercase tracking-wider">{c.profile.available}</span>
+          <strong className="font-display text-2xl leading-none" data-testid="attribute-points">
             {career.attributePoints}
           </strong>
         </div>
       </div>
+      <p className={`${ui.helper} max-w-prose`}>{c.profile.attributesSummary}</p>
+      <details className="mt-1 max-w-prose">
+        <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold text-accent">
+          {c.profile.costRules}
+        </summary>
+        <p className={`${ui.muted} mb-2`}>
+          {format(c.profile.attributesBody, {
+            below: CONFIG.career.costs.belowCap,
+            near: CONFIG.career.costs.nearCap,
+            beyond: CONFIG.career.costs.beyondCap,
+            step: CONFIG.career.costs.beyondCapStep,
+            hardAge: CONFIG.career.costs.hardCapAge,
+            hardMargin: CONFIG.career.costs.hardCapMargin,
+            surcharge: CONFIG.career.costs.physicalSurcharge,
+            age: CONFIG.career.costs.physicalAge,
+          })}
+        </p>
+      </details>
       {block && <p className="mt-3 rounded-control bg-surface-soft p-3 text-sm">{block}</p>}
       <p className="sr-only" role="status" aria-live="polite">
         {announcement}
       </p>
-      <p className="mt-2 text-xs text-muted">{c.profile.keyboard}</p>
+      <p className="text-xs text-muted">{c.profile.keyboard}</p>
+      {/* One readable list in a narrow panel (tablets beside the sidebar, phones); a column
+          per group once each can hold its labels, values and buttons. */}
       <div
         ref={list}
-        className="mt-4 gap-6 md:columns-2"
+        className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-x-5 gap-y-6 @min-[38rem]:grid-cols-3"
         onKeyDown={(event) => {
           if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
           const buttons = Array.from(
@@ -118,12 +123,7 @@ function Attributes({
         }}
       >
         {groups.trained.map(({ group, keys }) => (
-          <div
-            key={group}
-            role="group"
-            aria-labelledby={`group-${group}`}
-            className="mb-6 break-inside-avoid"
-          >
+          <div key={group} role="group" aria-labelledby={`group-${group}`} className="min-w-0">
             <h3 id={`group-${group}`} className="mb-2 text-sm font-bold text-muted">
               {c.profile.groups[group]}
             </h3>

@@ -34,9 +34,19 @@ export const ui = {
   helper: 'mt-helper text-sm text-muted',
   /** A row of actions after content: clear of the prose above, evenly spaced, wrapping. */
   actions: 'mt-action flex flex-wrap items-center gap-action',
+  /** A row of filter buttons: wraps on wider screens, scrolls sideways on phones. */
+  filters: 'flex gap-1.5 max-sm:-mx-1 max-sm:overflow-x-auto max-sm:px-1 max-sm:pb-1 sm:flex-wrap',
   /** An empty section inside a page: one quiet line instead of a full card. */
   empty: 'rounded-control border border-dashed border-line px-4 py-3 text-sm text-muted',
 } as const;
+
+/** One filter in a `ui.filters` row; the chosen one is filled. */
+export const filterButton = (pressed: boolean) =>
+  `min-h-11 shrink-0 rounded-control border px-3 text-sm font-semibold whitespace-nowrap transition-colors ${ui.focus} ${
+    pressed
+      ? 'border-accent bg-accent text-on-accent'
+      : 'border-line bg-surface text-muted hover:bg-surface-soft hover:text-ink'
+  }`;
 
 /**
  * The loaded world, restoring a saved slot from the `save` URL parameter after a refresh,

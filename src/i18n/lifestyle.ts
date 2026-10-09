@@ -100,6 +100,9 @@ export const lifestyleText = {
     owned: 'You own',
     none: 'You do not own anything yet.',
     shop: 'Buy',
+    shopBody: 'Prices and what each item needs are shown on its card.',
+    categories: 'Categories',
+    allKinds: 'All',
     kinds: {
       car: 'Cars',
       house: 'Homes',
@@ -167,6 +170,8 @@ export const lifestyleText = {
   },
   wardrobe: {
     preview: 'Your look',
+    sections: 'Wardrobe sections',
+    allSections: 'All',
     bootsDeal: 'Your {brand} deal requires their boots.',
     breakTitle: 'Break your deal with {brand}?',
     breakBody:

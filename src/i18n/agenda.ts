@@ -75,6 +75,8 @@ export const agendaText = {
     views: 'Weeks shown',
     ahead: 'From this week',
     all: 'Whole season',
+    more: 'Show the {count} weeks after these',
+    fewer: 'Show the next {count} weeks only',
     week: 'Week {week}',
     weeks: 'Weeks {from}–{to}',
     thisWeek: 'This week',

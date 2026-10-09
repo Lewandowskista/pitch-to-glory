@@ -13,6 +13,9 @@ import { focusLabel } from './trainingLabels';
 type View = 'ahead' | 'all';
 const VIEWS: View[] = ['ahead', 'all'];
 
+/** Weeks shown from this week before the rest of the season is asked for. */
+const AHEAD_WEEKS = 8;
+
 export default function CareerCalendar() {
   return (
     <CareerPage title={a.calendar.title} description={a.calendar.description}>
@@ -32,7 +35,17 @@ function CalendarContent({ world }: { world: World }) {
   };
   const agenda = seasonAgenda(world);
   const complete = world.phase === 'complete';
-  const shown = view === 'all' || complete ? agenda : agenda.filter((week) => !week.past);
+  const upcoming = view === 'all' || complete ? agenda : agenda.filter((week) => !week.past);
+  // From this week: the next few weeks first, the rest of the season one press away.
+  const bounded = view === 'ahead' && !complete && upcoming.length > AHEAD_WEEKS;
+  const expanded = params.get('rest') === '1';
+  const shown = bounded && !expanded ? upcoming.slice(0, AHEAD_WEEKS) : upcoming;
+  const toggleRest = () => {
+    const search = new URLSearchParams(params);
+    if (expanded) search.delete('rest');
+    else search.set('rest', '1');
+    setParams(search, { replace: true });
+  };
   return (
     <div className="grid gap-5">
       <div className="segmented-tabs" role="tablist" aria-label={a.calendar.views}>
@@ -60,7 +73,9 @@ function CalendarContent({ world }: { world: World }) {
       </div>
       {complete && <p className={ui.muted}>{a.calendar.seasonOver}</p>}
       <div id="calendar-weeks" role="tabpanel" aria-labelledby={`weeks-${view}`}>
-        <ol className="grid gap-3 xl:grid-cols-2">
+        {/* Two balanced columns on wide screens, read down then across: a busy week never
+            stretches its quiet neighbour. */}
+        <ol className="grid gap-3 xl:block xl:columns-2 xl:gap-3 xl:[&>li]:mb-3 xl:[&>li]:break-inside-avoid">
           {groupQuiet(shown).map((week) =>
             'until' in week ? (
               <QuietWeeks key={week.week} from={week.week} to={week.until} />
@@ -69,6 +84,13 @@ function CalendarContent({ world }: { world: World }) {
             ),
           )}
         </ol>
+        {bounded && (
+          <button className="text-button -ml-3 mt-1" onClick={toggleRest}>
+            {expanded
+              ? format(a.calendar.fewer, { count: AHEAD_WEEKS })
+              : format(a.calendar.more, { count: upcoming.length - AHEAD_WEEKS })}
+          </button>
+        )}
       </div>
     </div>
   );
