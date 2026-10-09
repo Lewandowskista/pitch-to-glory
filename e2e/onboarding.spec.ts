@@ -210,7 +210,8 @@ test('lo-fi loop plays after a gesture and pauses independently of other channel
       ).Howler;
       return howler?._howls.some((sound) => sound.duration() > 90 && sound.playing()) ?? false;
     });
-  await expect.poll(musicPlaying, { timeout: 20000 }).toBe(true);
+  // The first play renders the 100-second loop in a worker, which is slow on CI runners.
+  await expect.poll(musicPlaying, { timeout: 60000 }).toBe(true);
   await page.getByLabel('Effects and interface').fill('0');
   await page.getByLabel('Crowd', { exact: true }).fill('0');
   await expect.poll(musicPlaying).toBe(true);

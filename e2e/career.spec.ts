@@ -185,7 +185,10 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await page.locator('#focus-0').selectOption('finishing');
   await page.getByRole('radio', { name: 'High' }).first().check({ force: true });
   await page.getByRole('button', { name: 'Save training', exact: true }).click();
-  await expect(page.getByText('Training plan saved.', { exact: false })).toBeVisible();
+  // Saving waits for any autosave in flight, then writes the whole world: slow on CI runners.
+  await expect(page.getByText('Training plan saved.', { exact: false })).toBeVisible({
+    timeout: 60000,
+  });
 
   // Back on the hub, advance the world to the next matchday with live progress.
   await openCareerPage(page, 'Hub');
