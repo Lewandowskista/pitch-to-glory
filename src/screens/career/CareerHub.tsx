@@ -60,6 +60,9 @@ const attributeName = (key: string) =>
 
 /** Large hub cards: a column so the footer link always sits at the bottom. */
 const card = `${ui.panel} flex flex-col`;
+/** The hub's two column stacks on wide screens: main content and its supporting cards. */
+const mainStack = 'grid min-w-0 content-start gap-5 lg:col-span-8';
+const sideStack = 'grid min-w-0 content-start gap-5 lg:col-span-4';
 /** Small summary tiles in the strip under the main cards. */
 const tile =
   'flex min-w-0 flex-col rounded-panel border border-line bg-surface p-4 shadow-surface sm:p-5';
@@ -134,6 +137,10 @@ function HubContent({
   const inboxActive = full || world.inbox.some((message) => !message.read);
   const active = [inboxActive, pressActive, marketActive].filter(Boolean).length;
   const span = active === 1 ? 'lg:col-span-12' : active === 2 ? 'lg:col-span-6' : 'lg:col-span-4';
+  // Quiet tiles fill whole rows where they can: four across for 4, 7 or 8, three for 5 or 6.
+  const tiles =
+    3 - active + 3 + (retirement ? 0 : 1) + (rivalOf(world) && seasonLines(world) ? 1 : 0);
+  const tileColumns = tiles % 4 === 0 || tiles === 7 ? 'lg:grid-cols-4' : 'lg:grid-cols-3';
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
       {error && (
@@ -147,19 +154,33 @@ function HubContent({
       >
         {notice && notice !== 'generated' ? t.world.notices[notice] : ''}
       </p>
-      <NextMatch world={world} career={career} club={club} preview={preview} />
-      <HubPriorities world={world} items={priorities} />
-      <AdvanceDigest world={world} />
-      <PlayerCard career={career} player={player} club={club} age={age} />
-      <LastResult world={world} career={career} />
-      <SeasonStats world={world} career={career} player={player} />
-      <Condition career={career} player={player} />
-      <ClubStanding world={world} club={club} />
+      {/* Unequal cards sit in independent column stacks, so none stretches to its neighbour
+          and no row leaves a hole under a short card. The side stack spans both rows of the
+          main column, whose second row takes any spare height. Phones read in order: the
+          match, what needs you, you and your club, then the season. */}
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 lg:col-span-12 lg:grid-cols-12 lg:grid-rows-[auto_1fr]">
+        <div className={mainStack}>
+          <NextMatch world={world} career={career} player={player} club={club} preview={preview} />
+          <AdvanceDigest world={world} />
+          <Condition career={career} player={player} />
+        </div>
+        <div className={`${sideStack} lg:row-span-2`}>
+          <HubPriorities world={world} items={priorities} />
+          <PlayerCard career={career} player={player} club={club} age={age} />
+          <ClubStanding world={world} club={club} />
+        </div>
+        <div className={mainStack}>
+          <SeasonStats world={world} career={career} player={player} />
+          <LastResult world={world} career={career} />
+        </div>
+      </div>
       {retirement && <HonoursSummary world={world} className="lg:col-span-12" />}
       {inboxActive && <InboxPreview world={world} span={span} />}
       {pressActive && <PressRoom world={world} span={span} />}
       {marketActive && <MarketSummary world={world} span={span} />}
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 lg:col-span-12 lg:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]">
+      <div
+        className={`grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 lg:col-span-12 ${tileColumns}`}
+      >
         {!inboxActive && <InboxTile world={world} />}
         {!pressActive && <PressTile world={world} />}
         {!marketActive && <MarketTile world={world} />}
@@ -192,11 +213,13 @@ function HubContent({
 function NextMatch({
   world,
   career,
+  player,
   club,
   preview,
 }: {
   world: World;
   career: Career;
+  player: Player;
   club: Club | undefined;
   preview: AdvancePreview;
 }) {
@@ -262,13 +285,13 @@ function NextMatch({
     <section
       aria-labelledby="next-match-heading"
       data-tour="next-match"
-      className="relative overflow-hidden rounded-panel bg-field p-5 text-white shadow-surface sm:p-7 lg:col-span-8"
+      className="relative overflow-hidden rounded-panel bg-field p-5 text-white shadow-surface sm:p-7"
     >
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 opacity-[0.12] [background:repeating-linear-gradient(90deg,transparent_0_56px,white_56px_112px)]"
       />
-      <div className="relative flex flex-col gap-5">
+      <div className="relative flex flex-col gap-4 sm:gap-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-[0.16em] text-gold">
             {complete ? c.hub.seasonComplete : pending ? c.hub.matchday : c.hub.nextMatch}
@@ -328,6 +351,7 @@ function NextMatch({
           <p className="max-w-prose text-sm text-white/85">{c.hub.matchdayBody}</p>
         )}
         {!session && <AdvancePreviewText world={world} preview={preview} />}
+        <HeroCondition career={career} player={player} />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           {action}
           {!complete && !session && !awaitingRecovery && (
@@ -357,6 +381,37 @@ function NextMatch({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * Phones: level and condition in the match card, just above its action, so fatigue can be
+ * checked before playing. Wider screens show the Condition card beside it instead.
+ */
+function HeroCondition({ career, player }: { career: Career; player: Player }) {
+  const values: [string, number, boolean][] = [
+    [c.common.meters.fitness, player.fitness, player.fitness < 70],
+    [c.common.meters.fatigue, player.fatigue, player.fatigue > 60],
+    [c.common.meters.form, player.form, false],
+    [c.common.meters.morale, player.morale, false],
+  ];
+  return (
+    <div className="rounded-control bg-black/20 px-3 py-2.5 sm:hidden">
+      <p className="text-xs font-bold text-gold">
+        {format(c.common.level, { level: career.level })}
+        {career.injury && ` · ${c.hub.injury}`}
+      </p>
+      <dl className="mt-1.5 grid grid-cols-4 gap-2">
+        {values.map(([label, value, warn]) => (
+          <div key={label} className="min-w-0">
+            <dt className="truncate text-xs text-white/75">{label}</dt>
+            <dd className={`font-display text-xl leading-none ${warn ? 'text-gold' : ''}`}>
+              {Math.round(value)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -407,11 +462,7 @@ function PlayerCard({
   age: number;
 }) {
   return (
-    <section
-      aria-labelledby="player-card-heading"
-      data-tour="player-card"
-      className={`${card} lg:col-span-4`}
-    >
+    <section aria-labelledby="player-card-heading" data-tour="player-card" className={card}>
       <div className="flex flex-wrap items-center gap-4">
         <PlayerPortrait player={player} age={age} className="h-20 w-20 shrink-0 sm:h-24 sm:w-24" />
         <div className="min-w-0 flex-1 basis-40">
@@ -475,7 +526,7 @@ function LastResult({ world, career }: { world: World; career: Career }) {
   const form = recentForm(career);
   const opponent = last ? world.clubs[last.opponentId] : undefined;
   return (
-    <section aria-labelledby="last-result-heading" className={`${card} lg:col-span-4`}>
+    <section aria-labelledby="last-result-heading" className={card}>
       <h2 id="last-result-heading" className={ui.heading}>
         {c.hub.lastResult}
       </h2>
@@ -563,17 +614,14 @@ function SeasonStats({ world, career, player }: { world: World; career: Career; 
     keeper ? [c.hub.stats.cleanSheets, line.cleanSheets] : [c.hub.stats.xp, line.xp],
   ];
   return (
-    <section aria-labelledby="season-stats-heading" className={`${card} lg:col-span-4`}>
+    <section aria-labelledby="season-stats-heading" className={card}>
       <h2 id="season-stats-heading" className={ui.heading}>
         {format(c.hub.season, { season: world.date.season })}
       </h2>
       <p className="mt-1 text-xs text-muted">{c.hub.scope}</p>
-      <dl className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-3">
-        {stats.map(([label, value], index) => (
-          <div
-            key={label}
-            className={`rounded-control bg-surface-soft p-2.5 sm:p-3 ${index === 0 ? 'sm:col-span-2' : ''}`}
-          >
+      <dl className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
+        {stats.map(([label, value]) => (
+          <div key={label} className="rounded-control bg-surface-soft p-2.5 sm:p-3">
             <dt className="text-xs font-semibold text-muted">{label}</dt>
             <dd className="font-display text-2xl leading-tight sm:text-3xl">{value}</dd>
           </div>
@@ -596,7 +644,7 @@ function ClubStanding({ world, club }: { world: World; club: Club | undefined })
   const standing = club ? leaguePosition(world, club.id) : null;
   const league = club ? world.leagues[club.leagueId] : undefined;
   return (
-    <section aria-labelledby="club-heading" className={`${card} lg:col-span-4 lg:self-start`}>
+    <section aria-labelledby="club-heading" className={card}>
       <h2 id="club-heading" className={ui.heading}>
         {c.hub.club}
       </h2>
@@ -651,11 +699,15 @@ function Condition({ career, player }: { career: Career; player: Player }) {
     useAppStore.getState().setWorld(chooseRecovery(current, recovery));
   };
   return (
-    <section aria-labelledby="condition-heading" className={`${card} lg:col-span-8 lg:self-start`}>
+    <section
+      aria-labelledby="condition-heading"
+      // Phones carry the four values in the match card; the card returns for an injury.
+      className={`${card} ${injury || career.reinjury ? '' : 'max-sm:hidden'}`}
+    >
       <h2 id="condition-heading" className={ui.heading}>
         {c.hub.condition}
       </h2>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4">
         <Meter label={c.common.meters.form} value={player.form} />
         <Meter label={c.common.meters.morale} value={player.morale} />
         <Meter label={c.common.meters.fitness} value={player.fitness} />

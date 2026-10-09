@@ -85,7 +85,7 @@ export function HubPriorities({ world, items }: { world: World; items: Priority[
       id="priorities"
       data-tour="priorities"
       aria-labelledby="priorities-heading"
-      className={`${ui.panel} flex flex-col lg:col-span-4`}
+      className={`${ui.panel} flex flex-col`}
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="priorities-heading" className={ui.heading}>
@@ -292,10 +292,7 @@ export function AdvanceDigest({ world }: { world: World }) {
       ? format(a.digest.weekOne, { from: digest.from })
       : format(a.digest.weeks, { from: digest.from, to: digest.to });
   return (
-    <section
-      aria-labelledby="digest-heading"
-      className={`${ui.panel} flex flex-col lg:col-span-12`}
-    >
+    <section aria-labelledby="digest-heading" className={`${ui.panel} flex flex-col`}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 id="digest-heading" className={ui.heading}>
           {a.digest.title}

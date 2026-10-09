@@ -53,6 +53,24 @@ careers. Geometry that a page-width check misses is covered by `e2e/layout.spec.
   substitution prompts. They use the same panels and the existing match journeys pass; they
   stay on the Phase 6 acceptance list.
 
+## Hub (Phase 3)
+
+- The first block is a 12-column grid with explicit stacks: main (match card, Advance
+  digest, Condition; then season statistics and Last result) and side (Needs you, player,
+  club). The side stack spans both main rows (`grid-rows-[auto_1fr]`), so a short season-
+  complete card or an empty Last result never leaves a row-sized hole. DOM order is the
+  phone reading order: the match, what needs you, you, your club, then the season.
+- Last result before a debut, quiet priorities and Condition take their natural height.
+- Season statistics read as one row of five on tablets and up.
+- Phones: a compact level/condition strip sits in the match card just above Play. The
+  Condition card is hidden on phones unless there is an injury or re-injury risk to explain,
+  so no value is lost; tablets and up keep the full card beside or below the match.
+- Quiet summary tiles fill whole rows: 4 columns for 4, 7 or 8 tiles, 3 for 5 or 6, 2 on
+  tablets, 1 on phones.
+- Heights: early desktop hub 2,158 → 1,876 px, phone 3,817 → 3,548 px, populated phone
+  4,669 → 4,362 px. The populated desktop hub is about the same height (2,450 → 2,415 px)
+  but without the stretched cards and holes.
+
 ## Findings
 
 | #   | Finding                                   | Status                                                                                                                        |
@@ -60,9 +78,9 @@ careers. Geometry that a page-width check misses is covered by `e2e/layout.spec.
 | 1   | Training cards too narrow on tablets      | **Resolved** — layout follows the planner's container width; selectors readable at 768 px and 130% text (e2e)                 |
 | 2   | Match decisions, long sidebar             | **Resolved** — decision has the side column; stats/commentary move under the pitch; phones show the decision before the pitch |
 | 3   | Component CSS defeats utilities           | **Resolved** — controls layered; desktop Inbox hides Back, phones keep it (e2e)                                               |
-| 4   | Hub rows stretch cards                    | Pending — Phase 3                                                                                                             |
-| 5   | Hub summary tiles, 5 + 3 rows             | Pending — Phase 3                                                                                                             |
-| 6   | Phone hub condition far from action       | Pending — Phase 3                                                                                                             |
+| 4   | Hub rows stretch cards                    | **Resolved** — explicit main/side column stacks; the side stack spans both main rows, so no card stretches or leaves a hole   |
+| 5   | Hub summary tiles, 5 + 3 rows             | **Resolved** — quiet tiles use 4 columns for 4, 7 or 8 tiles and 3 for 5 or 6                                                 |
+| 6   | Phone hub condition far from action       | **Resolved** — phones show level, fitness, fatigue, form and morale in the match card above its action (e2e)                  |
 | 7   | Lifestyle unused column                   | Pending — Phase 4                                                                                                             |
 | 8   | Profile attribute columns uneven          | Pending — Phase 4                                                                                                             |
 | 9   | Skills tall tree, short detail            | Pending — Phase 4                                                                                                             |
@@ -83,3 +101,7 @@ careers. Geometry that a page-width check misses is covered by `e2e/layout.spec.
   1 skipped); layout and decision-layout specs pass in Chromium, Firefox and WebKit. The new
   bounded commentary list was flagged by axe (`scrollable-region-focusable`) and made
   focusable. Desktop decision page 2,243 → 1,637 px; briefing 2,030 → ~1,830 px.
+- **Phase 3**: typecheck, lint, format, build pass. Full Chromium e2e suite passes (77 passed,
+  1 skipped); layout, agenda, stories, onboarding, career, update and accessibility specs
+  pass in Chromium, Firefox and WebKit. States checked: new career, populated season with
+  unread inbox and a press question, season complete with unspent points and retirement.

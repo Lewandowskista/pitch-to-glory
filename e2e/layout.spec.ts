@@ -133,3 +133,23 @@ test('training intensity choices stay readable on a tablet, at normal and large 
     expect(problems, `${percent}% text`).toEqual([]);
   }
 });
+
+test('the phone hub shows the next action and the player’s condition in the first view', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  const hero = page.getByRole('region', { name: 'Next match' });
+  await expect(hero).toBeVisible({ timeout: 30000 });
+  const boxes = await hero.evaluate((section) => {
+    const rect = (element: Element | null) => element!.getBoundingClientRect();
+    return {
+      action: rect(section.querySelector('.button.play')).bottom,
+      condition: rect(section.querySelector('dl')).bottom,
+      bar: rect(document.querySelector('.bottom-nav')).top,
+    };
+  });
+  expect(boxes.condition).toBeLessThanOrEqual(boxes.action);
+  expect(boxes.action).toBeLessThanOrEqual(boxes.bar);
+  await expect(hero.getByText('Fatigue', { exact: true })).toBeVisible();
+});
