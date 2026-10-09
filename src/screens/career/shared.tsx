@@ -40,6 +40,35 @@ export const ui = {
   empty: 'rounded-control border border-dashed border-line px-4 py-3 text-sm text-muted',
 } as const;
 
+/**
+ * A section with nothing in it yet: its title and the reason in one compact, dashed card,
+ * instead of a full panel waiting to be filled. It keeps its heading, so it stays a named
+ * region that grows into the full section once there is content.
+ */
+export function EmptySection({
+  id,
+  title,
+  children,
+  className = '',
+}: {
+  id: string;
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      aria-labelledby={id}
+      className={`rounded-panel border border-dashed border-line px-panel-compact py-3.5 sm:px-panel ${className}`}
+    >
+      <h2 id={id} className="text-base font-bold">
+        {title}
+      </h2>
+      <div className="mt-0.5 text-sm text-muted">{children}</div>
+    </section>
+  );
+}
+
 /** One filter in a `ui.filters` row; the chosen one is filled. */
 export const filterButton = (pressed: boolean) =>
   `min-h-11 shrink-0 rounded-control border px-3 text-sm font-semibold whitespace-nowrap transition-colors ${ui.focus} ${
@@ -445,7 +474,7 @@ export function Meter({
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-2 text-sm">
         <span className="font-semibold">{label}</span>
-        <span className="font-display text-xl leading-none">{bounded}</span>
+        <span className="font-display text-xl leading-none tabular-nums">{bounded}</span>
       </div>
       <div
         role="meter"

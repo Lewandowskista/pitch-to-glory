@@ -150,4 +150,8 @@
   .hero--returning .hero-copy {
     padding-bottom: 1.6rem;
   }
+  /* A returning player came for their career: a smaller slogan brings it into view. */
+  .hero.hero--returning h1 {
+    font-size: 3rem;
+  }
 }

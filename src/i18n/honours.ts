@@ -144,6 +144,8 @@ export const honoursText = {
       final: 'Final',
     } as Record<string, string>,
     winner: 'Winner: {club}',
+    showGroups: 'Groups and knockouts',
+    youAreIn: 'Your club is in this cup',
     none: 'Continental cups start with the next season in this world.',
     yourClub: 'Your club',
   },

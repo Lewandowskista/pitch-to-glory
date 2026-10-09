@@ -205,7 +205,7 @@ export default function SavesContent() {
           </button>
         </div>
       )}
-      <p role="status" className="notice">
+      <p role="status" className="notice slot-notice">
         {notice || (!collections && !error ? t.saves.loading : '')}
       </p>
       <div className="slot-grid" aria-busy={!collections}>

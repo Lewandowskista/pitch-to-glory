@@ -31,7 +31,7 @@ import { Icon } from '../../ui/Icon';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
-import { CareerPage, CrestImage, Meter, plural, ui } from './shared';
+import { CareerPage, CrestImage, EmptySection, Meter, plural, ui } from './shared';
 import { useUrlDialog } from './useUrlDialog';
 import { cultureFit } from '../../engine/career/social';
 import { socialText } from '../../i18n/social';
@@ -168,24 +168,23 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
               : m.contract.noClause
           }
         />
-        <Stat
-          label={m.contract.loyalty}
-          value={money(contract.loyaltyBonus)}
-          note={m.contract.loyaltyBody}
-        />
+        <Stat label={m.contract.loyalty} value={money(contract.loyaltyBonus)} />
       </dl>
+      {/* Notes sit under the grid, so one long note never stretches a row of figures. */}
+      <p className="mt-2 text-xs text-muted">
+        {m.contract.loyalty}: {m.contract.loyaltyBody}
+      </p>
       <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
         {m.contract.bonuses}
       </h3>
       <dl className="mt-2 grid grid-cols-3 gap-2">
         <Stat label={m.contract.appearance} value={money(contract.appearanceBonus)} />
         <Stat label={m.contract.goal} value={money(contract.goalBonus)} />
-        <Stat
-          label={m.contract.cleanSheet}
-          value={money(contract.cleanSheetBonus)}
-          note={m.contract.cleanSheetNote}
-        />
+        <Stat label={m.contract.cleanSheet} value={money(contract.cleanSheetBonus)} />
       </dl>
+      <p className="mt-2 text-xs text-muted">
+        {m.contract.cleanSheet}: {m.contract.cleanSheetNote}
+      </p>
     </section>
   );
 }
@@ -513,6 +512,12 @@ function Offers({ world, onOpen }: { world: World; onOpen: (id: string) => void 
     .filter((offer) => offer.status !== 'terms' && offer.status !== 'agreed')
     .slice(-20)
     .reverse();
+  if (!open.length && !earlier.length)
+    return (
+      <EmptySection id="offers-heading" title={m.offers.title} className="lg:col-span-12">
+        <p className="max-w-prose">{m.offers.empty}</p>
+      </EmptySection>
+    );
   return (
     <section aria-labelledby="offers-heading" className={`${ui.panel} lg:col-span-12`}>
       <h2 id="offers-heading" className={ui.heading}>
@@ -641,6 +646,12 @@ function Interest({ world }: { world: World }) {
 
 function Moves({ world, career }: { world: World; career: Career }) {
   const moves = [...career.market.moves].reverse();
+  if (!moves.length)
+    return (
+      <EmptySection id="moves-heading" title={m.moves.title} className="order-6 lg:order-none">
+        {m.moves.empty}
+      </EmptySection>
+    );
   return (
     <section aria-labelledby="moves-heading" className={`${ui.panel} order-6 lg:order-none`}>
       <h2 id="moves-heading" className={ui.heading}>

@@ -97,26 +97,69 @@ careers. Geometry that a page-width check misses is covered by `e2e/layout.spec.
   sideways on phones instead of taking three rows.
 - Continental competition lists move to Phase 5 with the Trophies empty states.
 
+## Secondary screens (Phase 5)
+
+- **Shared empty treatment**: `EmptySection` (in `screens/career/shared.tsx`) is a compact,
+  dashed card with the section's heading and its reason. It keeps the region name, and the
+  full section replaces it once there is content.
+- **National team**: two stable column stacks (call-up and caps, then tournaments / squad,
+  then recent internationals), so column edges line up and no short card leaves a hole.
+  Empty squad, internationals and tournaments use the compact treatment.
+- **Media**: questions and the feed share the wide column; coverage is a short summary
+  beside them that stays in view. With no questions at all, they collapse to a compact note.
+- **Rival**: the identity block is a compact strip (smaller portraits, the description and
+  intensity meter beside them); meetings and the story so far stack beside the table.
+- **Settings**: two topic columns from 1280 px (appearance, reading, motion, simulation,
+  tutorial / sound), with restore defaults and its status below both; one column below.
+- **Saved games**: on single-column widths, empty slots drop their artwork and become compact
+  rows, occupied artwork shrinks, slot copy loses its fixed height, the silent status line
+  takes no room, and Delete sits apart at the end of the tools row.
+- **Agent**: "Recommended" sits on the card's top edge, so every portrait starts level.
+- **Transfers**: loyalty and clean-sheet notes move under their grids; empty Offers and
+  Career moves use the compact treatment.
+- **Trophies**: empty Golden Ball, cabinet, season awards and records are compact notes.
+  Each continental cup's groups and knockouts open on request; the player's own cup opens
+  by default.
+- **Club life**: three cliques share one row; each teammate's chemistry modifiers and the
+  culture-fit breakdown open on request.
+- **Legacy**: numbers and honours no longer stretch to each other.
+- **Landing**: a returning player's phone slogan is smaller, so the career summary is in
+  the first view.
+- **Shared**: comparable meter values use tabular numerals.
+
 ## Findings
 
-| #   | Finding                                   | Status                                                                                                                        |
-| --- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Training cards too narrow on tablets      | **Resolved** — layout follows the planner's container width; selectors readable at 768 px and 130% text (e2e)                 |
-| 2   | Match decisions, long sidebar             | **Resolved** — decision has the side column; stats/commentary move under the pitch; phones show the decision before the pitch |
-| 3   | Component CSS defeats utilities           | **Resolved** — controls layered; desktop Inbox hides Back, phones keep it (e2e)                                               |
-| 4   | Hub rows stretch cards                    | **Resolved** — explicit main/side column stacks; the side stack spans both main rows, so no card stretches or leaves a hole   |
-| 5   | Hub summary tiles, 5 + 3 rows             | **Resolved** — quiet tiles use 4 columns for 4, 7 or 8 tiles and 3 for 5 or 6                                                 |
-| 6   | Phone hub condition far from action       | **Resolved** — phones show level, fitness, fatigue, form and morale in the match card above its action (e2e)                  |
-| 7   | Lifestyle unused column                   | **Resolved** — compact sponsor/money row, then a full-width catalogue with category filters                                   |
-| 8   | Profile attribute columns uneven          | **Resolved** — one list in narrow panels, three group columns from 38rem; cost rules disclosed (e2e)                          |
-| 9   | Skills tall tree, short detail            | **Resolved** — branch filter; below xl the detail opens as a URL sheet with Back, Escape and focus return (e2e)               |
-| 10  | National team column proportions          | Pending — Phase 5                                                                                                             |
-| 11  | Briefing, report, Legacy equal heights    | Partly resolved — briefing and report no longer stretch; Legacy in Phase 5                                                    |
-| 12  | Page chrome too tall                      | **Resolved** — compact functional header; content 78 px earlier on desktop, 44 px on phones                                   |
-| 13  | Empty content gets full panels            | Pending — `ui.empty` role defined; screens in Phase 5                                                                         |
-| 14  | Settings underuses desktop width          | Pending — Phase 5                                                                                                             |
-| 15  | Button/helper/badge formatting varies     | Partly resolved — roles and 48 px actions defined; screen-level normalisation in Phase 5                                      |
-| 16  | Saved games reserves room for empty slots | Pending — Phase 5                                                                                                             |
+| #   | Finding                                   | Status                                                                                                                                                                              |
+| --- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Training cards too narrow on tablets      | **Resolved** — layout follows the planner's container width; selectors readable at 768 px and 130% text (e2e)                                                                       |
+| 2   | Match decisions, long sidebar             | **Resolved** — decision has the side column; stats/commentary move under the pitch; phones show the decision before the pitch                                                       |
+| 3   | Component CSS defeats utilities           | **Resolved** — controls layered; desktop Inbox hides Back, phones keep it (e2e)                                                                                                     |
+| 4   | Hub rows stretch cards                    | **Resolved** — explicit main/side column stacks; the side stack spans both main rows, so no card stretches or leaves a hole                                                         |
+| 5   | Hub summary tiles, 5 + 3 rows             | **Resolved** — quiet tiles use 4 columns for 4, 7 or 8 tiles and 3 for 5 or 6                                                                                                       |
+| 6   | Phone hub condition far from action       | **Resolved** — phones show level, fitness, fatigue, form and morale in the match card above its action (e2e)                                                                        |
+| 7   | Lifestyle unused column                   | **Resolved** — compact sponsor/money row, then a full-width catalogue with category filters                                                                                         |
+| 8   | Profile attribute columns uneven          | **Resolved** — one list in narrow panels, three group columns from 38rem; cost rules disclosed (e2e)                                                                                |
+| 9   | Skills tall tree, short detail            | **Resolved** — branch filter; below xl the detail opens as a URL sheet with Back, Escape and focus return (e2e)                                                                     |
+| 10  | National team column proportions          | **Resolved** — two stable stacks (call-up, tournaments / squad, internationals); compact empty squad and history (e2e)                                                              |
+| 11  | Briefing, report, Legacy equal heights    | **Resolved** — briefing and report (Phase 2); Legacy numbers and honours no longer stretch                                                                                          |
+| 12  | Page chrome too tall                      | **Resolved** — compact functional header; content 78 px earlier on desktop, 44 px on phones                                                                                         |
+| 13  | Empty content gets full panels            | **Resolved** — shared `EmptySection` used by Inbox, Transfers, Media, Trophies and National; Inbox drops its empty reader (e2e)                                                     |
+| 14  | Settings underuses desktop width          | **Resolved** — two topic columns from 1280 px, one below; 2,222 → 1,426 px (e2e)                                                                                                    |
+| 15  | Button/helper/badge formatting varies     | **Resolved** — roles and 48 px actions (Phase 1); Agent badge on the card edge, contract notes under their grids, counters by headings, tabular meter values, readable locked items |
+| 16  | Saved games reserves room for empty slots | **Resolved** — phones: empty slots become compact rows, smaller artwork, silent notice takes no room, Delete set apart; phone 2,420 → ~1,900 px                                     |
+
+## Screen-specific observations still open
+
+These were noted in the review's coverage table and are not covered by the changes above.
+They stay pending with this scope:
+
+- **World** (phone 6,085 px): compact the overview and give direct access to club detail.
+- **Edit mode** (phone): summary and filters fill the first view before the editor.
+- **New career**: Continue below the first viewport on the identity step; long phone
+  nationality list.
+- **Gallery**: seed/helper/tab stack and the odd last kit card.
+
+Phase 6 re-captures these screens after the shared changes to confirm nothing regressed.
 
 ## Validation log
 
@@ -135,3 +178,7 @@ careers. Geometry that a page-width check misses is covered by `e2e/layout.spec.
   1 skipped); layout, agenda, lifestyle, career, navigation and accessibility specs pass in
   Chromium, Firefox and WebKit, including the new Skills sheet (Back, Escape, focus return,
   branch filter) and tablet Profile readability checks.
+- **Phase 5**: typecheck, lint, format, build pass. Full Chromium e2e suite passes (81 passed,
+  1 skipped); layout, market, social, honours, save-actions, foundation, accessibility,
+  lifestyle and navigation specs pass in Chromium, Firefox and WebKit, including new checks
+  for compact empty history, aligned National columns and two-column Settings.

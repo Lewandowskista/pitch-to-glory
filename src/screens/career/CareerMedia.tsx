@@ -4,7 +4,7 @@ import type { Career, MediaItem, World } from '../../model/domain';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { socialText as s } from '../../i18n/social';
-import { CareerPage, Meter, plural, ui } from './shared';
+import { CareerPage, EmptySection, Meter, plural, ui } from './shared';
 import { BlockNote, ActionError } from './marketUi';
 import { EffectChips, mediaText, useSocialAction } from './socialUi';
 
@@ -29,52 +29,66 @@ function MediaContent({ world, career }: { world: World; career: Career }) {
     .slice(-8)
     .reverse();
   return (
+    // Questions and the feed share the wide column; coverage is a short summary beside them,
+    // so no column runs empty under it.
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
-      <section aria-labelledby="questions-heading" className={`${ui.panel} lg:col-span-7`}>
-        <h2 id="questions-heading" className={ui.heading}>
-          {s.media.pending}
-        </h2>
-        {pending.length ? (
-          <div className="mt-4 grid gap-4">
-            {pending.map((item, index) => (
-              <Question
-                key={item.id}
-                item={item}
-                keys={index === 0}
-                onAnswered={() => setJustAnswered(item.id)}
-              />
-            ))}
-          </div>
+      <div className="grid min-w-0 content-start gap-5 lg:col-span-8">
+        {!pending.length && !latest && !earlier.length ? (
+          <EmptySection id="questions-heading" title={s.media.pending}>
+            {s.media.none}
+          </EmptySection>
         ) : (
-          <p className={`${ui.muted} mt-4 max-w-prose`}>{s.media.none}</p>
-        )}
-        {latest && (
-          <div
-            role="status"
-            className="mt-4 rounded-control border border-accent bg-accent-soft p-4"
-          >
-            <AnsweredItem item={latest} />
-          </div>
-        )}
-        {earlier.length > 0 && (
-          <div className="mt-5 border-t border-line pt-4">
-            <h3 className="text-base font-bold">{s.media.earlier}</h3>
-            <details className="mt-1">
-              <summary className="flex min-h-11 w-fit cursor-pointer items-center text-sm font-semibold text-accent">
-                {plural(earlier.length, s.media.showEarlierOne, s.media.showEarlier)}
-              </summary>
-              <ul className="mt-2 grid gap-3">
-                {earlier.map((item) => (
-                  <li key={item.id}>
-                    <AnsweredItem item={item} />
-                  </li>
+          <section aria-labelledby="questions-heading" className={ui.panel}>
+            <h2 id="questions-heading" className={ui.heading}>
+              {s.media.pending}
+            </h2>
+            {pending.length ? (
+              <div className="mt-4 grid gap-4">
+                {pending.map((item, index) => (
+                  <Question
+                    key={item.id}
+                    item={item}
+                    keys={index === 0}
+                    onAnswered={() => setJustAnswered(item.id)}
+                  />
                 ))}
-              </ul>
-            </details>
-          </div>
+              </div>
+            ) : (
+              <p className={`${ui.muted} mt-4 max-w-prose`}>{s.media.none}</p>
+            )}
+            {latest && (
+              <div
+                role="status"
+                className="mt-4 rounded-control border border-accent bg-accent-soft p-4"
+              >
+                <AnsweredItem item={latest} />
+              </div>
+            )}
+            {earlier.length > 0 && (
+              <div className="mt-5 border-t border-line pt-4">
+                <h3 className="text-base font-bold">{s.media.earlier}</h3>
+                <details className="mt-1">
+                  <summary className="flex min-h-11 w-fit cursor-pointer items-center text-sm font-semibold text-accent">
+                    {plural(earlier.length, s.media.showEarlierOne, s.media.showEarlier)}
+                  </summary>
+                  <ul className="mt-2 grid gap-3">
+                    {earlier.map((item) => (
+                      <li key={item.id}>
+                        <AnsweredItem item={item} />
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </div>
+            )}
+          </section>
         )}
-      </section>
-      <section aria-labelledby="coverage-heading" className={`${ui.panel} lg:col-span-5`}>
+        <Feed world={world} />
+      </div>
+      <section
+        aria-labelledby="coverage-heading"
+        className={`${ui.panel} lg:sticky lg:top-6 lg:col-span-4`}
+      >
         <h2 id="coverage-heading" className={ui.heading}>
           {s.media.coverage}
         </h2>
@@ -91,7 +105,6 @@ function MediaContent({ world, career }: { world: World; career: Career }) {
           {plural(career.social.answered, s.media.answeredOne, s.media.answeredCount)}
         </p>
       </section>
-      <Feed world={world} />
     </div>
   );
 }
@@ -214,7 +227,7 @@ function Feed({ world }: { world: World }) {
     .reverse();
   const shown = posts.slice(0, visible);
   return (
-    <section aria-labelledby="feed-heading" className={`${ui.panel} lg:col-span-12`}>
+    <section aria-labelledby="feed-heading" className={ui.panel}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="feed-heading" className={ui.heading}>
           {s.media.feed}

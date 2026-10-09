@@ -202,3 +202,38 @@ test('profile attribute controls stay readable beside the tablet sidebar', async
     expect(narrowest, `${percent}% text`).toBeGreaterThan(300);
   }
 });
+
+test('empty history stays compact and the national team columns line up', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openCareerPage(page, 'Trophies');
+  // No Golden Ball yet: one compact notice, not a full card waiting to be filled.
+  const ball = page.getByRole('region', { name: 'Golden Ball' });
+  await expect(ball).toBeVisible();
+  expect((await ball.boundingBox())!.height).toBeLessThan(120);
+  await openCareerPage(page, 'National team');
+  const box = async (name: string) =>
+    (await page.getByRole('region', { name, exact: true }).boundingBox())!;
+  const tournaments = await box('Tournaments');
+  const internationals = await box('Recent internationals');
+  const callUp = (await page
+    .locator('#national-heading')
+    .locator('xpath=ancestor::section[1]')
+    .boundingBox())!;
+  // Each column keeps its edges from one section to the next.
+  expect(Math.abs(tournaments.x - callUp.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(tournaments.width - callUp.width)).toBeLessThanOrEqual(1);
+  expect(internationals.x).toBeGreaterThan(callUp.x + callUp.width);
+});
+
+test('settings use two topic columns on a wide screen and one on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/settings');
+  const appearance = page.getByRole('heading', { name: 'Appearance' });
+  const sound = page.getByRole('heading', { name: 'Sound', exact: true });
+  await expect(sound).toBeVisible();
+  expect((await sound.boundingBox())!.x).toBeGreaterThan((await appearance.boundingBox())!.x + 300);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    Math.abs((await sound.boundingBox())!.x - (await appearance.boundingBox())!.x),
+  ).toBeLessThanOrEqual(1);
+});

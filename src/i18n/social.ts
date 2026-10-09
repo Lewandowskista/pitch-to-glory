@@ -62,6 +62,7 @@ export const socialText = {
     body: 'Chemistry grows while you share a club, faster when you play together, and follows how their group sees you.',
     chemistry: 'Chemistry with {name}',
     chemistryShort: 'Chemistry',
+    why: 'What shapes it',
     reasons: {
       clique: 'Same group',
       nationality: 'Same nationality',
@@ -83,6 +84,7 @@ export const socialText = {
     body: 'Whether your personality and style suit this club, not only your ability.',
     value: 'Culture fit',
     traits: 'Club culture',
+    partsTitle: 'How the fit adds up',
     traitNames: {
       youth: 'Develops youth',
       winNow: 'Win-now',

@@ -114,7 +114,8 @@ function InboxContent({ world }: { world: World }) {
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
       <section
         aria-labelledby="inbox-list-heading"
-        className={`${ui.panel} lg:col-span-5 ${selected ? 'hidden lg:block' : ''}`}
+        // With no messages at all the list is the whole page: one card, no empty reader.
+        className={`${ui.panel} ${messages.length ? 'lg:col-span-5' : 'lg:col-span-12'} ${selected ? 'hidden lg:block' : ''}`}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="inbox-list-heading" className={ui.heading}>
@@ -199,42 +200,44 @@ function InboxContent({ world }: { world: World }) {
           <p className={`${ui.muted} mt-4`}>{m.inbox.empty}</p>
         )}
       </section>
-      <section
-        aria-labelledby="inbox-reader-heading"
-        className={`${ui.panel} lg:sticky lg:top-6 lg:col-span-7 lg:self-start ${selected ? '' : 'hidden lg:block'}`}
-      >
-        {shown ? (
-          <article className="flex flex-col gap-4">
-            <button className="button secondary self-start lg:hidden" onClick={closeReader}>
-              {m.inbox.back}
-            </button>
-            <p className="text-xs text-muted">
-              {format(c.common.seasonWeek, {
-                season: shown.date.season,
-                week: shown.date.week,
-              })}
-            </p>
-            <h2 id="inbox-reader-heading" className="font-display text-[2.2rem] leading-none">
-              {messageText(shown).subject}
-            </h2>
-            <p className="max-w-prose">{messageText(shown).body}</p>
-            {link && (
-              <div>
-                <Link className="button" to={link.to}>
-                  {link.label}
-                </Link>
-              </div>
-            )}
-          </article>
-        ) : (
-          <>
-            <h2 id="inbox-reader-heading" className="sr-only">
-              {m.inbox.reader}
-            </h2>
-            <p className={ui.muted}>{m.inbox.selectPrompt}</p>
-          </>
-        )}
-      </section>
+      {messages.length > 0 && (
+        <section
+          aria-labelledby="inbox-reader-heading"
+          className={`${ui.panel} lg:sticky lg:top-6 lg:col-span-7 lg:self-start ${selected ? '' : 'hidden lg:block'}`}
+        >
+          {shown ? (
+            <article className="flex flex-col gap-4">
+              <button className="button secondary self-start lg:hidden" onClick={closeReader}>
+                {m.inbox.back}
+              </button>
+              <p className="text-xs text-muted">
+                {format(c.common.seasonWeek, {
+                  season: shown.date.season,
+                  week: shown.date.week,
+                })}
+              </p>
+              <h2 id="inbox-reader-heading" className="font-display text-[2.2rem] leading-none">
+                {messageText(shown).subject}
+              </h2>
+              <p className="max-w-prose">{messageText(shown).body}</p>
+              {link && (
+                <div>
+                  <Link className="button" to={link.to}>
+                    {link.label}
+                  </Link>
+                </div>
+              )}
+            </article>
+          ) : (
+            <>
+              <h2 id="inbox-reader-heading" className="sr-only">
+                {m.inbox.reader}
+              </h2>
+              <p className={ui.muted}>{m.inbox.selectPrompt}</p>
+            </>
+          )}
+        </section>
+      )}
     </div>
   );
 }

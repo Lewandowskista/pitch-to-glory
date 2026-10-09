@@ -91,16 +91,19 @@ function AgentContent({ world, career }: { world: World; career: Career }) {
             return (
               <li
                 key={agent.id}
-                className={`row-span-5 grid grid-rows-subgrid gap-3 rounded-control border p-4 ${
+                className={`relative row-span-5 grid grid-rows-subgrid gap-3 rounded-control border p-4 ${
                   state === 'current' || best
                     ? 'border-accent bg-accent-soft'
                     : 'border-line bg-surface-soft'
                 }`}
               >
-                <div className="flex flex-col items-start gap-2">
-                  {best && <span className={ui.chip}>{m.agent.recommended}</span>}
-                  <AgentHead agent={agent} compact />
-                </div>
+                {/* The badge sits on the card's top edge, so every portrait starts level. */}
+                {best && (
+                  <span className="absolute -top-3 left-3 inline-flex min-h-6 items-center rounded-full bg-accent px-3 text-xs font-bold text-on-accent">
+                    {m.agent.recommended}
+                  </span>
+                )}
+                <AgentHead agent={agent} compact />
                 <AgentMeters agent={agent} />
                 <Commission percent={agent.commissionPercent} />
                 <p className="text-xs text-muted">{m.agent.personalityBodies[agent.personality]}</p>

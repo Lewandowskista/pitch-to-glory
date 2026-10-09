@@ -22,96 +22,104 @@ export default function Settings() {
         <p>{t.settings.description}</p>
       </div>
       <div className="settings-layout">
+        {/* Two topic columns on wide screens (look, reading and play; sound), each at a
+            comfortable reading width; one column below that. */}
         <div className="settings-controls">
-          <section className="setting-section">
-            <h2>{t.settings.appearance}</h2>
-            <p>{t.settings.appearanceBody}</p>
-            <fieldset className="theme-selector">
-              <legend className="sr-only">{t.settings.theme}</legend>
-              {(['system', 'light', 'dark'] as const).map((theme) => (
-                <label key={theme} className={settings.theme === theme ? 'selected' : ''}>
-                  <input
-                    type="radio"
-                    name="theme"
-                    value={theme}
-                    checked={settings.theme === theme}
-                    onChange={() => update({ theme })}
-                  />
-                  <Icon name={theme === 'dark' ? 'moon' : theme === 'light' ? 'sun' : 'settings'} />
-                  <span>{t.settings[theme]}</span>
-                </label>
-              ))}
-            </fieldset>
-          </section>
-          <section className="setting-section">
-            <h2>{t.settings.reading}</h2>
-            <p>{t.settings.readingBody}</p>
-            <div className="range-label">
-              <label htmlFor="font-scale">{t.settings.fontScale}</label>
-              <output htmlFor="font-scale">
-                {format(t.settings.fontValue, { percent: Math.round(settings.fontScale * 100) })}
-              </output>
-            </div>
-            <input
-              id="font-scale"
-              type="range"
-              min="85"
-              max="130"
-              step="5"
-              value={Math.round(settings.fontScale * 100)}
-              aria-valuetext={format(t.settings.fontValue, {
-                percent: Math.round(settings.fontScale * 100),
-              })}
-              onChange={(event) => update({ fontScale: Number(event.target.value) / 100 })}
-            />
-          </section>
-          <section className="setting-section motion-setting">
-            <div>
-              <h2>
-                <label htmlFor="reduced-motion">{t.settings.motion}</label>
-              </h2>
-              <p>{t.settings.motionBody}</p>
-            </div>
-            <input
-              id="reduced-motion"
-              className="switch"
-              type="checkbox"
-              role="switch"
-              checked={settings.reducedMotion}
-              onChange={(event) => update({ reducedMotion: event.target.checked })}
-            />
-          </section>
-          <section className="setting-section motion-setting">
-            <div>
-              <h2>
-                <label htmlFor="simulation-only">{t.settings.simulation}</label>
-              </h2>
-              <p>{t.settings.simulationBody}</p>
-            </div>
-            <input
-              id="simulation-only"
-              className="switch"
-              type="checkbox"
-              role="switch"
-              checked={settings.simulationOnly}
-              onChange={(event) => update({ simulationOnly: event.target.checked })}
-            />
-          </section>
-          <SoundSettings />
-          <section className="setting-section">
-            <h2>{t.settings.tutorial}</h2>
-            <p>{t.settings.tutorialBody}</p>
-            <button
-              className="button secondary setting-action"
-              disabled={!settings.tutorial.week && !settings.tutorial.match}
-              onClick={() => {
-                update({ tutorial: { week: false, match: false, replay: true } });
-                setNotice(t.settings.tutorialDone);
-              }}
-            >
-              {t.settings.tutorialReset}
-            </button>
-          </section>
+          <div className="settings-column">
+            <section className="setting-section">
+              <h2>{t.settings.appearance}</h2>
+              <p>{t.settings.appearanceBody}</p>
+              <fieldset className="theme-selector">
+                <legend className="sr-only">{t.settings.theme}</legend>
+                {(['system', 'light', 'dark'] as const).map((theme) => (
+                  <label key={theme} className={settings.theme === theme ? 'selected' : ''}>
+                    <input
+                      type="radio"
+                      name="theme"
+                      value={theme}
+                      checked={settings.theme === theme}
+                      onChange={() => update({ theme })}
+                    />
+                    <Icon
+                      name={theme === 'dark' ? 'moon' : theme === 'light' ? 'sun' : 'settings'}
+                    />
+                    <span>{t.settings[theme]}</span>
+                  </label>
+                ))}
+              </fieldset>
+            </section>
+            <section className="setting-section">
+              <h2>{t.settings.reading}</h2>
+              <p>{t.settings.readingBody}</p>
+              <div className="range-label">
+                <label htmlFor="font-scale">{t.settings.fontScale}</label>
+                <output htmlFor="font-scale">
+                  {format(t.settings.fontValue, { percent: Math.round(settings.fontScale * 100) })}
+                </output>
+              </div>
+              <input
+                id="font-scale"
+                type="range"
+                min="85"
+                max="130"
+                step="5"
+                value={Math.round(settings.fontScale * 100)}
+                aria-valuetext={format(t.settings.fontValue, {
+                  percent: Math.round(settings.fontScale * 100),
+                })}
+                onChange={(event) => update({ fontScale: Number(event.target.value) / 100 })}
+              />
+            </section>
+            <section className="setting-section motion-setting">
+              <div>
+                <h2>
+                  <label htmlFor="reduced-motion">{t.settings.motion}</label>
+                </h2>
+                <p>{t.settings.motionBody}</p>
+              </div>
+              <input
+                id="reduced-motion"
+                className="switch"
+                type="checkbox"
+                role="switch"
+                checked={settings.reducedMotion}
+                onChange={(event) => update({ reducedMotion: event.target.checked })}
+              />
+            </section>
+            <section className="setting-section motion-setting">
+              <div>
+                <h2>
+                  <label htmlFor="simulation-only">{t.settings.simulation}</label>
+                </h2>
+                <p>{t.settings.simulationBody}</p>
+              </div>
+              <input
+                id="simulation-only"
+                className="switch"
+                type="checkbox"
+                role="switch"
+                checked={settings.simulationOnly}
+                onChange={(event) => update({ simulationOnly: event.target.checked })}
+              />
+            </section>
+            <section className="setting-section">
+              <h2>{t.settings.tutorial}</h2>
+              <p>{t.settings.tutorialBody}</p>
+              <button
+                className="button secondary setting-action"
+                disabled={!settings.tutorial.week && !settings.tutorial.match}
+                onClick={() => {
+                  update({ tutorial: { week: false, match: false, replay: true } });
+                  setNotice(t.settings.tutorialDone);
+                }}
+              >
+                {t.settings.tutorialReset}
+              </button>
+            </section>
+          </div>
+          <div className="settings-column">
+            <SoundSettings />
+          </div>
           <div className="settings-footer">
             <button className="button secondary" onClick={() => reset.open()}>
               <Icon name="refresh" />

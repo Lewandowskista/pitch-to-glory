@@ -242,7 +242,10 @@ function DressingRoomCard({ world, player }: { world: World; player: Player }) {
       <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
         {s.room.cliques}
       </h3>
-      <ul className="mt-2 grid gap-3 sm:grid-cols-2">
+      {/* Three groups sit in one row rather than leaving half a row empty. */}
+      <ul
+        className={`mt-2 grid gap-3 ${room.cliques.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
+      >
         {room.cliques.map((clique) => {
           const mine = clique.playerIds.includes(player.id);
           const leaderName = clique.leaderId
@@ -387,17 +390,23 @@ function Teammates({ world, player, club }: { world: World; player: Player; club
                       value={entry?.value ?? 50}
                     />
                   </div>
+                  {/* The exact modifiers are one press away, so the list reads as a summary. */}
                   {reasons.length > 0 && (
-                    <ul className="mt-2 flex flex-wrap gap-1.5">
-                      {reasons.map(([part, delta]) => (
-                        <li
-                          key={part}
-                          className={`inline-flex min-h-6 items-center rounded-full px-2 text-xs font-bold ${delta > 0 ? 'bg-accent-soft text-accent' : 'bg-danger-soft text-danger'}`}
-                        >
-                          {s.teammates.reasons[part]} {signed(delta)}
-                        </li>
-                      ))}
-                    </ul>
+                    <details className="mt-1">
+                      <summary className="flex min-h-11 w-fit cursor-pointer items-center text-xs font-semibold text-accent">
+                        {s.teammates.why}
+                      </summary>
+                      <ul className="mb-1 flex flex-wrap gap-1.5">
+                        {reasons.map(([part, delta]) => (
+                          <li
+                            key={part}
+                            className={`inline-flex min-h-6 items-center rounded-full px-2 text-xs font-bold ${delta > 0 ? 'bg-accent-soft text-accent' : 'bg-danger-soft text-danger'}`}
+                          >
+                            {s.teammates.reasons[part]} {signed(delta)}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
                   )}
                 </div>
               </li>
@@ -430,19 +439,24 @@ function FitCard({ world, player, club }: { world: World; player: Player; club: 
           </li>
         ))}
       </ul>
-      <ul className="mt-4 grid gap-2">
-        {(Object.entries(fit.parts) as [FitPart, number][]).map(([part, value]) => (
-          <li key={part} className="flex items-baseline justify-between gap-3 text-sm">
-            <span>{s.fit.parts[part]}</span>
-            <span
-              className={`font-bold tabular-nums ${value > 0 ? 'text-accent' : value < 0 ? 'text-danger' : 'text-muted'}`}
-            >
-              {signed(value)}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
+      <details className="mt-3">
+        <summary className="flex min-h-11 w-fit cursor-pointer items-center text-sm font-semibold text-accent">
+          {s.fit.partsTitle}
+        </summary>
+        <ul className="mb-1 grid gap-2">
+          {(Object.entries(fit.parts) as [FitPart, number][]).map(([part, value]) => (
+            <li key={part} className="flex items-baseline justify-between gap-3 text-sm">
+              <span>{s.fit.parts[part]}</span>
+              <span
+                className={`font-bold tabular-nums ${value > 0 ? 'text-accent' : value < 0 ? 'text-danger' : 'text-muted'}`}
+              >
+                {signed(value)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </details>
+      <h3 className="mt-4 text-xs font-bold uppercase tracking-wider text-muted">
         {s.fit.personality}
       </h3>
       <dl className="mt-2 grid grid-cols-2 gap-2">

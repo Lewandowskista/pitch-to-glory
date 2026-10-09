@@ -6,7 +6,7 @@ import { rivalOf } from '../../engine/career/social';
 import { trophyName } from '../../engine/career/honours/trophies';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
-import { CareerPage, CrestImage, ui } from './shared';
+import { CareerPage, CrestImage, EmptySection, ui } from './shared';
 import { useUrlDialog } from './useUrlDialog';
 import { Glyph, type GlyphName } from './honoursUi';
 import { audio } from '../../audio';
@@ -63,6 +63,16 @@ function GoldenBall({
   const club = winner ? world.clubs[winner.clubId] : undefined;
   const rank = award ? award.shortlist.findIndex((entry) => entry.playerId === player.id) + 1 : 0;
   const won = rank === 1;
+  if (!award)
+    return (
+      <EmptySection
+        id="ball-heading"
+        title={h.awards.kinds['golden-ball']}
+        className="lg:col-span-12"
+      >
+        {h.awards.none}
+      </EmptySection>
+    );
   return (
     <section
       aria-labelledby="ball-heading"
@@ -70,20 +80,14 @@ function GoldenBall({
     >
       <div>
         <h2 id="ball-heading" className="font-display text-[2.2rem] leading-none">
-          {award
-            ? format(h.awards.ceremony, { season: award.season })
-            : h.awards.kinds['golden-ball']}
+          {format(h.awards.ceremony, { season: award.season })}
         </h2>
-        <p className={`${ui.muted} mt-2 max-w-prose`}>
-          {award ? h.awards.ceremonyBody : h.awards.none}
-        </p>
-        {award && (
-          <button className="button mt-4" onClick={() => onOpen(String(award.season))}>
-            {h.awards.ceremonyOpen}
-          </button>
-        )}
+        <p className={`${ui.muted} mt-2 max-w-prose`}>{h.awards.ceremonyBody}</p>
+        <button className="button mt-4" onClick={() => onOpen(String(award.season))}>
+          {h.awards.ceremonyOpen}
+        </button>
       </div>
-      {award && winner && (
+      {winner && (
         <div className="grid gap-3">
           <div
             className={`flex items-center gap-3 rounded-control p-4 ${won ? 'bg-gold text-on-gold' : 'bg-surface'}`}
@@ -273,12 +277,17 @@ function Cabinet({ world, player }: { world: World; player: Player }) {
         <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">{items}</ul>
       </>
     );
+  if (nothing)
+    return (
+      <EmptySection id="cabinet-heading" title={h.cabinet.title}>
+        <p className="max-w-prose">{h.cabinet.empty}</p>
+      </EmptySection>
+    );
   return (
     <section aria-labelledby="cabinet-heading" className={ui.panel}>
       <h2 id="cabinet-heading" className={ui.heading}>
         {h.cabinet.title}
       </h2>
-      {nothing && <p className={`${ui.muted} mt-3 max-w-prose`}>{h.cabinet.empty}</p>}
       {group(
         h.cabinet.club,
         trophies.map((trophy) => {
@@ -320,45 +329,47 @@ function Cabinet({ world, player }: { world: World; player: Player }) {
 }
 
 function WorldRecords({ world, player }: { world: World; player: Player }) {
+  if (!world.records.length)
+    return (
+      <EmptySection id="records-heading" title={h.cabinet.worldRecords}>
+        {h.cabinet.worldRecordsBody} {h.cabinet.noRecords}
+      </EmptySection>
+    );
   return (
     <section aria-labelledby="records-heading" className={ui.panel}>
       <h2 id="records-heading" className={ui.heading}>
         {h.cabinet.worldRecords}
       </h2>
       <p className={`${ui.muted} mt-1`}>{h.cabinet.worldRecordsBody}</p>
-      {world.records.length ? (
-        <ul className="mt-4 grid gap-2">
-          {world.records.map((record) => {
-            const mine = record.playerId === player.id;
-            return (
-              <li
-                key={record.id}
-                className={`flex items-center gap-3 rounded-control p-3 ${mine ? 'bg-accent-soft' : 'bg-surface-soft'}`}
+      <ul className="mt-4 grid gap-2">
+        {world.records.map((record) => {
+          const mine = record.playerId === player.id;
+          return (
+            <li
+              key={record.id}
+              className={`flex items-center gap-3 rounded-control p-3 ${mine ? 'bg-accent-soft' : 'bg-surface-soft'}`}
+            >
+              <span
+                aria-hidden="true"
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${mine ? 'bg-gold text-on-gold' : 'bg-surface text-accent'}`}
               >
-                <span
-                  aria-hidden="true"
-                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${mine ? 'bg-gold text-on-gold' : 'bg-surface text-accent'}`}
-                >
-                  <Glyph name="record" />
+                <Glyph name="record" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">
+                  {h.cabinet.recordKinds[record.kind]}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold">
-                    {h.cabinet.recordKinds[record.kind]}
-                  </span>
-                  <span className="block truncate text-xs text-muted">
-                    {format(h.cabinet.recordHolder, {
-                      name: mine ? h.cabinet.yours : record.playerName,
-                    })}
-                  </span>
+                <span className="block truncate text-xs text-muted">
+                  {format(h.cabinet.recordHolder, {
+                    name: mine ? h.cabinet.yours : record.playerName,
+                  })}
                 </span>
-                <span className="shrink-0 font-display text-2xl leading-none">{record.value}</span>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className={`${ui.muted} mt-4`}>{h.cabinet.noRecords}</p>
-      )}
+              </span>
+              <span className="shrink-0 font-display text-2xl leading-none">{record.value}</span>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -374,12 +385,18 @@ const awardValue = (award: Award) =>
 function SeasonAwards({ world, player }: { world: World; player: Player }) {
   const awards = world.awards.filter((award) => award.kind !== 'month').slice(-24);
   const seasons = [...new Set(awards.map((award) => award.season))].reverse();
+  if (!seasons.length)
+    return (
+      <EmptySection id="season-awards-heading" title={h.awards.season}>
+        <p>{h.awards.seasonEmpty}</p>
+        <p className="mt-1 text-xs">{h.awards.scope}</p>
+      </EmptySection>
+    );
   return (
     <section aria-labelledby="season-awards-heading" className={ui.panel}>
       <h2 id="season-awards-heading" className={ui.heading}>
         {h.awards.season}
       </h2>
-      {!seasons.length && <p className={`${ui.muted} mt-4`}>{h.awards.seasonEmpty}</p>}
       {seasons.map((season) => {
         const own = awards.filter((award) => award.season === season);
         const team = own.find((award) => award.kind === 'team-season');
@@ -438,67 +455,84 @@ function Continental({ world, player }: { world: World; player: Player }) {
         {h.continental.title}
       </h2>
       {!cups.length && <p className={`${ui.muted} mt-3`}>{h.continental.none}</p>}
-      {cups.map((cup) => (
-        <div key={cup.id} className="mt-5">
-          <h3 className="font-display text-2xl leading-none">
-            {cup.name} {cup.season}
-          </h3>
-          {cup.winnerId && (
-            <p className="mt-1 text-sm font-semibold text-accent">
-              {format(h.continental.winner, { club: world.clubs[cup.winnerId]!.name })}
-            </p>
-          )}
-          <ul className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {cup.stages[0]!.groups.map((_, index) => (
-              <li key={index} className="rounded-control bg-surface-soft p-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted">
-                  {format(h.continental.groups, { letter: String.fromCharCode(65 + index) })}
-                </h4>
-                <ol className="mt-2 grid gap-1 text-sm">
-                  {groupTable(world, cup, index).map((row) => (
-                    <li
-                      key={row.clubId}
-                      className={`flex justify-between gap-2 ${row.clubId === player.clubId ? 'font-bold text-accent' : ''}`}
-                    >
-                      <span className="min-w-0 truncate">{world.clubs[row.clubId]!.name}</span>
-                      <span className="shrink-0 tabular-nums">{row.points}</span>
-                    </li>
-                  ))}
-                </ol>
-              </li>
-            ))}
-          </ul>
-          {cup.stages.length > 1 && (
-            <>
-              <h4 className="mt-4 text-xs font-bold uppercase tracking-wider text-muted">
-                {h.continental.knockouts}
-              </h4>
-              <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-4">
-                {cup.stages.slice(1).map((stage) => (
-                  <div key={stage.id}>
-                    <p className="text-sm font-semibold">
-                      {h.continental.stageNames[stage.name] ?? stage.name}
-                    </p>
-                    <ul className="mt-1 grid gap-1 text-xs">
-                      {stage.fixtureIds.map((id) => {
-                        const fixture = world.fixtures[id]!;
-                        const result = world.results[id];
-                        return (
-                          <li key={id} className="rounded-control bg-surface-soft px-2 py-1">
-                            {world.clubs[fixture.homeId]!.name}{' '}
-                            {result ? `${result.score[0]}–${result.score[1]}` : 'v'}{' '}
-                            {world.clubs[fixture.awayId]!.name}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
+      {/* Each cup's groups and knockouts open on request; the player's own cup starts open,
+          so the full draw never dominates an early cabinet. */}
+      {cups.map((cup) => {
+        const involved = Boolean(
+          player.clubId &&
+          cup.stages[0]!.groups.some((_, index) =>
+            groupTable(world, cup, index).some((row) => row.clubId === player.clubId),
+          ),
+        );
+        return (
+          <div key={cup.id} className="mt-5">
+            <h3 className="font-display text-2xl leading-none">
+              {cup.name} {cup.season}
+            </h3>
+            {(cup.winnerId || involved) && (
+              <p className="mt-1 text-sm font-semibold text-accent">
+                {cup.winnerId
+                  ? format(h.continental.winner, { club: world.clubs[cup.winnerId]!.name })
+                  : h.continental.youAreIn}
+              </p>
+            )}
+            <details open={involved}>
+              <summary className="mt-1 flex min-h-11 w-fit cursor-pointer items-center text-sm font-semibold text-accent">
+                {h.continental.showGroups}
+              </summary>
+              <ul className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {cup.stages[0]!.groups.map((_, index) => (
+                  <li key={index} className="rounded-control bg-surface-soft p-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted">
+                      {format(h.continental.groups, { letter: String.fromCharCode(65 + index) })}
+                    </h4>
+                    <ol className="mt-2 grid gap-1 text-sm">
+                      {groupTable(world, cup, index).map((row) => (
+                        <li
+                          key={row.clubId}
+                          className={`flex justify-between gap-2 ${row.clubId === player.clubId ? 'font-bold text-accent' : ''}`}
+                        >
+                          <span className="min-w-0 truncate">{world.clubs[row.clubId]!.name}</span>
+                          <span className="shrink-0 tabular-nums">{row.points}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </li>
                 ))}
-              </div>
-            </>
-          )}
-        </div>
-      ))}
+              </ul>
+              {cup.stages.length > 1 && (
+                <>
+                  <h4 className="mt-4 text-xs font-bold uppercase tracking-wider text-muted">
+                    {h.continental.knockouts}
+                  </h4>
+                  <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-4">
+                    {cup.stages.slice(1).map((stage) => (
+                      <div key={stage.id}>
+                        <p className="text-sm font-semibold">
+                          {h.continental.stageNames[stage.name] ?? stage.name}
+                        </p>
+                        <ul className="mt-1 grid gap-1 text-xs">
+                          {stage.fixtureIds.map((id) => {
+                            const fixture = world.fixtures[id]!;
+                            const result = world.results[id];
+                            return (
+                              <li key={id} className="rounded-control bg-surface-soft px-2 py-1">
+                                {world.clubs[fixture.homeId]!.name}{' '}
+                                {result ? `${result.score[0]}–${result.score[1]}` : 'v'}{' '}
+                                {world.clubs[fixture.awayId]!.name}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </details>
+          </div>
+        );
+      })}
     </section>
   );
 }

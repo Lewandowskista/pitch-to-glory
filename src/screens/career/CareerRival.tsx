@@ -37,7 +37,7 @@ function Portrait({ player, age }: { player: Player; age: number }) {
     <Artwork
       svg={svg}
       alt={format(s.rival.portrait, { name: player.name })}
-      className="h-24 w-24 shrink-0 rounded-full bg-art-blue sm:h-28 sm:w-28"
+      className="h-16 w-16 shrink-0 rounded-full bg-art-blue sm:h-20 sm:w-20"
     />
   );
 }
@@ -154,7 +154,11 @@ function RivalContent({
   const h2h = rivalry.headToHead;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
-      <section aria-labelledby="rival-heading" className={`${ui.panel} lg:col-span-12`}>
+      {/* A compact identity strip: who the rival is and how hot it runs, then the comparison. */}
+      <section
+        aria-labelledby="rival-heading"
+        className={`${ui.panel} grid items-center gap-5 lg:col-span-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]`}
+      >
         <h2 id="rival-heading" className="sr-only">
           {s.rival.title}
         </h2>
@@ -174,9 +178,11 @@ function RivalContent({
             badge: index === 0 && <span className={ui.chip}>{s.rival.you}</span>,
           }))}
         />
-        <p className={`${ui.muted} mx-auto mt-4 max-w-prose text-center`}>{s.rival.body}</p>
-        <div className="mx-auto mt-4 max-w-md">
-          <Meter label={s.rival.intensity} value={rivalry.intensity} tone="danger" />
+        <div className="mx-auto w-full max-w-md lg:mx-0">
+          <p className={`${ui.muted} text-center lg:text-left`}>{s.rival.body}</p>
+          <div className="mt-4">
+            <Meter label={s.rival.intensity} value={rivalry.intensity} tone="danger" />
+          </div>
         </div>
       </section>
       <section aria-labelledby="compare-heading" className={`${ui.panel} lg:col-span-7`}>
@@ -227,83 +233,86 @@ function RivalContent({
         </table>
         <p className="mt-3 text-xs text-muted">{s.rival.scope}</p>
       </section>
-      <section aria-labelledby="h2h-heading" className={`${ui.panel} lg:col-span-5`}>
-        <h2 id="h2h-heading" className={ui.heading}>
-          {s.rival.headToHead}
-        </h2>
-        {h2h.played ? (
-          <p className="mt-4 font-display text-3xl leading-tight">
-            {format(s.rival.record, { won: h2h.won, drawn: h2h.drawn, lost: h2h.lost })}
-          </p>
-        ) : (
-          <p className={`${ui.muted} mt-4`}>{s.rival.noMeetings}</p>
-        )}
-        <h3 className="mt-6 text-xs font-bold uppercase tracking-wider text-muted">
-          {s.rival.seasons}
-        </h3>
-        {rivalry.seasons.length ? (
-          <table className="mt-2 w-full text-left text-sm">
-            <thead>
-              <tr className="text-xs text-muted">
-                <th scope="col" className="py-1 pr-2">
-                  {s.rival.seasonColumns.season}
-                </th>
-                <th scope="col" className="py-1 pr-2">
-                  {s.rival.seasonColumns.you}
-                </th>
-                <th scope="col" className="py-1">
-                  {s.rival.seasonColumns.rival}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {[...rivalry.seasons].reverse().map((season) => (
-                <tr key={season.season}>
-                  <th scope="row" className="py-1 pr-2 font-semibold">
-                    {season.season}
+      {/* Meetings and the story beside the table: the history reads as one column. */}
+      <div className="grid min-w-0 content-start gap-5 lg:col-span-5">
+        <section aria-labelledby="h2h-heading" className={ui.panel}>
+          <h2 id="h2h-heading" className={ui.heading}>
+            {s.rival.headToHead}
+          </h2>
+          {h2h.played ? (
+            <p className="mt-4 font-display text-3xl leading-tight">
+              {format(s.rival.record, { won: h2h.won, drawn: h2h.drawn, lost: h2h.lost })}
+            </p>
+          ) : (
+            <p className={`${ui.muted} mt-4`}>{s.rival.noMeetings}</p>
+          )}
+          <h3 className="mt-6 text-xs font-bold uppercase tracking-wider text-muted">
+            {s.rival.seasons}
+          </h3>
+          {rivalry.seasons.length ? (
+            <table className="mt-2 w-full text-left text-sm">
+              <thead>
+                <tr className="text-xs text-muted">
+                  <th scope="col" className="py-1 pr-2">
+                    {s.rival.seasonColumns.season}
                   </th>
-                  <td className="py-1 pr-2">
-                    {season.career.goals}/{season.career.assists} ·{' '}
-                    {season.career.rating.toFixed(2)}
-                  </td>
-                  <td className="py-1">
-                    {season.rival.goals}/{season.rival.assists} · {season.rival.rating.toFixed(2)}
-                  </td>
+                  <th scope="col" className="py-1 pr-2">
+                    {s.rival.seasonColumns.you}
+                  </th>
+                  <th scope="col" className="py-1">
+                    {s.rival.seasonColumns.rival}
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className={`${ui.muted} mt-2`}>–</p>
-        )}
-      </section>
-      <section aria-labelledby="timeline-heading" className={`${ui.panel} lg:col-span-12`}>
-        <h2 id="timeline-heading" className={ui.heading}>
-          {s.rival.timeline}
-        </h2>
-        <ol className="mt-4 grid gap-3 border-l-2 border-line pl-4">
-          {[...rivalry.timeline].reverse().map((entry, index) => {
-            const params: Record<string, string | number> = { ...entry.params };
-            if (typeof params.fee === 'number') params.fee = money(params.fee);
-            if (entry.kind === 'head-to-head')
-              params.outcome =
-                s.rival.outcomes[String(params.outcome) as keyof typeof s.rival.outcomes];
-            if (entry.kind === 'season')
-              params.verdict = params.ahead ? s.rival.verdicts.ahead : s.rival.verdicts.behind;
-            return (
-              <li key={`${entry.date.season}-${entry.date.week}-${index}`} className="text-sm">
-                <span className="block text-xs text-muted">
-                  {format(c.common.seasonWeek, {
-                    season: entry.date.season,
-                    week: entry.date.week,
-                  })}
-                </span>
-                {format(s.rival.entries[entry.kind] ?? '', params)}
-              </li>
-            );
-          })}
-        </ol>
-      </section>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {[...rivalry.seasons].reverse().map((season) => (
+                  <tr key={season.season}>
+                    <th scope="row" className="py-1 pr-2 font-semibold">
+                      {season.season}
+                    </th>
+                    <td className="py-1 pr-2">
+                      {season.career.goals}/{season.career.assists} ·{' '}
+                      {season.career.rating.toFixed(2)}
+                    </td>
+                    <td className="py-1">
+                      {season.rival.goals}/{season.rival.assists} · {season.rival.rating.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className={`${ui.muted} mt-2`}>–</p>
+          )}
+        </section>
+        <section aria-labelledby="timeline-heading" className={ui.panel}>
+          <h2 id="timeline-heading" className={ui.heading}>
+            {s.rival.timeline}
+          </h2>
+          <ol className="mt-4 grid gap-3 border-l-2 border-line pl-4">
+            {[...rivalry.timeline].reverse().map((entry, index) => {
+              const params: Record<string, string | number> = { ...entry.params };
+              if (typeof params.fee === 'number') params.fee = money(params.fee);
+              if (entry.kind === 'head-to-head')
+                params.outcome =
+                  s.rival.outcomes[String(params.outcome) as keyof typeof s.rival.outcomes];
+              if (entry.kind === 'season')
+                params.verdict = params.ahead ? s.rival.verdicts.ahead : s.rival.verdicts.behind;
+              return (
+                <li key={`${entry.date.season}-${entry.date.week}-${index}`} className="text-sm">
+                  <span className="block text-xs text-muted">
+                    {format(c.common.seasonWeek, {
+                      season: entry.date.season,
+                      week: entry.date.week,
+                    })}
+                  </span>
+                  {format(s.rival.entries[entry.kind] ?? '', params)}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      </div>
     </div>
   );
 }

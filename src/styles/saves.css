@@ -44,6 +44,14 @@
   color: var(--accent);
   font-size: 0.8rem;
 }
+/* Above the slots, the live region stays for announcements but takes no room while silent. */
+.slot-notice {
+  min-height: 0;
+  margin: 0.65rem 0 1rem;
+}
+.slot-notice:empty {
+  margin-top: 0;
+}
 .slot-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -146,7 +154,7 @@
 .slot-tools {
   display: flex;
   flex-wrap: wrap;
-  column-gap: 0.6rem;
+  column-gap: 1.25rem;
   justify-content: flex-start;
 }
 .slot-tools button,
@@ -169,6 +177,8 @@
 }
 .slot-tools .delete-tool {
   color: var(--danger);
+  /* Set apart from export and import: the one destructive tool sits at the far end. */
+  margin-left: auto;
 }
 .file-button {
   position: relative;
@@ -218,4 +228,27 @@
 .storage-panel .button {
   margin-left: auto;
   flex-shrink: 0;
+}
+
+/* One column of slots: empty slots become compact rows and artwork shrinks, so three slots
+   no longer fill several screens. Wider screens keep the aligned cards for comparison. */
+@media (max-width: 900px) {
+  .slot-card .slot-copy {
+    min-height: 0;
+  }
+  .slot-card .slot-art {
+    height: 110px;
+  }
+  .empty-slot .slot-art {
+    display: none;
+  }
+  .slot-card .slot-tools {
+    row-gap: 0;
+  }
+  .empty-slot .slot-header {
+    padding-bottom: 0;
+  }
+  .empty-slot .slot-copy {
+    padding-top: 0.5rem;
+  }
 }

@@ -208,7 +208,8 @@ function LegacyDetail({
           {child && <p className="text-sm font-semibold">{h.legacy.childTaken}</p>}
         </div>
       </section>
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-2">
+      {/* Numbers and honours are different content: neither stretches to the other. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] xl:items-start">
         <section aria-labelledby="legacy-stats" className={ui.panel}>
           <h2 id="legacy-stats" className={ui.heading}>
             {h.legacy.stats}
