@@ -143,7 +143,7 @@ export function Preview({
         </button>
         {/* On phones the tour's kick-off step appears here, in the page. */}
         <div data-tour-slot="kickoff" />
-        <p className="muted">{note ?? m.friendlyBody}</p>
+        <p className="muted match-kickoff-note">{note ?? m.friendlyBody}</p>
         {selection}
       </section>
       {[setup.home, setup.away].map((club, index) => {

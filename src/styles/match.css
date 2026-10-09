@@ -166,6 +166,8 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.25rem;
+  /* The footballer and the approach are different content: neither stretches to the other. */
+  align-items: start;
 }
 .match-scoreboard {
   display: grid;
@@ -258,6 +260,10 @@
   width: 100%;
   margin-top: 1.5rem;
 }
+/* What kicking off records, clear of the button it explains. */
+.match-kickoff-note {
+  margin-top: var(--spacing-action);
+}
 .match-tag {
   display: inline-flex;
   border-radius: 2rem;
@@ -333,6 +339,55 @@
   gap: 1.25rem;
   min-width: 0;
 }
+.match-live-main {
+  align-content: start;
+}
+/* Wide screens: both columns end together. Commentary takes the side column's remaining
+   height and scrolls within it, rather than running on below the pitch. */
+@media (min-width: 951px) {
+  .match-live-layout {
+    align-items: stretch;
+  }
+  .match-live-aside {
+    display: flex;
+    flex-direction: column;
+  }
+  .match-live-aside > .match-commentary {
+    flex: 1 1 0;
+    min-height: 18rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .match-live-aside > .match-commentary ol {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: none;
+  }
+  /* A key moment widens the side column for the choices alone. */
+  .match-live-layout.is-deciding {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
+    align-items: start;
+  }
+}
+@media (min-width: 951px) and (max-width: 1150px) {
+  .match-live-layout.is-deciding {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+  .match-live-layout.is-deciding .match-decision {
+    position: sticky;
+    top: 0.75rem;
+  }
+}
+/* Live numbers and commentary under the pitch while a decision has the side column. */
+.match-live-extras {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+.match-live-extras .match-commentary ol {
+  max-height: 17rem;
+}
 .match-pitch-panel {
   padding: 1rem;
 }
@@ -404,8 +459,14 @@
 .match-live-aside .match-choices {
   grid-template-columns: minmax(0, 1fr);
 }
-.match-live-aside .match-decision h2 {
-  font-size: 1.55rem;
+/* The situation is a sentence to read, not a title: body type, so it stays short. */
+.match-page .match-decision h2 {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.4;
+  margin: 0.35rem 0 0.85rem;
 }
 /* The phone's compact drawing of the key moment, above its choices. */
 .match-situation {
@@ -418,12 +479,13 @@
 .match-choices {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.8rem;
+  gap: 0.6rem;
 }
+/* One row per choice to compare: number, name and chance, then what it risks. */
 .match-choice {
   border: 1px solid var(--line);
   border-radius: 0.8rem;
-  padding: 0.4rem 0.75rem;
+  padding: 0.15rem 0.75rem 0.25rem;
   background: var(--bg);
   min-width: 0;
 }
@@ -434,20 +496,21 @@
   width: 100%;
   text-align: left;
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.5rem;
-  padding: 0.7rem 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
   cursor: pointer;
-  min-height: 70px;
+  min-height: 48px;
 }
 .match-choice > button > span:last-child {
-  grid-column: 2;
   color: var(--accent);
   font-size: 0.75rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 .match-choice-number {
-  grid-row: span 2;
   width: 25px;
   height: 25px;
   display: grid;
@@ -462,8 +525,8 @@
 .match-choice-hint {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  margin: 0 0 0.4rem;
+  gap: 0.15rem 0.75rem;
+  margin: 0 0 0.15rem;
   font-size: 0.72rem;
   line-height: 1.4;
   color: var(--muted);
@@ -649,6 +712,9 @@
   .match-live-layout {
     grid-template-columns: 1fr;
   }
+  .match-live-extras {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .match-live-aside {
     grid-template-columns: 1fr 1fr;
   }
@@ -701,11 +767,6 @@
   }
   .match-choices {
     grid-template-columns: 1fr;
-  }
-  /* Short enough for the situation and the first choice to share the screen. */
-  .match-decision h2 {
-    font-size: 1.35rem;
-    margin-bottom: 0.75rem;
   }
   .match-decision .match-eyebrow {
     margin-bottom: 0.4rem;

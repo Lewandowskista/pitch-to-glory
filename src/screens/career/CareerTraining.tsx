@@ -277,201 +277,35 @@ function TrainingPlanner({
       : dirty
         ? c.training.unsaved
         : status || c.training.noChanges;
+  // Layout follows the planner's own width, not the screen: the sidebar takes a share of
+  // tablet screens. Coaching sits beside the schedule once both fit; sessions are rows with
+  // focus and intensity side by side, and only become three columns when each card has room.
   return (
-    <div
-      data-training-planner
-      className="grid grid-cols-[minmax(0,1fr)] gap-5 max-[700px]:pb-40 2xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]"
-      onFocusCapture={(event) => {
-        revealTrainingControl(event.target as HTMLElement, actionBar.current);
-      }}
-    >
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
-        {career.injury && (
-          <p className="rounded-control border border-danger/40 bg-danger-soft p-4 text-sm font-semibold text-danger">
-            {c.training.injuredNote}
-          </p>
-        )}
-        {block && <p className="rounded-control bg-surface-soft p-3 text-sm">{block}</p>}
-        <div className="min-[701px]:hidden">
-          <p className="mb-3 text-sm text-muted">
-            {format(c.training.weeklyFatigue, {
-              value: `${fatigue > 0 ? '+' : ''}${Math.round(fatigue)}`,
-            })}
-            {' · '}
-            {format(c.training.weeklyRisk, { value: percent(risk) })}
-          </p>
-          <button
-            className="button secondary"
-            disabled={Boolean(block)}
-            onClick={() => {
-              setStatus('');
-              setPlan(defaultTrainingPlan(player.primaryPosition));
-            }}
-          >
-            {c.training.reset}
-          </button>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {plan.sessions.map((session, index) => (
-            <section
-              key={index}
-              aria-labelledby={`session-${index}`}
-              className={`${ui.panel} flex flex-col gap-4`}
-            >
-              <h2 id={`session-${index}`} className={ui.heading}>
-                {format(c.training.session, { number: index + 1 })}
-              </h2>
-              <div>
-                <label htmlFor={`focus-${index}`} className="mb-1.5 block">
-                  {c.training.focus}
-                </label>
-                <FocusSelect
-                  id={`focus-${index}`}
-                  player={player}
-                  value={session.focus}
-                  allowRecovery
-                  onChange={(focus) => updateSession(index, { focus })}
-                />
-                <p className="mt-2 text-xs text-muted">
-                  <FocusDescription player={player} focus={session.focus} />
-                </p>
-              </div>
-              <fieldset disabled={session.focus === 'recovery'}>
-                <legend className="mb-1.5 text-sm font-semibold">{c.training.intensity}</legend>
-                <div className="grid grid-cols-3 gap-1 rounded-control bg-surface-soft p-1">
-                  {intensities.map((intensity) => (
-                    <label
-                      key={intensity}
-                      className="relative flex min-h-11 cursor-pointer items-center justify-center rounded-[0.6rem] px-1 text-center text-xs leading-tight font-bold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
-                    >
-                      <input
-                        type="radio"
-                        className="sr-only"
-                        name={`intensity-${index}`}
-                        value={intensity}
-                        checked={session.intensity === intensity}
-                        onChange={() => updateSession(index, { intensity })}
-                      />
-                      {c.training.intensities[intensity]}
-                    </label>
-                  ))}
-                </div>
-                <p className="mt-2 text-xs text-muted">
-                  {session.focus === 'recovery'
-                    ? format(c.training.intensityRecovery, { fatigue: T.fatigue.recovery })
-                    : format(c.training.intensityEffects, {
-                        gain: (T.gain[session.intensity] / T.gain.normal).toFixed(1),
-                        fatigue: T.fatigue[session.intensity],
-                        risk: percent(T.injuryRisk[session.intensity]),
-                      })}
-                </p>
-              </fieldset>
-            </section>
-          ))}
-        </div>
-        <section aria-labelledby="extra-heading" className={ui.panel}>
-          <h2 id="extra-heading" className={ui.heading}>
-            {c.training.extra}
-          </h2>
-          <p className={`${ui.muted} mt-2 max-w-prose`}>
-            {format(c.training.extraBody, { bonus: Math.round(T.mentorBonus * 100) })}
-          </p>
-          <label className="mt-4 flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold">
-            <input
-              type="checkbox"
-              className="h-5 w-5 accent-[var(--accent)]"
-              checked={Boolean(plan.extra)}
-              onChange={(event) => {
-                setStatus('');
-                setPlan((current) => ({
-                  ...current,
-                  extra: event.target.checked ? { focus: extraFocus, mentorId: '' } : null,
-                }));
-              }}
-            />
-            {c.training.extraEnable}
-          </label>
-          {plan.extra && (
-            <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
-              <div>
-                <label htmlFor="extra-focus" className="mb-1.5 block">
-                  {c.training.focus}
-                </label>
-                <FocusSelect
-                  id="extra-focus"
-                  player={player}
-                  value={plan.extra.focus}
-                  allowRecovery={false}
-                  onChange={(focus) => {
-                    setStatus('');
-                    setExtraFocus(focus);
-                    setPlan((current) =>
-                      current.extra ? { ...current, extra: { ...current.extra, focus } } : current,
-                    );
-                  }}
-                />
-                <p className="mt-2 text-xs text-muted">
-                  {format(c.training.extraEffects, {
-                    fatigue: T.fatigue.extra,
-                    risk: percent(T.injuryRisk.extra),
-                  })}
-                </p>
-              </div>
-              <div className="rounded-control bg-surface-soft p-3">
-                <p className="text-sm font-semibold text-muted">{c.training.mentor}</p>
-                {mentor ? (
-                  <div className="mt-2 flex items-center gap-3">
-                    <PlayerPortrait
-                      player={mentor}
-                      age={world.date.season - mentor.birthSeason}
-                      className="h-12 w-12 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <strong className="block break-words">{mentor.name}</strong>
-                      <span className="text-xs text-muted">
-                        {format(c.training.mentorValue, {
-                          position: c.positions[mentor.primaryPosition]!,
-                          rating: mentorRating(mentor, player, plan.extra.focus),
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-2 text-sm">{c.training.noMentor}</p>
-                )}
-              </div>
-            </div>
+    <div className="@container">
+      <div
+        data-training-planner
+        className="grid grid-cols-[minmax(0,1fr)] gap-5 max-[700px]:pb-40 @5xl:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)]"
+        onFocusCapture={(event) => {
+          revealTrainingControl(event.target as HTMLElement, actionBar.current);
+        }}
+      >
+        <div className="@container grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
+          {career.injury && (
+            <p className="rounded-control border border-danger/40 bg-danger-soft p-4 text-sm font-semibold text-danger">
+              {c.training.injuredNote}
+            </p>
           )}
-          {mentorLeft && <p className="mt-3 text-sm text-danger">{c.training.mentorLeft}</p>}
-        </section>
-        <TrainingActionsPortal phone={phone}>
-          <section
-            ref={actionBar}
-            data-testid="training-actions"
-            aria-label={c.training.weekly}
-            style={{ '--training-bottom': `${barBottom}px` } as CSSProperties}
-            className="training-actions flex flex-wrap items-center gap-3 rounded-panel border border-line bg-surface p-3 shadow-surface sm:p-5"
-          >
-            <div className="min-w-0 flex-1 basis-56">
-              <p className="training-estimate text-sm font-semibold text-muted">
-                {c.training.weekly}
-              </p>
-              <p className="training-estimate text-sm">
-                {format(c.training.weeklyFatigue, {
-                  value: `${fatigue > 0 ? '+' : ''}${Math.round(fatigue)}`,
-                })}{' '}
-                · {format(c.training.weeklyRisk, { value: percent(risk) })}
-              </p>
-              <p
-                id="save-hint"
-                role="status"
-                className={`mt-1 text-sm font-semibold ${dirty || status ? 'text-accent' : 'text-muted'}`}
-              >
-                {saving ? t.app.saving : saveHint}
-              </p>
-            </div>
+          {block && <p className="rounded-control bg-surface-soft p-3 text-sm">{block}</p>}
+          <div className="min-[701px]:hidden">
+            <p className="mb-3 text-sm text-muted">
+              {format(c.training.weeklyFatigue, {
+                value: `${fatigue > 0 ? '+' : ''}${Math.round(fatigue)}`,
+              })}
+              {' · '}
+              {format(c.training.weeklyRisk, { value: percent(risk) })}
+            </p>
             <button
-              className="training-reset button secondary"
+              className="button secondary"
               disabled={Boolean(block)}
               onClick={() => {
                 setStatus('');
@@ -480,40 +314,219 @@ function TrainingPlanner({
             >
               {c.training.reset}
             </button>
-            <button
-              className="button secondary"
-              disabled={Boolean(block) || !draft}
-              onClick={() => {
-                useAppStore.getState().discardTrainingDraft();
-                setStatus('');
-                setApplied(false);
-              }}
-            >
-              {c.training.discard}
-            </button>
-            <button
-              className="button"
-              disabled={Boolean(block) || !dirty || noMentor}
-              aria-describedby="save-hint"
-              onClick={() => void save()}
-            >
-              {c.training.save}
-            </button>
+          </div>
+          <div className="grid gap-4 @5xl:grid-cols-3">
+            {plan.sessions.map((session, index) => (
+              <section
+                key={index}
+                aria-labelledby={`session-${index}`}
+                className={`${ui.panel} grid content-start gap-4 @lg:grid-cols-2 @lg:gap-x-6 @5xl:row-span-3 @5xl:grid-cols-1 @5xl:grid-rows-subgrid`}
+              >
+                <h2
+                  id={`session-${index}`}
+                  className={`${ui.heading} @lg:col-span-2 @5xl:col-span-1`}
+                >
+                  {format(c.training.session, { number: index + 1 })}
+                </h2>
+                <div>
+                  <label htmlFor={`focus-${index}`} className="mb-1.5 block">
+                    {c.training.focus}
+                  </label>
+                  <FocusSelect
+                    id={`focus-${index}`}
+                    player={player}
+                    value={session.focus}
+                    allowRecovery
+                    onChange={(focus) => updateSession(index, { focus })}
+                  />
+                  <p className="mt-2 text-xs text-muted">
+                    <FocusDescription player={player} focus={session.focus} />
+                  </p>
+                </div>
+                <fieldset disabled={session.focus === 'recovery'}>
+                  <legend className="mb-1.5 text-sm font-semibold">{c.training.intensity}</legend>
+                  <div className="grid grid-cols-3 gap-1 rounded-control bg-surface-soft p-1">
+                    {intensities.map((intensity) => (
+                      <label
+                        key={intensity}
+                        className="relative flex min-h-11 cursor-pointer items-center justify-center rounded-[0.6rem] px-1 text-center text-xs leading-tight font-bold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
+                      >
+                        <input
+                          type="radio"
+                          className="sr-only"
+                          name={`intensity-${index}`}
+                          value={intensity}
+                          checked={session.intensity === intensity}
+                          onChange={() => updateSession(index, { intensity })}
+                        />
+                        {c.training.intensities[intensity]}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-muted">
+                    {session.focus === 'recovery'
+                      ? format(c.training.intensityRecovery, { fatigue: T.fatigue.recovery })
+                      : format(c.training.intensityEffects, {
+                          gain: (T.gain[session.intensity] / T.gain.normal).toFixed(1),
+                          fatigue: T.fatigue[session.intensity],
+                          risk: percent(T.injuryRisk[session.intensity]),
+                        })}
+                  </p>
+                </fieldset>
+              </section>
+            ))}
+          </div>
+          <section aria-labelledby="extra-heading" className={ui.panel}>
+            <h2 id="extra-heading" className={ui.heading}>
+              {c.training.extra}
+            </h2>
+            <p className={`${ui.muted} mt-2 max-w-prose`}>
+              {format(c.training.extraBody, { bonus: Math.round(T.mentorBonus * 100) })}
+            </p>
+            <label className="mt-4 flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold">
+              <input
+                type="checkbox"
+                className="h-5 w-5 accent-[var(--accent)]"
+                checked={Boolean(plan.extra)}
+                onChange={(event) => {
+                  setStatus('');
+                  setPlan((current) => ({
+                    ...current,
+                    extra: event.target.checked ? { focus: extraFocus, mentorId: '' } : null,
+                  }));
+                }}
+              />
+              {c.training.extraEnable}
+            </label>
+            {plan.extra && (
+              <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
+                <div>
+                  <label htmlFor="extra-focus" className="mb-1.5 block">
+                    {c.training.focus}
+                  </label>
+                  <FocusSelect
+                    id="extra-focus"
+                    player={player}
+                    value={plan.extra.focus}
+                    allowRecovery={false}
+                    onChange={(focus) => {
+                      setStatus('');
+                      setExtraFocus(focus);
+                      setPlan((current) =>
+                        current.extra
+                          ? { ...current, extra: { ...current.extra, focus } }
+                          : current,
+                      );
+                    }}
+                  />
+                  <p className="mt-2 text-xs text-muted">
+                    {format(c.training.extraEffects, {
+                      fatigue: T.fatigue.extra,
+                      risk: percent(T.injuryRisk.extra),
+                    })}
+                  </p>
+                </div>
+                <div className="rounded-control bg-surface-soft p-3">
+                  <p className="text-sm font-semibold text-muted">{c.training.mentor}</p>
+                  {mentor ? (
+                    <div className="mt-2 flex items-center gap-3">
+                      <PlayerPortrait
+                        player={mentor}
+                        age={world.date.season - mentor.birthSeason}
+                        className="h-12 w-12 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <strong className="block break-words">{mentor.name}</strong>
+                        <span className="text-xs text-muted">
+                          {format(c.training.mentorValue, {
+                            position: c.positions[mentor.primaryPosition]!,
+                            rating: mentorRating(mentor, player, plan.extra.focus),
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm">{c.training.noMentor}</p>
+                  )}
+                </div>
+              </div>
+            )}
+            {mentorLeft && <p className="mt-3 text-sm text-danger">{c.training.mentorLeft}</p>}
           </section>
-        </TrainingActionsPortal>
-      </div>
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
-        <CoachAdvice
-          world={world}
-          applied={applied}
-          onApply={(draft) => {
-            setPlan(draft);
-            setStatus('');
-            setApplied(true);
-          }}
-        />
-        <SeasonGoalCard world={world} />
-        <TrainingReport career={career} player={player} keeper={keeper} />
+          <TrainingActionsPortal phone={phone}>
+            <section
+              ref={actionBar}
+              data-testid="training-actions"
+              aria-label={c.training.weekly}
+              style={{ '--training-bottom': `${barBottom}px` } as CSSProperties}
+              className="training-actions flex flex-wrap items-center gap-3 rounded-panel border border-line bg-surface p-3 shadow-surface sm:p-5"
+            >
+              <div className="min-w-0 flex-1 basis-56">
+                <p className="training-estimate text-sm font-semibold text-muted">
+                  {c.training.weekly}
+                </p>
+                <p className="training-estimate text-sm">
+                  {format(c.training.weeklyFatigue, {
+                    value: `${fatigue > 0 ? '+' : ''}${Math.round(fatigue)}`,
+                  })}{' '}
+                  · {format(c.training.weeklyRisk, { value: percent(risk) })}
+                </p>
+                <p
+                  id="save-hint"
+                  role="status"
+                  className={`mt-1 text-sm font-semibold ${dirty || status ? 'text-accent' : 'text-muted'}`}
+                >
+                  {saving ? t.app.saving : saveHint}
+                </p>
+              </div>
+              {/* One group, so the actions wrap together rather than one at a time. */}
+              <div className="flex flex-wrap gap-3">
+                <button
+                  className="training-reset button secondary"
+                  disabled={Boolean(block)}
+                  onClick={() => {
+                    setStatus('');
+                    setPlan(defaultTrainingPlan(player.primaryPosition));
+                  }}
+                >
+                  {c.training.reset}
+                </button>
+                <button
+                  className="button secondary"
+                  disabled={Boolean(block) || !draft}
+                  onClick={() => {
+                    useAppStore.getState().discardTrainingDraft();
+                    setStatus('');
+                    setApplied(false);
+                  }}
+                >
+                  {c.training.discard}
+                </button>
+                <button
+                  className="button"
+                  disabled={Boolean(block) || !dirty || noMentor}
+                  aria-describedby="save-hint"
+                  onClick={() => void save()}
+                >
+                  {c.training.save}
+                </button>
+              </div>
+            </section>
+          </TrainingActionsPortal>
+        </div>
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
+          <CoachAdvice
+            world={world}
+            applied={applied}
+            onApply={(draft) => {
+              setPlan(draft);
+              setStatus('');
+              setApplied(true);
+            }}
+          />
+          <SeasonGoalCard world={world} />
+          <TrainingReport career={career} player={player} keeper={keeper} />
+        </div>
       </div>
     </div>
   );

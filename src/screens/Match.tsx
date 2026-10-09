@@ -363,6 +363,81 @@ export default function MatchScreen() {
       onChoose={(choiceId) => command({ type: 'choose', choiceId })}
     />
   ) : null;
+  const deciding = Boolean(state?.currentMoment);
+  const statsPanel = state ? (
+    <section className="match-panel">
+      <h2>{m.stats}</h2>
+      <div className="match-rating">
+        <strong>{state.stats.rating.toFixed(1)}</strong>
+        <span>{m.rating}</span>
+      </div>
+      <dl className="match-stat-list">
+        <div>
+          <dt>{m.shots}</dt>
+          <dd>
+            {state.stats.homeShots} – {state.stats.awayShots}
+          </dd>
+        </div>
+        <div>
+          <dt>{m.possession}</dt>
+          <dd>
+            {state.stats.homePossession}% – {100 - state.stats.homePossession}%
+          </dd>
+        </div>
+        <div>
+          <dt>{m.expectedGoals}</dt>
+          <dd>
+            {((state.expectedGoals[0] * state.match.minute) / 90).toFixed(2)} –{' '}
+            {((state.expectedGoals[1] * state.match.minute) / 90).toFixed(2)}
+          </dd>
+        </div>
+        <div>
+          <dt>{m.passes}</dt>
+          <dd>
+            {state.stats.passesCompleted}/{state.stats.passesAttempted}
+          </dd>
+        </div>
+        <div>
+          <dt>{m.fatigue}</dt>
+          <dd>{Math.round(state.stats.fatigue)}%</dd>
+        </div>
+      </dl>
+    </section>
+  ) : null;
+  const commentaryPanel = state ? (
+    <section className="match-panel match-commentary" data-tour="live">
+      <h2 id="match-commentary-heading">{m.commentary}</h2>
+      {!state.match.events.length && <p className="muted">{m.opening}</p>}
+      {/* Scrolls within its bounded height, so the keyboard can reach and scroll it too. */}
+      <ol tabIndex={0} aria-labelledby="match-commentary-heading">
+        {[...state.match.events].reverse().map((event) => (
+          <li key={event.id}>
+            <time>{matchFormat(m.minute, { minute: event.minute })}</time>
+            <div>
+              <p>{commentaryText(event)}</p>
+              {celebrationItem &&
+                event.kind === 'goal' &&
+                event.playerId === session.setup.selectedPlayerId && (
+                  <p className="match-celebration">
+                    {matchFormat(l.celebrations.commentary, {
+                      player: session.setup.players[event.playerId]?.name ?? '',
+                      name: l.celebrations.names[celebrationItem.id] ?? '',
+                    })}
+                  </p>
+                )}
+              <small>
+                {event.playerId
+                  ? session.setup.players[event.playerId]?.name
+                  : event.teamId === session.setup.home.id
+                    ? session.setup.home.name
+                    : session.setup.away.name}
+              </small>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  ) : null;
   const reset = () => {
     setPlaying(false);
     setOutcomeId(null);
@@ -567,8 +642,11 @@ export default function MatchScreen() {
             />
           ) : (
             <>
-              <div className="match-live-layout" ref={layoutRef}>
+              <div className={`match-live-layout${deciding ? ' is-deciding' : ''}`} ref={layoutRef}>
                 <div className="match-live-main">
+                  {/* Phones and tablets: the decision, with its cropped situation, comes first;
+                      the whole pitch follows it. */}
+                  {deciding && !wide && decision}
                   <section className="match-panel match-pitch-panel">
                     <div className="match-pitch-heading">
                       <strong>{session.setup.home.stadium.name}</strong>
@@ -622,7 +700,6 @@ export default function MatchScreen() {
                       </div>
                     </div>
                   </section>
-                  {state!.currentMoment && !wide && decision}
                   {outcome && (
                     <section
                       className="match-panel match-outcome"
@@ -734,78 +811,24 @@ export default function MatchScreen() {
                     </div>
                     <p className="muted match-shortcuts">{m.shortcuts}</p>
                   </section>
+                  {/* While a wide-screen decision fills the side column, the live numbers and
+                      commentary sit under the pitch instead of below the choices. */}
+                  {deciding && wide && (
+                    <div className="match-live-extras">
+                      {statsPanel}
+                      {commentaryPanel}
+                    </div>
+                  )}
                 </div>
                 <aside className="match-live-aside">
-                  {state!.currentMoment && wide && decision}
-                  <section className="match-panel">
-                    <h2>{m.stats}</h2>
-                    <div className="match-rating">
-                      <strong>{state!.stats.rating.toFixed(1)}</strong>
-                      <span>{m.rating}</span>
-                    </div>
-                    <dl className="match-stat-list">
-                      <div>
-                        <dt>{m.shots}</dt>
-                        <dd>
-                          {state!.stats.homeShots} – {state!.stats.awayShots}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>{m.possession}</dt>
-                        <dd>
-                          {state!.stats.homePossession}% – {100 - state!.stats.homePossession}%
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>{m.expectedGoals}</dt>
-                        <dd>
-                          {((state!.expectedGoals[0] * state!.match.minute) / 90).toFixed(2)} –{' '}
-                          {((state!.expectedGoals[1] * state!.match.minute) / 90).toFixed(2)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>{m.passes}</dt>
-                        <dd>
-                          {state!.stats.passesCompleted}/{state!.stats.passesAttempted}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>{m.fatigue}</dt>
-                        <dd>{Math.round(state!.stats.fatigue)}%</dd>
-                      </div>
-                    </dl>
-                  </section>
-                  <section className="match-panel match-commentary" data-tour="live">
-                    <h2>{m.commentary}</h2>
-                    {!state!.match.events.length && <p className="muted">{m.opening}</p>}
-                    <ol>
-                      {[...state!.match.events].reverse().map((event) => (
-                        <li key={event.id}>
-                          <time>{matchFormat(m.minute, { minute: event.minute })}</time>
-                          <div>
-                            <p>{commentaryText(event)}</p>
-                            {celebrationItem &&
-                              event.kind === 'goal' &&
-                              event.playerId === session.setup.selectedPlayerId && (
-                                <p className="match-celebration">
-                                  {matchFormat(l.celebrations.commentary, {
-                                    player: session.setup.players[event.playerId]?.name ?? '',
-                                    name: l.celebrations.names[celebrationItem.id] ?? '',
-                                  })}
-                                </p>
-                              )}
-                            <small>
-                              {event.playerId
-                                ? session.setup.players[event.playerId]?.name
-                                : event.teamId === session.setup.home.id
-                                  ? session.setup.home.name
-                                  : session.setup.away.name}
-                            </small>
-                          </div>
-                        </li>
-                      ))}
-                    </ol>
-                  </section>
+                  {/* Wide screens: the key moment has the column to itself. */}
+                  {deciding && wide && decision}
+                  {deciding && wide ? null : (
+                    <>
+                      {statsPanel}
+                      {commentaryPanel}
+                    </>
+                  )}
                 </aside>
               </div>
             </>

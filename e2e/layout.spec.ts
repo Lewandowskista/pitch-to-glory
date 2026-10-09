@@ -102,3 +102,34 @@ test('the inbox reader shows its Back control only where the list is hidden', as
   await back.click();
   await expect(page.getByRole('list', { name: 'Messages', exact: true })).toBeVisible();
 });
+
+test('training intensity choices stay readable on a tablet, at normal and large text', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await openCareerPage(page, 'Training');
+  await expect(page.locator('#focus-0')).toBeVisible();
+  for (const percent of [100, 130]) {
+    await page.evaluate((scale) => {
+      document.documentElement.style.fontSize = `${scale}%`;
+    }, percent);
+    const problems = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('fieldset')).flatMap((fieldset, session) => {
+        const labels = Array.from(fieldset.querySelectorAll('label'));
+        return labels.flatMap((label, index) => {
+          const box = label.getBoundingClientRect();
+          const issues: string[] = [];
+          // The label's own text fits inside it, and it does not run into its neighbour.
+          if (label.scrollWidth > label.clientWidth + 1)
+            issues.push(`session ${session + 1} option ${index + 1} clipped`);
+          const next = labels[index + 1]?.getBoundingClientRect();
+          if (next && box.right > next.left + 1)
+            issues.push(`session ${session + 1} options ${index + 1}/${index + 2} overlap`);
+          if (box.width < 60) issues.push(`session ${session + 1} option ${index + 1} too narrow`);
+          return issues;
+        });
+      }),
+    );
+    expect(problems, `${percent}% text`).toEqual([]);
+  }
+});

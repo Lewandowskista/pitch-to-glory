@@ -4,6 +4,7 @@ export const selectionText = {
   briefing: 'How the manager picked you',
   picked: 'You were picked to start: a {chance}% chance came up for this match.',
   chanceThis: 'Chance of starting this match',
+  showReasons: 'How the chance was built',
   formation: '{manager} plays {formation}.',
   formationClub: 'The manager plays {formation}.',
   lineBased: 'This season the manager still picks by position lines; formations start next season.',
