@@ -12,7 +12,13 @@ import type { Formation } from '../selection/formations';
 export type { Tactics } from '../../model/domain';
 
 /** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
-export const MATCH_ENGINE_VERSION = 'match-11';
+export const MATCH_ENGINE_VERSION = 'match-12';
+/**
+ * The engine before key moments followed the state of the game (late moments in a close game,
+ * set pieces, situations weighted by the score). A setup without `dramaMoments` still replays
+ * with slot-aware moments only, so sessions saved before keep playing.
+ */
+export const SLOT_MATCH_ENGINE = 'match-11';
 /**
  * The engine before key moments followed the formation slot. A setup without `slotMoments`
  * still replays with moments drawn for the primary position, so sessions saved before keep
@@ -25,12 +31,16 @@ export const PREVIOUS_MATCH_ENGINE = 'match-10';
  */
 export const LEGACY_MATCH_ENGINE = 'match-10-lines';
 /** The engine a setup replays with. */
-export const engineFor = (setup: Pick<MatchSetup, 'formations' | 'slotMoments'>): string =>
+export const engineFor = (
+  setup: Pick<MatchSetup, 'formations' | 'slotMoments' | 'dramaMoments'>,
+): string =>
   !setup.formations
     ? LEGACY_MATCH_ENGINE
-    : setup.slotMoments
-      ? MATCH_ENGINE_VERSION
-      : PREVIOUS_MATCH_ENGINE;
+    : !setup.slotMoments
+      ? PREVIOUS_MATCH_ENGINE
+      : setup.dramaMoments
+        ? MATCH_ENGINE_VERSION
+        : SLOT_MATCH_ENGINE;
 
 export interface MatchSetup {
   version: 1;
@@ -50,6 +60,13 @@ export interface MatchSetup {
    * costs odds (`match-11`). Absent in sessions saved before, which replay as they were.
    */
   slotMoments?: true;
+  /**
+   * Key moments follow the state of the game (`match-12`): the last one comes late when the
+   * game is close, the score weights attacking or defending situations, set pieces can fall to
+   * the player, and situations are framed with the people in them. Absent in sessions saved
+   * before, which replay as they were.
+   */
+  dramaMoments?: true;
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */
   strengthBonus?: [number, number];
   /** The selected player's chemistry with their teammates (0–100; 60 when absent). */
@@ -138,6 +155,8 @@ export interface MatchState {
   managerReactionKey: string;
   fanReactionKey: string;
   headlineKey: string;
+  /** Names and numbers the headline refers to (engine match-12). */
+  headlineParams?: Record<string, string>;
 }
 export interface MatchSession {
   version: 1;

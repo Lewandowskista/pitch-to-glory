@@ -69,26 +69,38 @@ export function hallOfFameScore(
   );
 }
 
+/** Where a score stands among every player the world remembers, and who is just above it. */
+export interface HallOfFameStanding {
+  rank: number;
+  of: number;
+  /** The lowest score above this one: the next name to pass. */
+  next: { id: string; name: string; score: number } | null;
+}
 /**
  * Rank a score among every player the world remembers, active, retired or archived, each
  * once. A former career is compared by its saved honour-inclusive legacy score, the same
  * criteria the new score uses, never by its club numbers alone.
  */
-export function hallOfFameRank(
+export function hallOfFameStanding(
   world: World,
   score: number,
   excludeId: string,
-): { rank: number; of: number } {
+): HallOfFameStanding {
   let better = 0;
   let of = 1;
+  let next: HallOfFameStanding['next'] = null;
   const counted = new Set<string>([excludeId]);
-  const compare = (id: string, value: number) => {
+  const compare = (id: string, value: number, name: () => string) => {
     if (counted.has(id)) return;
     counted.add(id);
     of++;
-    if (value > score) better++;
+    if (value <= score) return;
+    better++;
+    if (!next || value < next.score || (value === next.score && id < next.id))
+      next = { id, name: name(), score: value };
   };
-  for (const legacy of world.legacies) compare(legacy.playerId, legacy.hallOfFame.score);
+  for (const legacy of world.legacies)
+    compare(legacy.playerId, legacy.hallOfFame.score, () => legacy.name);
   // Other players count their awards too (their trophies are not recorded).
   const awards = new Map<string, number>();
   for (const award of world.awards)
@@ -109,10 +121,44 @@ export function hallOfFameRank(
         awards: awards.get(player.id) ?? 0,
         goldenBalls: 0,
       }),
+      () => player.name,
     );
   for (const [id, record] of Object.entries(world.archive?.players ?? {}))
-    compare(id, hallOfFameScore(record.stats));
-  return { rank: better + 1, of };
+    compare(id, hallOfFameScore(record.stats), () => record.name);
+  return { rank: better + 1, of, next };
+}
+export function hallOfFameRank(
+  world: World,
+  score: number,
+  excludeId: string,
+): { rank: number; of: number } {
+  const { rank, of } = hallOfFameStanding(world, score, excludeId);
+  return { rank, of };
+}
+/** The career player's Hall of Fame score as it stands, honours included, as retirement adds it. */
+export function careerHallOfFameScore(world: World): number {
+  const career = world.career!;
+  const player = world.players[career.playerId]!;
+  const trophies = world.trophies.filter((trophy) => trophy.playerIds.includes(player.id)).length;
+  const awardIds = world.awards
+    .filter((award) => award.winnerIds.includes(player.id))
+    .map((award) => award.id);
+  const goldenBalls = world.awards.filter(
+    (award) => award.kind === 'golden-ball' && award.winnerIds[0] === player.id,
+  ).length;
+  // Caps at every level count, as the legacy's statistics record them.
+  const caps = Object.values(career.honours.caps).reduce((sum, value) => sum + value, 0);
+  return hallOfFameScore(player.stats, {
+    caps,
+    trophies,
+    awards: awardPoints(world, awardIds, player.id),
+    goldenBalls,
+  });
+}
+/** The career's place in the Hall of Fame right now, for the hub and ambitions. */
+export function liveHallOfFame(world: World): HallOfFameStanding & { score: number } {
+  const score = careerHallOfFameScore(world);
+  return { score, ...hallOfFameStanding(world, score, world.career!.playerId) };
 }
 
 /**
@@ -135,21 +181,12 @@ export function retireCareer(world: World): Legacy {
   const awardIds = world.awards
     .filter((award) => award.winnerIds.includes(player.id))
     .map((award) => award.id);
-  const goldenBalls = world.awards.filter(
-    (award) => award.kind === 'golden-ball' && award.winnerIds[0] === player.id,
-  ).length;
   const caps = Object.values(career.honours.caps).reduce((sum, value) => sum + value, 0);
   const internationalGoals = Object.values(career.honours.internationalGoals).reduce(
     (sum, value) => sum + value,
     0,
   );
-  // Caps at every level count, as the legacy's statistics record them.
-  const score = hallOfFameScore(player.stats, {
-    caps,
-    trophies: trophyIds.length,
-    awards: awardPoints(world, awardIds, player.id),
-    goldenBalls,
-  });
+  const score = careerHallOfFameScore(world);
   const teammateIds = world.relationships
     .filter((r) => r.kind === 'teammate')
     .sort((a, b) => b.value - a.value)

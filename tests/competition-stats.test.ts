@@ -258,7 +258,7 @@ describe('season competition statistics', () => {
       schemaVersion: 13,
     };
     const migrated = migrateSave(JSON.parse(JSON.stringify(old)));
-    expect(migrated.schemaVersion).toBe(18);
+    expect(migrated.schemaVersion).toBe(19);
     if (migrated.payload.kind !== 'world') throw new Error('Expected a world save');
     const loaded = migrated.payload.world;
     expect(hasSeasonStatistics(loaded)).toBe(false);

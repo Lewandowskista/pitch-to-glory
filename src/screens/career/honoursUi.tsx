@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { promiseMilestone } from './storiesUi';
-import type { ManagerPromise } from '../../model/domain';
+import type { AmbitionId, ManagerPromise } from '../../model/domain';
+import { ambitionName } from './ambitionText';
 import { useAppStore } from '../../store';
 import { applyHonoursAction, type HonoursAction } from '../../engine/career/honours';
 import type { ChronicleEntry, World } from '../../model/domain';
@@ -106,6 +107,7 @@ export const CHRONICLE_GLYPH: Record<ChronicleEntry['kind'], GlyphName> = {
   record: 'record',
   moment: 'moment',
   promise: 'check',
+  ambition: 'star',
   retirement: 'retirement',
 };
 
@@ -147,6 +149,13 @@ export function chronicleSentence(world: World, entry: ChronicleEntry): string {
       target: Number(p.target),
       attribute: p.attribute ? String(p.attribute) : null,
     }).toLowerCase();
+  if (entry.kind === 'ambition') {
+    const name = ambitionName(String(p.ambition) as AmbitionId, {
+      target: p.target,
+      club: p.club,
+    });
+    p.ambition = name.charAt(0).toLowerCase() + name.slice(1);
+  }
   const key =
     entry.kind === 'promise'
       ? `promise-${p.outcome}`

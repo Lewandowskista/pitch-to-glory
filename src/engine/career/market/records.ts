@@ -63,7 +63,8 @@ export type InboxKind =
   | 'promise-offer'
   | 'promise-achieved'
   | 'promise-missed'
-  | 'promise-cancelled';
+  | 'promise-cancelled'
+  | 'ambition-achieved';
 
 /** Post an inbox message; old read messages are dropped beyond the limit. */
 export function postMessage(

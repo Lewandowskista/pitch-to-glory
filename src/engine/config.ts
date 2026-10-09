@@ -132,6 +132,23 @@ export const CONFIG = {
     momentum: { decay: 0.85, shot: 4, goal: 12, success: 3, failure: 2, minimum: 5, maximum: 95 },
     possession: { strengthSlope: 0.45, mentality: 3, momentum: 0.08, minimum: 30, maximum: 70 },
     commentaryVariants: 3,
+    /**
+     * Moments that follow the game (engine match-12). The last moment is placed at
+     * `lateDecisionMinute`: within `closeMargin` it comes in the closing minutes, otherwise
+     * at `routineLateMinute`. From `tiltFromMinute` a side chasing the game sees attacking
+     * situations × tilt, a side protecting a lead defending ones.
+     */
+    drama: {
+      lateDecisionMinute: 80,
+      closeMargin: 1,
+      lateMinutes: [86, 89] as const,
+      routineLateMinute: 82,
+      tiltFromMinute: 60,
+      tilt: 1.6,
+      situationVariants: 3,
+      /** Set pieces raise a taker's attacking share by their weight, up to this factor. */
+      setPieceShareCap: 1.3,
+    },
     /** Simulated career matches pick among choices within this many expected goals of the best. */
     autoPlayMargin: 0.02,
     xp: {
@@ -694,6 +711,25 @@ export const CONFIG = {
       retirement: { optionalAge: 32, forcedAge: 38, declineAge: 33, declineShare: 0.78 },
       moments: { limit: 40, lateMinute: 85, wonderProbability: 0.2 },
       /** Hall of Fame score. */
+      /**
+       * Ambitions the player chooses for the career: at most `count`, changed once a season.
+       * Each achieved one pays fame and XP; targets are career totals (caps: senior).
+       */
+      ambitions: {
+        count: 3,
+        targets: {
+          goals: 150,
+          assists: 100,
+          'clean-sheets': 150,
+          appearances: 500,
+          caps: 50,
+          'one-club': 8,
+          'hall-of-fame': 50,
+        },
+        reward: { fame: 30, xp: 400 },
+        /** Dream clubs offered: the world's most famous clubs. */
+        dreamClubs: 10,
+      },
       hallOfFame: {
         appearance: 0.5,
         goal: 2,
@@ -728,7 +764,7 @@ export const CONFIG = {
     unfamiliarFactor: 0.8,
   },
   saves: {
-    schemaVersion: 18,
+    schemaVersion: 19,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,

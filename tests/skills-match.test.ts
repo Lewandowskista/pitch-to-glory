@@ -70,7 +70,7 @@ function player(traits: string[]): DecisionContext['player'] {
   };
 }
 function contexts(position: Position, traits: string[], importance = 1): DecisionContext[] {
-  const weights = situationWeights(position, 'balanced');
+  const weights = situationWeights(position, 'balanced', { drama: true });
   const [attack, defence] = CONFIG.match.shares[position];
   return weights.map(({ situation }) => ({
     player: player(traits),

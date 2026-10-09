@@ -107,7 +107,7 @@ describe('the level curve', () => {
     const raw = JSON.parse(JSON.stringify(save)) as { payload: { world: World } };
     delete raw.payload.world.career!.levelXp;
     const migrated = migrateSave(raw);
-    expect(migrated.schemaVersion).toBe(18);
+    expect(migrated.schemaVersion).toBe(19);
     expect(migrated.payload.kind).toBe('world');
     const world = (migrated.payload as { world: World }).world;
     expect(world.career!.level).toBe(20);

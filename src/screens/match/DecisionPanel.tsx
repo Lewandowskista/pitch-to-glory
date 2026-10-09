@@ -2,7 +2,13 @@ import type { RefObject } from 'react';
 import type { DecisionChoice, KeyMoment } from '../../model/domain';
 import type { MatchSession } from '../../engine/match';
 import { t } from '../../i18n';
-import { matchText as m, matchLabel, matchFormat } from '../../i18n/match';
+import {
+  matchText as m,
+  matchLabel,
+  matchFormat,
+  pressureText,
+  situationText,
+} from '../../i18n/match';
 import { careerText as c } from '../../i18n/career';
 import { Factors } from './Shared';
 import { SvgPitch } from './SvgPitch';
@@ -86,7 +92,8 @@ export function DecisionPanel({
   const state = session.state;
   const moment = state.currentMoment!;
   const traits = session.setup.players[session.setup.selectedPlayerId]!.traits;
-  const situation = matchLabel(moment.situationKey);
+  const situation = situationText(moment);
+  const pressure = pressureText(moment);
   return (
     <section
       className="match-panel match-decision"
@@ -110,6 +117,7 @@ export function DecisionPanel({
           />
         </div>
       )}
+      {pressure && <p className="match-pressure">{pressure}</p>}
       <h2 id="decision-heading">{situation}</h2>
       <div className="match-choices" ref={choicesRef}>
         {moment.choices.map((choice, index) => (

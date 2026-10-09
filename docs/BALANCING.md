@@ -647,3 +647,13 @@ The [connected systems plan](superpowers/plans/2026-10-08-connected-systems.md) 
 **Key moments follow the slot.** See MATCH-BALANCING.md, engine `match-11`: moments are drawn for the formation slot the player fills, and an unfamiliar slot costs `(100 − familiarity) × 0.1` attribute points, shown as an "Out of position" factor.
 
 **The overspend warning** on the lifestyle screen uses the engine's rule (upkeep above half of wage plus sponsor income).
+
+## Engagement pass 1: stakes, moments and ambitions (October 2026)
+
+From the [engagement review](ENGAGEMENT-REVIEW-2026-10-09.md). Match constants are in [MATCH-BALANCING.md](MATCH-BALANCING.md) (engine `match-12`).
+
+**Fixture stakes (`career/stakes.ts`).** Each career fixture is read, most telling first: a final, a knockout tie or a playoff phase; the rival in the opposing side; a former club (a move away from it); a derby (same city); then the table, once every club has played three league games: a top-two meeting, staying top, going top (a win would pass the leader's points), climbing into the promotion places, out of the relegation zone, or a six-pointer (both within two places of the drop); otherwise a cup tie. The first is shown on the hub's match card, the matchday card and the pre-match briefing.
+
+**Ambitions (`career/honours/ambitions.ts`, `honours.ambitions`).** Up to 3 chosen from the hub, changed once a season (achieved ones stay); offered by position (goals for forwards and central midfielders, assists for creators and full-backs, clean sheets for the back line and keepers). Targets: 150 goals, 100 assists, 150 clean sheets, 500 matches, 50 senior caps, 8 seasons at one club, a top-50 Hall of Fame rank; or a top-flight title, the Champions cup, the Golden Ball, or playing for a dream club among the world's 10 most famous. Each reached pays 30 fame and 400 XP, writes the Chronicle and posts to the inbox. Checked after every match, weekly and at season end (the Hall of Fame weekly, as it ranks every player). Stored as `career.ambitions` (schema 19).
+
+**Live Hall of Fame.** The hub shows the career's current rank, scored exactly as retirement scores it (`careerHallOfFameScore`), and the points needed to pass the next name above (`hallOfFameStanding`). Before the career has any score it says so rather than ranking a tie at nothing first.

@@ -107,6 +107,9 @@ const migrations: Readonly<Record<number, Migration>> = {
   // v18 records when each experience was last taken (optional `career.style.experiences`), for
   // their cooldowns. Careers saved before can take any experience at once.
   17: (old) => ({ ...old, schemaVersion: 18 }),
+  // v19 adds the career's chosen ambitions (optional `career.ambitions`), their inbox message
+  // and Chronicle entry. Careers saved before choose theirs from the hub.
+  18: (old) => ({ ...old, schemaVersion: 19 }),
 };
 function withLevelXp(payload: unknown): unknown {
   try {

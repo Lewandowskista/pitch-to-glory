@@ -7,6 +7,7 @@ import { captureMoments } from './moments';
 import { createInternational, internationalWindow, playTournament } from './international';
 import { monthlyAward, recordCareerTrophies, seasonAwards, startAwardSeason } from './awards';
 import { retireCareer, retirementAge } from './retirement';
+import { ambitionsCheck } from './ambitions';
 import { CONFIG } from '../../config';
 
 export { recordCareerTrophies, startAwardSeason };
@@ -67,6 +68,7 @@ export function honoursMatch(
   for (const milestone of [100, 250, 500, 750])
     if (player.stats.appearances === milestone)
       chronicle(world, 'apps-milestone', { appearances: milestone });
+  ambitionsCheck(world);
 }
 
 /** The honours week, after the lifestyle week: international windows and monthly awards. */
@@ -78,11 +80,13 @@ export function honoursWeek(world: World): void {
   );
   internationalWindow(world);
   monthlyAward(world);
+  ambitionsCheck(world, { hallOfFame: true });
 }
 
 /** The season's final week, once its tables are archived. */
 export function honoursSeasonEnd(world: World): void {
   seasonAwards(world);
+  ambitionsCheck(world, { hallOfFame: true });
   if (retirementAge(world) + 1 >= H.retirement.forcedAge) postMessage(world, 'retirement-due', {});
 }
 

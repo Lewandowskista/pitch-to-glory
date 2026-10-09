@@ -184,6 +184,225 @@ export const matchText = {
   },
 } as const;
 
+/**
+ * Key-moment framings (engine match-12): three per situation, naming the people in it.
+ * Parameters: {opponent}, {minute}, {keeper}, {defender}, {attacker}, {teammate}.
+ */
+const situationFramings: Record<string, [string, string, string]> = {
+  'box-chance': [
+    'You are in the box with the ball at your feet and only {keeper} to beat.',
+    'The ball breaks to you twelve yards out. {defender} is scrambling across.',
+    '{teammate} slips you in. You are in the box and {keeper} is coming out.',
+  ],
+  'build-up': [
+    'You receive in the final third. {opponent} are still organised. Pick the next move.',
+    '{defender} is tight on you near the touchline, and {teammate} is making a run.',
+    'You find a pocket of space in the final third. {opponent}’s back line holds.',
+  ],
+  'edge-of-area': [
+    'The ball drops to you on the edge of the area.',
+    'A clearance falls to you twenty-five yards out. {keeper} is off the line.',
+    '{teammate} lays it back to you at the edge of the box. {defender} closes in.',
+  ],
+  'aerial-chance': [
+    'A cross is coming in and you have found space in the box.',
+    'The cross is in the air. You and {defender} go up for it.',
+    '{teammate} swings a ball into the box, right into your path.',
+  ],
+  'defend-attack': [
+    'An attacker is running at your back line. Deal with it.',
+    '{attacker} is running straight at you. The cover is a yard behind.',
+    '{opponent} break quickly and {attacker} is away with the ball.',
+  ],
+  'build-out': [
+    'You win the ball deep in your half and the press is coming.',
+    '{attacker} is closing you down on the edge of your own box.',
+    'The ball comes back to you deep. {opponent} press high.',
+  ],
+  'shot-incoming': [
+    'A shot is coming in at your goal.',
+    '{attacker} pulls the trigger from the edge of the box.',
+    '{attacker} finds a yard of space and lets fly at your goal.',
+  ],
+  'one-on-one': [
+    'An attacker is through on goal, one on one with you.',
+    '{attacker} has beaten the offside trap. It is you against {attacker}.',
+    'The defence is split. {attacker} bears down on goal.',
+  ],
+  'cross-ball': [
+    'A cross is swinging into your six-yard box.',
+    '{opponent} whip in a cross. {attacker} is lurking at the far post.',
+    'A high ball comes into the box. {attacker} is waiting to attack it.',
+  ],
+  distribution: [
+    'The ball is in your hands. Start the next attack.',
+    'You gather it. {opponent} are slow to get back.',
+    'Ball in hand. {teammate} is calling for it up the pitch.',
+  ],
+  penalty: [
+    'Penalty! The ball is on the spot and it is yours to take. {keeper} bounces on the line.',
+    'You place the ball on the spot. {keeper} is trying to stare you out.',
+    'The stadium falls silent. Penalty, and {keeper} stands between you and a goal.',
+  ],
+  'free-kick': [
+    'A free kick on the edge of the area. The wall is set.',
+    'Free kick, twenty yards out. {keeper} is lining up the wall.',
+    '{defender} brought down {teammate} on the edge of the box. Free kick, and it’s yours.',
+  ],
+  'corner-kick': [
+    'Corner. The box is crowded and you have the ball by the flag.',
+    'You jog over to take the corner. {teammate} is waiting at the back post.',
+    'Corner kick. {opponent} pack the six-yard box.',
+  ],
+  'goal-line': [
+    'The keeper is beaten and the ball is heading for goal.',
+    '{attacker} rounds the keeper. Only you are left on the line.',
+    'A shot loops over the keeper. You are racing back to the line.',
+  ],
+  'offside-line': [
+    'Their midfielder looks up for the runner. Call the line.',
+    '{attacker} is on your shoulder, waiting for the through ball.',
+    '{opponent} look for the run in behind. Your back line waits on you.',
+  ],
+  'penalty-save': [
+    'Penalty against you. You and the taker, twelve yards apart.',
+    '{attacker} places the ball on the spot and watches your feet.',
+    'Penalty to {opponent}. {attacker} steps up. Everyone is looking at you.',
+  ],
+};
+const situationVariants: Record<string, string> = Object.fromEntries(
+  Object.entries(situationFramings).flatMap(([id, lines]) =>
+    lines.map((text, index) => [`match.situation.${id}.${index}`, text]),
+  ),
+);
+/**
+ * Morning headlines (engine match-12): three per story of the match. Parameters: {player},
+ * {club}, {opponent}, {score} (own goals first), {goals}, {assists}.
+ */
+const headlines: Record<string, [string, string, string]> = {
+  'late-winner': [
+    '{player} breaks {opponent} hearts at the death',
+    'Late, late show: {player} snatches it for {club}',
+    '{player} wins it in the dying minutes',
+  ],
+  'late-equaliser': [
+    '{player} rescues a point at the death',
+    'Never beaten: {player} levels it late against {opponent}',
+    '{player}’s late strike keeps {club} alive',
+  ],
+  'hat-trick': [
+    'Match ball for {player} as {opponent} are torn apart',
+    '{player} hits a hat-trick in {score} statement',
+    'Three and counting: {player} runs riot',
+  ],
+  brace: [
+    'Double trouble: {player} scores twice against {opponent}',
+    '{player} brace powers {club} to {score}',
+    'Two goals, one name: {player}',
+  ],
+  'penalty-save': [
+    '{player} the spot-kick hero against {opponent}',
+    'Penalty saved! {player} stands tall for {club}',
+    '{player} guesses right and {club} hold firm',
+  ],
+  'scorer-win': [
+    '{player} on target as {club} beat {opponent} {score}',
+    '{player} strikes and {club} take the points',
+    'A goal from {player}, a win for {club}',
+  ],
+  'scorer-draw': [
+    '{player} scores but {club} are held {score}',
+    'Honours even with {opponent} despite {player}’s goal',
+    '{player} on target in {score} draw',
+  ],
+  'scorer-loss': [
+    '{player} scores, but {club} fall to {opponent}',
+    'Consolation for {player} in {score} defeat',
+    '{player}’s goal not enough against {opponent}',
+  ],
+  provider: [
+    '{player} the provider as {club} carve open {opponent}',
+    '{assists} assists for {player} in a creative masterclass',
+    '{player} pulls the strings for {club}',
+  ],
+  wall: [
+    '{player} shuts out {opponent} in {score} clean sheet',
+    'Nothing gets past {player}',
+    'A wall in {club} colours: {player} keeps {opponent} out',
+  ],
+  rout: [
+    '{club} run riot against {opponent}',
+    '{score}! {club} hand {opponent} a hiding',
+    'Statement win: {club} sweep {opponent} aside',
+  ],
+  thrashed: [
+    '{club} humbled {score} by {opponent}',
+    'A night to forget for {club} against {opponent}',
+    'Questions to answer after {score} defeat',
+  ],
+  nightmare: [
+    'A night to forget for {player} against {opponent}',
+    'Costly errors leave {player} and {club} red-faced',
+    '{player} punished as {opponent} capitalise',
+  ],
+  'strong-win': [
+    '{player} stars as {club} beat {opponent}',
+    'Standout {player} drives {club} to victory',
+    '{club} win {score} with {player} at the heart of it',
+  ],
+  win: [
+    '{club} see off {opponent} {score}',
+    'Three points for {club} against {opponent}',
+    'Job done: {club} beat {opponent}',
+  ],
+  draw: [
+    '{club} and {opponent} share the points',
+    'Stalemate: {club} held {score}',
+    'No way through for {club} or {opponent}',
+  ],
+  'strong-loss': [
+    '{player} shines in defeat to {opponent}',
+    'Lone bright spark {player} cannot stop {opponent}',
+    '{club} beaten {score} despite {player}’s efforts',
+  ],
+  loss: [
+    '{club} fall {score} to {opponent}',
+    '{opponent} too strong for {club}',
+    'Defeat for {club} as {opponent} take the points',
+  ],
+};
+const headlineText: Record<string, string> = Object.fromEntries(
+  Object.entries(headlines).flatMap(([kind, lines]) =>
+    lines.map((text, index) => [`match.headline.${kind}.${index}`, text]),
+  ),
+);
+/** Touchline reactions (engine match-12) by result and how the player played. */
+const reactionText: Record<string, string> = {
+  'match.reaction.manager.win.star':
+    'Outstanding. You won us that game, and everyone in the dressing room knows it.',
+  'match.reaction.manager.win.solid': 'Good win, good shift. Keep doing the simple things well.',
+  'match.reaction.manager.win.poor':
+    'We got the points, but I need more from you. The team carried you today.',
+  'match.reaction.manager.draw.star':
+    'You gave everything and deserved more. That level, every week.',
+  'match.reaction.manager.draw.solid': 'A point is a point. We go again next week.',
+  'match.reaction.manager.draw.poor':
+    'That was not good enough from you. We needed more on the ball.',
+  'match.reaction.manager.loss.star':
+    'Hard to take, but your performance is the one thing I am pleased with.',
+  'match.reaction.manager.loss.solid': 'We fell short as a team. Watch it back and learn from it.',
+  'match.reaction.manager.loss.poor':
+    'A poor day for you and for us. I expect a reaction in training.',
+  'match.reaction.fans.win.star': 'What a player! Sing the name!',
+  'match.reaction.fans.win.solid': 'Three points and a decent shift. We will take that.',
+  'match.reaction.fans.win.poor': 'We won, no thanks to some of the performances out there.',
+  'match.reaction.fans.draw.star': 'The best thing about a frustrating afternoon.',
+  'match.reaction.fans.draw.solid': 'A point. Nothing more, nothing less.',
+  'match.reaction.fans.draw.poor': 'Flat, all of it. We need more from everyone.',
+  'match.reaction.fans.loss.star': 'At least one player turned up today.',
+  'match.reaction.fans.loss.solid': 'Disappointing. A long journey home.',
+  'match.reaction.fans.loss.poor': 'Unacceptable. Some of them should not be wearing the shirt.',
+};
 /** Commentary templates: three variants per outcome, picked deterministically by the engine. */
 const commentary: Record<string, [string, string, string]> = {
   attempt: [
@@ -426,6 +645,76 @@ const commentary: Record<string, [string, string, string]> = {
     '{player} flaps at it and misses.',
     'The punch from {player} drops to an attacker.',
   ],
+  'penalty.success': [
+    '{player} sends the keeper the wrong way. Penalty scored!',
+    'Ice cold from {player}. The penalty is buried.',
+    '{player} steps up and smashes the penalty home!',
+  ],
+  'penalty.failure': [
+    'Saved! The keeper reads {player} and keeps the penalty out.',
+    '{player} drags the penalty wide of the post.',
+    '{player} blazes the penalty over the bar!',
+  ],
+  'free-kick.success': [
+    '{player} whips the free kick over the wall and in!',
+    'Free kick, {player}… and it’s in the top corner!',
+    'The wall jumps, the keeper dives, and {player}’s free kick nestles in the net!',
+  ],
+  'free-kick.failure': [
+    '{player} clips the top of the wall and over.',
+    'The keeper gathers {player}’s free kick at the second attempt.',
+    '{player} curls the free kick a yard wide.',
+  ],
+  'corner.success': [
+    '{player} swings in a corner that finds a teammate’s head.',
+    'A wicked delivery from {player} causes chaos in the six-yard box.',
+    '{player} picks out the run perfectly from the corner.',
+  ],
+  'corner.failure': [
+    '{player}’s corner is headed away at the near post.',
+    'The keeper comes and claims {player}’s delivery.',
+    '{player} overhits the corner and it sails out for a goal kick.',
+  ],
+  'block.success': [
+    '{player} throws everything at it and blocks on the line!',
+    'Off the line! {player} somehow keeps it out!',
+    '{player} gets a body in the way when it looked a certain goal!',
+  ],
+  'block.failure': [
+    '{player} stretches, but cannot keep it out.',
+    'It squeezes past {player} on the line.',
+    '{player} gets a touch, but it still crosses the line.',
+  ],
+  'offside.success': [
+    '{player} steps up, and the flag goes up. Offside!',
+    'A perfectly timed step from {player} catches the runner offside.',
+    '{player} holds the line and the attack dies.',
+  ],
+  'offside.failure': [
+    '{player} steps up, but the runner has timed it and is through!',
+    'One defender stays deep and {player}’s trap is sprung.',
+    '{player} is caught square, and the striker is in behind.',
+  ],
+  'penalty-save.success': [
+    'SAVED! {player} guesses right and keeps out the penalty!',
+    '{player} stands tall and blocks the spot kick!',
+    'What a save from {player}, diving full length to stop the penalty!',
+  ],
+  'penalty-save.failure': [
+    'The penalty beats {player}, who went the wrong way.',
+    '{player} gets a hand to it, but the penalty goes in.',
+    'No chance for {player}. Into the corner.',
+  ],
+  'late-equaliser': [
+    'LATE DRAMA! {player} levels it in the dying minutes!',
+    'They’re level! {player} strikes with time almost up!',
+    '{player} hauls them level at the death!',
+  ],
+  'late-winner': [
+    'LATE, LATE GOAL! {player} puts them ahead at the death!',
+    '{player} scores, and surely that’s the winner!',
+    'Pandemonium! {player} has won it late on!',
+  ],
 };
 const engineText: Record<string, string> = {
   ...Object.fromEntries(
@@ -450,6 +739,35 @@ const engineText: Record<string, string> = {
   'match.situation.one-on-one': 'An attacker is through on goal, one on one with you.',
   'match.situation.cross-ball': 'A cross is swinging into your six-yard box.',
   'match.situation.distribution': 'The ball is in your hands. Start the next attack.',
+  'match.situation.penalty': 'Penalty! The ball is on the spot and it is yours to take.',
+  'match.situation.free-kick': 'A free kick on the edge of the area. The wall is set.',
+  'match.situation.corner-kick': 'Corner. The box is crowded and you have the ball by the flag.',
+  'match.situation.goal-line': 'The keeper is beaten and the ball is heading for goal.',
+  'match.situation.offside-line': 'Their midfielder looks up for the runner. Call the line.',
+  'match.situation.penalty-save': 'Penalty against you. You and the taker, twelve yards apart.',
+  ...situationVariants,
+  ...headlineText,
+  ...reactionText,
+  'match.pressure.level': 'Level, {minute}th minute. This could decide it.',
+  'match.pressure.behind': 'A goal down, {minute}th minute. Time is running out.',
+  'match.pressure.ahead': 'One goal in it, {minute}th minute. Hold on.',
+  'match.choice.penalty-power': 'Smash it down the middle',
+  'match.choice.penalty-corner': 'Place it in the corner',
+  'match.choice.penalty-chip': 'Chip it down the middle',
+  'match.choice.free-kick-curl': 'Curl it over the wall',
+  'match.choice.free-kick-drive': 'Drive it through the gap',
+  'match.choice.free-kick-short': 'Roll it short for a teammate',
+  'match.choice.corner-inswinger': 'Whip in an inswinger',
+  'match.choice.corner-near-post': 'Fire it to the near-post run',
+  'match.choice.corner-short': 'Play it short',
+  'match.choice.goal-line-clear': 'Get back and clear it off the line',
+  'match.choice.body-block': 'Throw your body in the way',
+  'match.choice.stretch-tackle': 'Lunge for a last-ditch tackle',
+  'match.choice.step-up': 'Step up and catch them offside',
+  'match.choice.drop-off': 'Drop off and cover the space',
+  'match.choice.track-runner': 'Track the runner',
+  'match.choice.penalty-read': 'Read the taker and dive early',
+  'match.choice.penalty-stay': 'Stay big until they strike',
   'match.choice.near-post': 'Shoot near post',
   'match.choice.far-post': 'Place it far post',
   'match.choice.square-pass': 'Square it to a teammate',
@@ -536,4 +854,20 @@ export function matchLabel(key: string): string {
 }
 export function matchFormat(template: string, values: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (token, key: string) => String(values[key] ?? token));
+}
+/** A key moment's situation sentence, with the names it refers to filled in. */
+export function situationText(moment: {
+  situationKey: string;
+  situationParams?: Record<string, string>;
+}): string {
+  return matchFormat(matchLabel(moment.situationKey), moment.situationParams ?? {});
+}
+/** What a late moment in a close game means, or an empty string. */
+export function pressureText(moment: {
+  pressureKey?: string;
+  situationParams?: Record<string, string>;
+}): string {
+  return moment.pressureKey
+    ? matchFormat(matchLabel(moment.pressureKey), moment.situationParams ?? {})
+    : '';
 }

@@ -3,6 +3,7 @@ import { CONFIG } from '../engine/config';
 import { ARCHETYPE_BY_ID, SKILL_BY_ID } from '../engine/career/catalogue';
 import { trainableAttributes, xpToNext } from '../engine/career/progression';
 import { validFocus } from '../engine/career/training';
+import { AMBITION_IDS } from '../engine/career/honours/ambitions';
 import {
   array,
   date,
@@ -148,6 +149,32 @@ export function validateCareer(w: Record<string, unknown>): void {
     if (match.tackles !== undefined) number(match.tackles, 0, 200, true);
   }
   if (career.coaching !== undefined) validateCoaching(career.coaching, current);
+  if (career.ambitions !== undefined) validateAmbitions(career.ambitions, current, object(w.clubs));
+}
+
+/** Ambitions (schema 19): at most the chosen count open, each kind once, dream clubs real. */
+function validateAmbitions(
+  value: unknown,
+  current: Record<string, unknown>,
+  clubs: Record<string, unknown>,
+): void {
+  const ambitions = object(value);
+  number(ambitions.changedSeason, 1800, Number(current.season), true);
+  const list = array(ambitions.list, AMBITION_IDS.length);
+  const seen = new Set<string>();
+  let open = 0;
+  for (const entry of list) {
+    const ambition = object(entry);
+    options(ambition.id, AMBITION_IDS);
+    requireValue(!seen.has(String(ambition.id)));
+    seen.add(String(ambition.id));
+    date(ambition.set);
+    if (ambition.achieved === null) open++;
+    else date(ambition.achieved);
+    if (ambition.id === 'dream-club') ref(ambition.clubId, clubs);
+    else requireValue(ambition.clubId === undefined);
+  }
+  requireValue(open <= CONFIG.career.honours.ambitions.count);
 }
 
 /** Coaching (Phase 5.2): recent decisions, the accepted season goal and past results. */

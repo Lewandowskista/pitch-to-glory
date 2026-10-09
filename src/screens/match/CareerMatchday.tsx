@@ -3,6 +3,7 @@ import { useAppStore } from '../../store';
 import { Icon } from '../../ui/Icon';
 import { HeadToHead } from '../../ui/HeadToHead';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
+import { StakeLine } from '../career/stakesUi';
 import type { CareerMatchOutcome } from '../../engine/career/matches';
 import type { Fixture, World } from '../../model/domain';
 import { format } from '../../i18n';
@@ -142,6 +143,9 @@ export function CareerFixture({
           {c.report.fixture}
         </h2>
         <FixtureTeams world={world} fixture={fixture} />
+        <div className="flex justify-center text-center">
+          <StakeLine world={world} fixture={fixture} />
+        </div>
         <p className="text-center text-sm font-semibold text-white/90">
           {format(c.hub.fixtureDate, {
             week: fixture.date.week,

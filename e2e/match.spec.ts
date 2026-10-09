@@ -147,7 +147,7 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   const download = page.waitForEvent('download');
   await page.locator('.slot-card').first().getByRole('button', { name: 'Export backup' }).click();
   const saved = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
-  expect(saved.schemaVersion).toBe(18);
+  expect(saved.schemaVersion).toBe(19);
   expect(saved.payload.matchSession.state.match.status).toBe('finished');
   expect(
     saved.payload.matchSession.commands.some(
@@ -180,9 +180,11 @@ test('keeper decisions work in simulation-only mode with large mobile text', asy
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
   await pause(page);
   await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-  // Keeper situations are seeded: shot, one-on-one, cross or distribution.
-  await expect(page.locator('#decision-heading')).toHaveText(
-    /shot is coming|through on goal|cross is swinging|ball is in your hands/,
+  // Keeper situations are seeded: a shot, a one-on-one, a cross, distribution or a penalty.
+  // Each is framed in one of several sentences, so the keeper's choices identify it.
+  await expect(page.locator('#decision-heading')).not.toBeEmpty();
+  await expect(page.locator('.match-choices button').first()).toHaveText(
+    /Catch and hold|Parry|Rush off|Stay on your line|Come and claim|Punch|Roll it out|Kick it long|Read the taker|Stay big/,
   );
   expect(await page.locator('.match-choices button').count()).toBeGreaterThanOrEqual(2);
   await expect(page.locator('canvas')).toHaveCount(0);

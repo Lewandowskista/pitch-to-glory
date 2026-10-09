@@ -198,8 +198,12 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
       );
       const impact = clamp(1 + relative * D.impactSlope, D.impactMinimum, D.impactMaximum);
       const defensive = t.opponent === 'attacker';
-      const goalsFor = t.forShare * budget.for;
-      const goalsAgainst = t.againstShare * budget.against * (defensive ? D.defensiveEdge : 1);
+      const fixed = t.fixed !== undefined;
+      const goalsFor = fixed && t.direct === 'for' ? t.fixed! : t.forShare * budget.for;
+      const goalsAgainst =
+        fixed && t.direct === 'against'
+          ? t.fixed!
+          : t.againstShare * budget.against * (defensive ? D.defensiveEdge : 1);
       const team = clamp(1 + context.strengthGap * D.teamSlope, D.teamMinimum, D.teamMaximum);
       // The reference probability anchors expected goals: a reference player in neutral
       // conditions realises exactly the moment budget whichever choice they make.
@@ -318,7 +322,7 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
         clamp(
           current,
           D.minimumProbability,
-          t.direct === 'for' ? D.maximumShotProbability : D.maximumProbability,
+          t.direct === 'for' ? (t.maximum ?? D.maximumShotProbability) : D.maximumProbability,
         ),
       );
       if (probability !== current)
@@ -355,14 +359,40 @@ export function expectedImpact(choice: DecisionChoice): {
   return { for: goalsFor, against: goalsAgainst, net: goalsFor - goalsAgainst };
 }
 
-/** Situation selection weights for a position and personal role (unnormalised). */
+/** How the game stands for the selected side when a moment opens (engine match-12). */
+export interface GameState {
+  minute: number;
+  /** Selected side's goals minus the opposition's. */
+  margin: number;
+}
+/**
+ * Situation selection weights for a position and personal role (unnormalised). With `drama`
+ * (engine match-12) set pieces and last-ditch situations join the pool, and from the hour a side
+ * chasing the game sees more attacking moments while one protecting a lead sees more defending.
+ * Moment budgets are normalised by the same weights, so the tilt moves where goals come from
+ * without changing how many a match expects.
+ */
 export function situationWeights(
   position: Position,
   role: string,
+  options: { drama?: boolean; state?: GameState } = {},
 ): { situation: Situation; weight: number }[] {
   const effect = roleEffect(role);
+  const G = C.drama;
+  const state = options.drama ? options.state : undefined;
+  const pressing = state && state.minute >= G.tiltFromMinute;
+  const tilt = (situation: Situation) =>
+    !pressing || !situation.phase || state.margin === 0
+      ? 1
+      : state.margin < 0 === (situation.phase === 'attack')
+        ? G.tilt
+        : 1;
   return SITUATIONS.flatMap((situation) => {
-    const weight = (situation.positions[position] ?? 0) * (effect.situations?.[situation.id] ?? 1);
+    if (situation.drama && !options.drama) return [];
+    const weight =
+      (situation.positions[position] ?? 0) *
+      (effect.situations?.[situation.id] ?? 1) *
+      tilt(situation);
     return weight > 0 ? [{ situation, weight }] : [];
   });
 }

@@ -489,6 +489,33 @@ export interface Career {
   honours: CareerHonours;
   /** Coaching (Phase 5.2): recent decisions and the season goal; absent in older saves. */
   coaching?: CareerCoaching;
+  /** The career's chosen ambitions (schema 19); absent until the player sets them. */
+  ambitions?: CareerAmbitions;
+}
+export type AmbitionId =
+  | 'goals'
+  | 'assists'
+  | 'clean-sheets'
+  | 'appearances'
+  | 'caps'
+  | 'league-title'
+  | 'champions-cup'
+  | 'golden-ball'
+  | 'one-club'
+  | 'dream-club'
+  | 'hall-of-fame';
+/** A long-term goal the player chose for the career. */
+export interface Ambition {
+  id: AmbitionId;
+  set: GameDate;
+  achieved: GameDate | null;
+  /** The dream club, for `dream-club`. */
+  clubId?: Id;
+}
+export interface CareerAmbitions {
+  list: Ambition[];
+  /** The season they were last changed: once a season, never the achieved ones. */
+  changedSeason: number;
 }
 export type DecisionFamily = 'shooting' | 'passing' | 'dribbling' | 'defending' | 'goalkeeping';
 /** One key-moment decision, kept for coaching after its match is recorded. */
@@ -1063,6 +1090,7 @@ export type ChronicleKind =
   | 'record'
   | 'moment'
   | 'promise'
+  | 'ambition'
   | 'retirement';
 export interface ChronicleEntry {
   id: Id;
@@ -1164,6 +1192,10 @@ export interface KeyMoment {
   minute: number;
   situationId: Id;
   situationKey: string;
+  /** Names and numbers the situation's sentence refers to (opponent, defender, minute…). */
+  situationParams?: Record<string, string>;
+  /** A line on what the moment means for the game, late in a close match. */
+  pressureKey?: string;
   frame: ReplayFrame;
   /** Expected goals this moment replaces for the selected team and against it. */
   budget: { for: number; against: number };
@@ -1207,6 +1239,8 @@ export interface MatchReport {
   shots: { from: Point; to: Point; goal: boolean }[];
   objectives: Objective[];
   headlineId: Id;
+  /** Names and numbers the headline refers to (player, opponent, score…). */
+  headlineParams?: Record<string, string>;
 }
 export interface Match {
   id: Id;
@@ -1420,7 +1454,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 18;
+  schemaVersion: 19;
   engineVersion: string;
   slot: SlotId;
   name: string;

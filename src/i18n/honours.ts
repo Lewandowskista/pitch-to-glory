@@ -201,6 +201,7 @@ export const honoursText = {
       retirement: 'Retires at {age}, after {appearances} and {goals}.',
       'promise-achieved': 'Rises to {manager}’s six-week challenge: {goal}.',
       'promise-missed': 'Falls short of {manager}’s six-week challenge: {goal}.',
+      ambition: 'Achieves an ambition: {ambition}.',
     } as Record<string, string>,
   },
   moments: {

@@ -54,6 +54,14 @@ export interface ChoiceTemplate {
   commentary: string;
   /** Where the end of the highlight lands, in goal-mouth y coordinates for shots. */
   target?: number;
+  /** Highest success probability for a direct shot, when above the open-play limit (penalties). */
+  maximum?: number;
+  /**
+   * Goal probability of a direct choice at the reference player whatever the budget: a penalty
+   * is about three quarters of a goal against any side. The situation's weight is tuned so its
+   * budget averages the same, keeping a match's expected goals.
+   */
+  fixed?: number;
 }
 
 export interface Situation {
@@ -65,6 +73,13 @@ export interface Situation {
   /** Where the selected player stands, as distance from own goal line (0–100) and width. */
   spot: { depth: number; width: number };
   choices: ChoiceTemplate[];
+  /**
+   * Offered only by the engine whose moments follow the game (`match-12`): set pieces and
+   * last-ditch defending. Earlier sessions replay without them.
+   */
+  drama?: true;
+  /** How the situation reads the game: it comes up more when the side chases or protects. */
+  phase?: 'attack' | 'defence';
 }
 
 const choice = (
@@ -90,6 +105,7 @@ const choice = (
 export const SITUATIONS: readonly Situation[] = [
   {
     id: 'box-chance',
+    phase: 'attack',
     attackWeight: 1,
     defenceWeight: 0,
     positions: { ST: 3.5, LW: 2.5, RW: 2.5, AM: 2, CM: 1 },
@@ -204,6 +220,7 @@ export const SITUATIONS: readonly Situation[] = [
   },
   {
     id: 'edge-of-area',
+    phase: 'attack',
     attackWeight: 0.4,
     defenceWeight: 0,
     positions: { ST: 2, LW: 2, RW: 2, AM: 3, CM: 2.5, DM: 0.5 },
@@ -266,6 +283,7 @@ export const SITUATIONS: readonly Situation[] = [
   },
   {
     id: 'aerial-chance',
+    phase: 'attack',
     attackWeight: 0.6,
     defenceWeight: 0,
     positions: { ST: 2.5, LW: 1, RW: 1, AM: 0.5, CM: 0.5, CB: 0.6 },
@@ -326,6 +344,7 @@ export const SITUATIONS: readonly Situation[] = [
   },
   {
     id: 'defend-attack',
+    phase: 'defence',
     attackWeight: 0,
     defenceWeight: 1,
     positions: { CB: 5, LB: 4, RB: 4, DM: 4, CM: 1.5 },
@@ -434,6 +453,7 @@ export const SITUATIONS: readonly Situation[] = [
   },
   {
     id: 'shot-incoming',
+    phase: 'defence',
     attackWeight: 0,
     defenceWeight: 1,
     positions: { GK: 4 },
@@ -478,6 +498,7 @@ export const SITUATIONS: readonly Situation[] = [
   },
   {
     id: 'one-on-one',
+    phase: 'defence',
     attackWeight: 0,
     defenceWeight: 4,
     positions: { GK: 0.7 },
@@ -518,6 +539,7 @@ export const SITUATIONS: readonly Situation[] = [
   },
   {
     id: 'cross-ball',
+    phase: 'defence',
     attackWeight: 0,
     defenceWeight: 0.6,
     positions: { GK: 2 },
@@ -597,6 +619,294 @@ export const SITUATIONS: readonly Situation[] = [
         conditions: 'direct',
         requiredTraitId: 'distributor',
         commentary: 'long-ball',
+      }),
+    ],
+  },
+  // ── Set pieces and last-ditch defending (engine match-12) ────────────────────
+  {
+    id: 'penalty',
+    drama: true,
+    phase: 'attack',
+    // A penalty carries about three quarters of a goal; its weight is tuned against the
+    // attacking mix so that the budget lands there for the positions that take them.
+    attackWeight: 10,
+    defenceWeight: 0,
+    positions: { ST: 0.2, AM: 0.12, LW: 0.05, RW: 0.05, CM: 0.03 },
+    spot: { depth: 89.5, width: 50 },
+    choices: [
+      choice({
+        id: 'penalty-power',
+        attributes: { finishing: 0.5, composure: 0.3, strength: 0.2 },
+        direct: 'for',
+        scorer: 'self',
+        event: 'shot',
+        family: 'shooting',
+        stat: 'shots',
+        opponent: 'keeper',
+        traitId: 'clinical-finisher',
+        commentary: 'penalty',
+        target: 50,
+        maximum: 0.92,
+        fixed: 0.76,
+      }),
+      choice({
+        id: 'penalty-corner',
+        forOnSuccess: 0.92,
+        attributes: { finishing: 0.4, composure: 0.6 },
+        direct: 'for',
+        scorer: 'self',
+        event: 'shot',
+        family: 'shooting',
+        stat: 'shots',
+        opponent: 'keeper',
+        traitId: 'composed',
+        commentary: 'penalty',
+        target: 46,
+        maximum: 0.92,
+        fixed: 0.76,
+      }),
+      choice({
+        id: 'penalty-chip',
+        attributes: { composure: 0.7, finishing: 0.3 },
+        direct: 'for',
+        scorer: 'self',
+        event: 'shot',
+        family: 'shooting',
+        stat: 'shots',
+        opponent: 'keeper',
+        requiredTraitId: 'chip-specialist',
+        commentary: 'penalty',
+        target: 50,
+        maximum: 0.92,
+        fixed: 0.76,
+      }),
+    ],
+  },
+  {
+    id: 'free-kick',
+    drama: true,
+    phase: 'attack',
+    attackWeight: 0.6,
+    defenceWeight: 0,
+    positions: { AM: 0.25, LW: 0.15, RW: 0.15, CM: 0.15, ST: 0.12 },
+    spot: { depth: 76, width: 46 },
+    choices: [
+      choice({
+        id: 'free-kick-curl',
+        forOnSuccess: 0.9,
+        attributes: { setPieces: 0.7, finishing: 0.15, composure: 0.15 },
+        direct: 'for',
+        scorer: 'self',
+        event: 'shot',
+        family: 'shooting',
+        stat: 'shots',
+        opponent: 'keeper',
+        conditions: 'direct',
+        traitId: 'free-kick-master',
+        commentary: 'free-kick',
+        target: 46,
+      }),
+      choice({
+        id: 'free-kick-drive',
+        forOnSuccess: 0.75,
+        attributes: { longShots: 0.6, setPieces: 0.2, strength: 0.2 },
+        direct: 'for',
+        scorer: 'self',
+        event: 'shot',
+        family: 'shooting',
+        stat: 'shots',
+        opponent: 'keeper',
+        conditions: 'direct',
+        traitId: 'long-ranger',
+        commentary: 'free-kick',
+        target: 52,
+      }),
+      choice({
+        id: 'free-kick-short',
+        attributes: { passing: 0.5, vision: 0.3, setPieces: 0.2 },
+        base: 0.78,
+        assist: true,
+        event: 'pass',
+        family: 'passing',
+        stat: 'passes',
+        conditions: 'technical',
+        traitId: 'set-piece-specialist',
+        commentary: 'pass',
+      }),
+    ],
+  },
+  {
+    id: 'corner-kick',
+    drama: true,
+    phase: 'attack',
+    attackWeight: 0.35,
+    defenceWeight: 0.2,
+    positions: { LW: 0.25, RW: 0.25, AM: 0.25, CM: 0.2, LB: 0.12, RB: 0.12 },
+    spot: { depth: 99, width: 2 },
+    choices: [
+      choice({
+        id: 'corner-inswinger',
+        attributes: { crossing: 0.5, setPieces: 0.5 },
+        base: 0.5,
+        assist: true,
+        event: 'pass',
+        family: 'passing',
+        stat: 'passes',
+        conditions: 'direct',
+        traitId: 'set-piece-specialist',
+        commentary: 'corner',
+      }),
+      choice({
+        id: 'corner-near-post',
+        attributes: { setPieces: 0.6, vision: 0.4 },
+        base: 0.4,
+        againstOnFailure: 0.8,
+        assist: true,
+        event: 'pass',
+        family: 'passing',
+        stat: 'passes',
+        conditions: 'direct',
+        traitId: 'delivery-specialist',
+        commentary: 'corner',
+      }),
+      choice({
+        id: 'corner-short',
+        attributes: { passing: 0.6, vision: 0.4 },
+        base: 0.8,
+        assist: true,
+        event: 'pass',
+        family: 'passing',
+        stat: 'passes',
+        conditions: 'technical',
+        traitId: 'playmaker',
+        commentary: 'recycle',
+      }),
+    ],
+  },
+  {
+    id: 'goal-line',
+    drama: true,
+    phase: 'defence',
+    // The keeper is beaten: a goal is likely unless the defender gets there.
+    attackWeight: 0,
+    defenceWeight: 12,
+    positions: { CB: 0.3, LB: 0.2, RB: 0.2, DM: 0.15 },
+    spot: { depth: 2, width: 47 },
+    choices: [
+      choice({
+        id: 'goal-line-clear',
+        attributes: { positioning: 0.5, agility: 0.3, decisions: 0.2 },
+        direct: 'against',
+        event: 'tackle',
+        family: 'defending',
+        stat: 'tackles',
+        opponent: 'attacker',
+        traitId: 'last-ditch',
+        commentary: 'block',
+      }),
+      choice({
+        id: 'body-block',
+        attributes: { positioning: 0.4, strength: 0.3, aggression: 0.3 },
+        direct: 'against',
+        againstOnFailure: 0.75,
+        event: 'tackle',
+        family: 'defending',
+        stat: 'tackles',
+        opponent: 'attacker',
+        traitId: 'defensive-wall',
+        commentary: 'block',
+      }),
+      choice({
+        id: 'stretch-tackle',
+        attributes: { tackling: 0.5, acceleration: 0.3, jumping: 0.2 },
+        direct: 'against',
+        event: 'tackle',
+        family: 'defending',
+        stat: 'tackles',
+        opponent: 'attacker',
+        conditions: 'technical',
+        requiredTraitId: 'last-ditch',
+        commentary: 'block',
+      }),
+    ],
+  },
+  {
+    id: 'offside-line',
+    drama: true,
+    phase: 'defence',
+    attackWeight: 0,
+    defenceWeight: 0.8,
+    positions: { CB: 1.2, LB: 0.6, RB: 0.6, DM: 0.4 },
+    spot: { depth: 30, width: 50 },
+    choices: [
+      choice({
+        id: 'step-up',
+        attributes: { positioning: 0.4, decisions: 0.4, leadership: 0.2 },
+        base: 0.6,
+        event: 'tackle',
+        family: 'defending',
+        opponent: 'attacker',
+        traitId: 'leader',
+        commentary: 'offside',
+      }),
+      choice({
+        id: 'drop-off',
+        attributes: { positioning: 0.5, pace: 0.5 },
+        base: 0.76,
+        againstOnFailure: 0.7,
+        event: 'tackle',
+        family: 'defending',
+        opponent: 'attacker',
+        traitId: 'man-marker',
+        commentary: 'jockey',
+      }),
+      choice({
+        id: 'track-runner',
+        attributes: { pace: 0.4, acceleration: 0.3, positioning: 0.3 },
+        base: 0.66,
+        event: 'tackle',
+        family: 'defending',
+        stat: 'tackles',
+        opponent: 'attacker',
+        traitId: 'sprinter',
+        commentary: 'tackle',
+      }),
+    ],
+  },
+  {
+    id: 'penalty-save',
+    drama: true,
+    phase: 'defence',
+    attackWeight: 0,
+    // About three quarters of a goal against, like the penalty itself.
+    defenceWeight: 17,
+    positions: { GK: 0.2 },
+    spot: { depth: 0.5, width: 50 },
+    choices: [
+      choice({
+        id: 'penalty-read',
+        attributes: { oneOnOnes: 0.4, decisions: 0.3, diving: 0.3 },
+        direct: 'against',
+        event: 'save',
+        family: 'goalkeeping',
+        stat: 'saves',
+        opponent: 'attacker',
+        traitId: 'one-on-one-specialist',
+        commentary: 'penalty-save',
+        fixed: 0.76,
+      }),
+      choice({
+        id: 'penalty-stay',
+        attributes: { reflexes: 0.6, composure: 0.4 },
+        direct: 'against',
+        againstOnFailure: 0.85,
+        event: 'save',
+        family: 'goalkeeping',
+        stat: 'saves',
+        opponent: 'attacker',
+        traitId: 'cat-reflexes',
+        commentary: 'penalty-save',
+        fixed: 0.76,
       }),
     ],
   },

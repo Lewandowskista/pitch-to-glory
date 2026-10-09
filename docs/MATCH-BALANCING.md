@@ -241,3 +241,32 @@ Chemistry with teammates scales a created chance for them (`successGoal × clamp
 **Placement.** A selected player is put in their best slot by fit (`selectLineup`); among equal fits they now take a slot in the line they naturally play in. Before, a winger with no familiarity anywhere in a 3-5-2 was fielded at centre-back (the first outfield slot), drawn there on the pitch and taught centre-back familiarity by those minutes.
 
 **Profile.** `scripts/match-profile.ts` fields each position in a formation that has a slot for it (an attacking midfielder is not measured at striker), and counts goals for and against from the profiled club's actual side (it is always at home; the tallies used to alternate sides). All six gates hold on `match-11`: striker 0.39 goals a match (the same as `match-10` on this world; the 0.51 recorded under pass D predates later changes), wingers 0.17 goals and 0.28 assists, every objective kind 10–75%, attacker involvement best/worst ×1.19–1.59, odds within tolerance.
+
+## Engagement pass 1: moments that follow the game (engine `match-12`)
+
+The [engagement review](ENGAGEMENT-REVIEW-2026-10-09.md) found key moments that never reacted to the game: ten situations with one sentence each, minutes fixed evenly from 6′ to 84′, no set pieces and the same three headlines. Constants are `CONFIG.match.drama`; new setups carry `dramaMoments`.
+
+**The late moment.** The last of a match's moments is provisionally at 82′ (`routineLateMinute`). On reaching 80′ (`lateDecisionMinute`), if the selected side is within a goal (`closeMargin` 1) it moves to a minute drawn from 86–89′ (`lateMinutes`). The count is unchanged, so moment budgets are too. Measured: the last moment comes at 85′ or later in 64–72% of matches (38–46% before), every close game included.
+
+**The score weights the pool.** From 60′ (`tiltFromMinute`) a side behind sees attacking situations (`phase: 'attack'`) × 1.6 (`tilt`), a side ahead defending ones. Budgets are normalised by the same tilted weights, so the tilt moves where goals come from, not how many a match expects.
+
+**Set pieces and last-ditch moments** (`drama: true` in `situations.ts`; earlier engines never draw them):
+
+| Situation    | Positions (weight)               | Budget weight            | Choices                                                           |
+| ------------ | -------------------------------- | ------------------------ | ----------------------------------------------------------------- |
+| Penalty      | ST 0.2, AM 0.12, W 0.05, CM 0.03 | attack 10                | power, corner, chip (Chip Specialist); fixed 0.76 goal, up to 92% |
+| Free kick    | AM 0.25, W/CM 0.15, ST 0.12      | attack 0.6               | curl, drive, short                                                |
+| Corner       | W/AM 0.25, CM 0.2, FB 0.12       | attack 0.35, defence 0.2 | inswinger, near-post run, short                                   |
+| Goal-line    | CB 0.3, FB 0.2, DM 0.15          | defence 12               | clear off the line, body block, lunge (Last-Ditch)                |
+| Offside line | CB 1.2, FB 0.6, DM 0.4           | defence 0.8              | step up, drop off, track the runner                               |
+| Penalty save | GK 0.2                           | defence 17               | read and dive, stay big; fixed 0.76 against                       |
+
+A penalty is a penalty against any side: `ChoiceTemplate.fixed` sets its goal probability at the reference player whatever the budget (its weight keeps the average budget about the same), and `maximum` lifts the shot cap from 0.6 to 0.92. A set-piece taker carries more of the team's attack: the attacking share rises by the set pieces' share of the position's attacking weight, at most × 1.3 (`setPieceShareCap`), and the background plays correspondingly less, so open-play moments keep their value and match totals hold.
+
+**Framing.** Each situation has three sentences (`situationVariants`) naming the drawn keeper, defender or attacker, a teammate and the opposition; late in a close game a pressure line says what is at stake ("Level, 87th minute. This could decide it."). A goal from 85′ that levels the game or puts a side ahead has its own commentary. Wording is drawn from its own seed stream and never moves a roll.
+
+**Report.** The headline is chosen by the story of the match (late winner or equaliser, hat-trick, brace, saved penalty, goal in a win/draw/defeat, two assists, a clean-sheet wall, rout, thrashing, two errors in a defeat, otherwise by result and rating) with three wordings each and names filled in (`headlines.ts`); manager and fan reactions are keyed by result × performance (star from 7.3, poor below 6.3).
+
+**Measured.** Goals per match with and without the pass agree within 0.1 on 500-match samples per position. All six `profile:match` gates hold: striker 0.49 goals a match (penalties included), keepers p90 8.5, every objective kind 10–75%, attacker involvement best/worst ×1.18–1.34, odds within tolerance. Penalties: a striker takes ~0.16 a match and scores 64–88% depending on the player; keepers save 23–29%; a centre-back meets a goal-line moment every third match and keeps it out ~64% of the time.
+
+**Compatibility.** Sessions saved on `match-11` replay as they were; `engineFor` picks `match-12` only for setups with `dramaMoments`.

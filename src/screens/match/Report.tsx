@@ -144,7 +144,7 @@ export function Report({
       <h2>{m.report}</h2>
       <section className="match-panel match-report-hero">
         <span className="match-eyebrow">{m.headline}</span>
-        <h2>{matchLabel(report.headlineId)}</h2>
+        <h2>{matchFormat(matchLabel(report.headlineId), report.headlineParams ?? {})}</h2>
         <Footballer player={setup.players[setup.selectedPlayerId]!} season={setup.season} />
         <motion.div
           className="match-rewards"

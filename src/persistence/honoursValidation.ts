@@ -37,6 +37,7 @@ const CHRONICLE = [
   'record',
   'moment',
   'promise',
+  'ambition',
   'retirement',
 ];
 const AWARDS = ['month', 'team-season', 'golden-boot', 'young-player', 'mvp', 'golden-ball'];

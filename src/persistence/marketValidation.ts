@@ -74,6 +74,7 @@ export const INBOX_KINDS = [
   'promise-achieved',
   'promise-missed',
   'promise-cancelled',
+  'ambition-achieved',
 ];
 
 const nullableDate = (value: unknown) => {

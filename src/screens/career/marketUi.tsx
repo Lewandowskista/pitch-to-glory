@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { storiesText } from '../../i18n/stories';
+import { ambitionsText } from '../../i18n/ambitions';
+import { ambitionName } from './ambitionText';
 const storiesMessages: Record<string, { subject: string; body: string }> = storiesText.messages;
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
 import { useAppStore } from '../../store';
 import {
   applyMarketAction,
@@ -8,7 +11,7 @@ import {
   type MarketAction,
   type MarketResult,
 } from '../../engine/career/market';
-import type { Contract, InboxMessage, World } from '../../model/domain';
+import type { AmbitionId, Contract, InboxMessage, World } from '../../model/domain';
 import { renderAvatar } from '../../engine/assets/avatar';
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
@@ -58,7 +61,8 @@ export function messageText(message: InboxMessage): { subject: string; body: str
     socialMessages[message.subjectKey] ??
     lifestyleMessages[message.subjectKey] ??
     honoursMessages[message.subjectKey] ??
-    storiesMessages[message.subjectKey] ?? { subject: message.subjectKey, body: '' };
+    storiesMessages[message.subjectKey] ??
+    ambitionsText.messages[message.subjectKey] ?? { subject: message.subjectKey, body: '' };
   const params: Record<string, string | number> = { ...message.params };
   for (const key of ['fee', 'bid', 'bonus', 'proceeds'] as const)
     if (typeof params[key] === 'number') params[key] = money(params[key]);
@@ -70,6 +74,8 @@ export function messageText(message: InboxMessage): { subject: string; body: str
   if (typeof params.stage === 'string' && params.stage in honoursText.national.stages)
     params.stage =
       honoursText.national.stages[params.stage as keyof typeof honoursText.national.stages];
+  if (typeof params.ambition === 'string')
+    params.ambition = lowerFirst(ambitionName(params.ambition as AmbitionId, message.params));
   if (typeof params.role === 'string' && params.role in m.roles)
     params.role = roleName(params.role as Contract['role']);
   return { subject: format(template.subject, params), body: format(template.body, params) };

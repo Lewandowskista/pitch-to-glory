@@ -6,6 +6,8 @@ import { HeadToHead } from '../../ui/HeadToHead';
 import { Dialog } from '../../ui/Dialog';
 import { CONFIG } from '../../engine/config';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
+import { StakeLine } from './stakesUi';
+import { AmbitionsCard } from './ambitionsUi';
 import { chooseRecovery } from '../../engine/career/training';
 import { retirementState } from '../../engine/career/honours/retirement';
 import type { Career, CareerMatchRecord, Club, Player, World } from '../../model/domain';
@@ -167,6 +169,7 @@ function HubContent({
         <div className={`${sideStack} lg:row-span-2`}>
           <HubPriorities world={world} items={priorities} />
           <PlayerCard career={career} player={player} club={club} age={age} />
+          <AmbitionsCard world={world} />
           <ClubStanding world={world} club={club} />
         </div>
         <div className={mainStack}>
@@ -338,6 +341,7 @@ function NextMatch({
             <p className="mt-2 max-w-prose text-sm text-white/85">{c.hub.noFixtureBody}</p>
           </div>
         )}
+        {fixture && !complete && <StakeLine world={world} fixture={fixture} />}
         {fixture && !complete && (
           <p className="text-sm text-white/85">
             {format(c.hub.fixtureDate, {

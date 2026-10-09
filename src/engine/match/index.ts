@@ -10,6 +10,7 @@ import type {
   MatchEvent,
   MatchReport,
   DecisionOutcome,
+  KeyMoment,
   Position,
 } from '../../model/domain';
 import { createRng, type Rng } from '../rng';
@@ -42,6 +43,7 @@ import {
 } from './motion';
 import { MATCH_CONFIG as C } from './tuning';
 import { performanceFame, performanceXp } from './rewards';
+import { reportCopy } from './headlines';
 import { validateSetup, validateTactics, validateCommand, validateJson } from './validation';
 import { SITUATION_BY_ID, type ChoiceTemplate, type Situation } from './situations';
 import { halftimeRole, roleEffect, shiftMentality } from './roles';
@@ -228,6 +230,7 @@ export function createMatchSetup(
       ? {
           formations: [clubFormation(world, home), clubFormation(world, away)],
           slotMoments: true as const,
+          dramaMoments: true as const,
         }
       : {}),
     strengthBonus: [
@@ -339,11 +342,19 @@ function matchObjectives(selected: Player, rng: Rng): MatchState['match']['objec
     { id: drawn.kind, kind: drawn.kind, target: drawn.target, progress: 0 },
   ];
 }
-function shares(position: Position, role: string): MatchState['shares'] {
+function shares(position: Position, role: string, drama = false): MatchState['shares'] {
   const [attack, defence] = C.shares[position];
   const weights = situationWeights(position, role);
+  // A set-piece taker (engine match-12) carries more of the team's attack: set pieces add to
+  // the open-play moments rather than taking from them, and the background plays less.
+  const mass = (pool: typeof weights) =>
+    pool.reduce((sum, w) => sum + w.weight * w.situation.attackWeight, 0);
+  const open = mass(weights);
+  const setPieces = drama && open ? mass(situationWeights(position, role, { drama })) / open : 1;
   return {
-    attack: weights.some((w) => w.situation.attackWeight > 0) ? attack : 0,
+    attack: weights.some((w) => w.situation.attackWeight > 0)
+      ? round6(attack * Math.min(C.drama.setPieceShareCap, setPieces))
+      : 0,
     defence: weights.some((w) => w.situation.defenceWeight > 0) ? defence : 0,
   };
 }
@@ -414,10 +425,25 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
     C.maximumMoments,
   );
   const minutes: number[] = [];
-  for (let i = 0; i < count; i++)
-    minutes.push(
-      Math.max((minutes[i - 1] ?? 0) + 1, Math.round(6 + (i * 78) / (count - 1)) + rng.int(-2, 2)),
-    );
+  if (setup.dramaMoments) {
+    // The last moment waits on the game: it is placed when the match reaches the deciding
+    // minute (see `placeLateMoment`), provisionally just after it.
+    for (let i = 0; i < count - 1; i++)
+      minutes.push(
+        Math.max(
+          (minutes[i - 1] ?? 0) + 1,
+          Math.round(6 + (i * 70) / Math.max(1, count - 2)) + rng.int(-2, 2),
+        ),
+      );
+    minutes.push(C.drama.routineLateMinute);
+  } else
+    for (let i = 0; i < count; i++)
+      minutes.push(
+        Math.max(
+          (minutes[i - 1] ?? 0) + 1,
+          Math.round(6 + (i * 78) / (count - 1)) + rng.int(-2, 2),
+        ),
+      );
   const objectives = matchObjectives(selected, rng);
   const consistencyShift = Math.round(
     (rng.next() * 2 - 1) * (1 - selected.hidden.consistency / 100) * C.decision.consistencySpread,
@@ -468,7 +494,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       strength,
       matchLevel,
       expectedGoals: rates(setup, strength, tactics),
-      shares: shares(selected.primaryPosition, tactics.role),
+      shares: shares(selected.primaryPosition, tactics.role, setup.dramaMoments),
       stats: {
         homeShots: 0,
         awayShots: 0,
@@ -603,15 +629,18 @@ function recordShot(session: MatchSession, side: number, id: string, key: string
 function goal(session: MatchSession, side: number, playerId: string, target?: number): void {
   const m = session.state.match;
   m.score[side]!++;
-  event(
-    session,
-    'goal',
-    sideTeam(session, side),
-    playerId,
-    line(session, 'match.commentary.goal'),
-    null,
-    target,
-  );
+  // In the closing minutes a goal that levels the game or puts a side ahead is called as such.
+  const margin = m.score[side]! - m.score[1 - side]!;
+  const key =
+    session.setup.dramaMoments &&
+    m.minute >= C.drama.lateMinutes[0] - 1 &&
+    margin >= 0 &&
+    margin <= 1
+      ? margin === 0
+        ? 'match.commentary.late-equaliser'
+        : 'match.commentary.late-winner'
+      : 'match.commentary.goal';
+  event(session, 'goal', sideTeam(session, side), playerId, line(session, key), null, target);
   if (playerId === session.setup.selectedPlayerId) {
     session.state.stats.goals++;
     addRating(session, 'goals', C.rating.goal);
@@ -810,15 +839,24 @@ function report(session: MatchSession): MatchReport {
   }));
   m.objectives = objectives;
   const backLine = ['GK', 'CB', 'LB', 'RB'].includes(session.setup.players[id]!.primaryPosition);
-  s.managerReactionKey =
-    rating >= 7 ? 'match.reaction.manager.pleased' : 'match.reaction.manager.steady';
-  s.fanReactionKey = rating >= 7 ? 'match.reaction.fans.pleased' : 'match.reaction.fans.steady';
-  s.headlineKey =
-    s.stats.goals > 0
-      ? 'match.headline.scorer'
-      : rating >= 7
-        ? 'match.headline.strong'
-        : 'match.headline.steady';
+  if (session.setup.dramaMoments) {
+    // The story of the match decides the headline; the result and the rating the reactions.
+    const copy = reportCopy(session, rating);
+    s.headlineKey = copy.headlineKey;
+    s.headlineParams = copy.headlineParams;
+    s.managerReactionKey = copy.managerReactionKey;
+    s.fanReactionKey = copy.fanReactionKey;
+  } else {
+    s.managerReactionKey =
+      rating >= 7 ? 'match.reaction.manager.pleased' : 'match.reaction.manager.steady';
+    s.fanReactionKey = rating >= 7 ? 'match.reaction.fans.pleased' : 'match.reaction.fans.steady';
+    s.headlineKey =
+      s.stats.goals > 0
+        ? 'match.headline.scorer'
+        : rating >= 7
+          ? 'match.headline.strong'
+          : 'match.headline.steady';
+  }
   // Every contribution is listed; the final factor absorbs the 3–10 bound and the rounding.
   const ratingFactors: ProbabilityFactor[] = [
     { labelKey: 'match.rating.base', source: 'attribute', contribution: C.rating.base },
@@ -857,6 +895,7 @@ function report(session: MatchSession): MatchReport {
     shots,
     objectives,
     headlineId: s.headlineKey,
+    ...(s.headlineParams ? { headlineParams: s.headlineParams } : {}),
   };
 }
 /** Best bench replacement: same position, then a compatible one, then any outfielder. */
@@ -880,6 +919,7 @@ function contextFor(
   situation: Situation,
   rng: Rng,
   drawn: { keeper?: string; defender?: string; attacker?: string } = {},
+  weights = situationWeights(playedSlot(session).position, session.state.match.tactics.role),
 ): DecisionContext {
   const s = session.state,
     setup = session.setup,
@@ -896,7 +936,6 @@ function contextFor(
     return round6(playerAbility(setup.players[id]!));
   };
   const slot = playedSlot(session);
-  const weights = situationWeights(slot.position, s.match.tactics.role);
   // The finishers a created chance falls to: the best three teammate attackers on the pitch.
   const own = side === 0 ? s.match.home : s.match.away;
   const finishing = own.starterIds
@@ -936,13 +975,78 @@ function contextFor(
     positionPenalty: round6((100 - slot.familiarity) * C.decision.positionPenalty),
   };
 }
+/**
+ * How a moment reads (engine match-12): one of several sentences for the situation, naming the
+ * people in it, and a line on what is at stake late in a close game. Drawn from its own stream,
+ * so the wording never moves a roll.
+ */
+function framing(
+  session: MatchSession,
+  situation: Situation,
+  opponents: { keeper?: string; defender?: string; attacker?: string },
+  margin: number,
+): Pick<KeyMoment, 'situationKey' | 'situationParams' | 'pressureKey'> {
+  const setup = session.setup,
+    m = session.state.match,
+    side = selectedSide(setup);
+  const rng = createRng(`${setup.seed}:framing:${m.minute}`);
+  const variant = rng.int(0, C.drama.situationVariants - 1);
+  const name = (id: string | undefined) => (id ? setup.players[id]?.name : undefined);
+  const own = side === 0 ? m.home : m.away;
+  const teammate = own.starterIds
+    .filter((id) => id !== setup.selectedPlayerId && setup.players[id]!.primaryPosition !== 'GK')
+    .sort(
+      (a, b) =>
+        setup.players[b]!.attributes.finishing - setup.players[a]!.attributes.finishing ||
+        (a < b ? -1 : 1),
+    )[0];
+  const params: Record<string, string> = {
+    opponent: (side === 0 ? setup.away : setup.home).name,
+    minute: String(m.minute),
+  };
+  for (const [key, value] of [
+    ['keeper', name(opponents.keeper)],
+    ['defender', name(opponents.defender)],
+    ['attacker', name(opponents.attacker)],
+    ['teammate', name(teammate)],
+  ] as const)
+    if (value) params[key] = value;
+  const late = m.minute >= C.drama.lateDecisionMinute && Math.abs(margin) <= C.drama.closeMargin;
+  return {
+    situationKey: `match.situation.${situation.id}.${variant}`,
+    situationParams: params,
+    ...(late
+      ? {
+          pressureKey: `match.pressure.${margin === 0 ? 'level' : margin > 0 ? 'ahead' : 'behind'}`,
+        }
+      : {}),
+  };
+}
+/**
+ * The last moment of a match-12 game is placed at the deciding minute: in the closing minutes
+ * when the game is within a goal, otherwise where it was provisionally scheduled.
+ */
+function placeLateMoment(session: MatchSession): void {
+  const s = session.state,
+    m = s.match,
+    D = C.drama;
+  const side = selectedSide(session.setup);
+  if (Math.abs(m.score[side]! - m.score[1 - side]!) > D.closeMargin) return;
+  const rng = createRng(`${session.setup.seed}:late`);
+  s.momentMinutes = [...s.momentMinutes.slice(0, -1), rng.int(D.lateMinutes[0], D.lateMinutes[1])];
+}
 function openMoment(next: MatchSession): void {
   const s = next.state,
     m = s.match,
     setup = next.setup;
   const player = setup.players[setup.selectedPlayerId]!;
   const rng = createRng(`${setup.seed}:situation:${m.minute}`);
-  const weights = situationWeights(playedSlot(next).position, m.tactics.role);
+  const side = selectedSide(setup);
+  const margin = m.score[side]! - m.score[1 - side]!;
+  const weights = situationWeights(playedSlot(next).position, m.tactics.role, {
+    drama: setup.dramaMoments,
+    state: { minute: m.minute, margin },
+  });
   let target = rng.next() * weights.reduce((sum, w) => sum + w.weight, 0);
   let situation = weights[weights.length - 1]!.situation;
   for (const w of weights) {
@@ -953,7 +1057,7 @@ function openMoment(next: MatchSession): void {
     }
   }
   const opponents: { keeper?: string; defender?: string; attacker?: string } = {};
-  const context = contextFor(next, situation, rng, opponents);
+  const context = contextFor(next, situation, rng, opponents, weights);
   // Place the selected player where the situation happens, attacking the correct end.
   const right = attacksRight(next, player.clubId!, m.minute);
   const width = clamp(
@@ -967,7 +1071,7 @@ function openMoment(next: MatchSession): void {
   };
   applyPassage(next, 'moment', momentPassage(next, situation, spot, opponents));
   const momentFrame = s.frames[s.frames.length - 1]!;
-  const moment = {
+  const moment: KeyMoment = {
     id: `${m.id}:moment:${m.minute}`,
     minute: m.minute,
     situationId: situation.id,
@@ -976,6 +1080,7 @@ function openMoment(next: MatchSession): void {
     budget: context.budget,
     choices: buildChoices(context),
   };
+  if (setup.dramaMoments) Object.assign(moment, framing(next, situation, opponents, margin));
   s.currentMoment = moment;
   m.keyMoments.push(moment);
   m.status = 'decision';
@@ -1032,9 +1137,10 @@ function resolveChoice(next: MatchSession, choiceId: string): void {
     // A stop earns credit in proportion to the danger it removed and its difficulty, so its
     // expected value (stop × danger) is the same for every defensive choice.
     const danger =
+      template.fixed ??
       template.againstShare *
-      moment.budget.against *
-      (template.opponent === 'attacker' ? C.decision.defensiveEdge : 1);
+        moment.budget.against *
+        (template.opponent === 'attacker' ? C.decision.defensiveEdge : 1);
     addRating(next, 'saves', (C.rating.stop * danger) / choice.probability);
   }
   // Follow-up chances: created for the selected team, or conceded to the opposition.
@@ -1164,6 +1270,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
         }
       }
     }
+    if (setup.dramaMoments && m.minute === C.drama.lateDecisionMinute) placeLateMoment(next);
     if (!state.substituted && state.momentMinutes.includes(m.minute)) openMoment(next);
     else {
       simulateMinuteGoals(next);
@@ -1206,7 +1313,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     if (command.response === 'role') {
       m.tactics.role = halftimeRole(player.primaryPosition, m.tactics.role);
       state.expectedGoals = rates(setup, state.strength, m.tactics);
-      state.shares = shares(player.primaryPosition, m.tactics.role);
+      state.shares = shares(player.primaryPosition, m.tactics.role, setup.dramaMoments);
     }
     state.stats.fatigue = round6(Math.max(0, state.stats.fatigue - C.halftimeRecovery));
     // Ends are switched and the away side kicks off the second half.

@@ -30,6 +30,7 @@ import {
   windowWeeks,
   type Clip,
 } from '../src/engine/career/honours';
+import { awardPoints } from '../src/engine/career/honours/retirement';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { validateNationalWorld } from '../src/persistence/nationalWorldSchema';
@@ -363,7 +364,8 @@ describe('retirement and legacy', () => {
       hallOfFameScore(legacy.stats, {
         caps: legacy.stats.caps,
         trophies: legacy.trophyIds.length,
-        awards: legacy.awardIds.length,
+        // Awards count by kind, as retirement weighs them.
+        awards: awardPoints(world, legacy.awardIds, id),
         goldenBalls: world.awards.filter(
           (a) => a.kind === 'golden-ball' && legacy.awardIds.includes(a.id),
         ).length,
@@ -452,7 +454,7 @@ describe('persistence', () => {
         settings: DEFAULT_SETTINGS,
       },
     });
-    expect(migrated.schemaVersion).toBe(18);
+    expect(migrated.schemaVersion).toBe(19);
     const next = (migrated.payload as { world: World }).world;
     expect(next.career!.honours.caps).toEqual({ U19: 0, U21: 0, senior: 0 });
     expect(next.international!.nations.length).toBeGreaterThan(6);

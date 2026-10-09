@@ -18,7 +18,15 @@ import type { Position, ReplayFrame } from '../src/model/domain';
 const world = generateWorld('match-tests', { format: 'legacy' });
 const clubs = Object.values(world.clubs).slice(0, 4);
 const tactics = { role: 'balanced', risk: 'balanced', mentality: 'balanced' } as const;
-const DEFENSIVE = ['defend-attack', 'shot-incoming', 'one-on-one', 'cross-ball'];
+const DEFENSIVE = [
+  'defend-attack',
+  'shot-incoming',
+  'one-on-one',
+  'cross-ball',
+  'offside-line',
+  'goal-line',
+  'penalty-save',
+];
 /** Sprint limit used by the engine (units per ms) plus rounding slack. */
 const RUN = 0.0085;
 

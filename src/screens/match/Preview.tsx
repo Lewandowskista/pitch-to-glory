@@ -18,12 +18,15 @@ export function Preview({
   onKickoff,
   note,
   selection,
+  stake,
 }: {
   session: MatchSession;
   /** Replaces the friendly-match explanation (career fixtures). */
   note?: string;
   /** Why the career player is starting, for a career fixture. */
   selection?: ReactNode;
+  /** What the career fixture is about, above the footballer. */
+  stake?: ReactNode;
   onTactics: (tactics: Tactics) => void;
   onKickoff: () => void;
 }) {
@@ -46,6 +49,7 @@ export function Preview({
     <div className="match-preview">
       <section className="match-panel">
         <span className="match-eyebrow">{m.preview}</span>
+        {stake}
         <Footballer player={player} season={setup.season} />
         {state.captain && <span className="match-tag">{m.captain}</span>}
         <div className="match-weather">

@@ -13,7 +13,13 @@ import type { MatchEvent, SlotId } from '../model/domain';
 import { errorCode } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
 import { errorText } from '../i18n';
-import { matchText as m, matchLabel, matchFormat } from '../i18n/match';
+import {
+  matchText as m,
+  matchLabel,
+  matchFormat,
+  pressureText,
+  situationText,
+} from '../i18n/match';
 import { careerText as c } from '../i18n/career';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
@@ -36,6 +42,7 @@ import { useMatchAudio } from './match/useMatchAudio';
 import { preparePlayback } from './match/playback';
 import { Tutorial } from '../ui/Tutorial';
 import { tutorialText as tt } from '../i18n/tutorial';
+import { StakeLine } from './career/stakesUi';
 const Pitch = lazyPage(() => import('./match/Pitch'));
 /** Real milliseconds per simulated minute at 1× speed. */
 const MINUTE_MS = 2200;
@@ -103,7 +110,9 @@ export default function MatchScreen() {
   const momentText = state?.currentMoment
     ? matchFormat(m.announceMoment, {
         minute: state.currentMoment.minute,
-        situation: matchLabel(state.currentMoment.situationKey),
+        situation: [pressureText(state.currentMoment), situationText(state.currentMoment)]
+          .filter(Boolean)
+          .join(' '),
         count: state.currentMoment.choices.length,
       })
     : '';
@@ -597,6 +606,15 @@ export default function MatchScreen() {
               <Preview
                 session={session}
                 note={careerFixture ? c.report.previewNote : undefined}
+                stake={
+                  careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
+                    <StakeLine
+                      world={world}
+                      fixture={world.fixtures[careerFixture.id]!}
+                      tone="panel"
+                    />
+                  ) : undefined
+                }
                 selection={
                   careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
                     <CareerSelectionBriefing world={world} fixtureId={careerFixture.id} />

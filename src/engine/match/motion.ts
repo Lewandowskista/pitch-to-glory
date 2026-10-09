@@ -84,6 +84,8 @@ const FAILED_SHOTS: Record<string, readonly (ShotVisual | null)[]> = {
   long: ['over', 'catch', 'block'],
   header: ['over', 'catch', 'wide'],
   attempt: [null, 'catch', null],
+  penalty: ['parry', 'wide', 'over'],
+  'free-kick': ['over', 'catch', 'wide'],
 };
 const KEEPER_SAVES: Record<string, ShotVisual> = {
   hold: 'catch',
@@ -95,6 +97,8 @@ const KEEPER_SAVES: Record<string, ShotVisual> = {
   claim: 'catch',
   punch: 'punch',
   'hold-line': 'catch',
+  'penalty-read': 'parry',
+  'penalty-stay': 'catch',
 };
 const PASS_STYLES: Record<string, PassStyle> = {
   'through-ball': 'through',
@@ -103,6 +107,8 @@ const PASS_STYLES: Record<string, PassStyle> = {
   'clear-long': 'long',
   'long-distribution': 'long',
   'quick-release': 'long',
+  'corner-inswinger': 'cross',
+  'corner-near-post': 'cross',
 };
 /** Carries: depth gained and width moved towards the centre. */
 const CARRIES: Record<string, Spot> = {
@@ -969,6 +975,12 @@ class Director {
     let next = 0;
     const save =
       rest[next]?.kind === 'save' && rest[next]!.teamId !== event.teamId ? rest[next++] : undefined;
+    // A defender's last-ditch challenge on the shot (engine match-12) is a block.
+    const block =
+      !save && rest[next]?.kind === 'tackle' && rest[next]!.teamId !== event.teamId
+        ? rest[next++]
+        : undefined;
+    if (block) done.add(block);
     const scored =
       rest[next]?.kind === 'goal' && rest[next]!.playerId === event.playerId
         ? rest[next]
@@ -979,6 +991,7 @@ class Director {
     const aim = template?.target ?? 45.5 + this.rng.next() * 9;
     let visual: ShotVisual;
     if (scored) visual = 'goal';
+    else if (block) visual = 'block';
     else if (save) visual = KEEPER_SAVES[save.outcome?.input.choiceId ?? ''] ?? 'catch';
     else {
       const parts = event.commentaryKey.split('.');
@@ -1035,6 +1048,10 @@ class Director {
       this.goals.push({ eventId: scored.id, playerId: shooter.id, frame: this.frames.length - 1 });
     }
     if (save) this.mark(save, this.at(keeper.id), end);
+    if (block) {
+      const blocker = this.actor(block.playerId);
+      this.mark(block, blocker ? this.at(blocker.id) : end, end);
+    }
   }
   private pass(event: MatchEvent, passer: Actor, next: MatchEvent | undefined) {
     const side = passer.side;
@@ -1244,7 +1261,59 @@ class Director {
         }
         return;
       }
+      case 'penalty': {
+        // The ball on the spot, everyone else out of the area.
+        this.bringBall({ side: own, target: selected }, spot);
+        for (const side of [own, opposition])
+          for (const actor of this.teammates(side)) {
+            if (actor.id === selected.id || actor.keeper) continue;
+            const where = this.toSpot(own, this.at(actor.id));
+            if (where.d > 80 && where.w > 18 && where.w < 82)
+              marks.set(actor.id, ownFrame(79 - this.rng.next() * 3, where.w));
+          }
+        this.emit({
+          dt: 900,
+          ball: spot,
+          motion: 'carry',
+          carrier: selected.id,
+          fixed: marks,
+          action: false,
+        });
+        return;
+      }
+      case 'free-kick': {
+        // A two-man wall ten yards goal-side of the ball.
+        this.bringBall({ side: own, target: selected }, spot);
+        const wallAt = ownFrame(at.d + 8.7, at.w + (50 - at.w) * 0.15);
+        for (const [index, actor] of this.nearest(opposition, wallAt).slice(0, 2).entries())
+          if (!actor.keeper)
+            marks.set(actor.id, ownFrame(at.d + 8.7, wallAt.y + (index ? 1.6 : -1.6)));
+        this.emit({
+          dt: 900,
+          ball: spot,
+          motion: 'carry',
+          carrier: selected.id,
+          fixed: marks,
+          action: false,
+        });
+        return;
+      }
+      case 'corner-kick': {
+        this.bringBall({ side: own, target: selected }, spot);
+        this.emit({
+          dt: 900,
+          ball: spot,
+          motion: 'carry',
+          carrier: selected.id,
+          fixed: marks,
+          action: false,
+        });
+        return;
+      }
       case 'defend-attack':
+      case 'offside-line':
+      case 'goal-line':
+      case 'penalty-save':
       case 'shot-incoming':
       case 'one-on-one':
       case 'cross-ball': {
@@ -1257,19 +1326,40 @@ class Director {
         const ballAt =
           situation.id === 'defend-attack'
             ? ownFrame(at.d + 4, at.w + (this.rng.next() - 0.5) * 2)
-            : situation.id === 'shot-incoming'
-              ? ownFrame(19 + this.rng.next() * 4, 40 + this.rng.next() * 20)
-              : situation.id === 'one-on-one'
-                ? ownFrame(13, 44 + this.rng.next() * 12)
-                : ownFrame(8, at.w <= 50 ? 94 : 6);
+            : situation.id === 'offside-line'
+              ? ownFrame(at.d + 18, at.w + (this.rng.next() - 0.5) * 20)
+              : situation.id === 'goal-line'
+                ? ownFrame(9 + this.rng.next() * 3, 38 + this.rng.next() * 24)
+                : situation.id === 'penalty-save'
+                  ? ownFrame(10.5, 50)
+                  : situation.id === 'shot-incoming'
+                    ? ownFrame(19 + this.rng.next() * 4, 40 + this.rng.next() * 20)
+                    : situation.id === 'one-on-one'
+                      ? ownFrame(13, 44 + this.rng.next() * 12)
+                      : ownFrame(8, at.w <= 50 ? 94 : 6);
         this.bringBall({ side: opposition, target: attacker }, ballAt, {
-          air: situation.id === 'one-on-one' ? false : undefined,
+          air: situation.id === 'one-on-one' || situation.id === 'penalty-save' ? false : undefined,
         });
         const ball = this.toSpot(own, this.ball);
         marks.set(
           selected.id,
-          situation.id === 'defend-attack' ? spot : ownFrame(at.d, 50 + (ball.w - 50) * 0.3),
+          situation.id === 'defend-attack' || situation.id === 'offside-line'
+            ? spot
+            : ownFrame(at.d, 50 + (ball.w - 50) * 0.3),
         );
+        if (situation.id === 'goal-line') {
+          // The keeper has been drawn out and beaten; the defender is the last line.
+          const keeper = this.keeperOf(own);
+          marks.set(keeper.id, ownFrame(ball.d + 3, ball.w + (ball.w < 50 ? 6 : -6)));
+        }
+        if (situation.id === 'penalty-save')
+          for (const side of [own, opposition])
+            for (const actor of this.teammates(side)) {
+              if (actor.id === selected.id || actor.id === attacker.id || actor.keeper) continue;
+              const where = this.toSpot(own, this.at(actor.id));
+              if (where.d < 20 && where.w > 18 && where.w < 82)
+                marks.set(actor.id, ownFrame(21 + this.rng.next() * 3, where.w));
+            }
         if (situation.id === 'one-on-one')
           for (const back of this.teammates(own).filter((actor) =>
             hasRole(actor, ['centre-back-left', 'centre-back-right']),
