@@ -21,12 +21,21 @@ import { honoursText } from '../../i18n/honours';
 
 /** Shared Tailwind class strings, so every career card reads as one family. */
 export const ui = {
-  panel: 'rounded-panel border border-line bg-surface p-5 shadow-surface sm:p-6',
+  panel: 'rounded-panel border border-line bg-surface p-panel shadow-surface sm:p-panel-lg',
+  /** A dense or supporting card: summaries, quiet tiles, notices beside main content. */
+  panelCompact:
+    'rounded-panel border border-line bg-surface p-panel-compact shadow-surface sm:p-panel',
   heading: 'font-display text-[1.75rem] leading-none tracking-[0.02em] text-ink',
   eyebrow: 'text-xs font-bold uppercase tracking-[0.12em] text-accent',
   muted: 'text-sm text-muted',
   chip: 'inline-flex min-h-7 items-center gap-1 rounded-full bg-accent-soft px-3 text-xs font-bold text-accent',
   focus: 'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent',
+  /** Helper text under a heading or label. */
+  helper: 'mt-helper text-sm text-muted',
+  /** A row of actions after content: clear of the prose above, evenly spaced, wrapping. */
+  actions: 'mt-action flex flex-wrap items-center gap-action',
+  /** An empty section inside a page: one quiet line instead of a full card. */
+  empty: 'rounded-control border border-dashed border-line px-4 py-3 text-sm text-muted',
 } as const;
 
 /**

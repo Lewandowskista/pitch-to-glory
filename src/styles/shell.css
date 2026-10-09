@@ -186,7 +186,7 @@
 .topbar {
   display: flex;
   align-items: center;
-  min-height: 82px;
+  min-height: 64px;
   gap: 1rem;
   padding: 0 clamp(1.5rem, 3vw, 3.2rem);
   border-bottom: 1px solid var(--line);
@@ -221,7 +221,7 @@
   min-width: 0;
 }
 .page {
-  padding: 2.5rem clamp(1.5rem, 3vw, 3.2rem);
+  padding: 1.5rem clamp(1.5rem, 3vw, 3.2rem) 2.5rem;
   max-width: 1600px;
   margin: 0 auto;
   /* Starts visible, so the first paint never waits for the entrance (keyframes below). */
@@ -235,12 +235,13 @@
 .career-page > .page-body {
   animation: page-in 0.18s ease-out both;
 }
+/* Functional pages get a compact title; the landing hero keeps the expressive type. */
 .page-heading {
-  margin-bottom: 2rem;
+  margin-bottom: var(--spacing-section);
 }
 .page-heading h1 {
   font-family: var(--font-display);
-  font-size: clamp(2.5rem, 4.5vw, 4.2rem);
+  font-size: clamp(2.25rem, 3.2vw, 3rem);
   font-weight: 400;
   line-height: 1.05;
   letter-spacing: 0.005em;
@@ -250,7 +251,7 @@
   font-size: 0.9rem;
   color: var(--muted);
   max-width: 660px;
-  margin-top: 0.8rem;
+  margin-top: var(--spacing-helper);
 }
 .page-footer {
   display: flex;
@@ -266,7 +267,7 @@
 }
 /* The current career group's pages: first on every career page, so they never move. */
 .career-tabs {
-  margin-bottom: 1.75rem;
+  margin-bottom: 1rem;
 }
 .career-tabs ul {
   list-style: none;
