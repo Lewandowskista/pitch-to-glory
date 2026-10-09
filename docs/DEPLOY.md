@@ -6,9 +6,16 @@ The game is a static site. It is built and tested by GitHub Actions and publishe
 
 `.github/workflows/ci.yml` runs on every push to `main`, on pull requests, and on demand.
 
-1. **verify** (Linux): `npm ci`, Prettier, ESLint, unit tests, one national season of headless career play with its end-of-season checks (`npm run soak -- --seasons 1`), then `npm run build`, which runs the strict typecheck and the per-route bundle budget. The built `dist/` is kept as an artifact.
-2. **browsers** (Windows, one job each for Chromium, Firefox and WebKit, in parallel): the Playwright journeys against that exact build, served with the production headers. The Chromium job also builds a second release and replaces the first under a saved career (`npm run test:update`). Windows runners are used because Linux WebKit runners have no GPU and crash in the WebGL match renderer.
-3. **deploy** (pushes to `main` only, after both pass): uploads `dist/` to the Cloudflare Pages project `pitch-to-glory` with Wrangler. It creates the project on the first deploy. Until the two secrets below exist, this job reports a notice and skips, without failing.
+These jobs start together, except the browser journeys, which wait only for the build:
+
+1. **build** (Linux): `npm ci` and `npm run build`, which runs the strict typecheck and the per-route bundle budget. The built `dist/` is kept as an artifact; it is what the browsers test and what deploys.
+2. **checks** (Linux): Prettier, ESLint and one national season of headless career play with its end-of-season checks (`npm run soak -- --seasons 1`).
+3. **unit** (Linux, three machines): every unit test, split with `vitest run --shard`.
+4. **browsers** (Windows, two machines each for Chromium, Firefox and WebKit, six in parallel): the Playwright journeys against that exact build, served with the production headers, split with `playwright test --shard`. The first Chromium machine also builds a second release and replaces the first under a saved career (`npm run test:update`). Windows runners are used because Linux WebKit runners have no GPU and crash in the WebGL match renderer.
+5. **custom-domain** (Linux): the release journey against a build for a custom `SITE_URL`.
+6. **deploy** (pushes to `main` only, after all of the above pass): uploads `dist/` to the Cloudflare Pages project `pitch-to-glory` with Wrangler. It creates the project on the first deploy. Until the two secrets below exist, this job reports a notice and skips, without failing.
+
+Splitting the work this way runs every test as before and takes the pipeline from about 29 minutes to about 12: the browser journeys no longer wait for the unit tests, and no single machine runs a whole suite.
 
 Pull requests run the checks but never deploy. Each browser test gets one retry: a test that fails twice blocks the deploy, while one that passes on retry shows as a warning on the run to fix without blocking it. Browser errors from loads a navigation cancelled are ignored (`isAbortedLoad` in `e2e/support.ts`); every other console or page error fails the test.
 
