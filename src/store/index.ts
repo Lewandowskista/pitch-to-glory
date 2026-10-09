@@ -114,13 +114,19 @@ try {
 } catch {
   preferences = { ...DEFAULT_SETTINGS };
 }
-/** A tutorial seen on this device stays seen when a save from before is loaded. */
-const withDeviceTutorial = (saved: Settings, device: Settings): Settings => ({
+/**
+ * A tutorial seen on this device stays seen when a save from before is loaded, and one the
+ * save recorded as seen stays seen here, unless the player asked on this device to see the
+ * tutorial again (`replay`): then this device's flags decide.
+ */
+export const withDeviceTutorial = (saved: Settings, device: Settings): Settings => ({
   ...saved,
-  tutorial: {
-    week: saved.tutorial.week || device.tutorial.week,
-    match: saved.tutorial.match || device.tutorial.match,
-  },
+  tutorial: device.tutorial.replay
+    ? { ...device.tutorial }
+    : {
+        week: saved.tutorial.week || device.tutorial.week,
+        match: saved.tutorial.match || device.tutorial.match,
+      },
 });
 const settingsSlice: StateCreator<AppStore, [], [], SettingsSlice> = (set) => ({
   settings: preferences,

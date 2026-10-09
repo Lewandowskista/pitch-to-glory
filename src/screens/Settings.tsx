@@ -105,7 +105,7 @@ export default function Settings() {
               className="button secondary setting-action"
               disabled={!settings.tutorial.week && !settings.tutorial.match}
               onClick={() => {
-                update({ tutorial: { week: false, match: false } });
+                update({ tutorial: { week: false, match: false, replay: true } });
                 setNotice(t.settings.tutorialDone);
               }}
             >

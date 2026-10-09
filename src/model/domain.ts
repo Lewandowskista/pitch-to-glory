@@ -1386,8 +1386,12 @@ export interface Settings {
   simulationOnly: boolean;
   /** Audio (milestone 9): volumes 0–1 per channel, and a master mute. */
   audio: AudioSettings;
-  /** Tutorial tracks already completed or skipped on this device (milestone 9). */
-  tutorial: { week: boolean; match: boolean };
+  /**
+   * Tutorial tracks already completed or skipped on this device (milestone 9). `replay` is
+   * set by "Show the tutorial again": until both tracks are seen again, this device's flags
+   * win over a save that recorded them as seen.
+   */
+  tutorial: { week: boolean; match: boolean; replay?: true };
 }
 export interface AudioSettings {
   muted: boolean;

@@ -53,7 +53,9 @@ export function Tutorial({
   const applies = step && step.when !== false;
   const finish = () => {
     const current = useAppStore.getState().settings.tutorial;
-    update({ tutorial: { ...current, [track]: true } });
+    const done = { week: current.week, match: current.match, [track]: true };
+    // A replay ends once both tracks have been seen again.
+    update({ tutorial: done.week && done.match ? done : { ...current, [track]: true } });
   };
 
   // Skip steps that no longer apply, and move on once an action step is done.

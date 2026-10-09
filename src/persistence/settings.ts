@@ -66,5 +66,6 @@ function validateAudio(value: unknown): Settings['audio'] {
 function validateTutorial(value: unknown): Settings['tutorial'] {
   if (value === undefined) return { ...DEFAULT_SETTINGS.tutorial };
   const t = object(value);
-  return { week: boolean(t.week), match: boolean(t.match) };
+  if (t.replay !== undefined && t.replay !== true) invalid();
+  return { week: boolean(t.week), match: boolean(t.match), ...(t.replay ? { replay: true } : {}) };
 }
