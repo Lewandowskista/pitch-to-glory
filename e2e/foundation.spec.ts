@@ -280,6 +280,8 @@ test('confirmation protects a slot that changed after the dialog opened', async 
   page,
   context,
 }) => {
+  // Near the default 30 seconds on a busy Windows WebKit runner.
+  test.setTimeout(90000);
   await page.goto('/saves');
   await page
     .locator('.slot-card')

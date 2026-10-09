@@ -64,6 +64,13 @@ async function playMatch(page: Page) {
   throw new Error('Career match did not reach full time');
 }
 
+/** Advance to the next matchday once the hub allows it: it waits while a save or match is in flight. */
+async function continueWeek(page: Page): Promise<void> {
+  const action = page.getByRole('button', { name: 'Continue to next matchday', exact: true });
+  await expect(action).toBeEnabled({ timeout: 60000 });
+  await action.click();
+}
+
 test('creates a career, plays matchdays, develops the player and restores the hub', async ({
   page,
   browserName,
@@ -125,7 +132,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   // Reach the first matchday, then play until a level-up grants points.
   const play = page.getByRole('link', { name: 'Play matchday', exact: true });
   if (!(await play.isVisible())) {
-    await page.getByRole('button', { name: 'Continue to next matchday', exact: true }).click();
+    await continueWeek(page);
     await expect(play).toBeVisible({ timeout: 120000 });
   }
   await play.click();
@@ -142,7 +149,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
     // A second fixture the same week (a cup tie) comes first; otherwise the week moves on.
     const next = page.getByRole('button', { name: 'Your next fixture', exact: true });
     if (await next.isVisible()) await next.click();
-    else await page.getByRole('button', { name: 'Continue to next matchday', exact: true }).click();
+    else await continueWeek(page);
     await expect(
       page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }),
     ).toBeVisible({ timeout: 120000 });
@@ -196,8 +203,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
     page.locator('[data-tour="player-card"]').getByRole('link', { name: /attribute points?/ }),
   ).toContainText(String(before - 1));
   // The player may already have a second fixture this week.
-  if (!(await play.isVisible()))
-    await page.getByRole('button', { name: 'Continue to next matchday', exact: true }).click();
+  if (!(await play.isVisible())) await continueWeek(page);
   await expect(play).toBeVisible({ timeout: 120000 });
 
   // The career autosaved to slot 1 throughout; the save card shows it, and a refresh of the
@@ -205,7 +211,12 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await expect(page.locator('.save-indicator')).toContainText('All changes saved', {
     timeout: 60000,
   });
-  await page.getByRole('navigation').first().getByRole('link', { name: 'Saved games' }).click();
+  // Generous: a busy runner can take a while to paint the page after the week's save.
+  await page
+    .getByRole('navigation')
+    .first()
+    .getByRole('link', { name: 'Saved games' })
+    .click({ timeout: 60000 });
   await expect(page.locator('.slot-card').first()).toContainText('Robin Vale · Level');
   await page.getByRole('link', { name: /Continue as Robin Vale/ }).click();
   await expect(page).toHaveURL(/\/career\?save=1/);
