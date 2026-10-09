@@ -234,7 +234,7 @@ function RivalContent({
         <p className="mt-3 text-xs text-muted">{s.rival.scope}</p>
       </section>
       {/* Meetings and the story beside the table: the history reads as one column. */}
-      <div className="grid min-w-0 content-start gap-5 lg:col-span-5">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:col-span-5">
         <section aria-labelledby="h2h-heading" className={ui.panel}>
           <h2 id="h2h-heading" className={ui.heading}>
             {s.rival.headToHead}

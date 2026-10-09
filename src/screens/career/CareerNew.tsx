@@ -469,7 +469,10 @@ function IdentityStep({
       </div>
       <fieldset>
         <legend className="mb-2 text-sm font-semibold">{c.wizard.nationality}</legend>
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {/* One line explains every option, rather than the same note on each card; two
+            columns keep six short names to three rows on a phone. */}
+        <p className="-mt-1 mb-2 text-xs text-muted">{c.wizard.nationalityHint}</p>
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
           {countries.map((country) => (
             <ChoiceCard
               key={country.id}
@@ -478,10 +481,7 @@ function IdentityStep({
               checked={draft.nationalityId === country.id}
               onChange={() => update({ nationalityId: country.id, clubId: null })}
             >
-              <span>
-                <strong className="block">{country.name}</strong>
-                <span className="text-xs text-muted">{c.countries[country.id]}</span>
-              </span>
+              <strong className="block">{country.name}</strong>
             </ChoiceCard>
           ))}
         </div>

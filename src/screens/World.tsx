@@ -389,6 +389,18 @@ export default function WorldScreen() {
               </Link>
             </div>
           )}
+          {/* One column: the club details sit below the whole table, so offer a way straight
+              there. */}
+          <button
+            type="button"
+            className="text-button world-jump"
+            onClick={() => {
+              document.getElementById('club-inspector')?.scrollIntoView({ block: 'start' });
+              document.getElementById('club-inspector-heading')?.focus({ preventScroll: true });
+            }}
+          >
+            {t.world.jumpToClub} ↓
+          </button>
           <div className="world-browser">
             <section className="competition-panel">
               <div className="world-filters">

@@ -1,6 +1,6 @@
 # UI layout improvement plan — 9 October 2026
 
-Status: proposed; no application changes made as part of the review. This plan addresses the findings in [UI layout review](UI-LAYOUT-REVIEW-2026-10-09.md). Work in reviewable phases, keeping the app runnable and summarizing after each. Preserve existing gameplay, save schemas, training-draft protection, routing, and the established visual identity.
+Status: implemented in six phases on 9 October 2026; outcomes, evidence and the remaining open items are in [UI layout progress](UI-LAYOUT-PROGRESS-2026-10-09.md). This plan addresses the findings in [UI layout review](UI-LAYOUT-REVIEW-2026-10-09.md). Work in reviewable phases, keeping the app runnable and summarizing after each. Preserve existing gameplay, save schemas, training-draft protection, routing, and the established visual identity.
 
 ## Phase 1 — Make shared layout rules reliable
 

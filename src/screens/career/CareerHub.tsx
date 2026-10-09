@@ -61,8 +61,8 @@ const attributeName = (key: string) =>
 /** Large hub cards: a column so the footer link always sits at the bottom. */
 const card = `${ui.panel} flex flex-col`;
 /** The hub's two column stacks on wide screens: main content and its supporting cards. */
-const mainStack = 'grid min-w-0 content-start gap-5 lg:col-span-8';
-const sideStack = 'grid min-w-0 content-start gap-5 lg:col-span-4';
+const mainStack = 'grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:col-span-8';
+const sideStack = 'grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:col-span-4';
 /** Small summary tiles in the strip under the main cards. */
 const tile =
   'flex min-w-0 flex-col rounded-panel border border-line bg-surface p-4 shadow-surface sm:p-5';

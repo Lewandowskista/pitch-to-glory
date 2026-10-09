@@ -32,7 +32,7 @@ function MediaContent({ world, career }: { world: World; career: Career }) {
     // Questions and the feed share the wide column; coverage is a short summary beside them,
     // so no column runs empty under it.
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
-      <div className="grid min-w-0 content-start gap-5 lg:col-span-8">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:col-span-8">
         {!pending.length && !latest && !earlier.length ? (
           <EmptySection id="questions-heading" title={s.media.pending}>
             {s.media.none}

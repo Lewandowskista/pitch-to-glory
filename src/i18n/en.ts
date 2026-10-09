@@ -508,6 +508,7 @@ export const en = {
       recorded: 'Result recorded.',
     },
     inspect: 'Club details',
+    jumpToClub: 'Go to club details',
     reputation: 'Reputation',
     stadium: 'Stadium',
     capacity: '{count} seats',

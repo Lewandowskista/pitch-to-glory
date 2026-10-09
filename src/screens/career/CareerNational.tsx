@@ -55,7 +55,7 @@ function NationalContent({
     // Two stable column stacks: selection, caps and tournaments beside squad and results.
     // Phones read the call-up, the tournaments, then the squad and its matches.
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
-      <div className="grid min-w-0 content-start gap-5 lg:col-span-5">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:col-span-5">
         <section
           aria-labelledby="national-heading"
           className={`${ui.panel} ${selected ? 'bg-art-green' : ''}`}
@@ -154,7 +154,7 @@ function NationalContent({
         )}
       </div>
       {/* Squad and results on the wider side; the stacks never share row heights. */}
-      <div className="grid min-w-0 content-start gap-5 lg:col-span-7">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:col-span-7">
         <Squad world={world} player={player} squadIds={squad?.playerIds ?? []} level={short} />
         {matches.length ? (
           <section aria-labelledby="internationals-heading" className={ui.panel}>

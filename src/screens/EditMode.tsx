@@ -705,12 +705,13 @@ function EditFile({ world }: { world: World }) {
   };
   const any = counts.clubs + counts.leagues + counts.players > 0;
   return (
+    // Before any edit this is a compact strip, so the editor starts in the first view.
     <section
       aria-labelledby="edit-file-heading"
-      className={`${ui.panel} flex flex-wrap items-center gap-4 xl:col-span-2`}
+      className={`${any ? ui.panel : ui.panelCompact} flex flex-wrap items-center gap-4 xl:col-span-2`}
     >
       <div className="min-w-0 flex-1 basis-72">
-        <h2 id="edit-file-heading" className={ui.heading}>
+        <h2 id="edit-file-heading" className={any ? ui.heading : 'text-base font-bold'}>
           {e.file.title}
         </h2>
         <p className="mt-1 text-sm font-semibold">
@@ -727,26 +728,27 @@ function EditFile({ world }: { world: World }) {
         <p className="mt-1 max-w-prose text-xs text-muted">{e.file.body}</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button
-          className="button secondary"
-          disabled={!any}
-          onClick={async () => {
-            const slug = world.seed
-              .replace(/[^a-z0-9]+/gi, '-')
-              .toLowerCase()
-              .slice(0, 40);
-            await platform.saveFile(
-              `${slug || 'world'}-edits.json`,
-              JSON.stringify(exportEdits(world), null, 2),
-              'application/json',
-            );
-            setFailed(false);
-            setStatus(e.file.exported);
-          }}
-        >
-          <Icon name="download" />
-          {e.file.export}
-        </button>
+        {any && (
+          <button
+            className="button secondary"
+            onClick={async () => {
+              const slug = world.seed
+                .replace(/[^a-z0-9]+/gi, '-')
+                .toLowerCase()
+                .slice(0, 40);
+              await platform.saveFile(
+                `${slug || 'world'}-edits.json`,
+                JSON.stringify(exportEdits(world), null, 2),
+                'application/json',
+              );
+              setFailed(false);
+              setStatus(e.file.exported);
+            }}
+          >
+            <Icon name="download" />
+            {e.file.export}
+          </button>
+        )}
         <label
           className={`button secondary ${block ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}
           aria-disabled={block ? true : undefined}

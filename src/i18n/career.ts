@@ -67,14 +67,6 @@ export const careerText = {
     RW: 'Right winger',
     ST: 'Striker',
   } as Record<string, string>,
-  countries: {
-    'country:0': 'England-style pyramid',
-    'country:1': 'France-style pyramid',
-    'country:2': 'Spain-style pyramid',
-    'country:3': 'Germany-style pyramid',
-    'country:4': 'Italy-style pyramid',
-    'country:5': 'Portugal-style pyramid',
-  } as Record<string, string>,
   feet: { left: 'Left foot', right: 'Right foot', both: 'Both feet' },
   wizard: {
     eyebrow: 'New career',
@@ -103,6 +95,7 @@ export const careerText = {
     nameHint: 'Up to 40 characters.',
     nameRequired: 'Enter a name for your footballer.',
     nationality: 'Nationality',
+    nationalityHint: 'Each country has its own league pyramid, and your trials start in it.',
     age: 'Starting age',
     ageValue: '{age} years old',
     ageHint: {

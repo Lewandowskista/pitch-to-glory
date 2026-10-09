@@ -105,6 +105,15 @@
   border-left: 1px solid var(--line);
   padding-left: 1.5rem;
 }
+.world-jump {
+  display: none;
+}
+@media (max-width: 900px) {
+  .world-jump {
+    display: inline-flex;
+    margin: 0.5rem 0 0 -0.8rem;
+  }
+}
 .world-facts dt {
   font-size: 0.8rem;
   font-weight: 600;
@@ -789,19 +798,20 @@
   .world-seed-control {
     flex-direction: column;
   }
+  /* One compact row of facts, so the table starts sooner. */
   .world-facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    row-gap: 1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 1rem 0;
+  }
+  .world-facts dt {
+    font-size: 0.7rem;
+    line-height: 1.25;
   }
   .world-facts dd {
-    font-size: 2rem;
+    font-size: 1.4rem;
   }
   .world-facts > div + div {
-    padding-left: 12px;
-  }
-  .world-facts > div:nth-child(odd) {
-    border-left: 0;
-    padding-left: 0;
+    padding-left: 8px;
   }
   .simulation-progress {
     grid-template-columns: 1fr auto;

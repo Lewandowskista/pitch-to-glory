@@ -148,18 +148,50 @@ careers. Geometry that a page-width check misses is covered by `e2e/layout.spec.
 | 15  | Button/helper/badge formatting varies     | **Resolved** — roles and 48 px actions (Phase 1); Agent badge on the card edge, contract notes under their grids, counters by headings, tabular meter values, readable locked items |
 | 16  | Saved games reserves room for empty slots | **Resolved** — phones: empty slots become compact rows, smaller artwork, silent notice takes no room, Delete set apart; phone 2,420 → ~1,900 px                                     |
 
-## Screen-specific observations still open
+## Screen-specific observations (Phase 6)
 
-These were noted in the review's coverage table and are not covered by the changes above.
-They stay pending with this scope:
+| Screen     | Outcome                                                                                                                                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| World      | **Improved** — on one column the four world facts are one compact row and "Go to club details" jumps (with focus) to the inspector below the table (e2e). The squad table keeps its full rows; phone height 6,049 → 6,010 px.       |
+| Edit mode  | **Improved** — before any edit, "Your edits" is a compact strip without a disabled Export, so the editor starts sooner on phones.                                                                                                   |
+| New career | **Improved** — one hint replaces the same "…-style pyramid" note on every nationality card, and nationalities are two columns on phones (phone 2,123 → 1,867 px). Fields are not squeezed into one viewport, as the review advised. |
+| Gallery    | **Retained** — the odd last kit card and the toolbar stack stay as they are; the review rated them low priority for a finite gallery.                                                                                               |
 
-- **World** (phone 6,085 px): compact the overview and give direct access to club detail.
-- **Edit mode** (phone): summary and filters fill the first view before the editor.
-- **New career**: Continue below the first viewport on the identity step; long phone
-  nationality list.
-- **Gallery**: seed/helper/tab stack and the odd last kit card.
+## Verification (Phase 6)
 
-Phase 6 re-captures these screens after the shared changes to confirm nothing regressed.
+| Dimension           | Coverage                                                                                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sizes               | 1440 × 900, 1366 × 768, 1920 × 1080, 768 × 1024, 390 × 844, 360 × 640 for every route (180 captures), plus 844 × 390 landscape for the hub, training, skills, inbox, settings, saves and world. |
+| Theme and text      | Dark theme at 130% text (set through the stored settings the Settings controls write) at desktop, tablet and both phone sizes (130 captures).                                                   |
+| States              | New career; populated legacy season (unread inbox, press question, season complete, unspent points, retirement prompt); retired career; match briefing, live, decision and report.              |
+| Browsers            | Full Playwright suite in Chromium, Firefox and WebKit: 244 passed, 5 skipped (existing engine-specific skips). Vitest: 403 passed.                                                              |
+| Geometry checks     | `e2e/layout.spec.ts`: responsive visibility, label fit at 100%/130%, first-view content, sheet focus and Back, compact empties, column alignment, two-column Settings, world jump.              |
+| Overflow and errors | No horizontal page overflow in any capture after fixes; no page or console errors in any capture.                                                                                               |
+
+Found and fixed during verification: at 130% text on phones, the new column stacks could
+grow past the screen because a grid without explicit columns sizes its track to content.
+Every stack now declares a shrinkable `minmax(0, 1fr)` column; the Golden Ball winner block
+had the same problem and the same fix.
+
+Still to do outside this pass: real-device Safari and touch comfort, and visual checks of
+a four-choice key moment, keeper choices, halftime and substitution prompts, negotiation
+dialogs and award ceremonies with seeded states. These use the shared panels changed here
+and their existing journeys pass.
+
+## Completion criteria
+
+- Every review finding is resolved (16 of 16); screen observations are improved or
+  retained with a reason above.
+- No control labels overlap at the checked widths and text sizes; focused actions stay
+  above fixed bars (existing training and decision journeys plus the new layout spec).
+- Unequal content no longer creates stretched panels or empty grid rows on the hub,
+  training, match, profile, lifestyle, national team, media, rival, briefing, report and
+  legacy screens.
+- Spacing and action heights follow the named roles in `tokens.css`, used by component
+  CSS and utilities alike.
+- Compact modes keep every value and action reachable, with keyboard and Back navigation
+  (skills sheet, filters in the URL, disclosures).
+- Before/after captures and validation results are recorded for each phase.
 
 ## Validation log
 
@@ -182,3 +214,7 @@ Phase 6 re-captures these screens after the shared changes to confirm nothing re
   1 skipped); layout, market, social, honours, save-actions, foundation, accessibility,
   lifestyle and navigation specs pass in Chromium, Firefox and WebKit, including new checks
   for compact empty history, aligned National columns and two-column Settings.
+- **Phase 6**: full Playwright suite in Chromium, Firefox and WebKit (244 passed, 5 skipped),
+  Vitest (403 passed), typecheck, lint, format, production build and bundle budget (entry
+  281.5 KB of 300 KB) pass. 317 captures across sizes, dark theme and 130% text show no page
+  overflow or runtime errors after the stack fix.

@@ -88,7 +88,7 @@ function GoldenBall({
         </button>
       </div>
       {winner && (
-        <div className="grid gap-3">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
           <div
             className={`flex items-center gap-3 rounded-control p-4 ${won ? 'bg-gold text-on-gold' : 'bg-surface'}`}
           >

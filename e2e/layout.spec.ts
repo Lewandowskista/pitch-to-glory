@@ -237,3 +237,19 @@ test('settings use two topic columns on a wide screen and one on a phone', async
     Math.abs((await sound.boundingBox())!.x - (await appearance.boundingBox())!.x),
   ).toBeLessThanOrEqual(1);
 });
+
+test('a phone can go straight from the world overview to club details', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/world?save=1');
+  const jump = page.getByRole('button', { name: /Go to club details/ });
+  await expect(jump).toBeVisible({ timeout: 30000 });
+  await jump.click();
+  await expect(page.locator('#club-inspector-heading')).toBeFocused();
+  const top = await page
+    .locator('#club-inspector')
+    .evaluate((el) => el.getBoundingClientRect().top);
+  expect(top).toBeLessThan(200);
+  // Wide screens show the details beside the table, so there is no jump to make.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(jump).toBeHidden();
+});
