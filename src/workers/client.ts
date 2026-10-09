@@ -7,6 +7,12 @@ import type { Id } from '../model/domain';
 import type { MatchSession } from '../engine/match/types';
 import type { CareerDraft } from '../engine/career/create';
 import { createChunkReceiver, sendChunked } from './transport';
+import {
+  trainingContext,
+  trainingEditBlocked,
+  type TrainingAdvance,
+} from '../store/trainingDraftSlice';
+import { confirmTrainingAbandonment } from '../store/trainingTransitions';
 
 let worker: Worker | null = null;
 let settling: Promise<void> = Promise.resolve();
@@ -24,7 +30,12 @@ export async function startWorldJob(
   type: WorldJob['type'],
   options: WorldJobOptions = {},
 ): Promise<void> {
-  const state = useAppStore.getState();
+  let state = useAppStore.getState();
+  if (type === 'generate' && state.trainingDraft) {
+    if (!(await confirmTrainingAbandonment())) return;
+    state = useAppStore.getState();
+  }
+  if (state.trainingSaving) return;
   if (
     type !== 'commit-match' &&
     state.matchSession &&
@@ -34,6 +45,21 @@ export async function startWorldJob(
     return;
   }
   if (state.worldJob || (type !== 'generate' && !state.world)) return;
+  const advances = ['simulate-week', 'simulate-to-match', 'simulate-season', 'next-season'];
+  if (state.world?.career && advances.includes(type)) {
+    if (trainingEditBlocked(state)) return;
+    if (state.trainingDraft) {
+      useAppStore.setState({
+        trainingAdvance: {
+          type: type as TrainingAdvance['type'],
+          autoPlay: options.autoPlay,
+          context: trainingContext(state)!,
+        },
+      });
+      return;
+    }
+    state.setCareerResult(null);
+  }
   const totalWeeks =
     type === 'simulate-season' || type === 'simulate-to-match'
       ? getSeasonWeeks(state.world!) - state.world!.date.week + 1

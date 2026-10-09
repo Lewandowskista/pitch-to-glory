@@ -35,7 +35,7 @@ No audio files are included. Every sound is synthesised on the player's device b
 
 The effects now use a softer, lower-register palette, restrained peaks and less resonant crowd
 textures. **After the Floodlights** is an original 76 BPM instrumental lo-fi composition in
-`src/audio/music.ts`: electric keys, bass, swung brushed percussion, sparse melody and stereo
+`src/audio/music.ts`: electric keys, bass, soft tonal percussion, sparse melody and stereo
 room echoes. All instruments, notes and effects are authored here and synthesised from seeded
 noise and oscillators. Balatro is a mood reference only; no soundtrack audio, samples, melody
 or arrangement from it are used. There are no third-party music assets or remote media requests.
@@ -44,6 +44,10 @@ The stereo loop is generated in the audio worker after the first interaction, wh
 `node --import tsx scripts/render-audio.ts` exports the original track and all effects into
 `artifacts/audio/` for listening; these generated WAVs are not shipped in the app. See
 `docs/AUDIO-REVIEW.md` for the review, rationale and listening limitations.
+
+The menu/hub track uses no noise-based brushes or hats: these were replaced with rounded
+drum taps after player feedback that the percussion sounded like wind. Match crowd effects
+are separate from the music.
 
 ## Release images and fonts (milestone 10)
 

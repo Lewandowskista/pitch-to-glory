@@ -93,7 +93,7 @@ async function importCareer(page: Page) {
     .nth(0)
     .getByLabel('Import backup — Slot 1')
     .setInputFiles(saves.get('career')!);
-  await expect(page.locator('.notice')).toHaveText('Collection imported.', { timeout: 30000 });
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
 }
 
 test('the Club page and the briefing explain selection with the formation', async ({ page }) => {
@@ -134,6 +134,7 @@ test('advice fills a draft that only saving applies, and a goal stays once taken
   await expect(first).toHaveValue('passing');
   await expect(page.getByText('The sessions are in your plan below.')).toBeVisible();
   // Not applied until saved: a reload keeps the saved plan.
+  page.once('dialog', (dialog) => dialog.accept());
   await page.reload();
   await expect(page.locator('#focus-0')).toHaveValue(saved, { timeout: 30000 });
   await page
@@ -142,7 +143,7 @@ test('advice fills a draft that only saving applies, and a goal stays once taken
       name: 'Plan these sessions',
     })
     .click();
-  await page.getByRole('button', { name: 'Save training plan' }).click();
+  await page.getByRole('button', { name: 'Save training' }).click();
   await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 30000 });
   await page.reload();
   await expect(page.locator('#focus-0')).toHaveValue('passing', { timeout: 30000 });

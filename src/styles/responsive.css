@@ -72,6 +72,16 @@
   }
 }
 @media (max-width: 900px) {
+  .career-tabs ul {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(var(--tabs), minmax(0, 1fr));
+  }
+  .career-tabs a {
+    min-width: 0;
+    padding-inline: 0.5rem;
+    overflow-wrap: anywhere;
+  }
   .sidebar {
     width: 190px;
     padding-inline: 0.8rem;
@@ -84,6 +94,24 @@
   }
   .sidebar nav a {
     font-size: 0.8rem;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 0.4rem;
+    padding-inline: 0.6rem;
+  }
+  .sidebar nav a > .nav-badge {
+    grid-column: 2;
+    justify-self: start;
+    margin-left: 0;
+  }
+  .sidebar-groups {
+    margin-left: 0.35rem;
+    padding-left: 0.35rem;
+  }
+  .sidebar .sidebar-groups a {
+    grid-template-columns: 17px minmax(0, 1fr);
+    gap: 0.25rem;
+    padding-inline: 0.25rem;
   }
   .hero h1 {
     font-size: 3.5rem;
@@ -173,6 +201,23 @@
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.2rem;
+  }
+  .training-actions {
+    position: fixed;
+    inset-inline: 0.75rem;
+    bottom: var(--training-bottom, calc(84px + env(safe-area-inset-bottom)));
+    z-index: 25;
+  }
+  .training-actions > div {
+    flex-basis: 100%;
+  }
+  .training-actions button {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+  .training-actions .training-reset,
+  .training-actions .training-estimate {
+    display: none;
   }
   .bottom-nav a,
   .bottom-nav button {

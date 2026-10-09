@@ -164,7 +164,9 @@ export default function Menu() {
                     setError('');
                     void persistence()
                       .then((p) => p.loadSlot(saved.slot))
-                      .then(() => navigate(`/career?save=${saved.slot}`))
+                      .then((loaded) => {
+                        if (loaded) navigate(`/career?save=${saved.slot}`);
+                      })
                       .catch((cause: unknown) => setError(errorText(errorCode(cause))))
                       .finally(() => setBusy(false));
                   }}

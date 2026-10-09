@@ -1,4 +1,12 @@
-import { useState } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { adviceDraft, coachAdvice } from '../../engine/career/coaching';
 import { CoachAdvice, SeasonGoalCard } from './CoachAdvice';
@@ -22,10 +30,12 @@ import type {
   TrainingSession,
   World,
 } from '../../model/domain';
-import { format, t } from '../../i18n';
+import { errorText, format, t } from '../../i18n';
+import { persistence } from '../../persistence/lazy';
+import { errorCode } from '../../persistence/errors';
 import { careerText as c } from '../../i18n/career';
 import { CareerPage, PlayerPortrait, plural, ui, useEditBlock } from './shared';
-import { POSITIONS, samePlan, withTraining } from './selectors';
+import { POSITIONS, samePlan } from './selectors';
 
 const T = CONFIG.career.training;
 const attributeName = (key: string) =>
@@ -35,6 +45,19 @@ type Intensity = TrainingSession['intensity'];
 
 function sessionFatigue(focus: TrainingFocus, intensity: Intensity): number {
   return focus === 'recovery' ? T.fatigue.recovery : T.fatigue[intensity];
+}
+
+function TrainingActionsPortal({ phone, children }: { phone: boolean; children: ReactNode }) {
+  // The page transition's transform creates a containing block for fixed descendants.
+  // Put the phone action bar at the document level so it follows the actual viewport.
+  return phone ? createPortal(children, document.body) : children;
+}
+
+function revealTrainingControl(target: HTMLElement, bar: HTMLElement | null) {
+  if (!bar || bar.contains(target) || !window.matchMedia('(max-width: 700px)').matches) return;
+  const visible = target.closest('label') ?? target;
+  if (visible.getBoundingClientRect().bottom > bar.getBoundingClientRect().top)
+    visible.scrollIntoView({ block: 'center', behavior: 'auto' });
 }
 
 export default function CareerTraining() {
@@ -135,16 +158,57 @@ function TrainingPlanner({
   const [params] = useSearchParams();
   // Arriving from advice elsewhere (`?advice=1`) starts from the advised draft; the saved plan
   // stays in force until the player saves.
-  const [applied, setApplied] = useState(
-    () =>
-      params.get('advice') === '1' &&
-      !samePlan(adviceDraft(career.training, coachAdvice(world)), career.training),
-  );
-  const [plan, setPlan] = useState<TrainingPlan>(() =>
-    params.get('advice') === '1'
-      ? adviceDraft(career.training, coachAdvice(world))
-      : structuredClone(career.training),
-  );
+  const draft = useAppStore((s) => s.trainingDraft);
+  const saving = useAppStore((s) => s.trainingSaving);
+  const [applied, setApplied] = useState(false);
+  const plan = draft?.plan ?? career.training;
+  const setPlan = (next: TrainingPlan | ((current: TrainingPlan) => TrainingPlan)) =>
+    useAppStore.getState().editTrainingDraft(typeof next === 'function' ? next(plan) : next);
+  const adviceOpened = useRef(false);
+  useEffect(() => {
+    if (adviceOpened.current || params.get('advice') !== '1') return;
+    adviceOpened.current = true;
+    if (useAppStore.getState().trainingDraft) return;
+    const advised = adviceDraft(career.training, coachAdvice(world));
+    if (!samePlan(advised, career.training)) {
+      useAppStore.getState().editTrainingDraft(advised);
+      setApplied(true);
+    }
+  }, [params, career.training, world]);
+  const actionBar = useRef<HTMLElement>(null);
+  const [barBottom, setBarBottom] = useState(84);
+  const [phone, setPhone] = useState(() => window.matchMedia('(max-width: 700px)').matches);
+  useLayoutEffect(() => {
+    const nav = document.querySelector('.bottom-nav');
+    if (!nav) return;
+    const media = window.matchMedia('(max-width: 700px)');
+    const update = () => {
+      setBarBottom(nav.getBoundingClientRect().height + 12);
+      setPhone(media.matches);
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(nav);
+    media.addEventListener('change', update);
+    update();
+    return () => {
+      observer.disconnect();
+      media.removeEventListener('change', update);
+    };
+  }, []);
+  useLayoutEffect(() => {
+    if (!phone) return;
+    const reveal = () => {
+      const target = document.activeElement;
+      if (target instanceof HTMLElement && target.closest('[data-training-planner]'))
+        revealTrainingControl(target, actionBar.current);
+    };
+    // Text scaling can move a control that already has focus beneath the action bar.
+    const observer = new ResizeObserver(reveal);
+    observer.observe(document.documentElement);
+    if (actionBar.current) observer.observe(actionBar.current);
+    reveal();
+    return () => observer.disconnect();
+  }, [phone, barBottom]);
   const [extraFocus, setExtraFocus] = useState<TrainingFocus>(
     career.training.extra?.focus ?? (player.primaryPosition === 'GK' ? 'goalkeeping' : 'technical'),
   );
@@ -185,13 +249,23 @@ function TrainingPlanner({
       ),
     }));
   };
-  const save = () => {
+  const save = async () => {
     const current = useAppStore.getState().world;
     if (!current || block) return;
-    useAppStore.getState().setWorld(withTraining(current, effective));
-    setPlan(structuredClone(effective));
-    setStatus(c.training.saved);
-    setApplied(false);
+    useAppStore.getState().editTrainingDraft(effective);
+    try {
+      const api = await persistence();
+      if (await api.saveTrainingDraft()) {
+        setStatus(c.training.saved);
+        setApplied(false);
+      } else {
+        setStatus(errorText(useAppStore.getState().saveError ?? 'storage'));
+      }
+    } catch (error) {
+      const code = errorCode(error);
+      useAppStore.getState().setSaveStatus('error', code);
+      setStatus(errorText(code));
+    }
   };
   const percent = (value: number) => (value * 100).toFixed(value < 0.01 ? 1 : 0);
   const noMentor = Boolean(plan.extra && !mentor);
@@ -204,7 +278,13 @@ function TrainingPlanner({
         ? c.training.unsaved
         : status || c.training.noChanges;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 2xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+    <div
+      data-training-planner
+      className="grid grid-cols-[minmax(0,1fr)] gap-5 max-[700px]:pb-40 2xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]"
+      onFocusCapture={(event) => {
+        revealTrainingControl(event.target as HTMLElement, actionBar.current);
+      }}
+    >
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
         {career.injury && (
           <p className="rounded-control border border-danger/40 bg-danger-soft p-4 text-sm font-semibold text-danger">
@@ -212,6 +292,25 @@ function TrainingPlanner({
           </p>
         )}
         {block && <p className="rounded-control bg-surface-soft p-3 text-sm">{block}</p>}
+        <div className="min-[701px]:hidden">
+          <p className="mb-3 text-sm text-muted">
+            {format(c.training.weeklyFatigue, {
+              value: `${fatigue > 0 ? '+' : ''}${Math.round(fatigue)}`,
+            })}
+            {' · '}
+            {format(c.training.weeklyRisk, { value: percent(risk) })}
+          </p>
+          <button
+            className="button secondary"
+            disabled={Boolean(block)}
+            onClick={() => {
+              setStatus('');
+              setPlan(defaultTrainingPlan(player.primaryPosition));
+            }}
+          >
+            {c.training.reset}
+          </button>
+        </div>
         <div className="grid gap-4 md:grid-cols-3">
           {plan.sessions.map((session, index) => (
             <section
@@ -345,45 +444,63 @@ function TrainingPlanner({
           )}
           {mentorLeft && <p className="mt-3 text-sm text-danger">{c.training.mentorLeft}</p>}
         </section>
-        <section
-          aria-label={c.training.weekly}
-          className="flex flex-wrap items-center gap-4 rounded-panel border border-line bg-surface p-4 shadow-surface sm:p-5"
-        >
-          <div className="min-w-0 flex-1 basis-56">
-            <p className="text-sm font-semibold text-muted">{c.training.weekly}</p>
-            <p className="text-sm">
-              {format(c.training.weeklyFatigue, {
-                value: `${fatigue > 0 ? '+' : ''}${Math.round(fatigue)}`,
-              })}{' '}
-              · {format(c.training.weeklyRisk, { value: percent(risk) })}
-            </p>
-            <p
-              id="save-hint"
-              role="status"
-              className={`mt-1 text-sm font-semibold ${dirty || status ? 'text-accent' : 'text-muted'}`}
+        <TrainingActionsPortal phone={phone}>
+          <section
+            ref={actionBar}
+            data-testid="training-actions"
+            aria-label={c.training.weekly}
+            style={{ '--training-bottom': `${barBottom}px` } as CSSProperties}
+            className="training-actions flex flex-wrap items-center gap-3 rounded-panel border border-line bg-surface p-3 shadow-surface sm:p-5"
+          >
+            <div className="min-w-0 flex-1 basis-56">
+              <p className="training-estimate text-sm font-semibold text-muted">
+                {c.training.weekly}
+              </p>
+              <p className="training-estimate text-sm">
+                {format(c.training.weeklyFatigue, {
+                  value: `${fatigue > 0 ? '+' : ''}${Math.round(fatigue)}`,
+                })}{' '}
+                · {format(c.training.weeklyRisk, { value: percent(risk) })}
+              </p>
+              <p
+                id="save-hint"
+                role="status"
+                className={`mt-1 text-sm font-semibold ${dirty || status ? 'text-accent' : 'text-muted'}`}
+              >
+                {saving ? t.app.saving : saveHint}
+              </p>
+            </div>
+            <button
+              className="training-reset button secondary"
+              disabled={Boolean(block)}
+              onClick={() => {
+                setStatus('');
+                setPlan(defaultTrainingPlan(player.primaryPosition));
+              }}
             >
-              {saveHint}
-            </p>
-          </div>
-          <button
-            className="button secondary"
-            disabled={Boolean(block)}
-            onClick={() => {
-              setStatus('');
-              setPlan(defaultTrainingPlan(player.primaryPosition));
-            }}
-          >
-            {c.training.reset}
-          </button>
-          <button
-            className="button"
-            disabled={Boolean(block) || !dirty || noMentor}
-            aria-describedby="save-hint"
-            onClick={save}
-          >
-            {c.training.save}
-          </button>
-        </section>
+              {c.training.reset}
+            </button>
+            <button
+              className="button secondary"
+              disabled={Boolean(block) || !draft}
+              onClick={() => {
+                useAppStore.getState().discardTrainingDraft();
+                setStatus('');
+                setApplied(false);
+              }}
+            >
+              {c.training.discard}
+            </button>
+            <button
+              className="button"
+              disabled={Boolean(block) || !dirty || noMentor}
+              aria-describedby="save-hint"
+              onClick={() => void save()}
+            >
+              {c.training.save}
+            </button>
+          </section>
+        </TrainingActionsPortal>
       </div>
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
         <CoachAdvice

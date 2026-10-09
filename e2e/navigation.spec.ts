@@ -113,7 +113,7 @@ async function importCareer(page: Page, fontScale = 1) {
     .nth(0)
     .getByLabel('Import backup — Slot 1')
     .setInputFiles(saves.get(fontScale)!);
-  await expect(page.locator('.notice')).toHaveText('Collection imported.', { timeout: 30000 });
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
 }
 const tabsTop = (page: Page) =>
   careerTabs(page).evaluate((nav) => nav.getBoundingClientRect().top + window.scrollY);
@@ -241,7 +241,7 @@ test('without a career a phone shows the main places and More holds the utilitie
     await expect(bar.getByRole('link', { name, exact: true })).toBeVisible();
   await bar.getByRole('button', { name: 'More' }).click();
   const sheet = page.getByRole('dialog', { name: 'More' });
-  for (const name of ['Edit mode', 'Asset gallery', 'Save collections', 'Settings'])
+  for (const name of ['Edit mode', 'Gallery', 'Saved games', 'Settings'])
     await expect(sheet.getByRole('link', { name })).toBeVisible();
   await sheet.getByRole('link', { name: 'Settings' }).click();
   await expect(page).toHaveURL(/\/settings$/);

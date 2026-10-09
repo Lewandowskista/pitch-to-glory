@@ -31,9 +31,9 @@ test('title, URLs, route refresh and keyboard navigation', async ({ page }) => {
   await page.getByRole('link', { name: 'Explore the gallery' }).click();
   await expect(page).toHaveURL(/\/gallery$/);
   // Let the route finish loading first: Firefox reports a lazy chunk aborted by the reload.
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Asset gallery');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Gallery');
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Asset gallery');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Gallery');
   await page.goBack();
   await expect(page).toHaveURL(/\/$/);
   await page.keyboard.press('?');
@@ -46,9 +46,9 @@ test('gallery reseeds and reproduces all three SVG asset categories', async ({ p
   await page.goto('/gallery');
   await expect(page.locator('.crest-card')).toHaveCount(15);
   const original = await page.locator('.crest-card img').first().getAttribute('src');
-  await page.getByRole('button', { name: 'Reseed collection' }).click();
+  await page.getByRole('button', { name: 'Reseed gallery' }).click();
   await expect(page.locator('.crest-card img').first()).not.toHaveAttribute('src', original!);
-  await page.getByLabel('Collection seed', { exact: true }).fill('pitch-to-glory');
+  await page.getByLabel('Gallery seed', { exact: true }).fill('pitch-to-glory');
   await page.getByRole('button', { name: 'Apply seed' }).click();
   await expect(page.locator('.crest-card img').first()).toHaveAttribute('src', original!);
   await page.getByRole('tab', { name: 'Match kits' }).click();
@@ -87,17 +87,17 @@ test('preferences persist and system preferences are respected', async ({ page }
 test('three slots save, autosave, export, import, migrate and delete', async ({ page }) => {
   await page.goto('/saves');
   await expect(page.locator('.slot-card')).toHaveCount(3);
-  await page.getByLabel('Collection name').fill('Alderwick collection');
+  await page.getByLabel('Save name').fill('Alderwick collection');
   await page
     .locator('.slot-card')
     .nth(0)
-    .getByRole('button', { name: 'Save collection', exact: true })
+    .getByRole('button', { name: 'Save gallery', exact: true })
     .click();
-  await expect(page.locator('.notice')).toHaveText('Collection saved.');
+  await expect(page.locator('.notice')).toHaveText('Save stored.');
   await page.getByRole('link', { name: 'Open gallery' }).click();
-  await page.getByRole('button', { name: 'Reseed collection' }).click();
-  const seed = await page.getByLabel('Collection seed', { exact: true }).inputValue();
-  await page.getByRole('link', { name: 'Save this collection' }).click();
+  await page.getByRole('button', { name: 'Reseed gallery' }).click();
+  const seed = await page.getByLabel('Gallery seed', { exact: true }).inputValue();
+  await page.getByRole('link', { name: 'Save this gallery' }).click();
   await expect(page.locator('.slot-card').nth(0).locator('.slot-seed')).toHaveText(`Seed: ${seed}`);
   const downloadPromise = page.waitForEvent('download');
   await page.locator('.slot-card').nth(0).getByRole('button', { name: 'Export backup' }).click();
@@ -113,7 +113,7 @@ test('three slots save, autosave, export, import, migrate and delete', async ({ 
       mimeType: 'application/json',
       buffer: Buffer.from(json),
     });
-  await expect(page.locator('.notice')).toHaveText('Collection imported.');
+  await expect(page.locator('.notice')).toHaveText('Save imported.');
   await expect(page.locator('.slot-card').nth(1).getByRole('heading')).toHaveText(
     'Alderwick collection',
   );
@@ -138,20 +138,12 @@ test('three slots save, autosave, export, import, migrate and delete', async ({ 
   await expect(page.locator('.slot-card').nth(2).getByRole('heading')).toHaveText(
     'Legacy collection',
   );
-  await page
-    .locator('.slot-card')
-    .nth(0)
-    .getByRole('button', { name: 'Delete collection' })
-    .click();
+  await page.locator('.slot-card').nth(0).getByRole('button', { name: 'Delete save' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('dialog')).not.toBeVisible();
-  await page
-    .locator('.slot-card')
-    .nth(0)
-    .getByRole('button', { name: 'Delete collection' })
-    .click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete collection' }).click();
+  await page.locator('.slot-card').nth(0).getByRole('button', { name: 'Delete save' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete save' }).click();
   await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('A fresh start.');
 });
 
@@ -160,23 +152,15 @@ test('a second tab cannot load or mutate an owned slot', async ({ page, context 
   await page
     .locator('.slot-card')
     .first()
-    .getByRole('button', { name: 'Save collection', exact: true })
+    .getByRole('button', { name: 'Save gallery', exact: true })
     .click();
-  await expect(page.locator('.notice')).toHaveText('Collection saved.');
+  await expect(page.locator('.notice')).toHaveText('Save stored.');
   const second = await context.newPage();
   await second.goto('/saves');
-  await second
-    .locator('.slot-card')
-    .first()
-    .getByRole('button', { name: 'Load collection' })
-    .click();
+  await second.locator('.slot-card').first().getByRole('button', { name: 'Load gallery' }).click();
   await expect(second.getByRole('alert')).toContainText('open in another tab');
-  await second
-    .locator('.slot-card')
-    .first()
-    .getByRole('button', { name: 'Delete collection' })
-    .click();
-  await second.getByRole('dialog').getByRole('button', { name: 'Delete collection' }).click();
+  await second.locator('.slot-card').first().getByRole('button', { name: 'Delete save' }).click();
+  await second.getByRole('dialog').getByRole('button', { name: 'Delete save' }).click();
   await expect(second.getByRole('alert')).toContainText('open in another tab');
   await second.keyboard.press('Escape');
   await page.close();
@@ -186,9 +170,9 @@ test('a second tab cannot load or mutate an owned slot', async ({ page, context 
     await second
       .locator('.slot-card')
       .first()
-      .getByRole('button', { name: 'Load collection' })
+      .getByRole('button', { name: 'Load gallery' })
       .click();
-    await expect(second.locator('.notice')).toHaveText('Collection loaded.', { timeout: 2000 });
+    await expect(second.locator('.notice')).toHaveText('Save loaded.', { timeout: 2000 });
   }).toPass({ timeout: 20000 });
   await second.close();
 });
@@ -198,9 +182,9 @@ test('invalid import preserves an existing collection', async ({ page }) => {
   await page
     .locator('.slot-card')
     .first()
-    .getByRole('button', { name: 'Save collection', exact: true })
+    .getByRole('button', { name: 'Save gallery', exact: true })
     .click();
-  await expect(page.locator('.notice')).toHaveText('Collection saved.');
+  await expect(page.locator('.notice')).toHaveText('Save stored.');
   await page
     .locator('.slot-card')
     .first()
@@ -211,9 +195,7 @@ test('invalid import preserves an existing collection', async ({ page }) => {
       buffer: Buffer.from('{invalid'),
     });
   await expect(page.getByRole('alert')).toContainText('incomplete or invalid');
-  await expect(page.locator('.slot-card').first().getByRole('heading')).toHaveText(
-    'My club collection',
-  );
+  await expect(page.locator('.slot-card').first().getByRole('heading')).toHaveText('My saved game');
 });
 
 test('mobile shell, large text and dark gallery fit the viewport', async ({ page }) => {
@@ -225,10 +207,7 @@ test('mobile shell, large text and dark gallery fit the viewport', async ({ page
   // Five destinations on a phone; the gallery is one tap away in More.
   await expect(page.locator('.bottom-nav').locator('a, button')).toHaveCount(5);
   await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click();
-  await page
-    .getByRole('dialog', { name: 'More' })
-    .getByRole('link', { name: 'Asset gallery' })
-    .click();
+  await page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: 'Gallery' }).click();
   await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
   await expect(page.locator('.bottom-nav')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -305,40 +284,36 @@ test('confirmation protects a slot that changed after the dialog opened', async 
   await page
     .locator('.slot-card')
     .nth(0)
-    .getByRole('button', { name: 'Save collection', exact: true })
+    .getByRole('button', { name: 'Save gallery', exact: true })
     .click();
-  await expect(page.locator('.notice')).toHaveText('Collection saved.');
+  await expect(page.locator('.notice')).toHaveText('Save stored.');
   await page
     .locator('.slot-card')
     .nth(1)
-    .getByRole('button', { name: 'Save collection', exact: true })
+    .getByRole('button', { name: 'Save gallery', exact: true })
     .click();
   await expect(page.locator('.slot-card').nth(1).locator('.active-label')).toBeVisible();
-  await page
-    .locator('.slot-card')
-    .nth(0)
-    .getByRole('button', { name: 'Delete collection' })
-    .click();
+  await page.locator('.slot-card').nth(0).getByRole('button', { name: 'Delete save' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const other = await context.newPage();
   await other.goto('/saves');
-  await other.locator('.slot-card').nth(0).getByRole('button', { name: 'Load collection' }).click();
-  await expect(other.locator('.notice')).toHaveText('Collection loaded.');
-  await other.getByLabel('Collection name').fill('Changed by other tab');
+  await other.locator('.slot-card').nth(0).getByRole('button', { name: 'Load gallery' }).click();
+  await expect(other.locator('.notice')).toHaveText('Save loaded.');
+  await other.getByLabel('Save name').fill('Changed by other tab');
   await other
     .locator('.slot-card')
     .nth(0)
-    .getByRole('button', { name: 'Replace collection' })
+    .getByRole('button', { name: 'Replace with gallery' })
     .click();
-  await other.getByRole('dialog').getByRole('button', { name: 'Replace collection' }).click();
-  await expect(other.locator('.notice')).toHaveText('Collection saved.');
+  await other.getByRole('dialog').getByRole('button', { name: 'Replace with gallery' }).click();
+  await expect(other.locator('.notice')).toHaveText('Save stored.');
   await other
     .locator('.slot-card')
     .nth(2)
-    .getByRole('button', { name: 'Save collection', exact: true })
+    .getByRole('button', { name: 'Save gallery', exact: true })
     .click();
   await expect(other.locator('.slot-card').nth(2).locator('.active-label')).toBeVisible();
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete collection' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete save' }).click();
   await expect(page.getByRole('alert')).toContainText('has changed since it was opened');
   await page.keyboard.press('Escape');
   await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText(
@@ -354,9 +329,9 @@ test('conflicting autosave can export local changes and reload the saved version
   await page
     .locator('.slot-card')
     .first()
-    .getByRole('button', { name: 'Save collection', exact: true })
+    .getByRole('button', { name: 'Save gallery', exact: true })
     .click();
-  await expect(page.locator('.notice')).toHaveText('Collection saved.');
+  await expect(page.locator('.notice')).toHaveText('Save stored.');
   // Reproduce a revision committed by another writer after the active snapshot was loaded.
   await page.evaluate(
     () =>
@@ -387,7 +362,7 @@ test('conflicting autosave can export local changes and reload the saved version
       }),
   );
   await page.getByRole('link', { name: 'Open gallery' }).click();
-  const seedInput = page.getByLabel('Collection seed', { exact: true });
+  const seedInput = page.getByLabel('Gallery seed', { exact: true });
   // Under load WebKit can lose a fill made while the lazy gallery route is still settling;
   // retry until the applied seed sticks rather than exporting the default by accident.
   await expect(async () => {
@@ -401,12 +376,12 @@ test('conflicting autosave can export local changes and reload the saved version
   const download = await downloadPromise;
   const json = await readFile((await download.path())!, 'utf8');
   expect(JSON.parse(json).payload.gallery.seed).toBe('local-unsaved');
-  await page.getByRole('button', { name: 'Reload saved collection', exact: true }).click();
+  await page.getByRole('button', { name: 'Reload saved game', exact: true }).click();
   await page
     .getByRole('dialog')
-    .getByRole('button', { name: 'Reload saved collection', exact: true })
+    .getByRole('button', { name: 'Reload saved game', exact: true })
     .click();
-  await expect(page.getByLabel('Collection seed', { exact: true })).toHaveValue('other-writer');
+  await expect(page.getByLabel('Gallery seed', { exact: true })).toHaveValue('other-writer');
   await expect(page.locator('.global-error')).not.toBeVisible();
 });
 
@@ -415,9 +390,9 @@ test('a deleted active slot can be detached and saved again', async ({ page }) =
   await page
     .locator('.slot-card')
     .first()
-    .getByRole('button', { name: 'Save collection', exact: true })
+    .getByRole('button', { name: 'Save gallery', exact: true })
     .click();
-  await expect(page.locator('.notice')).toHaveText('Collection saved.');
+  await expect(page.locator('.notice')).toHaveText('Save stored.');
   await page.evaluate(
     () =>
       new Promise<void>((resolve, reject) => {
@@ -436,19 +411,19 @@ test('a deleted active slot can be detached and saved again', async ({ page }) =
       }),
   );
   await page.getByRole('link', { name: 'Open gallery' }).click();
-  await page.getByRole('button', { name: 'Reseed collection' }).click();
+  await page.getByRole('button', { name: 'Reseed gallery' }).click();
   await expect(page.locator('.global-error')).toContainText('has changed since it was opened');
-  await page.getByRole('button', { name: 'Reload saved collection', exact: true }).click();
+  await page.getByRole('button', { name: 'Reload saved game', exact: true }).click();
   await page
     .getByRole('dialog')
-    .getByRole('button', { name: 'Reload saved collection', exact: true })
+    .getByRole('button', { name: 'Reload saved game', exact: true })
     .click();
   await expect(page.locator('.global-error')).not.toBeVisible();
-  await page.getByRole('link', { name: 'Save this collection' }).click();
+  await page.getByRole('link', { name: 'Save this gallery' }).click();
   await page
     .locator('.slot-card')
     .first()
-    .getByRole('button', { name: 'Save collection', exact: true })
+    .getByRole('button', { name: 'Save gallery', exact: true })
     .click();
-  await expect(page.locator('.notice')).toHaveText('Collection saved.');
+  await expect(page.locator('.notice')).toHaveText('Save stored.');
 });

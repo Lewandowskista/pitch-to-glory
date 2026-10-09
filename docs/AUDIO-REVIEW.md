@@ -21,7 +21,7 @@ That architecture is appropriate for offline play and avoids unlicensed recordin
 ## Musical direction
 
 Recommended: warm, mellow instrumental lo-fi. Alternative directions are a dreamier ambient
-arrangement or a more energetic sporting beat. The recommended track uses 76 BPM, swung
+arrangement or a more energetic sporting beat. The recommended track uses 76 BPM, soft tonal
 percussion, rounded bass, mellow electric keys, sparse melodic responses and stereo room
 echoes. A 32-bar A/A'/B/A'' arrangement gives about 101 seconds before a seamless repeat.
 The reference to Balatro informs the relaxed, absorbing mood; the melody, harmony and
@@ -62,3 +62,13 @@ a headphone/speaker listening review.
   all 15 effects. Track duration: 101.05 seconds; peak: −6.02 dBFS; average RMS: −23.53 dBFS
   before the player's music/master controls. These are signal measurements, not LUFS or
   a subjective listening verdict.
+
+### Follow-up: wind-like sound on the menu and career hub
+
+The player reported the sound on the menu and hub as well as during play. Browser inspection
+confirmed a single music loop playing on Settings, with no crowd loop active. The music's
+filtered-noise brushes and hats were the likely source, rather than a separate weather sound.
+These have been removed and replaced with short, low tonal drum taps; the keys, bass, melody
+and music controls remain. Match ambience has not been changed in this follow-up. Automated
+checks verify signal and playback integrity; the player's listening feedback remains the
+test of whether this resolves the perceived wind sound.
