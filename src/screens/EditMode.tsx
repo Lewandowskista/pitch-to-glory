@@ -12,6 +12,7 @@ import type { Club, Hex, League, Player, World } from '../model/domain';
 import { useAppStore } from '../store';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
+import { FootballIllustration } from '../ui/FootballIllustration';
 import { Artwork } from '../ui/Artwork';
 import { renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
@@ -79,18 +80,21 @@ export default function EditMode() {
       ) : world ? (
         <Editor world={world} />
       ) : (
-        <section className={`${ui.panel} flex flex-col gap-4 bg-art-green`}>
-          <h2 className="font-display text-[2.2rem] leading-none">{e.empty.title}</h2>
-          <p className="max-w-prose text-muted">{e.empty.body}</p>
-          <div className="flex flex-wrap gap-2">
-            <Link className="button" to="/world">
-              {e.empty.world}
-              <Icon name="arrow" />
-            </Link>
-            <Link className="button secondary" to="/saves">
-              {e.empty.saves}
-            </Link>
+        <section className={`${ui.panel} illustrated-empty max-w-4xl bg-art-green`}>
+          <div className="grid justify-items-start gap-4">
+            <h2 className="font-display text-[2.2rem] leading-none">{e.empty.title}</h2>
+            <p className="max-w-prose text-muted">{e.empty.body}</p>
+            <div className="flex flex-wrap gap-2">
+              <Link className="button" to="/world">
+                {e.empty.world}
+                <Icon name="arrow" />
+              </Link>
+              <Link className="button secondary" to="/saves">
+                {e.empty.saves}
+              </Link>
+            </div>
           </div>
+          <FootballIllustration kind="world" />
         </section>
       )}
     </Page>

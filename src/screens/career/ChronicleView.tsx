@@ -103,7 +103,7 @@ export function ChronicleView({ world, playerId }: { world: World; playerId: str
   const moments = new Map(world.moments.map((moment) => [moment.id, moment]));
   if (!player) return null;
   return (
-    <section aria-labelledby="chronicle-heading" className={`${ui.panel} max-w-5xl`}>
+    <section aria-labelledby="chronicle-heading" className={`${ui.panel} chronicle-story max-w-5xl`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="chronicle-heading" className={ui.heading}>
@@ -143,7 +143,7 @@ export function ChronicleView({ world, playerId }: { world: World; playerId: str
         return (
           <div
             key={season}
-            className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-3 border-t border-line pt-5 lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-8"
+            className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-4 border-t border-line pt-5 lg:grid-cols-[9rem_minmax(0,1fr)] lg:gap-6"
           >
             <div className="lg:sticky lg:top-6 lg:self-start">
               <h3 className="font-display text-3xl leading-none">

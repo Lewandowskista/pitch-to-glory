@@ -1,5 +1,14 @@
 # Asset provenance
 
+## UI refinement (12 October 2026)
+
+`src/ui/FootballIllustration.tsx` contains original theme-aware vector illustrations for
+career, world/match and honours empty states. Crest, kit and portrait recipes gained flat
+finishing details, stronger symbol contrast and stitched kit edges while retaining all
+stored options and deterministic generation. No new image downloads, raster assets or
+third-party artwork were introduced. Live match tokens, digit rendering, pitch geometry
+and animation code were retained unchanged.
+
 - All 15 crest silhouettes, 33 symbols, kit geometries, avatar layers, stadium illustration, navigation icons, share illustration and PWA icons are original SVG artwork authored in this repository. No external image assets or hotlinks are used. SVG recipes are in `src/engine/assets/`, authored illustration in `src/assets/`, and standalone icons in `public/`.
 - Inter: locally bundled Latin weights 400, 500, 600, 700 from `@fontsource/inter`. SIL Open Font License 1.1; upstream https://github.com/rsms/inter. License: `node_modules/@fontsource/inter/LICENSE`.
 - Bebas Neue: locally bundled Latin regular from `@fontsource/bebas-neue`. SIL Open Font License 1.1; upstream https://github.com/dharmatype/Bebas-Neue. License: `node_modules/@fontsource/bebas-neue/LICENSE`.

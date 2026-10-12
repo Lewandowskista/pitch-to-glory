@@ -8,6 +8,7 @@ import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
 import { CONFIG } from '../../engine/config';
 import { Icon } from '../../ui/Icon';
+import { FootballIllustration } from '../../ui/FootballIllustration';
 import { CareerPage, ui, useSaveLink } from './shared';
 import { Glyph, ordinal, type GlyphName } from './honoursUi';
 import { MomentPitch } from './MomentPitch';
@@ -113,13 +114,16 @@ function MomentsEmpty() {
   return (
     <section
       aria-labelledby="moments-heading"
-      className={`${ui.panel} grid max-w-3xl gap-4 bg-art-green`}
+      className={`${ui.panel} grid max-w-4xl gap-4 bg-art-green`}
     >
-      <h2 id="moments-heading" className={ui.heading}>
-        {h.moments.emptyTitle}
-      </h2>
+      <div className="flex items-center justify-between gap-4">
+        <h2 id="moments-heading" className={ui.heading}>
+          {h.moments.emptyTitle}
+        </h2>
+        <FootballIllustration kind="match" className="max-w-24 shrink-0 max-sm:hidden" />
+      </div>
       <p className="text-sm">{h.moments.emptyBody}</p>
-      <ul className="grid gap-2">
+      <ul className="grid gap-3 sm:grid-cols-2">
         {MOMENT_KINDS.map((kind) => (
           <li key={kind} className="flex items-center gap-3 rounded-control bg-surface p-3">
             <span

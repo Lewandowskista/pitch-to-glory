@@ -16,7 +16,7 @@ import {
 import { ClubInspector } from './world/ClubInspector';
 import { Artwork } from '../ui/Artwork';
 import { renderCrest } from '../engine/assets/crest';
-import stadium from '../assets/stadium.svg';
+import { FootballIllustration } from '../ui/FootballIllustration';
 import { errorCode } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
 import type { SlotId } from '../model/domain';
@@ -256,7 +256,7 @@ export default function WorldScreen() {
               <small>{t.world.seedHint}</small>
             </form>
           </div>
-          <img src={stadium} alt="" />
+          <FootballIllustration kind="world" />
         </section>
       ) : (
         <>

@@ -23,9 +23,9 @@
   --spacing-panel: 1.25rem;
   --spacing-panel-lg: 1.5rem;
   --spacing-control: 3rem;
-  --radius-panel: 1.25rem;
-  --radius-control: 0.75rem;
-  --shadow-panel: 0 8px 28px rgb(27 48 33 / 0.04);
+  --radius-panel: 1rem;
+  --radius-control: 0.65rem;
+  --shadow-panel: 0 2px 3px rgb(20 44 30 / 0.02), 0 8px 24px rgb(20 44 30 / 0.045);
 }
 /*
  * Theme colours for Tailwind utilities (bg-surface, text-muted, border-line, bg-accent-soft,
@@ -54,12 +54,12 @@
 }
 :root {
   color-scheme: light;
-  --bg: #f4f5ee;
+  --bg: #f3f5f0;
   --surface: #ffffff;
-  --surface-soft: #e9ede2;
-  --ink: #23342a;
-  --muted: #5e6c61;
-  --line: #dce3d8;
+  --surface-soft: #edf1e9;
+  --ink: #1d3329;
+  --muted: #56675d;
+  --line: #d5dfd5;
   --accent: #075e45;
   --accent-soft: #e0ebe2;
   --on-accent: #ffffff;
@@ -72,14 +72,14 @@
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #14251e;
-  --surface: #1b2e25;
-  --surface-soft: #233a2e;
+  --bg: #101e18;
+  --surface: #192c23;
+  --surface-soft: #243b2f;
   --ink: #edf2e7;
   --muted: #b2c1b5;
-  --line: #354a3d;
+  --line: #3c5445;
   --accent: #9ed9b7;
-  --accent-soft: #304e3b;
+  --accent-soft: #2e4939;
   --on-accent: #14251e;
   --danger: #ffada5;
   --danger-soft: #422b29;
@@ -87,7 +87,7 @@
   --art-gold: #433e2e;
   --art-blue: #2d3e43;
   --meter-gold: #efcf63;
-  --shadow-panel: 0 8px 28px rgb(0 0 0 / 0.08);
+  --shadow-panel: 0 2px 4px rgb(0 0 0 / 0.08), 0 10px 28px rgb(0 0 0 / 0.12);
 }
 /*
  * Before the app applies the player's setting (first paint), follow the system: a dark
@@ -96,14 +96,14 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --bg: #14251e;
-    --surface: #1b2e25;
-    --surface-soft: #233a2e;
+    --bg: #101e18;
+    --surface: #192c23;
+    --surface-soft: #243b2f;
     --ink: #edf2e7;
     --muted: #b2c1b5;
-    --line: #354a3d;
+    --line: #3c5445;
     --accent: #9ed9b7;
-    --accent-soft: #304e3b;
+    --accent-soft: #2e4939;
     --on-accent: #14251e;
     --danger: #ffada5;
     --danger-soft: #422b29;
@@ -111,6 +111,6 @@
     --art-gold: #433e2e;
     --art-blue: #2d3e43;
     --meter-gold: #efcf63;
-    --shadow-panel: 0 8px 28px rgb(0 0 0 / 0.08);
+    --shadow-panel: 0 2px 4px rgb(0 0 0 / 0.08), 0 10px 28px rgb(0 0 0 / 0.12);
   }
 }

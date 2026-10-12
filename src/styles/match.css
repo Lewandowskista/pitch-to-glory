@@ -56,12 +56,16 @@
 .match-selection {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 1.25rem;
-  padding: 1.5rem;
+  border-radius: var(--radius-panel);
+  padding: var(--spacing-panel-lg);
   min-width: 0;
 }
 .match-panel > p:last-child {
   margin-bottom: 0;
+}
+/* The empty state's grid owns spacing, including the text-to-action gap. */
+.match-page .match-empty h2 {
+  margin: 0;
 }
 .match-eyebrow {
   display: block;
@@ -75,7 +79,7 @@
 .match-selection {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3rem;
+  gap: var(--spacing-panel-lg);
 }
 .match-selection > * {
   min-width: 0;
@@ -176,9 +180,9 @@
   align-items: center;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 1.25rem;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  border-radius: var(--radius-panel);
+  padding: 1.1rem 1.5rem;
+  margin-bottom: var(--spacing-section);
 }
 .match-scoreboard > div:not(.match-score) {
   display: flex;

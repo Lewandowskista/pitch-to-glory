@@ -4,6 +4,23 @@ Tracks the [implementation plan](UI-LAYOUT-PLAN-2026-10-09.md) against the findi
 [UI layout review](UI-LAYOUT-REVIEW-2026-10-09.md). Each finding is resolved, intentionally
 retained with a reason, or pending with its remaining scope.
 
+**12 October follow-up:** the original completion assessment was too broad. The deployed
+screenshots exposed two missed pre-world states: Matchday's Open world button touched its
+description, and World creation used an oversized illustration-driven panel. The original
+phase results below record that pass; they are not proof that every state is visually complete.
+
+The follow-up adds a 16 px text/action gap and a readable-width Matchday empty card. World
+creation now uses 24 px padding, a bounded illustration and a smaller heading, so its form
+sets the composition instead of a large image. Checked similar paragraph-to-action patterns
+in Settings, Training, Transfers, Agent and the match report; those already have margins or
+group spacing. Other sub-pages still need concrete state-specific visual assessment before
+being described as fully polished.
+
+New coverage: `e2e/empty-layout.spec.ts` checks actual text/button bounds, the wide creation
+panel's height, viewport reachability and overflow at 1920 × 1080, 768 × 1024 with 130% text,
+and 390 × 844. Dark theme and larger text are selected through Settings controls. Screenshots
+are in `artifacts/empty-layout/`; these corrections are local until committed and deployed.
+
 Before/after captures are produced by `artifacts/ui-layout/capture.ts` (git-ignored, like the
 review's own screenshots) at 1440 × 900, 768 × 1024 and 390 × 844 from the review's seeded
 careers. Geometry that a page-width check misses is covered by `e2e/layout.spec.ts`.

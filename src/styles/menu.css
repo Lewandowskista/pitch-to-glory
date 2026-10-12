@@ -1,6 +1,6 @@
 /* Clubhouse (title / main menu) screen. */
 .hero {
-  min-height: 465px;
+  min-height: 420px;
   background: var(--color-field);
   color: var(--color-hero-ink);
   position: relative;
@@ -11,10 +11,10 @@
   align-items: center;
 }
 .hero-copy {
-  padding: 2.8rem 3rem;
+  padding: 2.5rem;
   position: relative;
   z-index: 2;
-  width: 55%;
+  width: 58%;
 }
 .hero .eyebrow {
   font-size: 0.75rem;
@@ -25,7 +25,7 @@
 }
 .hero h1 {
   font-family: var(--font-display);
-  font-size: clamp(3.8rem, 5.1vw, 6.5rem);
+  font-size: clamp(3.5rem, 4.7vw, 5.5rem);
   line-height: 0.97;
   font-weight: 400;
   max-width: 440px;
@@ -46,11 +46,11 @@
   width: 58%;
   max-width: none;
   right: 0;
-  bottom: -4%;
+  bottom: 0;
   z-index: 1;
 }
 .menu-intro {
-  margin-top: 2.4rem;
+  margin-top: 1.75rem;
   margin-bottom: 1.3rem;
 }
 .menu-intro h2 {

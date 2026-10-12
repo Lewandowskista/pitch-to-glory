@@ -13,17 +13,18 @@
 }
 .world-create {
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 18rem);
+  max-width: 64rem;
+  gap: var(--spacing-panel-lg);
   align-items: center;
-  padding: 2.5rem;
+  padding: var(--spacing-panel-lg);
   background: var(--surface);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-panel);
 }
 .world-create h2 {
   font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-size: clamp(1.8rem, 2.5vw, 2.5rem);
   line-height: 1.05;
   margin: 12px 0;
 }
@@ -31,8 +32,10 @@
   color: var(--muted);
   max-width: 40rem;
 }
-.world-create > img {
+.world-create > :is(img, svg) {
   width: 100%;
+  max-height: 15rem;
+  object-fit: contain;
 }
 .world-create form {
   margin-top: 1.5rem;
@@ -778,7 +781,7 @@
   .world-create {
     grid-template-columns: 1fr;
   }
-  .world-create > img {
+  .world-create > :is(img, svg) {
     display: none;
   }
   .club-kits img {

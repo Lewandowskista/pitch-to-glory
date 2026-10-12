@@ -90,6 +90,47 @@ const openFirstMessage = async (page: Page) => {
     .click();
 };
 
+test('table tooltips stay inside the viewport after focus, scrolling and resizing', async ({
+  page,
+}) => {
+  await page.goto('/world?save=1');
+  const trigger = page.locator('.standings-table abbr').last();
+  const tooltip = page.getByRole('tooltip').filter({ hasText: /^Points$/ });
+  for (const size of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(size);
+    await trigger.focus();
+    await expect(tooltip).toBeVisible();
+    await expect
+      .poll(async () =>
+        tooltip.evaluate((element) => {
+          const r = element.getBoundingClientRect();
+          return (
+            r.left >= 7 && r.top >= 7 && r.right <= innerWidth - 7 && r.bottom <= innerHeight - 7
+          );
+        }),
+      )
+      .toBe(true);
+    await page.mouse.wheel(0, 100);
+    await expect
+      .poll(async () =>
+        tooltip.evaluate((element) => {
+          const r = element.getBoundingClientRect();
+          return (
+            r.left >= 7 && r.top >= 7 && r.right <= innerWidth - 7 && r.bottom <= innerHeight - 7
+          );
+        }),
+      )
+      .toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(tooltip).toHaveClass('sr-only');
+    // Refocusing the same trigger must reopen the tooltip after Escape.
+    await trigger.blur();
+  }
+});
+
 test('the inbox reader shows its Back control only where the list is hidden', async ({ page }) => {
   // Desktop: list and reader side by side, so there is nothing to go back to.
   await openFirstMessage(page);

@@ -14,6 +14,7 @@
 @import './celebrations.css';
 @import './responsive.css';
 @import './world.css';
+@import './refinement.css';
 
 /*
  * One segmented tab bar for in-page tablists (world views, gallery categories, edit kinds),
@@ -26,11 +27,11 @@
   gap: 0.25rem;
   width: fit-content;
   max-width: 100%;
-  padding: 0.3rem;
-  border: 1px solid var(--line);
+  padding: 0.25rem;
+  border: 1px solid transparent;
   border-radius: calc(var(--radius-control) + 0.3rem);
-  background: var(--surface);
-  box-shadow: var(--shadow-panel);
+  background: var(--surface-soft);
+  box-shadow: none;
 }
 .segmented-tabs-fill {
   width: 100%;

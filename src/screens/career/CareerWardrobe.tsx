@@ -150,8 +150,8 @@ function Preview({
   return (
     <section
       aria-labelledby="preview-heading"
-      // Phones: a compact figure beside the tokens, so the choices start in the first view.
-      className={`${ui.panel} grid grid-cols-[5.5rem_minmax(0,1fr)] content-center gap-x-4 bg-art-blue sm:block lg:sticky lg:top-6 lg:col-span-4 lg:row-span-5`}
+      // Single-column layouts keep the preview compact; wide screens keep it beside the shop.
+      className={`${ui.panel} grid grid-cols-[5.5rem_minmax(0,1fr)] content-center gap-x-4 bg-art-blue lg:sticky lg:top-6 lg:col-span-4 lg:row-span-5 lg:block`}
     >
       <h2 id="preview-heading" className={`${ui.heading} col-start-2 self-end`}>
         {W.preview}
@@ -162,7 +162,7 @@ function Preview({
           boots: W.bootNames[equipped.boots] ?? '',
           socks: W.sockNames[equipped.socks] ?? '',
         })}`}
-        className="col-start-1 row-span-3 row-start-1 w-full self-center sm:mx-auto sm:mt-4 sm:w-44 lg:w-48"
+        className="col-start-1 row-span-3 row-start-1 w-full self-center lg:mx-auto lg:mt-4 lg:w-48"
       >
         <div className="relative z-0 mx-auto w-[95%] overflow-hidden [aspect-ratio:200/166]">
           <Artwork svg={portrait} alt="" className="block w-full" />
@@ -175,10 +175,10 @@ function Preview({
           className="mx-auto -mt-[3%] block h-3 w-3/4 rounded-[50%] bg-ink/10"
         />
       </div>
-      <p className="col-start-2 mt-2 font-display text-2xl leading-none sm:mt-4 sm:text-center">
+      <p className="col-start-2 mt-2 font-display text-2xl leading-none lg:mt-4 lg:text-center">
         {plural(tokens, W.tokensOne, W.tokens)}
       </p>
-      <p className="col-start-2 mt-1 max-w-xs self-start text-xs text-muted sm:mx-auto sm:text-center">
+      <p className="col-start-2 mt-1 max-w-xs self-start text-xs text-muted lg:mx-auto lg:text-center">
         {W.tokensBody}
       </p>
     </section>

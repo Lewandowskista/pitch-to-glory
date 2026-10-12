@@ -18,13 +18,14 @@ import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
 import { honoursText } from '../../i18n/honours';
+import { FootballIllustration } from '../../ui/FootballIllustration';
 
 /** Shared Tailwind class strings, so every career card reads as one family. */
 export const ui = {
-  panel: 'rounded-panel border border-line bg-surface p-panel shadow-surface sm:p-panel-lg',
+  panel: 'ui-card rounded-panel border border-line bg-surface p-panel shadow-surface sm:p-panel-lg',
   /** A dense or supporting card: summaries, quiet tiles, notices beside main content. */
   panelCompact:
-    'rounded-panel border border-line bg-surface p-panel-compact shadow-surface sm:p-panel',
+    'ui-card rounded-panel border border-line bg-surface p-panel-compact shadow-surface sm:p-panel',
   heading: 'font-display text-[1.75rem] leading-none tracking-[0.02em] text-ink',
   eyebrow: 'text-xs font-bold uppercase tracking-[0.12em] text-accent',
   muted: 'text-sm text-muted',
@@ -59,7 +60,7 @@ export function EmptySection({
   return (
     <section
       aria-labelledby={id}
-      className={`rounded-panel border border-dashed border-line px-panel-compact py-3.5 sm:px-panel ${className}`}
+      className={`ui-empty rounded-panel border border-dashed border-line px-panel-compact py-3.5 sm:px-panel ${className}`}
     >
       <h2 id={id} className="text-base font-bold">
         {title}
@@ -305,17 +306,20 @@ export function CareerEmpty() {
       : [],
   );
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-      <section className={`${ui.panel} flex flex-col gap-4 bg-art-green`}>
-        <p className={ui.eyebrow}>{c.hub.eyebrow}</p>
-        <h2 className="font-display text-[2.6rem] leading-[0.95]">{c.empty.title}</h2>
-        <p className="max-w-prose text-muted">{c.empty.body}</p>
-        <div>
-          <Link className="button" to="/career/new">
-            {c.empty.start}
-            <Icon name="arrow" />
-          </Link>
+    <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,1fr)]">
+      <section className={`${ui.panel} illustrated-empty bg-art-green`}>
+        <div className="grid justify-items-start gap-4">
+          <p className={ui.eyebrow}>{c.hub.eyebrow}</p>
+          <h2 className="font-display text-[2.6rem] leading-[0.95]">{c.empty.title}</h2>
+          <p className="max-w-prose text-muted">{c.empty.body}</p>
+          <div>
+            <Link className="button" to="/career/new">
+              {c.empty.start}
+              <Icon name="arrow" />
+            </Link>
+          </div>
         </div>
+        <FootballIllustration kind="career" />
       </section>
       <section className={ui.panel} aria-labelledby="saved-careers">
         <h2 id="saved-careers" className={ui.heading}>

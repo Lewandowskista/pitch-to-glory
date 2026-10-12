@@ -23,6 +23,7 @@ import {
 import { careerText as c } from '../i18n/career';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
+import { FootballIllustration } from '../ui/FootballIllustration';
 import { Selection } from './match/Selection';
 import { Preview } from './match/Preview';
 import { Report } from './match/Report';
@@ -502,12 +503,15 @@ export default function MatchScreen() {
       {loading ? (
         <p role="status">{m.loading}</p>
       ) : !world ? (
-        <section className="match-panel">
-          <h2>{m.empty}</h2>
-          <p>{m.emptyBody}</p>
-          <Link className="button" to="/world">
-            {m.world}
-          </Link>
+        <section className="match-panel match-empty illustrated-empty max-w-3xl">
+          <div className="grid justify-items-start gap-4">
+            <h2>{m.empty}</h2>
+            <p>{m.emptyBody}</p>
+            <Link className="button" to="/world">
+              {m.world}
+            </Link>
+          </div>
+          <FootballIllustration kind="match" />
         </section>
       ) : !session && world.career ? (
         careerResult ? (

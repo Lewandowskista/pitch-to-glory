@@ -307,7 +307,7 @@ export default function CareerNew() {
           )}
         </section>
       ) : (
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
           <form
             onSubmit={submit}
             className={`${ui.panel} @container/wizard flex flex-col gap-6`}

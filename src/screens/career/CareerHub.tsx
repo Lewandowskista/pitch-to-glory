@@ -67,7 +67,7 @@ const mainStack = 'grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg
 const sideStack = 'grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:col-span-4';
 /** Small summary tiles in the strip under the main cards. */
 const tile =
-  'flex min-w-0 flex-col rounded-panel border border-line bg-surface p-4 shadow-surface sm:p-5';
+  'ui-card flex min-w-0 flex-col rounded-panel border border-line bg-surface p-4 shadow-surface sm:p-5';
 const tileHeading = 'text-base font-bold leading-tight';
 
 /** The one card action style on the hub: a footer link to the card's single destination. */
@@ -318,13 +318,13 @@ function NextMatch({
     <section
       aria-labelledby="next-match-heading"
       data-tour="next-match"
-      className="relative overflow-hidden rounded-panel bg-field p-5 text-white shadow-surface sm:p-7"
+      className="hub-match-card relative overflow-hidden rounded-panel bg-field p-5 text-white shadow-surface sm:p-6"
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-[0.12] [background:repeating-linear-gradient(90deg,transparent_0_56px,white_56px_112px)]"
+        className="pointer-events-none absolute inset-0 opacity-[0.07] [background:repeating-linear-gradient(110deg,transparent_0_56px,white_56px_112px)]"
       />
-      <div className="relative flex flex-col gap-4 sm:gap-5">
+      <div className="relative flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-[0.16em] text-gold">
             {complete ? c.hub.seasonComplete : pending ? c.hub.matchday : c.hub.nextMatch}
@@ -355,7 +355,7 @@ function NextMatch({
                 <CrestImage
                   crest={side.crest}
                   alt={side.name}
-                  className="h-16 w-16 drop-shadow-lg sm:h-24 sm:w-24"
+                  className="h-14 w-14 sm:h-20 sm:w-20"
                 />
               ),
               label: side.id === club.id && (

@@ -5,6 +5,7 @@ import { Page } from '../ui/Page';
 import { format } from '../i18n';
 import { honoursText as h } from '../i18n/honours';
 import { MomentPitch } from './career/MomentPitch';
+import { FootballIllustration } from '../ui/FootballIllustration';
 
 /**
  * A shared moment, replayed from its link alone: the clip and seed travel in the URL hash,
@@ -31,7 +32,7 @@ export default function MomentViewer() {
         <h1>{h.titles.moment}</h1>
         <p>{h.moments.viewerBody}</p>
       </header>
-      <section className="rounded-panel border border-line bg-surface p-5 shadow-surface sm:p-6">
+      <section className="ui-card max-w-4xl rounded-panel border border-line bg-surface p-panel shadow-surface sm:p-panel-lg">
         {moment === 'invalid' ? (
           <p role="alert" className="inline-error">
             {h.moments.invalid}
@@ -53,7 +54,9 @@ export default function MomentViewer() {
             />
             <p className="text-xs text-muted">{format(h.moments.seed, { seed: moment.seed })}</p>
           </div>
-        ) : null}
+        ) : (
+          <FootballIllustration kind="match" />
+        )}
         <Link className="button mt-5" to="/career/new">
           {h.moments.start}
         </Link>

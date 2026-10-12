@@ -67,11 +67,11 @@ export function generateCrest(rng: Rng): Crest {
 export function renderCrest(crest: Crest): string {
   colors(crest.colors);
   const [base, accent, light] = crest.colors;
-  const foreground = withContrast(light, base);
+  const foreground = withContrast(light, base, 4.5);
   const path = item(CREST_SHAPES, crest.shape);
   const symbol = item(CREST_SYMBOLS, crest.symbol);
   return svg(
-    `<path d="${path}" fill="${base}" stroke="${accent}" stroke-width="5" stroke-linejoin="round"/><path d="${path}" transform="translate(8 9) scale(.9)" stroke="${light}" stroke-opacity=".45" stroke-width="1.5"/><g transform="translate(40 37) scale(.8)" fill="${foreground}" stroke="${foreground}" color="${base}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">${symbol}</g><path d="M57 133H103" stroke="${accent}" stroke-width="5" stroke-linecap="round"/>`,
+    `<defs><clipPath id="crest-shape"><path d="${path}"/></clipPath></defs><path d="${path}" fill="${base}" stroke="${accent}" stroke-width="5" stroke-linejoin="round"/><path d="${path}" transform="translate(8 9) scale(.9)" stroke="${light}" stroke-opacity=".45" stroke-width="1.5"/><g clip-path="url(#crest-shape)"><path d="M0 0H160V42L0 110Z" fill="#ffffff" opacity=".055"/><path d="M0 142L160 104V180H0Z" fill="#000000" opacity=".07"/></g><g transform="translate(40 37) scale(.8)" fill="${foreground}" stroke="${foreground}" color="${base}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">${symbol}</g><path d="M57 133H103" stroke="${accent}" stroke-width="5" stroke-linecap="round"/>`,
     '0 0 160 180',
   );
 }

@@ -7,6 +7,7 @@ import { useAppStore } from '../../store';
 import { Page } from '../../ui/Page';
 import { Icon } from '../../ui/Icon';
 import { Artwork } from '../../ui/Artwork';
+import { FootballIllustration } from '../../ui/FootballIllustration';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
@@ -72,27 +73,30 @@ function LegacyContent({ world }: { world: World }) {
     return (
       <section
         aria-labelledby="legacy-empty-heading"
-        className={`${ui.panel} flex max-w-3xl flex-col gap-4`}
+        className={`${ui.panel} illustrated-empty max-w-3xl`}
       >
-        <h2 id="legacy-empty-heading" className={ui.heading}>
-          {h.legacy.emptyTitle}
-        </h2>
-        <p className="max-w-prose text-sm">
-          {format(h.legacy.emptyBody, { age: R.optionalAge, forced: R.forcedAge })}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {world.career ? (
-            <Link className="button" to={link('/career/chronicle')}>
-              {h.legacy.chronicle}
-              <Icon name="arrow" />
-            </Link>
-          ) : (
-            <Link className="button" to={link('/career/new')}>
-              {h.legacy.newCareer}
-              <Icon name="arrow" />
-            </Link>
-          )}
+        <div className="grid justify-items-start gap-4">
+          <h2 id="legacy-empty-heading" className={ui.heading}>
+            {h.legacy.emptyTitle}
+          </h2>
+          <p className="max-w-prose text-sm">
+            {format(h.legacy.emptyBody, { age: R.optionalAge, forced: R.forcedAge })}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {world.career ? (
+              <Link className="button" to={link('/career/chronicle')}>
+                {h.legacy.chronicle}
+                <Icon name="arrow" />
+              </Link>
+            ) : (
+              <Link className="button" to={link('/career/new')}>
+                {h.legacy.newCareer}
+                <Icon name="arrow" />
+              </Link>
+            )}
+          </div>
         </div>
+        <FootballIllustration kind="honours" />
       </section>
     );
   return (

@@ -383,7 +383,7 @@ function SkillSheet({
     <dialog
       ref={ref}
       aria-labelledby={labelledBy}
-      className="mx-0 mt-auto mb-0 max-h-[88dvh] w-full max-w-full rounded-t-[1.25rem] border-0 bg-surface p-0 text-ink shadow-[0_-12px_40px_rgb(0_0_0/0.25)] backdrop:bg-[rgb(8_20_14/0.55)] sm:mx-auto sm:max-w-2xl"
+      className="skill-sheet mx-0 mt-auto mb-0 max-h-[88dvh] w-full max-w-full overflow-y-auto overscroll-contain rounded-t-[1.25rem] border-0 bg-surface p-0 text-ink shadow-[0_-12px_40px_rgb(0_0_0/0.25)] sm:mx-auto sm:max-w-2xl"
       // Escape closes here and stops, so the shell's Escape shortcut never adds a second "back".
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return;
