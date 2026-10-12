@@ -110,6 +110,7 @@ export const lifestyleText = {
       staff: 'Personal staff',
       experience: 'Time off',
       charity: 'Giving back',
+      legacy: 'Your legacy',
     },
     salaryValue: '{amount} a week, {hire} to hire',
     donationValue: '{amount} a week',
@@ -122,6 +123,10 @@ export const lifestyleText = {
       family: 'Lifts morale, then steadies it for 4 weeks. Once every 4 weeks',
       foundation: 'The fans warm to you; a little fame every month',
       camp: 'The fans love it; fame every month',
+      stake:
+        'Half the price goes into {club}’s transfer budget, and their standing rises every season you hold it',
+      academy:
+        'Every youngster {club} bring through has more potential, for as long as the world lasts',
       rest: 'Rests {value} fatigue a week',
     } as Record<string, string>,
     price: '{price}',
@@ -166,6 +171,8 @@ export const lifestyleText = {
       'experience:family': 'Family visit',
       'charity:foundation': 'Your foundation',
       'charity:camp': 'Youth football camp',
+      'legacy:stake': 'A stake in {club}',
+      'legacy:academy': 'The {club} academy',
     } as Record<string, string>,
   },
   wardrobe: {
@@ -318,6 +325,10 @@ export const lifestyleText = {
     lifestyle: 'Lifestyle',
   },
   messages: {
+    'legacy-project': {
+      subject: 'Giving back to {club}',
+      body: 'Where it all began: {club} and their fans will remember what you built.',
+    },
     'sponsor-offer': {
       subject: '{brand} wants to sponsor you',
       body: '{brand} offers {fee} a week, with obligations. Their offer is waiting on the Lifestyle page.',

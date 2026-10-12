@@ -161,10 +161,20 @@ export const BRAND_BY_ID: Readonly<Record<string, Brand>> = Object.fromEntries(
   BRANDS.map((brand) => [brand.id, brand]),
 );
 
-export type LifestyleKind = 'car' | 'house' | 'investment' | 'staff' | 'experience' | 'charity';
+export type LifestyleKind =
+  'car' | 'house' | 'investment' | 'staff' | 'experience' | 'charity' | 'legacy';
 /** What an item does for the career beyond money and morale. */
 export type LifestyleEffect =
-  'physio' | 'nutrition' | 'coach' | 'analyst' | 'holiday' | 'family' | 'foundation' | 'camp';
+  | 'physio'
+  | 'nutrition'
+  | 'coach'
+  | 'analyst'
+  | 'holiday'
+  | 'family'
+  | 'foundation'
+  | 'camp'
+  | 'stake'
+  | 'academy';
 export interface LifestyleItem {
   id: string;
   kind: LifestyleKind;
@@ -367,6 +377,27 @@ export const LIFESTYLE: readonly LifestyleItem[] = [
     wageShare: 0.15,
     morale: 2,
     effect: 'camp',
+  },
+  // A legacy in the world: the first club, where it all began, keeps what is built there.
+  {
+    id: 'legacy:stake',
+    kind: 'legacy',
+    fameLevel: 6,
+    cost: 50_000,
+    wageWeeks: 300,
+    weeklyUpkeep: 0,
+    morale: 2,
+    effect: 'stake',
+  },
+  {
+    id: 'legacy:academy',
+    kind: 'legacy',
+    fameLevel: 7,
+    cost: 80_000,
+    wageWeeks: 400,
+    weeklyUpkeep: 0,
+    morale: 2,
+    effect: 'academy',
   },
 ];
 /** The effects of owned items on the career, from the assets alone (pure). */

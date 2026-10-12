@@ -6,7 +6,7 @@ import { chronicle } from './chronicle';
 import { captureMoments } from './moments';
 import { createInternational, internationalWindow, playTournament } from './international';
 import { monthlyAward, recordCareerTrophies, seasonAwards, startAwardSeason } from './awards';
-import { retireCareer, retirementAge } from './retirement';
+import { retireCareer, retirementAge, testimonialCheck } from './retirement';
 import { ambitionsCheck } from './ambitions';
 import { CONFIG } from '../../config';
 
@@ -86,6 +86,7 @@ export function honoursWeek(world: World): void {
 /** The season's final week, once its tables are archived. */
 export function honoursSeasonEnd(world: World): void {
   seasonAwards(world);
+  testimonialCheck(world);
   ambitionsCheck(world, { hallOfFame: true });
   if (retirementAge(world) + 1 >= H.retirement.forcedAge) postMessage(world, 'retirement-due', {});
 }
@@ -96,7 +97,11 @@ export function honoursSeasonEnd(world: World): void {
  */
 export function honoursRollover(world: World): boolean {
   playTournament(world);
-  if (retirementAge(world) >= H.retirement.forcedAge) {
+  // Forced by age, or the farewell season announced last season is over.
+  if (
+    retirementAge(world) >= H.retirement.forcedAge ||
+    world.career?.farewell?.season === world.date.season - 1
+  ) {
     retireCareer(world);
     return true;
   }

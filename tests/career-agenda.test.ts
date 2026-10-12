@@ -150,6 +150,8 @@ describe('hub priorities', () => {
   it('orders recovery, the match, deadlines by date, then unspent points', () => {
     const world = betweenMatches();
     const week = world.date.week;
+    // Only the items this test sets up: no story the simulation happened to start.
+    world.career!.stories = [];
     world.career!.attributePoints = 2;
     world.career!.skillPoints = 1;
     press(world, 'press:late', week + 2);
@@ -181,6 +183,30 @@ describe('hub priorities', () => {
     expect(hubPriorities(world, null).map((entry) => entry.kind)).not.toContain('press');
   });
 
+  it('lists a story awaiting a choice as a deadline, until it is answered', () => {
+    const world = betweenMatches();
+    world.career!.stories = [
+      {
+        id: 'story:charity:test',
+        version: 1,
+        kind: 'charity',
+        started: { ...world.date },
+        respondBy: { ...world.date, day: 7 },
+        params: { city: 'Town' },
+        status: 'offered',
+        choice: null,
+        resolveAt: null,
+        outcome: null,
+      },
+    ];
+    const story = hubPriorities(world, null).find((item) => item.kind === 'story');
+    expect(story).toMatchObject({ group: 'deadline', to: '/career#story' });
+    world.career!.stories[0]!.status = 'resolved';
+    world.career!.stories[0]!.choice = 'visit';
+    world.career!.stories[0]!.outcome = 'visit';
+    expect(hubPriorities(world, null).some((item) => item.kind === 'story')).toBe(false);
+  });
+
   it('keeps the save in career links only', () => {
     expect(withSave('/career/transfers?offer=a', '2')).toBe('/career/transfers?offer=a&save=2');
     expect(withSave('/career#condition-heading', '1')).toBe('/career?save=1#condition-heading');
@@ -193,6 +219,7 @@ describe('advance preview', () => {
   it('heads for the next fixture after this week and lists deadlines that would lapse', () => {
     const world = betweenMatches();
     const week = world.date.week;
+    world.career!.stories = [];
     const preview = advancePreview(world, null);
     expect(preview.kind).toBe('fixture');
     expect(preview.fixture!.date.week).toBeGreaterThan(week);

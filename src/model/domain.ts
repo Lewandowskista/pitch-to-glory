@@ -136,6 +136,8 @@ export interface Club {
   playerIds: Id[];
   dressingRoomId: Id;
   identity?: ClubIdentity;
+  /** An academy a career player funded (schema 20): its youngsters come through with more potential. */
+  academy?: { patronId: Id; since: number };
 }
 export type Counterpart = 'England' | 'France' | 'Spain' | 'Germany' | 'Italy' | 'Portugal';
 export type Tier = 1 | 2 | 3 | 4 | 5 | 6;
@@ -491,6 +493,48 @@ export interface Career {
   coaching?: CareerCoaching;
   /** The career's chosen ambitions (schema 19); absent until the player sets them. */
   ambitions?: CareerAmbitions;
+  /** Multi-week stories (schema 20): offered, awaiting their follow-up, or resolved. */
+  stories?: StoryState[];
+  /** The club the player captains, and since when (schema 20). */
+  captaincy?: { clubId: Id; since: GameDate } | null;
+  /** A farewell season announced (schema 20): the career ends when it is complete. */
+  farewell?: { season: number; announced: GameDate } | null;
+  /** Clubs that have granted the player a testimonial, after long service (schema 20). */
+  testimonials?: Id[];
+}
+export type StoryKind =
+  | 'senior-dispute'
+  | 'mentor-youth'
+  | 'captaincy'
+  | 'new-manager'
+  | 'rival-war'
+  | 'transfer-saga'
+  | 'comeback'
+  | 'homecoming'
+  | 'charity'
+  | 'night-out'
+  | 'derby-promise'
+  | 'contract-envy';
+export type StoryStatus = 'offered' | 'waiting' | 'resolved';
+/**
+ * A story arc: offered with choices, answered (or lapsed into its default), then resolved
+ * weeks later by what happened in the meantime. Effects apply once, on each transition.
+ */
+export interface StoryState {
+  /** Stable: `story:<kind>:<season>:<week>`. */
+  id: Id;
+  version: 1;
+  kind: StoryKind;
+  started: GameDate;
+  /** The last day to choose; unanswered, the default choice is taken. */
+  respondBy: GameDate;
+  /** Names and numbers the story refers to (teammate, club, rival…), and ids it acts on. */
+  params: Record<string, string | number>;
+  status: StoryStatus;
+  choice: string | null;
+  /** When the follow-up resolves (null when the choice settles it at once). */
+  resolveAt: GameDate | null;
+  outcome: string | null;
 }
 export type AmbitionId =
   | 'goals'
@@ -595,7 +639,7 @@ export interface LifestyleAsset {
   id: Id;
   /** Catalogue item: a car, a home, an investment product, staff, an experience or a charity. */
   itemId: Id;
-  kind: 'car' | 'house' | 'investment' | 'staff' | 'experience' | 'charity';
+  kind: 'car' | 'house' | 'investment' | 'staff' | 'experience' | 'charity' | 'legacy';
   bought: GameDate;
   cost: number;
   /** Current resale value (an investment's balance). */
@@ -1091,6 +1135,9 @@ export type ChronicleKind =
   | 'moment'
   | 'promise'
   | 'ambition'
+  | 'story'
+  | 'farewell'
+  | 'testimonial'
   | 'retirement';
 export interface ChronicleEntry {
   id: Id;
@@ -1196,6 +1243,8 @@ export interface KeyMoment {
   situationParams?: Record<string, string>;
   /** A line on what the moment means for the game, late in a close match. */
   pressureKey?: string;
+  /** A follow-up moment (match-13): the shot after a beaten defender, or the shootout kick. */
+  follows?: 'chain' | 'shootout';
   frame: ReplayFrame;
   /** Expected goals this moment replaces for the selected team and against it. */
   budget: { for: number; against: number };
@@ -1454,7 +1503,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 19;
+  schemaVersion: 20;
   engineVersion: string;
   slot: SlotId;
   name: string;

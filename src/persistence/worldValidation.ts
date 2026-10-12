@@ -213,6 +213,11 @@ export function validateEntities(
     ref(club.dressingRoomId, dressingRooms);
     number(club.reputation, 1, 99);
     number(club.youthFocus, 0, 100);
+    if (club.academy !== undefined) {
+      const academy = object(club.academy);
+      id(academy.patronId);
+      number(academy.since, 1800, 3000, true);
+    }
     options(club.playingStyle, ['possession', 'direct', 'press', 'counter', 'balanced']);
     const crest = object(club.crest);
     number(crest.shape, 0, CREST_SHAPES.length - 1, true);

@@ -1,3 +1,4 @@
+import { storyTitle } from './storyText';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { World } from '../../model/domain';
 import { format, t } from '../../i18n';
@@ -38,6 +39,8 @@ export function priorityLabel(item: Priority): string {
           l.sponsors.categories[p.category as keyof typeof l.sponsors.categories] ?? p.category
         ).toLowerCase(),
       });
+    case 'story':
+      return format(a.priorities.kinds.story, { title: storyTitle(String(p.story)) });
     default:
       return format(a.priorities.kinds[item.kind], p);
   }
@@ -63,6 +66,8 @@ function priorityDetail(item: Priority): string | null {
       return a.priorities.details.press;
     case 'promise':
       return a.priorities.details.promise;
+    case 'story':
+      return a.priorities.details.story;
     case 'sponsor':
       return a.priorities.details.sponsor;
     default:
@@ -176,12 +181,17 @@ export function AdvancePreviewText({ world, preview }: { world: World; preview: 
     <div className="grid max-w-prose gap-2 text-sm text-white/85">
       <p>
         {preview.fitWeek !== null && `${format(a.preview.fit, { week: preview.fitWeek })} `}
-        {fixture
-          ? `${range}${format(a.preview.stop, {
-              week: fixture.date.week,
-              opponent: world.clubs[opponentId ?? '']?.name ?? '',
+        {preview.deadline
+          ? `${range}${format(a.preview.deadline, {
+              week: preview.deadline.week,
+              club: world.clubs[preview.deadline.clubId]?.name ?? '',
             })}`
-          : format(a.preview.season, { through: preview.through })}
+          : fixture
+            ? `${range}${format(a.preview.stop, {
+                week: fixture.date.week,
+                opponent: world.clubs[opponentId ?? '']?.name ?? '',
+              })}`
+            : format(a.preview.season, { through: preview.through })}
       </p>
       {preview.lapsing.length > 0 && (
         <div className="rounded-control bg-black/20 px-3 py-2">

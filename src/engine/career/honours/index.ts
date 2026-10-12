@@ -6,4 +6,3 @@ export * from './awards';
 export * from './retirement';
 export * from './week';
 export * from './actions';
-export * from './ambitions';

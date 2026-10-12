@@ -12,6 +12,7 @@ export type StakeKind =
   | 'phase'
   | 'rival'
   | 'former-club'
+  | 'farewell'
   | 'derby'
   | 'go-top'
   | 'stay-top'
@@ -89,7 +90,10 @@ export function fixtureStakes(world: World, fixture: Fixture): FixtureStake[] {
   if (rival && !rival.retired && rival.clubId === opponentId)
     stakes.push({ kind: 'rival', params: { rival: rival.name, opponent: opponent.name } });
   const former = career.market.moves.some((move) => move.fromClubId === opponentId);
-  if (former) stakes.push({ kind: 'former-club', params: { opponent: opponent.name } });
+  // In a farewell season, every former club's ground says goodbye.
+  if (former && career.farewell?.season === world.date.season)
+    stakes.push({ kind: 'farewell', params: { opponent: opponent.name } });
+  else if (former) stakes.push({ kind: 'former-club', params: { opponent: opponent.name } });
   if (club.city && club.city === opponent.city)
     stakes.push({ kind: 'derby', params: { city: club.city, opponent: opponent.name } });
   stakes.push(...tableStakes(world, fixture, clubId));

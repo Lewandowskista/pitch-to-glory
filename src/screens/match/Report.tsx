@@ -72,7 +72,15 @@ function LevelUp({ outcome, reduced }: { outcome: CareerMatchOutcome; reduced: b
 }
 
 /** The deciding result of a recorded career match: score, extra time and penalties. */
-function FinalResult({ final }: { final: CareerMatchFinal }) {
+function FinalResult({
+  final,
+  shootout,
+  keeper,
+}: {
+  final: CareerMatchFinal;
+  shootout?: { probability: number; success: boolean };
+  keeper: boolean;
+}) {
   const pair = ([own, opposition]: [number, number]) => ({ own, opposition });
   return (
     <div className="mt-4 rounded-control bg-surface-soft p-4" data-testid="final-result">
@@ -95,6 +103,22 @@ function FinalResult({ final }: { final: CareerMatchFinal }) {
               ? c.report.penaltiesWon
               : c.report.penaltiesLost,
             pair(final.penalties),
+          )}
+        </p>
+      )}
+      {shootout && (
+        <p className="mt-1 text-sm" data-testid="shootout-kick">
+          {format(
+            final.penalties
+              ? keeper
+                ? shootout.success
+                  ? c.report.shootoutSaved
+                  : c.report.shootoutBeaten
+                : shootout.success
+                  ? c.report.shootoutScored
+                  : c.report.shootoutMissed
+              : c.report.shootoutUnneeded,
+            { percent: Math.round(shootout.probability * 100) },
           )}
         </p>
       )}
@@ -172,7 +196,11 @@ export function Report({
           <p className="muted">{m.friendlyRewards}</p>
         ) : outcome && final ? (
           <>
-            <FinalResult final={final} />
+            <FinalResult
+              final={final}
+              shootout={state.shootout}
+              keeper={setup.players[setup.selectedPlayerId]!.primaryPosition === 'GK'}
+            />
             <p className="muted">
               {format(c.report.breakdown, {
                 xp: performance,

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { storiesText } from '../../i18n/stories';
 import { ambitionsText } from '../../i18n/ambitions';
 import { ambitionName } from './ambitionText';
+import { storyletsText } from '../../i18n/storylets';
+import { storyMessageParams } from './storyText';
 const storiesMessages: Record<string, { subject: string; body: string }> = storiesText.messages;
 const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
 import { useAppStore } from '../../store';
@@ -62,8 +64,12 @@ export function messageText(message: InboxMessage): { subject: string; body: str
     lifestyleMessages[message.subjectKey] ??
     honoursMessages[message.subjectKey] ??
     storiesMessages[message.subjectKey] ??
-    ambitionsText.messages[message.subjectKey] ?? { subject: message.subjectKey, body: '' };
-  const params: Record<string, string | number> = { ...message.params };
+    ambitionsText.messages[message.subjectKey] ??
+    storyletsText.messages[message.subjectKey] ?? { subject: message.subjectKey, body: '' };
+  const params: Record<string, string | number> =
+    typeof message.params.story === 'string'
+      ? storyMessageParams(message.params)
+      : { ...message.params };
   for (const key of ['fee', 'bid', 'bonus', 'proceeds'] as const)
     if (typeof params[key] === 'number') params[key] = money(params[key]);
   if (typeof params.wage === 'number') params.wage = weekly(params.wage);

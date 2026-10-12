@@ -32,7 +32,16 @@ export function useSocialAction() {
 export function mediaText(item: MediaItem): string {
   const params: Record<string, string | number> = { ...item.params };
   if (typeof params.fee === 'number') params.fee = money(params.fee);
-  const template = item.choices.length > 0 ? s.press[item.textKey] : s.posts[item.textKey];
+  let template = item.choices.length > 0 ? s.press[item.textKey] : s.posts[item.textKey];
+  if (item.choices.length > 0) {
+    // The press remembers an earlier answer, or asks in one of its wordings.
+    const quote = typeof params.recall === 'string' ? s.answers[params.recall] : undefined;
+    const variant = Number(params.variant ?? 0);
+    if (quote && s.pressRecall[item.textKey]) {
+      template = s.pressRecall[item.textKey];
+      params.quote = quote;
+    } else if (variant > 0) template = s.pressVariants[item.textKey]?.[variant - 1] ?? template;
+  }
   return format(template ?? item.textKey, params);
 }
 
@@ -45,23 +54,32 @@ export function effectList(effects: MediaEffects): { label: string; value: numbe
     if (value) list.push({ label: s.room.cliqueNames[kind], value });
   return list;
 }
+/**
+ * Who an answer pleases and who it upsets. The press is a matter of voice: the direction is
+ * shown, and a doubled arrow for a strong effect, never the exact numbers.
+ */
 export function EffectChips({ effects }: { effects: MediaEffects }) {
   return (
     <ul className="flex flex-wrap gap-1.5" aria-label={s.media.effects}>
       {effectList(effects).map(({ label, value }) => (
         <li
           key={label}
-          className={`inline-flex min-h-6 items-center rounded-full px-2 text-xs font-bold ${
+          className={`inline-flex min-h-6 items-center gap-1 rounded-full px-2 text-xs font-bold ${
             value > 0 ? 'bg-accent-soft text-accent' : 'bg-danger-soft text-danger'
           }`}
         >
-          {label} {value > 0 ? '+' : '−'}
-          {Math.abs(value)}
+          <span aria-hidden="true">
+            {(value > 0 ? '▲' : '▼').repeat(Math.abs(value) >= STRONG ? 2 : 1)}
+          </span>
+          <span className="sr-only">{value > 0 ? s.media.pleases : s.media.upsets} </span>
+          {label}
         </li>
       ))}
     </ul>
   );
 }
+/** An effect this large shows as strong. */
+const STRONG = 4;
 
 /** The club's notable culture traits (AGENTS.md §5), from its culture values. */
 export function cultureTraits(club: Club): string[] {

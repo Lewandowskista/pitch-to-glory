@@ -657,3 +657,25 @@ From the [engagement review](ENGAGEMENT-REVIEW-2026-10-09.md). Match constants a
 **Ambitions (`career/honours/ambitions.ts`, `honours.ambitions`).** Up to 3 chosen from the hub, changed once a season (achieved ones stay); offered by position (goals for forwards and central midfielders, assists for creators and full-backs, clean sheets for the back line and keepers). Targets: 150 goals, 100 assists, 150 clean sheets, 500 matches, 50 senior caps, 8 seasons at one club, a top-50 Hall of Fame rank; or a top-flight title, the Champions cup, the Golden Ball, or playing for a dream club among the world's 10 most famous. Each reached pays 30 fame and 400 XP, writes the Chronicle and posts to the inbox. Checked after every match, weekly and at season end (the Hall of Fame weekly, as it ranks every player). Stored as `career.ambitions` (schema 19).
 
 **Live Hall of Fame.** The hub shows the career's current rank, scored exactly as retirement scores it (`careerHallOfFameScore`), and the points needed to pass the next name above (`hallOfFameStanding`). Before the career has any score it says so rather than ranking a tie at nothing first.
+
+## Engagement pass 2: stories, seasons and a late career (October 2026)
+
+From the [engagement review](ENGAGEMENT-REVIEW-2026-10-09.md). Match constants (engine `match-13`) are in [MATCH-BALANCING.md](MATCH-BALANCING.md).
+
+**Story arcs (`career/stories/storylets.ts`, `career.stories`).** Twelve stories: a senior's dispute with the manager, mentoring a youngster, the captaincy, a new manager, a war of words with the rival, a transfer saga, a comeback from injury, a homecoming, a charity visit, a night out, a derby promise and contract envy. At most one open; a new one at least 4 weeks after the last, on 30% of weeks, unless an occasion (a new manager, a comeback, a homecoming, a derby) brings one at once; each kind once a season. Choices move manager trust, fan affection, cliques, the dressing room's mood, one named teammate, morale, form, fatigue, fame, XP, cash, the rival's intensity or a suitor's scouting confidence; some are settled 1–6 weeks later by what happened (the manager's trust, form, the rival's goals since, the derby's result, a captaincy contest of leadership plus half the trust plus up to 20 against the senior candidate's leadership plus 40). Unanswered, a story takes its default choice. The hub shows who a choice pleases and upsets, never the numbers; the outcome reaches the inbox and, for landmarks, the Chronicle.
+
+**Captaincy (`career.captaincy`).** Named captain through the story, the player wears the armband in every match for that club (`MatchSetup.captain`), with the captain's half-time calls.
+
+**Deadline day.** Continue stops at the start of the week in which an offer awaiting an answer lapses (`deadlines.ts`); pressing it again lets the deadline pass. A season simulation never stops.
+
+**End-of-season review (`career/review.ts`, `career.review`).** Graded 0–100: playing time 30 (share of the club's matches), rating 30 (from 6.0 over 1.4), goal involvements or clean sheets a match against the position's reference 20, a trophy 8, up to two season awards 6 each, a title or promotion +6 (relegation −6). A+ from 90, A 78, B 64, C 50, D 36.
+
+**Season awards** count clean sheets for keepers (1.2 each) and defenders (0.9) in MVP, team of the season, Young Player and the Golden Ball, from complete season statistics.
+
+**Press.** Each topic is asked in one of three wordings, and a defeat after a confident or provocative answer, a win after a defeat, the rival again after a provocation, or being dropped again after a bold claim quotes the earlier answer back (within 5 weeks, `media.recallWeeks`). Answers show who they please and upset, a doubled arrow from 4, not the numbers. Fan, journalist and headline posts have about twice the wordings.
+
+**Farewell and testimonial.** From the season before the optional retirement age, a season can be announced as the last (+15 fame): former clubs' matches become farewell visits and the career ends when the season is complete. Eight seasons at one club bring a testimonial once per club (+20 fame, +10 fan affection).
+
+**Legacy projects (`lifestyle`, kind `legacy`).** At the club where the career began: a stake (fame level 6, 300 weeks' wages, at least 50,000) puts half its price into the club's transfer budget and adds 1 reputation each season it is held; an academy (fame level 7, 400 weeks, at least 80,000) adds 6 potential to every youngster the club brings through, for as long as the world lasts (`Club.academy`). Fans there +8.
+
+**Playing counts.** Bonus XP for key decisions (4 a success, 8 against the odds) is earned only in matches the player plays; simulated matches earn match XP alone.

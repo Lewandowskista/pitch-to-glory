@@ -1,3 +1,4 @@
+import { offerDeadlineThisWeek } from '../engine/career/deadlines';
 import { generateWorld } from '../engine/world/generate';
 import { startNextSeason } from '../engine/world/simulate';
 import { advanceCareerWeek } from '../engine/career/season';
@@ -55,6 +56,7 @@ scope.onmessage = createChunkReceiver<WorkerRequest>((data) => {
       nextSeason: (world) => startNextSeason(world, { inPlace: true }),
       commit: (world, session) => ({ world, outcome: commitCareerMatch(world, session) }),
       createCareer: (world, seed, draft, clubId) => createCareer(world, draft, clubId, seed),
+      decisionDue: offerDeadlineThisWeek,
     },
   ).finally(() => {
     current = null;

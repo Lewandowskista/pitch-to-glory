@@ -12,6 +12,10 @@ export type HeadlineKind =
   | 'late-winner'
   | 'late-equaliser'
   | 'hat-trick'
+  | 'final-won'
+  | 'final-lost'
+  | 'derby-won'
+  | 'derby-lost'
   | 'brace'
   | 'penalty-save'
   | 'scorer-win'
@@ -31,6 +35,10 @@ export const HEADLINE_KINDS: readonly HeadlineKind[] = [
   'late-winner',
   'late-equaliser',
   'hat-trick',
+  'final-won',
+  'final-lost',
+  'derby-won',
+  'derby-lost',
   'brace',
   'penalty-save',
   'scorer-win',
@@ -54,6 +62,8 @@ export type PerformanceKind = 'star' | 'solid' | 'poor';
 const STAR = 7.3,
   POOR = 6.3;
 const LATE = 85;
+/** A fixture this important is a final (`career.importance.final`). */
+const FINAL_IMPORTANCE = 1.5;
 
 export function headlineKind(session: MatchSession, rating: number): HeadlineKind {
   const s = session.state,
@@ -73,6 +83,13 @@ export function headlineKind(session: MatchSession, rating: number): HeadlineKin
   if (lateGoal && margin === 1) return 'late-winner';
   if (lateGoal && margin === 0) return 'late-equaliser';
   if (goals >= 3) return 'hat-trick';
+  // Big occasions (match-13): a final or a derby is the story, unless it is level.
+  if (setup.occasions && margin !== 0) {
+    if ((setup.fixture?.importance ?? 1) >= FINAL_IMPORTANCE)
+      return margin > 0 ? 'final-won' : 'final-lost';
+    if (setup.home.city && setup.home.city === setup.away.city)
+      return margin > 0 ? 'derby-won' : 'derby-lost';
+  }
   if (savedPenalty && margin >= 0) return 'penalty-save';
   if (goals === 2 && margin >= 0) return 'brace';
   if (goals > 0) return margin > 0 ? 'scorer-win' : margin === 0 ? 'scorer-draw' : 'scorer-loss';

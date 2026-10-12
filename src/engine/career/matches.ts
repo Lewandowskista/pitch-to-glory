@@ -28,6 +28,7 @@ import { performanceFame, performanceXp } from '../match/rewards';
 import { rolesForPosition } from '../match/roles';
 import { commitPlayedFixture, type PlayedFixture } from '../world/simulate';
 import { matchExposure } from '../world/finalize';
+import { isKnockoutFixture } from '../world/continental';
 import { addXp } from './progression';
 import { injure, injuryFactor, revealHidden } from './training';
 import { fixtureImportance } from './fixtures';
@@ -53,10 +54,35 @@ export function careerMatchSetup(world: World, fixture: Fixture): MatchSetup {
         id: fixture.id,
         competitionId: fixture.competitionId,
         importance: fixtureImportance(world, fixture),
+        ...shootoutLeadOf(world, fixture),
       },
       chemistry: Math.round(chemistry(world)),
+      captain: world.career!.captaincy?.clubId === world.players[world.career!.playerId]!.clubId,
     },
   );
+}
+/**
+ * For a match that, level on aggregate at full time, goes to extra time and penalties: the
+ * home side's aggregate lead from earlier legs (0 for a single match). A league game, a group
+ * game or a tie settled by ranking has none.
+ */
+export function shootoutLeadOf(world: World, fixture: Fixture): { shootoutLead?: number } {
+  const tie = fixture.tieId ? world.pyramid?.ties[fixture.tieId] : undefined;
+  if (tie) {
+    if (fixture.id !== tie.fixtureIds.at(-1)) return {};
+    if (tie.drawRule === 'higher-rank' || tie.drawRule === 'higher-rank-after-extra-time')
+      return {};
+    let lead = 0;
+    for (const id of tie.fixtureIds) {
+      if (id === fixture.id) continue;
+      const leg = world.fixtures[id]!;
+      const score = world.results[id]?.score;
+      if (!score) return {};
+      lead += leg.homeId === fixture.homeId ? score[0] - score[1] : score[1] - score[0];
+    }
+    return { shootoutLead: lead };
+  }
+  return isKnockoutFixture(world, fixture) ? { shootoutLead: 0 } : {};
 }
 export function defaultTactics(world: World): Tactics {
   const position = world.players[world.career!.playerId]!.primaryPosition;
@@ -153,6 +179,14 @@ export function commitCareerMatch(
       away: [...state.match.away.starterIds],
     },
     selected: { playerId, rating: state.report.rating },
+    ...(state.shootout
+      ? {
+          shootout: {
+            teamId: world.players[playerId]!.clubId!,
+            success: state.shootout.success,
+          },
+        }
+      : {}),
   };
   const finalized = commitPlayedFixture(world, fixture.id, played);
   const result = world.results[fixture.id]!;
@@ -195,14 +229,17 @@ export function commitCareerMatch(
   );
   const decisions = matchDecisions(session, world.date);
   const analyst = assetEffects(career.style?.assets ?? []).decisionXp;
-  const decisionXp = decisions.reduce(
-    (sum, decision) =>
-      sum +
-      (decision.success
-        ? (decision.probability < 0.5 ? C.decisionXp.underdog : C.decisionXp.success) + analyst
-        : 0),
-    0,
-  );
+  // Decisions earn their XP only when the player makes them: a simulated match does not.
+  const decisionXp = options.auto
+    ? 0
+    : decisions.reduce(
+        (sum, decision) =>
+          sum +
+          (decision.success
+            ? (decision.probability < 0.5 ? C.decisionXp.underdog : C.decisionXp.success) + analyst
+            : 0),
+        0,
+      );
   const importance = session.setup.fixture!.importance;
   const xp = Math.round((performance + decisionXp) * opposition * importance);
   const previousLevel = career.level;

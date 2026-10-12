@@ -302,7 +302,8 @@ export function buyAsset(world: World, itemId: string, amount?: number): void {
     (item.kind === 'staff' ||
       item.kind === 'charity' ||
       item.kind === 'house' ||
-      item.kind === 'car') &&
+      item.kind === 'car' ||
+      item.kind === 'legacy') &&
     career.style.assets.some((asset) => asset.itemId === itemId)
   )
     throw new Error('You already have this');
@@ -328,13 +329,35 @@ export function buyAsset(world: World, itemId: string, amount?: number): void {
     value: price,
     upkeep: upkeepOf(world, item),
   });
+  if (item.kind === 'legacy') legacyProject(world, item.effect!, price);
+}
+/** The club where the career began: the first move's origin, or the club today. */
+export function firstClubOf(world: World): string | null {
+  const career = world.career!;
+  return career.market.moves[0]?.fromClubId ?? world.players[career.playerId]!.clubId;
+}
+/**
+ * A legacy project at the first club (engagement review, late-career money): a stake funds its
+ * transfer budget at once and lifts its standing every season it is held; an academy raises
+ * the potential of every youngster it brings through, for good. The fans there never forget.
+ */
+function legacyProject(world: World, effect: string, price: number): void {
+  const clubId = firstClubOf(world);
+  const club = clubId ? world.clubs[clubId] : undefined;
+  if (!club) return;
+  const G = L.legacy;
+  if (effect === 'stake') club.finances.transferBudget += Math.round(price * G.stakeBudget);
+  if (effect === 'academy')
+    club.academy = { patronId: world.career!.playerId, since: world.date.season };
+  adjustRelationship(world, 'fans', club.id, G.fans);
+  postMessage(world, 'legacy-project', { club: club.name, project: effect });
 }
 /** Resale value: investments return their balance, cars and homes a share of the price;
  * staff and charities return nothing when let go. */
 export const resaleValue = (asset: { kind: string; value: number }) =>
   asset.kind === 'investment'
     ? asset.value
-    : asset.kind === 'staff' || asset.kind === 'charity'
+    : asset.kind === 'staff' || asset.kind === 'charity' || asset.kind === 'legacy'
       ? 0
       : Math.round(asset.value * L.resale);
 export function sellAsset(world: World, assetId: string): number {

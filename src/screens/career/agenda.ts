@@ -14,6 +14,7 @@ import type {
   World,
 } from '../../model/domain';
 import { pendingCareerFixture } from '../../engine/career/fixtures';
+import { nextOfferDeadline } from '../../engine/career/deadlines';
 import { windowWeeks } from '../../engine/career/honours/international';
 import { compareDates, windowState } from '../../engine/career/market/rules';
 import { getSeasonWeeks } from '../../engine/world/calendar';
@@ -29,6 +30,7 @@ export type PriorityKind =
   | 'offer'
   | 'press'
   | 'promise'
+  | 'story'
   | 'sponsor'
   | 'attributes'
   | 'skills';
@@ -97,6 +99,16 @@ export function deadlineItems(world: World): Priority[] {
       deadline: { season: promise.season, week: promise.respondBy, day: 7 },
       to: '/career/club',
       params: { manager: world.managers[promise.managerId]?.name ?? '' },
+    });
+  const story = world.career?.stories?.find((entry) => entry.status === 'offered');
+  if (story)
+    items.push({
+      id: `story:${story.id}`,
+      kind: 'story',
+      group: 'deadline',
+      deadline: story.respondBy,
+      to: '/career#story',
+      params: { story: story.kind },
     });
   for (const deal of world.sponsorships) {
     if (deal.status !== 'offered') continue;
@@ -190,6 +202,8 @@ export type AdvanceKind =
   | 'fixture'
   /** No fixture left for the club: Continue plays out the season. */
   | 'season'
+  /** Continue stops on deadline day, for an offer awaiting an answer. */
+  | 'deadline'
   | 'complete';
 export interface AdvancePreview {
   kind: AdvanceKind;
@@ -203,6 +217,8 @@ export interface AdvancePreview {
   fitWeek: number | null;
   /** Deadlines that pass in the simulated weeks unless acted on first. */
   lapsing: Priority[];
+  /** Deadline day: the week Continue stops in for an offer awaiting an answer. */
+  deadline?: { week: number; clubId: string };
 }
 
 /**
@@ -237,17 +253,22 @@ export function advancePreview(world: World, session: SessionState): AdvancePrev
       .sort(
         (a, b) => a.date.week - b.date.week || a.date.day - b.date.day || (a.id < b.id ? -1 : 1),
       )[0] ?? null;
-  const through = fixture ? fixture.date.week - 1 : seasonWeeks;
+  const fixtureThrough = fixture ? fixture.date.week - 1 : seasonWeeks;
+  // Continue stops on deadline day when an offer awaits an answer (see deadlines.ts).
+  const due = nextOfferDeadline(world);
+  const deadline = due && due.week - 1 < fixtureThrough ? due : null;
+  const through = deadline ? Math.max(from, deadline.week - 1) : fixtureThrough;
   const lapsing = deadlineItems(world).filter(
     (item) => item.deadline && inSeason(world, item.deadline) && item.deadline.week <= through,
   );
   return {
-    kind: fixture ? 'fixture' : 'season',
+    kind: deadline ? 'deadline' : fixture ? 'fixture' : 'season',
     from,
     fixture,
     through,
     fitWeek,
     lapsing,
+    ...(deadline ? { deadline } : {}),
   };
 }
 

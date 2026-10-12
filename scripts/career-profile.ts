@@ -11,6 +11,7 @@
  *
  * Writes artifacts/profile/<seed>-<position>.json.
  */
+import { CALIBRATION_GATE, calibrationProblems } from './calibration';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Id, Player, Position, World } from '../src/model/domain';
 import { generateWorld } from '../src/engine/world/generate';
@@ -450,17 +451,9 @@ export const GATES: Gate[] = [
     },
   },
   {
-    name: 'key-moment odds stay honest (within 7 points over 150 decisions, 5 over 500)',
+    name: CALIBRATION_GATE,
     check: (profiles) => {
-      const off = profiles.flatMap((p) =>
-        Object.entries(p.calibration)
-          .filter(
-            ([, v]) =>
-              (v.n >= 150 && Math.abs(v.stated - v.actual) > 7) ||
-              (v.n >= 500 && Math.abs(v.stated - v.actual) > 5),
-          )
-          .map(([key, v]) => `${p.seed} ${key}: ${v.stated} vs ${v.actual}`),
-      );
+      const off = profiles.flatMap((p) => calibrationProblems(p.calibration, String(p.seed)));
       return off.length ? off.join('; ') : null;
     },
   },

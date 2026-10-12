@@ -110,6 +110,9 @@ const migrations: Readonly<Record<number, Migration>> = {
   // v19 adds the career's chosen ambitions (optional `career.ambitions`), their inbox message
   // and Chronicle entry. Careers saved before choose theirs from the hub.
   18: (old) => ({ ...old, schemaVersion: 19 }),
+  // v20 adds story arcs (optional `career.stories`) and the captaincy (`career.captaincy`),
+  // with their inbox messages and Chronicle entry. Careers saved before start without either.
+  19: (old) => ({ ...old, schemaVersion: 20 }),
 };
 function withLevelXp(payload: unknown): unknown {
   try {

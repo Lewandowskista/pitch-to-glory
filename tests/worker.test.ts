@@ -23,6 +23,29 @@ const operations = {
   }),
 };
 describe('worker job protocol', () => {
+  it('stops Continue on deadline day, after at least one week, but never a season simulation', async () => {
+    const { runWorldJob } = await import('../src/workers/run');
+    const run = async (type: 'simulate-to-match' | 'simulate-season') => {
+      const events: WorkerResponse[] = [];
+      await runWorldJob(
+        type === 'simulate-to-match'
+          ? { requestId: 'deadline', type, world: initial }
+          : { requestId: 'deadline', type, world: initial, autoPlay: false },
+        {
+          emit: (event) => events.push(event),
+          checkpoint: async () => {},
+          cancelled: () => false,
+          yieldControl: async () => {},
+        },
+        // A decision falls due in week 1 (where Continue starts) and in week 2.
+        { ...operations, decisionDue: (world) => world.date.week <= 2 },
+      );
+      return events.filter((event) => event.type === 'checkpoint').length;
+    };
+    // Week 1 always plays; Continue then stops in week 2 for the decision.
+    expect(await run('simulate-to-match')).toBe(1);
+    expect(await run('simulate-season')).toBe(3);
+  });
   it('continues through the national postseason calendar instead of stopping at legacy week 34', async () => {
     const { runWorldJob } = await import('../src/workers/run');
     const events: WorkerResponse[] = [];

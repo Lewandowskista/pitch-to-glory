@@ -3,6 +3,7 @@ import { CONFIG } from '../../config';
 import { playerAbility } from '../../strength';
 import { refreshDressingRoom } from '../../world/dressing';
 import { today } from '../market/rules';
+import { adjustRelationship, postMessage } from '../market/records';
 import { chronicle } from './chronicle';
 
 /**
@@ -13,6 +14,60 @@ import { chronicle } from './chronicle';
  * player's child) can start in the same world.
  */
 const H = CONFIG.career.honours;
+
+/** Whether this season can be announced as the last: old enough, in season, not yet said. */
+export function canAnnounceFarewell(world: World): boolean {
+  const career = world.career;
+  if (!career || career.farewell || world.phase !== 'active') return false;
+  const age = retirementAge(world);
+  return age >= H.retirement.optionalAge - 1 && age + 1 < H.retirement.forcedAge;
+}
+/**
+ * Announce a farewell season (engagement review, late-career arc): the career ends when this
+ * season is complete. Fans everywhere the player has been take note; former clubs' matches
+ * become farewell visits. Returns a new world.
+ */
+export function announceFarewell(input: World): World {
+  if (!canAnnounceFarewell(input)) throw new Error('A farewell cannot be announced now');
+  const world: World = {
+    ...input,
+    career: structuredClone(input.career!),
+    inbox: [...input.inbox],
+    chronicle: [...input.chronicle],
+  };
+  const career = world.career!;
+  career.farewell = { season: world.date.season, announced: today(world) };
+  career.fame += H.farewell.fame;
+  chronicle(world, 'farewell', { season: world.date.season });
+  postMessage(world, 'farewell', { season: world.date.season });
+  return world;
+}
+/** Seasons the player has spent at their current club, the current one when complete. */
+export function seasonsAtClub(world: World): number {
+  const career = world.career!;
+  const clubId = world.players[career.playerId]!.clubId;
+  const move = [...career.market.moves]
+    .reverse()
+    .find((entry) => entry.toClubId === clubId && entry.kind !== 'renewal');
+  const joined = move?.date.season ?? career.startSeason;
+  return Math.max(0, world.date.season - joined + (world.phase === 'complete' ? 1 : 0));
+}
+/**
+ * A testimonial for long service: at a season's end, a player with `testimonial.seasons` at the
+ * club is honoured once per club, with fame, the fans' affection and a Chronicle page.
+ */
+export function testimonialCheck(world: World): void {
+  const career = world.career!;
+  const clubId = world.players[career.playerId]!.clubId;
+  if (!clubId || (career.testimonials ?? []).includes(clubId)) return;
+  if (seasonsAtClub(world) < H.testimonial.seasons) return;
+  (career.testimonials ??= []).push(clubId);
+  career.fame += H.testimonial.fame;
+  adjustRelationship(world, 'fans', clubId, H.testimonial.fans);
+  const club = world.clubs[clubId]!.name;
+  chronicle(world, 'testimonial', { club, seasons: seasonsAtClub(world) });
+  postMessage(world, 'testimonial', { club, seasons: seasonsAtClub(world) });
+}
 
 export function retirementAge(world: World): number {
   const player = world.players[world.career!.playerId]!;

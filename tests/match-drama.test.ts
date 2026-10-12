@@ -12,6 +12,7 @@ import {
   MATCH_ENGINE_VERSION,
   SITUATIONS,
   SLOT_MATCH_ENGINE,
+  DRAMA_MATCH_ENGINE,
   type MatchSession,
   type MatchSetup,
 } from '../src/engine/match';
@@ -88,7 +89,8 @@ describe('key moments that follow the game', () => {
     for (const { drama } of played) {
       const s = drama.state;
       if (s.substituted) continue;
-      const moments = s.match.keyMoments;
+      // Scheduled moments: a chained shot or a shootout kick shares its minute.
+      const moments = s.match.keyMoments.filter((moment) => !moment.follows);
       const last = moments[moments.length - 1]!;
       // The score when the deciding minute was reached.
       const goals = s.match.events.filter(
@@ -242,4 +244,98 @@ describe('key moments that follow the game', () => {
     // Over a few hundred matches the stories differ.
     expect(kinds.size).toBeGreaterThanOrEqual(8);
   });
+
+  it('chain a beaten defender into the shot it made, one frame a minute', () => {
+    let chains = 0;
+    for (const { drama, position } of played) {
+      const moments = drama.state.match.keyMoments;
+      moments.forEach((moment, index) => {
+        if (moment.follows !== 'chain') return;
+        chains++;
+        expect(['ST', 'AM']).toContain(position);
+        expect(moment.situationId).toBe('box-chance');
+        // It follows the dribble that won it, in the same minute, carrying its chance.
+        const before = moments[index - 1]!;
+        expect(before.minute).toBe(moment.minute);
+        const outcome = drama.state.match.events.find(
+          (e) => e.outcome?.input.momentId === before.id,
+        )!.outcome!;
+        expect(outcome.success).toBe(true);
+        const choice = before.choices.find((c) => c.id === outcome.input.choiceId)!;
+        expect(moment.budget.for).toBe(choice.stakes.successGoal);
+      });
+      expect(drama.state.frames).toHaveLength(91);
+    }
+    expect(chains).toBeGreaterThan(5);
+  });
+
+  it('replay sessions from the engine before big occasions as they were', () => {
+    const setup = setupFor('ST', 'drama:occasions');
+    expect(setup.occasions).toBe(true);
+    const earlier = structuredClone(setup);
+    delete earlier.occasions;
+    expect(engineFor(earlier)).toBe(DRAMA_MATCH_ENGINE);
+    const session = play(createMatchSession(earlier, tactics));
+    expect(session.state.match.keyMoments.some((m) => m.follows)).toBe(false);
+    expect(validateMatchSession(structuredClone(session))).toEqual(session);
+  });
+
+  it('ask a level knockout for the shootout kick, without touching the score', () => {
+    let shootouts = 0;
+    for (let index = 0; index < 80 && shootouts < 3; index++) {
+      const setup = setupFor(index % 2 ? 'GK' : 'ST', `shootout:${index}`, index);
+      setup.fixture = {
+        id: `cup:${index}`,
+        competitionId: 'cup',
+        importance: 1.15,
+        shootoutLead: 0,
+      };
+      const session = play(createMatchSession(setup, tactics));
+      const s = session.state;
+      const level = s.match.score[0] === s.match.score[1];
+      expect(Boolean(s.shootout)).toBe(level && !s.substituted);
+      if (!s.shootout) continue;
+      shootouts++;
+      const kick = s.match.keyMoments.at(-1)!;
+      expect(kick.follows).toBe('shootout');
+      expect(kick.situationId).toBe(index % 2 ? 'penalty-save' : 'penalty');
+      expect(hasMatchLabel(kick.situationKey)).toBe(true);
+      expect(s.match.status).toBe('finished');
+      expect(s.report).not.toBeNull();
+      expect(s.shootout.success).toBe(s.shootout.roll < s.shootout.probability);
+      // Penalties are never goals.
+      expect(s.match.score[0]).toBe(s.match.score[1]);
+      expect(validateMatchSession(structuredClone(session))).toEqual(session);
+    }
+    expect(shootouts).toBeGreaterThan(0);
+  }, 60000);
+
+  it('write a final’s headline from its result', () => {
+    for (let index = 0; index < 20; index++) {
+      const setup = setupFor('ST', `final:${index}`, index);
+      setup.fixture = { id: `final:${index}`, competitionId: 'cup', importance: 1.5 };
+      const s = play(createMatchSession(setup, tactics)).state;
+      const own = ownSide({ setup } as MatchSession);
+      const margin = s.match.score[own]! - s.match.score[1 - own]!;
+      const kind = s.headlineKey.split('.')[2]!;
+      if (margin > 0) expect(['final-won', 'late-winner', 'hat-trick']).toContain(kind);
+      if (margin < 0) expect(kind).toBe('final-lost');
+      expect(hasMatchLabel(s.headlineKey)).toBe(true);
+    }
+  });
+
+  it('rate a better player higher in the same matches', () => {
+    const mean = (shift: number) => {
+      let total = 0;
+      for (let index = 0; index < 40; index++) {
+        const setup = setupFor('CB', `quality:${index}`, index);
+        const player = setup.players[setup.selectedPlayerId]!;
+        for (const key of Object.keys(player.attributes) as (keyof typeof player.attributes)[])
+          player.attributes[key] = Math.max(1, Math.min(99, player.attributes[key] + shift));
+        total += play(createMatchSession(setup, tactics)).state.report!.rating;
+      }
+      return total / 40;
+    };
+    expect(mean(15)).toBeGreaterThan(mean(-15) + 0.3);
+  }, 60000);
 });

@@ -33,6 +33,10 @@ export function useMatchAudio(session: MatchSession | null, playing: boolean): v
       : session.setup.away.id
     : null;
   const seed = session?.setup.seed;
+  // A final, a cup tie or a derby fills the stadium: the crowd bed rises with the occasion.
+  const occasion =
+    (session?.setup.fixture?.importance ?? 1) > 1 ||
+    (Boolean(session?.setup.home.city) && session?.setup.home.city === session?.setup.away.city);
   const lastStatus = useRef(status);
   const lastCount = useRef(count);
 
@@ -91,6 +95,6 @@ export function useMatchAudio(session: MatchSession | null, playing: boolean): v
           : status === 'preview'
             ? 0.1
             : 0.15;
-    audio.crowd(Math.round(level * 10) / 10);
-  }, [status, playing, momentum]);
+    audio.crowd(Math.round(Math.min(1, level * (occasion ? 1.25 : 1)) * 10) / 10);
+  }, [status, playing, momentum, occasion]);
 }

@@ -106,6 +106,13 @@ export const matchText = {
   failed: 'Decision did not succeed',
   roll: 'Success chance {probability}% · roll {roll}%',
   factors: 'Decision factors',
+  decisive: 'What decided it',
+  helped: '{factor} added {points} points',
+  hurt: '{factor} cost {points} points',
+  baseOnly: 'Nothing moved the odds: it came down to the base chance of {base}%.',
+  againstOdds: 'Against the odds: it came off with only a {probability}% chance.',
+  rareMiss: 'A rare miss: it had a {probability}% chance.',
+  allFactors: 'All factors',
   contribution: '{value} percentage points',
   returnToPlay: 'Continue play when you are ready.',
   managerTalk: 'The manager wants your response',
@@ -115,6 +122,9 @@ export const matchText = {
   roleBody: 'Ask for a different role with more attacking freedom.',
   complain: 'Challenge the instructions',
   complainBody: 'Push back on the manager’s plan.',
+  demand: 'Demand the ball',
+  demandBody:
+    'More of the play goes through you after the break. The manager will not enjoy being told.',
   captainTalk: 'Set the tone as captain',
   push: 'Push the team forward',
   calm: 'Keep the team composed',
@@ -264,6 +274,16 @@ const situationFramings: Record<string, [string, string, string]> = {
     '{attacker} is on your shoulder, waiting for the through ball.',
     '{opponent} look for the run in behind. Your back line waits on you.',
   ],
+  shootout: [
+    'Level at full time. If it comes to penalties, you will step up. How will you take yours?',
+    'The tie is level. Should it go to a shootout, the ball will be yours. Pick your spot.',
+    'All square. A shootout may decide it, and the manager has you down to take one.',
+  ],
+  'shootout-keeper': [
+    'Level at full time. If it comes to penalties, it is you against their takers. Your plan?',
+    'The tie is level. A shootout may decide it, and every eye will be on you in goal.',
+    'All square. Should it go to penalties, how will you face them?',
+  ],
   'penalty-save': [
     'Penalty against you. You and the taker, twelve yards apart.',
     '{attacker} places the ball on the spot and watches your feet.',
@@ -285,6 +305,26 @@ const headlines: Record<string, [string, string, string]> = {
     'Late, late show: {player} snatches it for {club}',
     '{player} wins it in the dying minutes',
   ],
+  'shootout.success': [
+    '{player} steps up in the shootout and buries it!',
+    'Ice in the veins: {player} scores in the shootout.',
+    '{player} sends the keeper the wrong way from the spot.',
+  ],
+  'shootout.failure': [
+    '{player} misses in the shootout!',
+    'Saved! {player} cannot believe it.',
+    '{player} skies the shootout penalty.',
+  ],
+  'shootout-keeper.success': [
+    '{player} saves in the shootout!',
+    'A shootout save from {player}! The stadium erupts.',
+    '{player} guesses right and keeps it out!',
+  ],
+  'shootout-keeper.failure': [
+    'The shootout penalties beat {player}.',
+    '{player} dives the wrong way in the shootout.',
+    'No luck for {player} in the shootout.',
+  ],
   'late-equaliser': [
     '{player} rescues a point at the death',
     'Never beaten: {player} levels it late against {opponent}',
@@ -294,6 +334,26 @@ const headlines: Record<string, [string, string, string]> = {
     'Match ball for {player} as {opponent} are torn apart',
     '{player} hits a hat-trick in {score} statement',
     'Three and counting: {player} runs riot',
+  ],
+  'final-won': [
+    'Glory! {club} win the final against {opponent}',
+    '{club} lift the trophy after {score} final win',
+    '{player} and {club} crowned after beating {opponent}',
+  ],
+  'final-lost': [
+    'Heartbreak for {club} in the final',
+    'So near: {club} beaten {score} by {opponent} in the final',
+    '{opponent} too strong for {club} on the big stage',
+  ],
+  'derby-won': [
+    'Derby day belongs to {club}',
+    '{club} take the bragging rights against {opponent}',
+    'Half the city celebrates: {club} win the derby {score}',
+  ],
+  'derby-lost': [
+    'Derby misery for {club}',
+    '{opponent} take the bragging rights against {club}',
+    'A long week ahead for {club} after {score} derby defeat',
   ],
   brace: [
     'Double trouble: {player} scores twice against {opponent}',
@@ -705,6 +765,26 @@ const commentary: Record<string, [string, string, string]> = {
     '{player} gets a hand to it, but the penalty goes in.',
     'No chance for {player}. Into the corner.',
   ],
+  'shootout.success': [
+    '{player} steps up in the shootout and buries it!',
+    'Ice in the veins: {player} scores in the shootout.',
+    '{player} sends the keeper the wrong way from the spot.',
+  ],
+  'shootout.failure': [
+    '{player} misses in the shootout!',
+    'Saved! {player} cannot believe it.',
+    '{player} skies the shootout penalty.',
+  ],
+  'shootout-keeper.success': [
+    '{player} saves in the shootout!',
+    'A shootout save from {player}! The stadium erupts.',
+    '{player} guesses right and keeps it out!',
+  ],
+  'shootout-keeper.failure': [
+    'The shootout penalties beat {player}.',
+    '{player} dives the wrong way in the shootout.',
+    'No luck for {player} in the shootout.',
+  ],
   'late-equaliser': [
     'LATE DRAMA! {player} levels it in the dying minutes!',
     'They’re level! {player} strikes with time almost up!',
@@ -745,6 +825,9 @@ const engineText: Record<string, string> = {
   'match.situation.goal-line': 'The keeper is beaten and the ball is heading for goal.',
   'match.situation.offside-line': 'Their midfielder looks up for the runner. Call the line.',
   'match.situation.penalty-save': 'Penalty against you. You and the taker, twelve yards apart.',
+  'match.situation.shootout': 'Level at full time. If it comes to penalties, you will step up.',
+  'match.situation.shootout-keeper':
+    'Level at full time. If it comes to penalties, it is you against their takers.',
   ...situationVariants,
   ...headlineText,
   ...reactionText,

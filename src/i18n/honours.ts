@@ -202,6 +202,9 @@ export const honoursText = {
       'promise-achieved': 'Rises to {manager}’s six-week challenge: {goal}.',
       'promise-missed': 'Falls short of {manager}’s six-week challenge: {goal}.',
       ambition: 'Achieves an ambition: {ambition}.',
+      story: '{ending}',
+      farewell: 'Announces that season {season} will be the last.',
+      testimonial: 'Honoured with a testimonial at {club} after {seasons} seasons.',
     } as Record<string, string>,
   },
   moments: {
@@ -250,6 +253,14 @@ export const honoursText = {
     confirmBody:
       'Your career ends and becomes a legacy. The world carries on, and you can start a new career in it, or play as your child.',
     confirm: 'Retire',
+    farewell: 'Make this my last season',
+    farewellBody:
+      'Announce a farewell season: every former club gives you a send-off, and the career ends when the season is complete.',
+    farewellConfirmTitle: 'Make this season your last?',
+    farewellConfirmBody:
+      'The press, the fans and your former clubs will know. When the season is over, your career ends and becomes a legacy.',
+    farewellConfirm: 'Announce my farewell',
+    farewellActive: 'This is your farewell season. The career ends when it is complete.',
   },
   legacy: {
     title: 'Legacies',
@@ -323,6 +334,14 @@ export const honoursText = {
     record: {
       subject: 'World record',
       body: 'You set a new world record.',
+    },
+    farewell: {
+      subject: 'Your farewell season',
+      body: 'You have told the world that season {season} is your last. Every ground will want to say goodbye.',
+    },
+    testimonial: {
+      subject: 'A testimonial at {club}',
+      body: 'After {seasons} seasons, {club} honour you with a testimonial match. The fans call you one of their own.',
     },
     'retirement-due': {
       subject: 'Your last season approaches',

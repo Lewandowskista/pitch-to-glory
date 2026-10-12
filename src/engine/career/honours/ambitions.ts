@@ -4,7 +4,8 @@ import { addXp } from '../progression';
 import { postMessage } from '../market/records';
 import { today } from '../market/rules';
 import { chronicle } from './chronicle';
-import { liveHallOfFame } from './retirement';
+import { liveHallOfFame, seasonsAtClub } from './retirement';
+import { AMBITION_IDS } from './ambitionIds';
 
 /**
  * Career ambitions (docs/GAME-DESIGN-REVIEW follow-up): up to three long-term goals the player
@@ -12,19 +13,7 @@ import { liveHallOfFame } from './retirement';
  * Chronicle and posts to the inbox. They can be changed once a season; achieved ones stay.
  */
 const A = CONFIG.career.honours.ambitions;
-export const AMBITION_IDS: readonly AmbitionId[] = [
-  'goals',
-  'assists',
-  'clean-sheets',
-  'appearances',
-  'caps',
-  'league-title',
-  'champions-cup',
-  'golden-ball',
-  'one-club',
-  'dream-club',
-  'hall-of-fame',
-];
+export { AMBITION_IDS };
 const ATTACK: Position[] = ['ST', 'LW', 'RW', 'AM', 'CM'];
 const CREATE: Position[] = ['CM', 'AM', 'LW', 'RW', 'LB', 'RB'];
 const DEFEND: Position[] = ['GK', 'CB', 'LB', 'RB', 'DM'];
@@ -54,16 +43,6 @@ function competitionTier(world: World, id: string): number | null {
   const source = phase?.sourceLeagueIds[0];
   return source ? (world.leagues[source]?.tier ?? null) : null;
 }
-/** The season the player joined their current club (their first season when they never left). */
-function joinedSeason(world: World): number {
-  const career = world.career!;
-  const clubId = world.players[career.playerId]!.clubId;
-  const move = [...career.market.moves]
-    .reverse()
-    .find((entry) => entry.toClubId === clubId && entry.kind !== 'renewal');
-  return move?.date.season ?? career.startSeason;
-}
-
 export interface AmbitionProgress {
   /** Progress towards the target; for the Hall of Fame, the current rank. */
   value: number;
@@ -117,11 +96,8 @@ export function ambitionProgress(
         ).length,
         1,
       );
-    case 'one-club': {
-      const seasons =
-        world.date.season - joinedSeason(world) + (world.phase === 'complete' ? 1 : 0);
-      return count(Math.max(0, seasons), A.targets['one-club']);
-    }
+    case 'one-club':
+      return count(seasonsAtClub(world), A.targets['one-club']);
     case 'dream-club':
       return count(player.clubId && player.clubId === ambition.clubId ? 1 : 0, 1);
     case 'hall-of-fame': {

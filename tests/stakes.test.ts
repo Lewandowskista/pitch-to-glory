@@ -156,6 +156,7 @@ describe('what a fixture is about', () => {
         'phase',
         'rival',
         'former-club',
+        'farewell',
         'derby',
         'go-top',
         'stay-top',

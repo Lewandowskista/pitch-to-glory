@@ -828,3 +828,43 @@
     scroll-margin-bottom: calc(5.5rem + env(safe-area-inset-bottom));
   }
 }
+
+/* After a key moment: what decided it, before the full breakdown. */
+.match-decisive h3 {
+  margin: 0.6rem 0 0.35rem;
+  font-size: 0.95rem;
+}
+.match-decisive ul {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+.match-decisive li {
+  padding-left: 1.1rem;
+  position: relative;
+}
+.match-decisive li::before {
+  position: absolute;
+  left: 0;
+  font-weight: 800;
+}
+.match-decisive li.is-helped::before {
+  content: '+';
+  color: var(--accent);
+}
+.match-decisive li.is-hurt::before {
+  content: '−';
+  color: var(--danger);
+}
+.match-decisive-verdict {
+  font-weight: 700;
+}
+.match-decisive summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}

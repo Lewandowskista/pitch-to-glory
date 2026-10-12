@@ -22,6 +22,7 @@ import {
   MORALE_PARTS,
   moraleParts,
   openPress,
+  PRESS_VARIANTS,
   recordHeadToHead,
   rivalOf,
   rivalryOf,
@@ -30,6 +31,8 @@ import {
 } from '../src/engine/career/social';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { mediaText } from '../src/screens/career/socialUi';
+import { socialText } from '../src/i18n/social';
 
 const S = CONFIG.career.social;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
@@ -215,6 +218,45 @@ describe('media', () => {
       matches * S.media.fanPosts,
     );
   }, 60000);
+  it('asks in varied words and quotes an earlier answer back after a defeat', () => {
+    const world = clone(career);
+    const first = openPress(world, createRng('press-a'), 'win', {
+      opponent: 'Rovers',
+      score: '2–0',
+    });
+    expect(first.params.variant).toBeGreaterThanOrEqual(0);
+    expect(first.params.variant).toBeLessThan(PRESS_VARIANTS);
+    expect(first.params.recall).toBeUndefined();
+    const confident = first.choices.find((entry) => entry.tone === 'confident')!;
+    const answered = applySocialAction(world, {
+      type: 'answer',
+      mediaId: first.id,
+      choiceId: confident.id,
+    });
+    valid(answered);
+    const week = answered.date.week;
+    answered.date = { ...answered.date, week: week + 1 };
+    const loss = openPress(answered, createRng('press-b'), 'loss', {
+      opponent: 'United',
+      score: '0–3',
+    });
+    expect(loss.params.recall).toBe(confident.labelKey);
+    const text = mediaText(loss);
+    expect(text).toContain(socialText.answers[confident.labelKey]!);
+    expect(text).toContain('United');
+    expect(text).not.toMatch(/[{}]/);
+    // A question that quotes an answer is a valid save.
+    answered.date = { ...answered.date, week };
+    valid(answered);
+    // Every wording of every question has its copy filled.
+    for (const topic of Object.keys(socialText.press))
+      for (let variant = 0; variant < PRESS_VARIANTS; variant++) {
+        const params: Record<string, string | number> = { ...loss.params, variant };
+        delete params.recall;
+        const item = { ...loss, textKey: topic, params };
+        expect(mediaText(item)).not.toBe(topic);
+      }
+  });
   it('applies an answer once, with its stated effects, and lapses unanswered questions', () => {
     const world = clone(career);
     const item = openPress(world, createRng('press'), 'rival', { rival: rivalOf(world)!.name });

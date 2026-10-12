@@ -130,7 +130,9 @@ export const socialText = {
     showMore: 'Show more posts',
     showing: 'Showing {shown} of {total} posts',
     silence: 'You stayed silent.',
-    effects: 'What it changes',
+    effects: 'Who it pleases and who it upsets',
+    pleases: 'Pleases',
+    upsets: 'Upsets',
     effectNames: {
       fame: 'Fame',
       trust: 'Manager',
@@ -174,6 +176,52 @@ export const socialText = {
     newclub: 'Welcome to {club}. What do you want to achieve here?',
     rival: 'Everyone is comparing you with {rival}. Who is better?',
     bigmatch: 'A huge game against {opponent} next. How are you feeling?',
+  } as Record<string, string>,
+  /** Further wordings of each question (variant 1 and 2; variant 0 is `press`). */
+  pressVariants: {
+    win: [
+      '{score} against {opponent}. Talk us through it.',
+      'Three points against {opponent}. Is this team clicking now?',
+    ],
+    loss: [
+      'A tough afternoon against {opponent}, {score}. How do you bounce back?',
+      'The fans were frustrated after {score} against {opponent}. Do you understand why?',
+    ],
+    goal: [
+      'Your goal against {opponent} had everyone talking. Did you plan it that way?',
+      'Another goal, this time against {opponent}. Is the confidence flowing?',
+    ],
+    dropped: [
+      'Your name keeps missing from the team sheet at {club}. Is something wrong?',
+      'Some say your time at {club} is running out. What do you say?',
+    ],
+    rumour: [
+      'There is talk of interest from {suitor}. Have you heard from them?',
+      'Our sources say {suitor} have scouted you again. Would you listen?',
+    ],
+    request: [
+      'The fans at {club} are hurt by your transfer request. What would you tell them?',
+      'Is there any way back at {club} after your request?',
+    ],
+    newclub: [
+      'First day at {club}. What made you choose them?',
+      'Big expectations at {club}. Can you handle the pressure?',
+    ],
+    rival: [
+      'You and {rival} again. Is it personal now?',
+      'Who wins the debate with {rival} this season?',
+    ],
+    bigmatch: [
+      '{opponent} next, with everything on the line. Can you be the difference?',
+      'Nerves before {opponent}? Or is this what you live for?',
+    ],
+  } as Record<string, [string, string]>,
+  /** Questions that put an earlier answer back to the player ({quote}). */
+  pressRecall: {
+    loss: 'Last time you told us: "{quote}" Then {score} against {opponent}. Do you regret saying it?',
+    win: 'After {recallOpponent} you said: "{quote}" Is {score} against {opponent} your answer?',
+    rival: 'You said: "{quote}" {rival} is still out there. Do you stand by it?',
+    dropped: 'You told us: "{quote}" Still not playing at {club}. What now?',
   } as Record<string, string>,
   answers: {
     'win.team': 'It was a team effort from first to last.',
@@ -226,6 +274,30 @@ export const socialText = {
     'fan.angry.1': '{player} went missing against {opponent}. Not good enough.',
     'fan.angry.2': '{score}? Embarrassing. {player} needs to step up.',
     'fan.angry.3': 'Bench {player}. We cannot carry passengers.',
+    'fan.happy.4': 'Every time {player} gets the ball something happens. Love it.',
+    'fan.happy.5': 'Told my mates about {player} two seasons ago. Who is laughing now?',
+    'fan.happy.6': '{score} and {player} was everywhere. Man of the match for me.',
+    'fan.neutral.4': 'Not a classic against {opponent}. {player} had their moments.',
+    'fan.neutral.5': 'Take the positives, move on. {player} will have better days.',
+    'fan.angry.4': 'Lost {score} to {opponent}. Where was {player}?',
+    'fan.angry.5': 'Paying good money to watch that? {player}, sort it out.',
+    'journalist.great.2':
+      '{player} ran the game for {club} against {opponent}. A name to remember.',
+    'journalist.great.3':
+      'Rated {rating}: {player} gave {opponent} a long afternoon. The big clubs will have noticed.',
+    'journalist.poor.2': 'Questions for {player} after a quiet showing against {opponent}.',
+    'journalist.poor.3':
+      '{player} struggled to impose themselves on {opponent}. A dip, or a trend?',
+    'headline.scorer.2': '{player} strikes as {club} meet {opponent} ({score})',
+    'headline.scorer.3': 'Goal for {player}: {club} against {opponent} ends {score}',
+    'headline.strong.2': '{player} rated {rating} in standout display against {opponent}',
+    'headline.strong.3': 'All eyes on {player} after a {rating} against {opponent}',
+    'headline.steady.2': '{club} against {opponent} finishes {score}',
+    'headline.steady.3': 'Report: {club} {score} {opponent}',
+    'headline.defeat.2': '{club} fall {score} to {opponent}',
+    'headline.defeat.3': 'Setback for {club}: {score} against {opponent}',
+    'headline.poor.2': 'Tough day for {player} as {opponent} beat {club}',
+    'headline.poor.3': '{player} below par in {score} defeat to {opponent}',
     'journalist.great': 'Scouts take note: {player} was outstanding for {club} against {opponent}.',
     'journalist.poor':
       'A difficult afternoon for {player}, who looked short of ideas against {opponent}.',

@@ -1,9 +1,10 @@
-import type { Player, TrainingFocus } from '../model/domain';
+import type { Player, StoryKind, TrainingFocus } from '../model/domain';
 import { CONFIG } from '../engine/config';
 import { ARCHETYPE_BY_ID, SKILL_BY_ID } from '../engine/career/catalogue';
 import { trainableAttributes, xpToNext } from '../engine/career/progression';
 import { validFocus } from '../engine/career/training';
-import { AMBITION_IDS } from '../engine/career/honours/ambitions';
+import { AMBITION_IDS } from '../engine/career/honours/ambitionIds';
+import { STORY_CHOICES } from '../engine/career/stories/storyChoices';
 import {
   array,
   date,
@@ -150,6 +151,53 @@ export function validateCareer(w: Record<string, unknown>): void {
   }
   if (career.coaching !== undefined) validateCoaching(career.coaching, current);
   if (career.ambitions !== undefined) validateAmbitions(career.ambitions, current, object(w.clubs));
+  if (career.stories !== undefined) validateStories(career.stories);
+  if (career.farewell !== undefined && career.farewell !== null) {
+    const farewell = object(career.farewell);
+    number(farewell.season, 1800, Number(current.season), true);
+    date(farewell.announced);
+  }
+  if (career.testimonials !== undefined) {
+    const clubIds = array(career.testimonials, 40);
+    for (const clubId of clubIds) ref(clubId, object(w.clubs));
+    requireValue(new Set(clubIds).size === clubIds.length);
+  }
+  if (career.captaincy !== undefined && career.captaincy !== null) {
+    const captaincy = object(career.captaincy);
+    ref(captaincy.clubId, object(w.clubs));
+    date(captaincy.since);
+  }
+}
+
+/** Story arcs (schema 20): known kinds and choices, one open at a time, ids unique. */
+function validateStories(value: unknown): void {
+  const seen = new Set<string>();
+  let open = 0;
+  for (const entry of array(value, CONFIG.career.stories.limit)) {
+    const story = object(entry);
+    id(story.id);
+    requireValue(!seen.has(String(story.id)));
+    seen.add(String(story.id));
+    requireValue(story.version === 1);
+    const choices = STORY_CHOICES[story.kind as StoryKind];
+    requireValue(Boolean(choices));
+    date(story.started);
+    date(story.respondBy);
+    const params = object(story.params);
+    requireValue(Object.keys(params).length <= 12);
+    for (const param of Object.values(params))
+      if (typeof param === 'number') number(param, -1e9, 1e9);
+      else text(param, 120);
+    options(story.status, ['offered', 'waiting', 'resolved']);
+    if (story.status !== 'resolved') open++;
+    if (story.choice !== null) options(story.choice, choices);
+    requireValue((story.status === 'offered') === (story.choice === null));
+    if (story.resolveAt !== null) date(story.resolveAt);
+    requireValue(story.status !== 'waiting' || story.resolveAt !== null);
+    if (story.outcome !== null) text(story.outcome, 40);
+    requireValue((story.status === 'resolved') === (story.outcome !== null));
+  }
+  requireValue(open <= 1);
 }
 
 /** Ambitions (schema 19): at most the chosen count open, each kind once, dream clubs real. */

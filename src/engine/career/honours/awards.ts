@@ -44,6 +44,8 @@ interface Line {
   goals: number;
   assists: number;
   rating: number;
+  /** Matches without conceding (complete statistics only; 0 before them). */
+  cleanSheets?: number;
 }
 function since(player: Player, base: StatLine | undefined): Line {
   const [apps, goals, assists, total] = line(player);
@@ -63,8 +65,9 @@ const fromTotals = (t: StatTotals | undefined): Line =>
         goals: t.goals,
         assists: t.assists,
         rating: t.apps ? t.ratingTotal / t.apps : 0,
+        cleanSheets: t.cleanSheets,
       }
-    : { apps: 0, goals: 0, assists: 0, rating: 0 };
+    : { apps: 0, goals: 0, assists: 0, rating: 0, cleanSheets: 0 };
 const totalsLine = (t: StatTotals): StatLine => [t.apps, t.goals, t.assists, t.ratingTotal];
 /** A league's players by their totals in it, including those who have since left. */
 function leagueEntries(world: World, league: League): { player: Player; line: Line }[] {
@@ -81,8 +84,21 @@ function monthBaselines(world: World, league: League): Record<string, StatLine> 
   else for (const player of leaguePlayers(world, league)) start[player.id] = line(player);
   return start;
 }
-const score = (l: Line) =>
-  l.rating * A.score.rating + l.goals * A.score.goal + l.assists * A.score.assist;
+/**
+ * A season's worth: rating, goals and assists for everyone, and clean sheets for keepers and
+ * defenders, so the back line can win what forwards win.
+ */
+const score = ({ player, line: l }: { player: Player; line: Line }) => {
+  const back = LINES[player.primaryPosition];
+  const sheets =
+    back === 'GK' ? A.score.cleanSheet.keeper : back === 'DEF' ? A.score.cleanSheet.defender : 0;
+  return (
+    l.rating * A.score.rating +
+    l.goals * A.score.goal +
+    l.assists * A.score.assist +
+    (l.cleanSheets ?? 0) * sheets
+  );
+};
 /** A season's numbers weighed by the level they came at (the scouting visibility of the tier). */
 function visibilityOf(world: World, player: Player): number {
   const club = player.clubId ? world.clubs[player.clubId] : undefined;
@@ -373,7 +389,7 @@ export function seasonAwards(world: World): void {
       );
     const mvp = members
       .filter((entry) => entry.line.apps >= A.seasonMinimumApps)
-      .sort((a, b) => score(b.line) - score(a.line) || (a.player.id < b.player.id ? -1 : 1));
+      .sort((a, b) => score(b) - score(a) || (a.player.id < b.player.id ? -1 : 1));
     if (mvp[0])
       celebrate(
         world,
@@ -384,7 +400,7 @@ export function seasonAwards(world: World): void {
           competitionId: league.id,
           winnerIds: [mvp[0].player.id],
           shortlist: [],
-          value: Math.round(score(mvp[0].line) * 10) / 10,
+          value: Math.round(score(mvp[0]) * 10) / 10,
         }),
         A.fame.season,
       );
@@ -425,8 +441,8 @@ export function seasonAwards(world: World): void {
     )
     .sort(
       (a, b) =>
-        score(b.line) * visibilityOf(world, b.player) -
-          score(a.line) * visibilityOf(world, a.player) || (a.player.id < b.player.id ? -1 : 1),
+        score(b) * visibilityOf(world, b.player) - score(a) * visibilityOf(world, a.player) ||
+        (a.player.id < b.player.id ? -1 : 1),
     );
   if (young[0])
     celebrate(
@@ -438,7 +454,7 @@ export function seasonAwards(world: World): void {
         competitionId: null,
         winnerIds: [young[0].player.id],
         shortlist: [],
-        value: Math.round(score(young[0].line) * visibilityOf(world, young[0].player) * 10) / 10,
+        value: Math.round(score(young[0]) * visibilityOf(world, young[0].player) * 10) / 10,
       }),
       A.fame.season,
     );
@@ -479,8 +495,7 @@ export function seasonAwards(world: World): void {
       return {
         playerId: entry.player.id,
         clubId,
-        score:
-          Math.round((score(entry.line) * visibilityOf(world, entry.player) + bonus) * 10) / 10,
+        score: Math.round((score(entry) * visibilityOf(world, entry.player) + bonus) * 10) / 10,
       };
     })
     .sort((a, b) => b.score - a.score || (a.playerId < b.playerId ? -1 : 1));

@@ -33,6 +33,8 @@ export interface PlayedFixture {
   onPitch: { home: Id[]; away: Id[] };
   /** The interactively played player and the rating the session gave them. */
   selected: { playerId: Id; rating: number };
+  /** The player's shootout kick or save, taken at full time, for their side (match-13). */
+  shootout?: { teamId: Id; success: boolean };
 }
 export interface FixtureGoal {
   playerId: Id;
@@ -156,6 +158,13 @@ function scoreGoals(players: Player[], teamId: Id, count: number, rng: Rng): Fix
     return goal;
   });
 }
+/** The home side's chance in a shootout: even, moved by the career player's own kick or save. */
+function shootoutChance(homeId: Id, played?: PlayedFixture): number {
+  const kick = played?.shootout;
+  if (!kick) return BACKGROUND.penaltyWinnerChance;
+  const shift = (kick.success ? 1 : -1) * BACKGROUND.shootoutKick;
+  return BACKGROUND.penaltyWinnerChance + (kick.teamId === homeId ? shift : -shift);
+}
 const finalWinner = (fixture: Fixture, score: [number, number]) =>
   score[0] === score[1] ? null : score[0] > score[1] ? fixture.homeId : fixture.awayId;
 
@@ -249,7 +258,7 @@ export function finalizeFixture(
         aggregate[(1 - homeIndex) as 0 | 1] += extraTime[1];
       }
       if (aggregate[0] === aggregate[1] && tie.drawRule !== 'higher-rank-after-extra-time') {
-        const homeWins = rng.next() < BACKGROUND.penaltyWinnerChance;
+        const homeWins = rng.next() < shootoutChance(home.id, played);
         const loserScore = rng.int(...BACKGROUND.penaltyLoserGoals);
         penalties = homeWins ? [loserScore + 1, loserScore] : [loserScore, loserScore + 1];
         winnerId = homeWins ? home.id : away.id;
@@ -257,7 +266,7 @@ export function finalizeFixture(
     }
   }
   if (!winnerId && isKnockoutFixture(world, fixture)) {
-    const homeWins = rng.next() < BACKGROUND.penaltyWinnerChance;
+    const homeWins = rng.next() < shootoutChance(home.id, played);
     const loserScore = rng.int(...BACKGROUND.penaltyLoserGoals);
     penalties = homeWins ? [loserScore + 1, loserScore] : [loserScore, loserScore + 1];
     winnerId = homeWins ? home.id : away.id;

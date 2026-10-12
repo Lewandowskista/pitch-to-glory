@@ -118,16 +118,18 @@ test('answers the press, reads club life and compares with the rival', async ({
   // The hub's press room leads to the waiting question.
   await page.goto('/career?save=1');
   const press = page.getByRole('region', { name: 'Press room' });
-  await expect(
-    press.getByText(`Everyone is comparing you with ${rival}. Who is better?`),
-  ).toBeVisible();
+  // The question names the rival, in one of its wordings.
+  await expect(press.getByText(new RegExp(rival))).toBeVisible();
   await press.getByRole('link', { name: 'Answer now' }).click();
   await expect(page).toHaveURL(/\/career\/media/);
 
   // Each answer shows its effects; the number key 2 picks the provocative one.
-  const question = page.getByRole('article', { name: /Who is better\?/ });
-  await expect(question.getByRole('list', { name: 'What it changes' }).first()).toBeVisible();
-  await expect(question.getByText('Rivalry +8')).toBeVisible();
+  const question = page.getByRole('article', { name: new RegExp(rival) });
+  await expect(
+    question.getByRole('list', { name: 'Who it pleases and who it upsets' }).first(),
+  ).toBeVisible();
+  // Who an answer pleases is shown by direction, not by number.
+  await expect(question.getByText('Rivalry').first()).toBeVisible();
   await page.keyboard.press('2');
   await expect(page.getByText('You answered: Honestly? It is not even close.')).toBeVisible();
   await expect(page.getByText('No questions right now', { exact: false })).toBeVisible();

@@ -26,7 +26,7 @@ import { Icon } from '../ui/Icon';
 import { Selection } from './match/Selection';
 import { Preview } from './match/Preview';
 import { Report } from './match/Report';
-import { ClubBadge, Factors } from './match/Shared';
+import { ClubBadge, DecisiveFactors } from './match/Shared';
 import { DecisionPanel } from './match/DecisionPanel';
 import { CareerFixture, CareerNoMatch, CareerReportActions } from './match/CareerMatchday';
 import { pendingCareerFixture } from '../engine/career/fixtures';
@@ -731,7 +731,11 @@ export default function MatchScreen() {
                           roll: (outcome.roll * 100).toFixed(1),
                         })}
                       </p>
-                      <Factors factors={outcome.factors} />
+                      <DecisiveFactors
+                        factors={outcome.factors}
+                        probability={outcome.probability}
+                        success={outcome.success}
+                      />
                       <p className="muted">{m.returnToPlay}</p>
                     </section>
                   )}
@@ -749,13 +753,21 @@ export default function MatchScreen() {
                               command({ type: 'halftime', response });
                             }}
                           >
-                            <strong>{response === 'role' ? m.roleTalk : m[response]}</strong>
+                            <strong>
+                              {response === 'role'
+                                ? m.roleTalk
+                                : response === 'complain' && session!.setup.occasions
+                                  ? m.demand
+                                  : m[response]}
+                            </strong>
                             <span>
                               {response === 'role'
                                 ? m.roleBody
                                 : response === 'motivate'
                                   ? m.motivateBody
-                                  : m.complainBody}
+                                  : session!.setup.occasions
+                                    ? m.demandBody
+                                    : m.complainBody}
                             </span>
                           </button>
                         ))}

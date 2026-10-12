@@ -10,6 +10,7 @@
  *
  * Writes artifacts/profile/matches.json.
  */
+import { CALIBRATION_GATE, calibrationProblems } from './calibration';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Position } from '../src/model/domain';
 import { generateWorld } from '../src/engine/world/generate';
@@ -281,17 +282,9 @@ export const GATES: Gate[] = [
     },
   },
   {
-    name: 'stated odds within 7 points of actual (n ≥ 150) and 5 (n ≥ 500)',
+    name: CALIBRATION_GATE,
     check: (profiles) => {
-      const off = profiles.flatMap((p) =>
-        Object.entries(p.calibration)
-          .filter(
-            ([, v]) =>
-              (v.n >= 150 && Math.abs(v.stated - v.actual) > 7) ||
-              (v.n >= 500 && Math.abs(v.stated - v.actual) > 5),
-          )
-          .map(([key, v]) => `${p.position} ${key} ${v.stated} vs ${v.actual}`),
-      );
+      const off = profiles.flatMap((p) => calibrationProblems(p.calibration, String(p.position)));
       return off.length ? off.join('; ') : null;
     },
   },

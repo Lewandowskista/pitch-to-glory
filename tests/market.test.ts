@@ -32,6 +32,7 @@ import { socialText } from '../src/i18n/social';
 import { lifestyleText } from '../src/i18n/lifestyle';
 import { honoursText } from '../src/i18n/honours';
 import { ambitionsText } from '../src/i18n/ambitions';
+import { storyletsText } from '../src/i18n/storylets';
 import { storiesText } from '../src/i18n/stories';
 
 const MK = CONFIG.career.market;
@@ -449,6 +450,7 @@ describe('market saves', () => {
       honoursText.messages,
       storiesText.messages,
       ambitionsText.messages,
+      storyletsText.messages,
     ].flatMap((messages) => Object.keys(messages));
     expect([...INBOX_KINDS].sort()).toEqual([...new Set(copy)].sort());
   });

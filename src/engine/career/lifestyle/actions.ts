@@ -1,5 +1,7 @@
 import type { World } from '../../../model/domain';
 import { draftWorld } from '../market/actions';
+import { LIFESTYLE_BY_ID } from './catalogue';
+import { firstClubOf } from './lifestyle';
 import { acceptSponsor, breakBootsDeal, buyAsset, declineSponsor, sellAsset } from './lifestyle';
 import { claimChallenge, refreshChallenges } from './challenges';
 import { applyWardrobe, buyCosmetic, type WardrobeChange } from './wardrobe';
@@ -21,8 +23,14 @@ export type LifestyleAction =
  */
 export function applyLifestyleAction(input: World, action: LifestyleAction): World {
   if (!input.career) throw new Error('No career in this world');
+  // A legacy project changes the first club, which is copied before it is touched.
+  const legacyClub =
+    action.type === 'buy-asset' && LIFESTYLE_BY_ID[action.itemId]?.kind === 'legacy'
+      ? firstClubOf(input)
+      : null;
   const world = draftWorld(input, {
     players: action.type === 'wardrobe' ? [input.career.playerId] : [],
+    clubs: legacyClub ? [legacyClub] : [],
   });
   switch (action.type) {
     case 'wardrobe':

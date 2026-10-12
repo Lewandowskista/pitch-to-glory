@@ -6,6 +6,7 @@ import type {
   World,
 } from '../../../model/domain';
 import { promiseRollover, promiseWeek } from '../stories/promise';
+import { storiesWeek } from '../stories/storylets';
 import { createRng } from '../../rng';
 import { adjustRelationship, postMessage } from '../market/records';
 import { currentRole, relationshipValue } from '../market/rules';
@@ -164,6 +165,7 @@ export function socialWeek(world: World): void {
     form: player.form,
   });
   promiseWeek(world);
+  storiesWeek(world);
   if (social.history.length > S.historyLimit)
     social.history.splice(0, social.history.length - S.historyLimit);
 }

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { Suspense, useEffect, type ReactNode } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { Icon } from '../../ui/Icon';
@@ -7,9 +7,9 @@ import { Dialog } from '../../ui/Dialog';
 import { CONFIG } from '../../engine/config';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import { StakeLine } from './stakesUi';
-import { AmbitionsCard } from './ambitionsUi';
+import { lazyPage } from '../../ui/lazyPage';
 import { chooseRecovery } from '../../engine/career/training';
-import { retirementState } from '../../engine/career/honours/retirement';
+import { canAnnounceFarewell, retirementState } from '../../engine/career/honours/retirement';
 import type { Career, CareerMatchRecord, Club, Player, World } from '../../model/domain';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
@@ -81,6 +81,20 @@ function CardLink({ to, children }: { to: string; children: ReactNode }) {
   );
 }
 
+/** Ambitions rank every player in the world: their code loads after the hub itself. */
+const AmbitionsCard = lazyPage(() =>
+  import('./ambitionsUi').then((module) => ({ default: module.AmbitionsCard })),
+);
+
+/** This week's story, while one is open. */
+const StoryCard = lazyPage(() =>
+  import('./storyletsUi').then((module) => ({ default: module.StoryCard })),
+);
+/** The end-of-season review, shown once a season is complete. */
+const SeasonReviewPanel = lazyPage(() =>
+  import('./reviewUi').then((module) => ({ default: module.SeasonReviewPanel })),
+);
+
 export default function CareerHub() {
   useChallengeRefresh();
   return (
@@ -127,7 +141,10 @@ function HubContent({
       ?.focus({ preventScroll: true });
   }, [hash]);
   // Late in a career the honours card carries the retirement decision, so it stays full size.
-  const retirement = retirementState(world) !== 'young';
+  const retirement =
+    retirementState(world) !== 'young' ||
+    canAnnounceFarewell(world) ||
+    career.farewell?.season === world.date.season;
   const priorities = hubPriorities(world, session);
   const preview = advancePreview(world, session);
   // Quiet summaries shrink to tiles; the URL can ask for every summary in full.
@@ -163,13 +180,21 @@ function HubContent({
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 lg:col-span-12 lg:grid-cols-12 lg:grid-rows-[auto_1fr]">
         <div className={mainStack}>
           <NextMatch world={world} career={career} player={player} club={club} preview={preview} />
+          {/* The week's story follows the match, so the next action stays in the first view. */}
+          {career.stories?.some((story) => story.status !== 'resolved') && (
+            <Suspense fallback={null}>
+              <StoryCard world={world} />
+            </Suspense>
+          )}
           <AdvanceDigest world={world} />
           <Condition career={career} player={player} />
         </div>
         <div className={`${sideStack} lg:row-span-2`}>
           <HubPriorities world={world} items={priorities} />
           <PlayerCard career={career} player={player} club={club} age={age} />
-          <AmbitionsCard world={world} />
+          <Suspense fallback={<div aria-hidden="true" className={`${ui.panel} min-h-[16rem]`} />}>
+            <AmbitionsCard world={world} />
+          </Suspense>
           <ClubStanding world={world} club={club} />
         </div>
         <div className={mainStack}>
@@ -177,6 +202,11 @@ function HubContent({
           <LastResult world={world} career={career} />
         </div>
       </div>
+      {world.phase === 'complete' && (
+        <Suspense fallback={null}>
+          <SeasonReviewPanel world={world} className="lg:col-span-12" />
+        </Suspense>
+      )}
       {retirement && <HonoursSummary world={world} className="lg:col-span-12" />}
       {inboxActive && <InboxPreview world={world} span={span} />}
       {pressActive && <PressRoom world={world} span={span} />}

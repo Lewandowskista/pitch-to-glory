@@ -7,6 +7,7 @@ export const stakesText = {
     phase: 'Playoff football. Every point decides who goes up or down.',
     rival: 'Your rival {rival} lines up for {opponent}.',
     'former-club': 'A return to {opponent}, your old club.',
+    farewell: 'Your farewell visit to {opponent}: one last time.',
     derby: 'A {city} derby. Bragging rights are on the line.',
     'go-top': 'Win and you go top of the table.',
     'stay-top': 'Top of the table. Win and you stay there.',

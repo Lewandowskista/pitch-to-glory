@@ -258,6 +258,12 @@ export function seasonalSquadReview(world: World, rng: Rng): void {
         `youth:${season}:${club.id}:${index}`,
         rng,
       );
+      // An academy a career player funded brings youngsters through with more potential.
+      if (club.academy)
+        player.potential = Math.min(
+          99,
+          player.potential + CONFIG.career.lifestyle.legacy.academyPotential,
+        );
       recordEvent(world, 'youth-intake', [player.id, club.id], {
         name: player.name,
         club: club.name,

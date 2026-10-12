@@ -12,7 +12,12 @@ import type { Formation } from '../selection/formations';
 export type { Tactics } from '../../model/domain';
 
 /** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
-export const MATCH_ENGINE_VERSION = 'match-12';
+export const MATCH_ENGINE_VERSION = 'match-13';
+/**
+ * The engine before big occasions (a shootout kick, chained moments, final and derby
+ * headlines). A setup with `dramaMoments` but without `occasions` still replays as it was.
+ */
+export const DRAMA_MATCH_ENGINE = 'match-12';
 /**
  * The engine before key moments followed the state of the game (late moments in a close game,
  * set pieces, situations weighted by the score). A setup without `dramaMoments` still replays
@@ -32,15 +37,17 @@ export const PREVIOUS_MATCH_ENGINE = 'match-10';
 export const LEGACY_MATCH_ENGINE = 'match-10-lines';
 /** The engine a setup replays with. */
 export const engineFor = (
-  setup: Pick<MatchSetup, 'formations' | 'slotMoments' | 'dramaMoments'>,
+  setup: Pick<MatchSetup, 'formations' | 'slotMoments' | 'dramaMoments' | 'occasions'>,
 ): string =>
   !setup.formations
     ? LEGACY_MATCH_ENGINE
     : !setup.slotMoments
       ? PREVIOUS_MATCH_ENGINE
-      : setup.dramaMoments
-        ? MATCH_ENGINE_VERSION
-        : SLOT_MATCH_ENGINE;
+      : !setup.dramaMoments
+        ? SLOT_MATCH_ENGINE
+        : setup.occasions
+          ? MATCH_ENGINE_VERSION
+          : DRAMA_MATCH_ENGINE;
 
 export interface MatchSetup {
   version: 1;
@@ -67,16 +74,33 @@ export interface MatchSetup {
    * before, which replay as they were.
    */
   dramaMoments?: true;
+  /**
+   * Big occasions (`match-13`): a level knockout tie asks for the player's shootout kick, a
+   * beaten defender leads straight into the shot, and finals and derbies have their own
+   * headlines. Absent in sessions saved before, which replay as they were.
+   */
+  occasions?: true;
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */
   strengthBonus?: [number, number];
   /** The selected player's chemistry with their teammates (0–100; 60 when absent). */
   chemistry?: number;
+  /**
+   * The selected player is their club's captain (the career's captaincy), whatever the
+   * leadership order. Absent, the most experienced leader on the pitch wears the armband.
+   */
+  captain?: true;
 }
 export interface MatchFixture {
   id: string;
   competitionId: string;
   /** 1 for league games, higher for cups, playoffs and finals (feeds big-game skills and XP). */
   importance: number;
+  /**
+   * In a knockout that goes to extra time and penalties when level: the home side's aggregate
+   * lead before this match (0 for a single match). Absent where a draw stands or a tie is
+   * decided by ranking.
+   */
+  shootoutLead?: number;
 }
 export type MatchCommand =
   | { type: 'kickoff' }
@@ -157,6 +181,10 @@ export interface MatchState {
   headlineKey: string;
   /** Names and numbers the headline refers to (engine match-12). */
   headlineParams?: Record<string, string>;
+  /** The player's shootout kick (or save), taken at full time in a level knockout (match-13). */
+  shootout?: { choiceId: string; probability: number; roll: number; success: boolean };
+  /** A follow-up moment due after a beaten defender (match-13): the chance it carries. */
+  chain?: { goal: number };
 }
 export interface MatchSession {
   version: 1;

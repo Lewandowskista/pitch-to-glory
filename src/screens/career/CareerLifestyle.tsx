@@ -12,6 +12,7 @@ import {
   careerFameLevel,
   fameProgress,
   experienceWait,
+  firstClubOf,
   lifestyleMorale,
   obligationMet,
   obligationProgress,
@@ -308,9 +309,11 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
   const upkeep = upkeepOf(world, item);
   const owned = world.career!.style.assets.some((asset) => asset.itemId === item.id);
   const wait = item.kind === 'experience' ? experienceWait(world, item) : 0;
-  const name = l.lifestyle.items[item.id] ?? item.id;
+  // Legacy projects are at the club where the career began.
+  const firstClub = world.clubs[firstClubOf(world) ?? '']?.name ?? '';
+  const name = format(l.lifestyle.items[item.id] ?? item.id, { club: firstClub });
   const effect = item.effect
-    ? l.lifestyle.effects[item.effect]
+    ? format(l.lifestyle.effects[item.effect] ?? '', { club: firstClub })
     : item.rest
       ? format(l.lifestyle.effects.rest!, { value: item.rest })
       : null;
@@ -346,7 +349,7 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
             ? `${format(l.lifestyle.salaryValue, { amount: money(upkeep), hire: money(price) })} · ${effect}`
             : item.kind === 'charity'
               ? `${format(l.lifestyle.donationValue, { amount: money(upkeep) })} · ${effect}`
-              : item.kind === 'experience'
+              : item.kind === 'experience' || item.kind === 'legacy'
                 ? effect
                 : [
                     format(l.lifestyle.upkeepValue, { amount: money(upkeep) }),
@@ -479,7 +482,7 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
   );
 }
 
-const KINDS = ['car', 'house', 'staff', 'experience', 'charity', 'investment'] as const;
+const KINDS = ['car', 'house', 'staff', 'experience', 'charity', 'legacy', 'investment'] as const;
 
 /** The catalogue across the full width, one category or all of them (kept in the URL). */
 function Shop({ world, action }: { world: World; action: Action }) {

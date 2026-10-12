@@ -10,6 +10,7 @@ import type {
   MatchEvent,
   MatchReport,
   DecisionOutcome,
+  DecisionChoice,
   KeyMoment,
   Position,
 } from '../../model/domain';
@@ -102,6 +103,8 @@ const COMPATIBLE: Record<Position, Position[]> = {
   ST: ['ST', 'LW', 'RW'],
 };
 const ATTACKERS: Position[] = ['ST', 'LW', 'RW', 'AM'];
+/** Positions whose beaten defender leads into a shot of their own (match-13). */
+const CHAINING: Position[] = ['ST', 'LW', 'RW', 'AM', 'CM'];
 const RATING_PARTS: RatingPart[] = [
   'shooting',
   'passing',
@@ -195,7 +198,12 @@ export function createMatchSetup(
   awayId: string,
   selectedPlayerId: string,
   seed: string,
-  options: { neutral?: boolean; fixture?: MatchSetup['fixture']; chemistry?: number } = {},
+  options: {
+    neutral?: boolean;
+    fixture?: MatchSetup['fixture'];
+    chemistry?: number;
+    captain?: boolean;
+  } = {},
 ): MatchSetup {
   const home = world.clubs[homeId],
     away = world.clubs[awayId];
@@ -224,6 +232,7 @@ export function createMatchSetup(
     neutral: options.neutral ?? false,
     ...(options.fixture ? { fixture: options.fixture } : {}),
     ...(options.chemistry !== undefined ? { chemistry: options.chemistry } : {}),
+    ...(options.captain ? { captain: true as const } : {}),
     // Worlds on formation-aware selection field each manager's shape, and key moments follow
     // the slot the selected player fills in it.
     ...(usesFormations(world)
@@ -231,6 +240,7 @@ export function createMatchSetup(
           formations: [clubFormation(world, home), clubFormation(world, away)],
           slotMoments: true as const,
           dramaMoments: true as const,
+          occasions: true as const,
         }
       : {}),
     strengthBonus: [
@@ -489,7 +499,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       selectedPlayerMinutes: 0,
       substituted: false,
       substitutionDecisionPending: false,
-      captain: captainId === selected.id,
+      captain: setup.captain === true || captainId === selected.id,
       captainDecisionPending: false,
       strength,
       matchLevel,
@@ -540,11 +550,13 @@ function applyPassage(
   kind: MatchMotion['kind'],
   passage: Passage,
   lead: ReplayFrame[] = [],
+  /** The passage continues the minute already snapshotted (an outcome, or a follow-up moment). */
+  replace = kind === 'outcome',
 ): void {
   const s = session.state;
   const last = passage.frames[passage.frames.length - 1]!;
   const snapshot = { ...last, timeMs: s.match.minute * 60000 };
-  if (kind === 'outcome') s.frames[s.frames.length - 1] = snapshot;
+  if (replace) s.frames[s.frames.length - 1] = snapshot;
   else s.frames.push(snapshot);
   s.play = passage.play;
   s.motion = { kind, frames: passage.frames };
@@ -765,10 +777,67 @@ function afterMinute(session: MatchSession) {
       'match.commentary.halftime',
     );
   } else if (s.match.minute === 90) {
-    s.match.status = 'finished';
-    s.report = report(session);
-    s.match.reports = [s.report];
+    if (shootoutDue(session)) {
+      const keeper =
+        session.setup.players[session.setup.selectedPlayerId]!.primaryPosition === 'GK';
+      openMoment(session, {
+        kind: 'shootout',
+        situation: SITUATION_BY_ID[keeper ? 'penalty-save' : 'penalty']!,
+      });
+      return;
+    }
+    finish(session);
   }
+}
+function finish(session: MatchSession): void {
+  const s = session.state;
+  s.match.status = 'finished';
+  s.report = report(session);
+  s.match.reports = [s.report];
+}
+/**
+ * A level knockout at full time (match-13): the player takes a shootout kick, or faces them in
+ * goal, should extra time not separate the sides. Not after being substituted.
+ */
+function shootoutDue(session: MatchSession): boolean {
+  const s = session.state,
+    lead = session.setup.fixture?.shootoutLead;
+  return (
+    Boolean(session.setup.occasions) &&
+    lead !== undefined &&
+    !s.substituted &&
+    !s.shootout &&
+    s.match.score[0] - s.match.score[1] + lead === 0
+  );
+}
+/** The shootout kick: success by the stated chance, no goal on the scoreboard. */
+function resolveShootout(next: MatchSession, choiceId: string): void {
+  const s = next.state,
+    setup = next.setup,
+    moment = s.currentMoment!;
+  const choice = moment.choices.find((entry) => entry.id === choiceId);
+  if (!choice) throw new Error('Invalid decision choice');
+  const roll = createRng(`${setup.seed}:shootout:${choice.id}`).next();
+  const success = roll < choice.probability;
+  s.shootout = { choiceId: choice.id, probability: choice.probability, roll, success };
+  const p = setup.players[setup.selectedPlayerId]!;
+  event(
+    next,
+    p.primaryPosition === 'GK' ? 'save' : 'shot',
+    p.clubId!,
+    p.id,
+    line(
+      next,
+      `match.commentary.${p.primaryPosition === 'GK' ? 'shootout-keeper' : 'shootout'}.${success ? 'success' : 'failure'}`,
+    ),
+    {
+      input: { momentId: moment.id, choiceId: choice.id },
+      success,
+      roll,
+      probability: choice.probability,
+      factors: choice.factors,
+    },
+  );
 }
 const RATING_LABELS: Record<RatingPart, string> = {
   shooting: 'match.rating.shooting',
@@ -1035,29 +1104,48 @@ function placeLateMoment(session: MatchSession): void {
   const rng = createRng(`${session.setup.seed}:late`);
   s.momentMinutes = [...s.momentMinutes.slice(0, -1), rng.int(D.lateMinutes[0], D.lateMinutes[1])];
 }
-function openMoment(next: MatchSession): void {
+/**
+ * A moment that follows from another (engine match-13): the shootout kick at full time, or the
+ * shot after a beaten defender, which carries the chance the dribble made.
+ */
+interface ForcedMoment {
+  kind: 'shootout' | 'chain';
+  situation: Situation;
+  /** For a chain: the goal probability the beaten defender opened up. */
+  goal?: number;
+}
+function openMoment(next: MatchSession, forced?: ForcedMoment): void {
   const s = next.state,
     m = s.match,
     setup = next.setup;
   const player = setup.players[setup.selectedPlayerId]!;
-  const rng = createRng(`${setup.seed}:situation:${m.minute}`);
+  const rng = createRng(
+    forced
+      ? `${setup.seed}:${forced.kind}:${m.minute}:${m.keyMoments.length}`
+      : `${setup.seed}:situation:${m.minute}`,
+  );
   const side = selectedSide(setup);
   const margin = m.score[side]! - m.score[1 - side]!;
   const weights = situationWeights(playedSlot(next).position, m.tactics.role, {
     drama: setup.dramaMoments,
     state: { minute: m.minute, margin },
   });
-  let target = rng.next() * weights.reduce((sum, w) => sum + w.weight, 0);
   let situation = weights[weights.length - 1]!.situation;
-  for (const w of weights) {
-    target -= w.weight;
-    if (target < 0) {
-      situation = w.situation;
-      break;
+  if (forced) situation = forced.situation;
+  else {
+    let target = rng.next() * weights.reduce((sum, w) => sum + w.weight, 0);
+    for (const w of weights) {
+      target -= w.weight;
+      if (target < 0) {
+        situation = w.situation;
+        break;
+      }
     }
   }
   const opponents: { keeper?: string; defender?: string; attacker?: string } = {};
   const context = contextFor(next, situation, rng, opponents, weights);
+  // A chained shot is worth what the dribble opened up; the rest of the match is unchanged.
+  if (forced?.kind === 'chain') context.budget = { for: forced.goal ?? 0, against: 0 };
   // Place the selected player where the situation happens, attacking the correct end.
   const right = attacksRight(next, player.clubId!, m.minute);
   const width = clamp(
@@ -1069,10 +1157,13 @@ function openMoment(next: MatchSession): void {
     x: right ? situation.spot.depth : 100 - situation.spot.depth,
     y: width,
   };
-  applyPassage(next, 'moment', momentPassage(next, situation, spot, opponents));
+  // A follow-up moment continues its minute: it replaces the minute's snapshot.
+  applyPassage(next, 'moment', momentPassage(next, situation, spot, opponents), [], !!forced);
   const momentFrame = s.frames[s.frames.length - 1]!;
   const moment: KeyMoment = {
-    id: `${m.id}:moment:${m.minute}`,
+    id: forced
+      ? `${m.id}:moment:${m.minute}:${forced.kind}:${m.keyMoments.length}`
+      : `${m.id}:moment:${m.minute}`,
     minute: m.minute,
     situationId: situation.id,
     situationKey: `match.situation.${situation.id}`,
@@ -1081,6 +1172,11 @@ function openMoment(next: MatchSession): void {
     choices: buildChoices(context),
   };
   if (setup.dramaMoments) Object.assign(moment, framing(next, situation, opponents, margin));
+  if (forced) moment.follows = forced.kind;
+  if (forced?.kind === 'shootout')
+    moment.situationKey = `match.situation.shootout${situation.id === 'penalty-save' ? '-keeper' : ''}.${
+      moment.situationKey.split('.').pop() ?? '0'
+    }`;
   s.currentMoment = moment;
   m.keyMoments.push(moment);
   m.status = 'decision';
@@ -1141,14 +1237,31 @@ function resolveChoice(next: MatchSession, choiceId: string): void {
       template.againstShare *
         moment.budget.against *
         (template.opponent === 'attacker' ? C.decision.defensiveEdge : 1);
-    addRating(next, 'saves', (C.rating.stop * danger) / choice.probability);
+    // Before match-13 the credit was divided by the player's own odds, so its expected value was
+    // the same for every player. Divided by the reference player's odds instead, an average
+    // player earns what they did, and a better one more: their stops are worth their quality.
+    const reference = setup.occasions ? referenceOdds(choice) : choice.probability;
+    addRating(next, 'saves', (C.rating.stop * danger) / reference);
   }
+  // A beaten defender (match-13): an attacker's successful dribble leads into the shot itself,
+  // carrying the chance it made, instead of a hidden roll.
+  const chains =
+    setup.occasions &&
+    success &&
+    template.event === 'dribble' &&
+    template.scorer === 'self' &&
+    !moment.follows &&
+    CHAINING.includes(playedSlot(next).position) &&
+    stakes.successGoal > 0;
+  if (chains) s.chain = { goal: stakes.successGoal };
   // Follow-up chances: created for the selected team, or conceded to the opposition.
-  const goalProbability = success
-    ? template.direct === 'for'
-      ? 0
-      : stakes.successGoal
-    : stakes.failureGoal;
+  const goalProbability = chains
+    ? 0
+    : success
+      ? template.direct === 'for'
+        ? 0
+        : stakes.successGoal
+      : stakes.failureGoal;
   if (goalProbability > 0) {
     const self = success && template.scorer === 'self';
     const scorer = self ? p.id : finisher(next, side, rng, p.id);
@@ -1187,12 +1300,18 @@ function resolveChoice(next: MatchSession, choiceId: string): void {
       addRating(next, 'errors', C.rating.error);
     }
   }
-  // Expected-value-neutral decision credit: harder successes earn more, safe failures cost more.
+  // Decision credit: harder successes earn more, safe failures cost more. Measured against the
+  // player's own odds (before match-13) it averages nothing for anyone; against the reference
+  // player's odds it averages what the player's quality adds: weight × (odds − reference).
   const weight = C.rating.decisionWeight;
-  addRating(
-    next,
-    template.family,
-    success ? weight * (1 - choice.probability) : -weight * choice.probability,
+  const baseline = setup.occasions ? referenceOdds(choice) : choice.probability;
+  addRating(next, template.family, success ? weight * (1 - baseline) : -weight * baseline);
+}
+/** A choice's odds for the reference player, before attributes, form and conditions. */
+function referenceOdds(choice: DecisionChoice): number {
+  return (
+    choice.factors.find((factor) => factor.labelKey === 'match.factor.base')?.contribution ??
+    choice.probability
   );
 }
 export function applyMatchCommand(session: MatchSession, command: MatchCommand): MatchSession {
@@ -1279,8 +1398,21 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     }
   } else if (command.type === 'choose') {
     if (m.status !== 'decision' || !state.currentMoment) throw new Error('No decision pending');
+    if (state.currentMoment.follows === 'shootout') {
+      resolveShootout(next, command.choiceId);
+      state.currentMoment = null;
+      finish(next);
+      return next;
+    }
     const first = m.events.length;
     resolveChoice(next, command.choiceId);
+    if (state.chain) {
+      // The defender is beaten: play carries on into the shot it leads to, in the same minute.
+      const goal = state.chain.goal;
+      delete state.chain;
+      openMoment(next, { kind: 'chain', situation: SITUATION_BY_ID['box-chance']!, goal });
+      return next;
+    }
     simulateMinuteGoals(next);
     // The build-up to the moment leads into its outcome in a goal highlight.
     const lead = source.motion.kind === 'moment' ? source.motion.frames.slice(0, -1) : [];
@@ -1296,8 +1428,16 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
   } else if (command.type === 'halftime') {
     if (m.status !== 'halftime' || !['motivate', 'role', 'complain'].includes(command.response))
       throw new Error('Invalid halftime response');
-    state.managerTrustDelta =
-      command.response === 'complain' ? -5 : command.response === 'motivate' ? 3 : 1;
+    // On big-occasion engines (match-13) the challenge is a demand for the ball: more of the
+    // second half goes through the player, at a smaller cost in trust and no sulk.
+    const demand = setup.occasions && command.response === 'complain';
+    state.managerTrustDelta = demand
+      ? C.decision.talk.demand.trust
+      : command.response === 'complain'
+        ? -5
+        : command.response === 'motivate'
+          ? 3
+          : 1;
     // The talk carries into the second half: a lift in momentum and odds, or a sulk.
     const talk = C.decision.talk;
     const ownSide = selectedSide(setup);
@@ -1309,6 +1449,14 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
         C.momentum.maximum,
       );
       state.talkOdds = talk.motivate;
+    } else if (demand) {
+      state.talkOdds = 1;
+      state.shares = {
+        ...state.shares,
+        attack: round6(
+          Math.min(C.decision.talk.demand.maximum, state.shares.attack * talk.demand.share),
+        ),
+      };
     } else state.talkOdds = command.response === 'complain' ? talk.complain : 1;
     if (command.response === 'role') {
       m.tactics.role = halftimeRole(player.primaryPosition, m.tactics.role);

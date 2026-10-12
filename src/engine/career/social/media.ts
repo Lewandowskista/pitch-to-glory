@@ -7,7 +7,7 @@ import type {
   MediaTone,
   World,
 } from '../../../model/domain';
-import type { Rng } from '../../rng';
+import { createRng, type Rng } from '../../rng';
 import { fixtureKind } from '../fixtures';
 import { adjustRelationship, nextId, postMessage } from '../market/records';
 import { addWeeks, compareDates, today } from '../market/rules';
@@ -145,6 +145,42 @@ function askedRecently(world: World, topic: PressTopic): boolean {
   );
 }
 
+/** Each press topic is asked in one of this many wordings. */
+export const PRESS_VARIANTS = 3;
+/**
+ * The press remembers: a defeat after a confident or provocative answer, a win after a
+ * defeat, the rival again after a provocation, or being dropped again after a bold claim,
+ * is put back to the player in their own words. Returns the answer quoted, if any.
+ */
+const RECALL: Partial<Record<PressTopic, { from: PressTopic[]; tones: MediaTone[] }>> = {
+  loss: { from: ['win', 'goal', 'bigmatch', 'rival'], tones: ['confident', 'provocative'] },
+  win: { from: ['loss'], tones: ['humble', 'deflect', 'provocative'] },
+  rival: { from: ['rival'], tones: ['provocative', 'confident'] },
+  dropped: { from: ['dropped', 'newclub'], tones: ['confident'] },
+};
+function recall(world: World, topic: PressTopic): MediaItem['params'] {
+  const rule = RECALL[topic];
+  if (!rule) return {};
+  const earlier = [...world.media]
+    .reverse()
+    .find(
+      (item) =>
+        item.choices.length > 0 &&
+        item.answer &&
+        item.answer !== 'silence' &&
+        compareDates(addWeeks(world, item.date, MD.recallWeeks), world.date) >= 0,
+    );
+  const choice = earlier?.choices.find((entry) => entry.id === earlier.answer);
+  if (!earlier || !choice || !rule.from.includes(earlier.textKey as PressTopic)) return {};
+  if (!rule.tones.includes(choice.tone)) return {};
+  return {
+    recall: choice.labelKey,
+    ...(typeof earlier.params.opponent === 'string'
+      ? { recallOpponent: earlier.params.opponent }
+      : {}),
+  };
+}
+
 /** Open a press conference or interview on a topic; the inbox announces it. */
 export function openPress(
   world: World,
@@ -153,12 +189,16 @@ export function openPress(
   params: MediaItem['params'],
 ): MediaItem {
   const kind = INTERVIEWS.includes(topic) ? 'interview' : 'press';
+  // The wording comes from its own stream, so it never moves the world's rolls.
+  const variant = createRng(
+    `press:${world.date.season}:${world.date.week}:${topic}:${world.media.length}`,
+  ).int(0, PRESS_VARIANTS - 1);
   const item = addItem(world, rng, {
     kind,
     author: 'journalist',
     authorName: rng.pick(OUTLETS),
     textKey: topic,
-    params,
+    params: { ...params, variant, ...recall(world, topic) },
     sentiment: 0,
     choices: PRESS[topic].map(([tone, effects]): MediaChoice => ({
       id: `${topic}:${tone}`,
@@ -270,11 +310,15 @@ export function mediaWeek(world: World, rng: Rng, matches: CareerMatchRecord[]):
           : band === 'great'
             ? 'strong'
             : 'steady';
+    // Wordings come from their own stream, so they never move the world's rolls.
+    const wording = createRng(`coverage:${record.fixtureId}`);
+    const headlineVariant = wording.int(1, 3);
+    const journalistVariant = wording.int(1, 3);
     addItem(world, rng, {
       kind: 'headline',
       author: 'journalist',
       authorName: rng.pick(OUTLETS),
-      textKey: `headline.${headline}`,
+      textKey: `headline.${headline}${headlineVariant > 1 ? `.${headlineVariant}` : ''}`,
       params,
       sentiment: SENTIMENT[band],
     });
@@ -288,7 +332,7 @@ export function mediaWeek(world: World, rng: Rng, matches: CareerMatchRecord[]):
         kind: 'social',
         author: 'fan',
         authorName: fanHandle(rng, club),
-        textKey: `fan.${tone > 0 ? 'happy' : tone < 0 ? 'angry' : 'neutral'}.${rng.int(1, 3)}`,
+        textKey: `fan.${tone > 0 ? 'happy' : tone < 0 ? 'angry' : 'neutral'}.${rng.int(1, tone > 0 ? 6 : 5)}`,
         params,
         sentiment: tone,
       });
@@ -299,7 +343,7 @@ export function mediaWeek(world: World, rng: Rng, matches: CareerMatchRecord[]):
         kind: 'social',
         author: 'journalist',
         authorName: rng.pick(OUTLETS),
-        textKey: `journalist.${band}`,
+        textKey: `journalist.${band}${journalistVariant > 1 ? `.${journalistVariant}` : ''}`,
         params,
         sentiment: SENTIMENT[band],
       });

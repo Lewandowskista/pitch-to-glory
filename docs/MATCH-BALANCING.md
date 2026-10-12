@@ -270,3 +270,21 @@ A penalty is a penalty against any side: `ChoiceTemplate.fixed` sets its goal pr
 **Measured.** Goals per match with and without the pass agree within 0.1 on 500-match samples per position. All six `profile:match` gates hold: striker 0.49 goals a match (penalties included), keepers p90 8.5, every objective kind 10–75%, attacker involvement best/worst ×1.18–1.34, odds within tolerance. Penalties: a striker takes ~0.16 a match and scores 64–88% depending on the player; keepers save 23–29%; a centre-back meets a goal-line moment every third match and keeps it out ~64% of the time.
 
 **Compatibility.** Sessions saved on `match-11` replay as they were; `engineFor` picks `match-12` only for setups with `dramaMoments`.
+
+## Engagement pass 2: big occasions (engine `match-13`)
+
+New setups carry `occasions`; `engineFor` picks `match-13`, and sessions saved on `match-12` replay as they were.
+
+**Chained moments.** When a striker, winger, attacking or central midfielder wins a dribble (`event: 'dribble'`, `scorer: 'self'`) in the slot they play, the chance it opened up is no longer a hidden roll: the shot itself follows in the same minute as a `box-chance` moment whose budget is the dribble's `successGoal` (so a reference player realises the same expected goals, and a good finisher more). A chained moment never chains again. It replaces the minute's replay frame, so a match still has one frame a minute (`KeyMoment.follows`).
+
+**The shootout kick.** A career fixture that goes to extra time and penalties when level carries `fixture.shootoutLead` (the home side's aggregate lead from earlier legs, 0 for a single match; absent in leagues, group games and ties settled by rank). Level on aggregate at full time, the player is asked for their kick (`penalty`, a fixed 0.76 goal) or, in goal, their plan against the takers (`penalty-save`), unless substituted. The kick never changes the score. If extra time does not separate the sides, the finalized shootout's home win chance moves from 0.5 by ± `background.shootoutKick` 0.15 toward the side whose player scored or saved, against it when they missed or were beaten. The report says which.
+
+**Headlines.** A final (importance 1.5) or a derby (both clubs in one city) won or lost has its own story (`final-won`, `final-lost`, `derby-won`, `derby-lost`, three wordings each), after a late winner or a hat-trick. The crowd bed is 25% louder for cup ties, finals and derbies.
+
+**Demand the ball.** The half-time "Challenge the instructions" becomes "Demand the ball": the attacking share × 1.25 for the second half (at most 0.6), costing 3 manager trust, with no sulk on the odds (`decision.talk.demand`). Before, it was strictly worse than motivating.
+
+**Ratings reward quality.** Decision credit was `weight × (1 − p)` on success and `−weight × p` on failure, and a stop earned `stop × danger / p`: measured against the player's own odds, both average the same for every player, so an elite defender rated like an average one (in a probe, an 85-rated centre-back among 31-rated defenders averaged 6.83, the league's defenders 6.81). On `match-13` both are measured against the reference player's odds (the choice's base probability): credit averages `weight × (p − reference)`, and a stop `stop × danger × p / reference`. An average player rates as before; the same centre-back now averages 7.63 and leads the league's defenders.
+
+**Calibration gate.** The fixed margins (7 points over 150 decisions, 5 over 500) are replaced by a sampling test (`scripts/calibration.ts`): each bucket of 100 or more decisions within three standard errors of its stated odds plus a point of rounding, and all of a profile's decisions pooled within three standard errors. With a hundred buckets, the fixed margins failed on noise (2.2σ each); the pooled test, with a standard error under a point, is the sharper check for bias.
+
+**Measured** (300 matches a position): all six gates hold. Striker 0.50 goals a match; involvement best against worst ×1.25–1.85 for attackers (the chained shot rewards beating a defender); pooled stated and actual odds within a point for every position.

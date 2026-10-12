@@ -19,6 +19,8 @@ export interface WorldOperations {
   nextSeason(world: World): World;
   commit(world: World, session: MatchSession): { world: World; outcome: CareerMatchOutcome };
   createCareer(world: World, seed: string, draft: CareerDraft, clubId: Id): World;
+  /** Before simulating a further week: true when the player has a decision due in it. */
+  decisionDue?(world: World): boolean;
 }
 export async function runWorldJob(
   request: JobRequest,
@@ -58,6 +60,14 @@ export async function runWorldJob(
       let completedWeeks = 0;
       let pendingFixtureId: Id | null = null;
       while (world!.phase === 'active' && completedWeeks < totalWeeks) {
+        // Continue (not a season simulation) stops on deadline day: the week always moves on
+        // once, so pressing it again lets the deadline pass.
+        if (
+          request.type === 'simulate-to-match' &&
+          completedWeeks > 0 &&
+          operations.decisionDue?.(world!)
+        )
+          break;
         const step = operations.week(world!, autoPlay);
         if (step.pendingFixtureId) {
           // The career player has a match to play before this week can be simulated.

@@ -72,7 +72,17 @@ export const CONFIG = {
       /** Odds × (1 + (own momentum − 50) × slope): a team on top finds everything easier. */
       momentumSlope: 0.002,
       /** Half-time: the talk's effect on second-half odds and on momentum. */
-      talk: { motivate: 1.03, complain: 0.97, momentum: 8, leaderBonus: 1.5 },
+      talk: {
+        motivate: 1.03,
+        complain: 0.97,
+        momentum: 8,
+        leaderBonus: 1.5,
+        /**
+         * Demanding the ball (match-13): the attacking share × `share` for the second half,
+         * at most `maximum`, and `trust` with the manager.
+         */
+        demand: { share: 1.25, maximum: 0.6, trust: -3 },
+      },
       /** The captain's call with the Captain's Voice skill also moves momentum. */
       captainsVoice: { push: 6, calm: 3 },
       /** Second Wind slows in-match fatigue. */
@@ -173,6 +183,66 @@ export const CONFIG = {
   },
   /** Career player progression (milestone 4). See docs/BALANCING.md. */
   career: {
+    /**
+     * End-of-season review grade (0–100): playing time (share of the club's matches), the
+     * average rating from `ratingFloor` over `ratingSpan`, goal involvements (or clean sheets) a
+     * match against the position's reference, a trophy, up to two season awards, and the club's
+     * title or promotion (relegation counts against). Grades from the bands.
+     */
+    /**
+     * Story arcs (`stories/storylets.ts`): at most one open; a new one at least `gapWeeks`
+     * after the last, on `weeklyChance` of weeks unless an occasion (weight ≥ `occasionWeight`:
+     * a new manager, a comeback, a homecoming, a derby) brings one at once. Each kind once a
+     * season; the last `limit` are kept. The rest are the thresholds and sizes of each story.
+     */
+    stories: {
+      gapWeeks: 4,
+      weeklyChance: 0.3,
+      occasionWeight: 3,
+      limit: 40,
+      disputeTrust: 55,
+      mentorAge: 24,
+      mentorGain: 3,
+      mentorXp: 250,
+      captaincyAge: 23,
+      captaincyTrust: 65,
+      captaincyMatches: 8,
+      captaincySpread: 20,
+      newManagerForm: 55,
+      rivalIntensity: 45,
+      sagaGap: 6,
+      comebackWeeks: 6,
+      comebackRating: 6.8,
+      charityFame: 3,
+      charityGift: 1000,
+      nightOutRisk: 0.25,
+      envyRatio: 1.3,
+    },
+    review: {
+      weights: {
+        playingTime: 30,
+        rating: 30,
+        contribution: 20,
+        trophy: 8,
+        award: 6,
+        clubSuccess: 6,
+      },
+      ratingFloor: 6,
+      ratingSpan: 1.4,
+      contribution: {
+        ST: 0.6,
+        LW: 0.5,
+        RW: 0.5,
+        AM: 0.5,
+        CM: 0.3,
+        DM: 0.35,
+        LB: 0.35,
+        RB: 0.35,
+        CB: 0.35,
+        GK: 0.35,
+      },
+      grades: { 'A+': 90, A: 78, B: 64, C: 50, D: 36 },
+    },
     /** XP needed from level n to n + 1 is levelXpBase × levelXpGrowth^(n − 1). */
     levelXpBase: 500,
     levelXpGrowth: 1.02,
@@ -584,6 +654,8 @@ export const CONFIG = {
         pressWeeks: 2,
         /** Weeks before the press asks about the same topic again. */
         topicCooldown: 6,
+        /** The press quotes an answer back within this many weeks (`recall` in media.ts). */
+        recallWeeks: 5,
         silenceFame: -1,
         fanPosts: 2,
         journalistChance: 0.5,
@@ -601,6 +673,12 @@ export const CONFIG = {
       fameLevels: [0, 20, 50, 100, 170, 260, 380, 530, 720, 950] as const,
       /** At each new season fame above the floor fades by this share: fame is a standing. */
       fameDecay: { above: 100, share: 0.1 },
+      /**
+       * Legacy projects at the first club: a stake adds this share of its price to the club's
+       * transfer budget and `stakeReputation` to its standing each season it is held; an
+       * academy adds `academyPotential` to every youngster it brings through. Fans there warm.
+       */
+      legacy: { stakeBudget: 0.5, stakeReputation: 1, academyPotential: 6, fans: 8 },
       /** Active sponsorship deals allowed at each fame level. */
       maxDeals: [0, 1, 1, 2, 2, 2, 3, 3, 3, 4] as const,
       sponsor: {
@@ -689,7 +767,15 @@ export const CONFIG = {
         youngAge: 21,
         /** Score: average rating × rating + goals × goal + assists × assist, times the league
          * tier's visibility for Young Player and the Golden Ball. */
-        score: { rating: 10, goal: 1.5, assist: 1, monthGoal: 0.6, monthAssist: 0.4 },
+        score: {
+          rating: 10,
+          goal: 1.5,
+          assist: 1,
+          monthGoal: 0.6,
+          monthAssist: 0.4,
+          /** Per clean sheet, for keepers and defenders (complete statistics). */
+          cleanSheet: { keeper: 1.2, defender: 0.9 },
+        },
         /** Golden Ball bonuses for team success. */
         champion: 10,
         topFour: 5,
@@ -715,6 +801,11 @@ export const CONFIG = {
        * Ambitions the player chooses for the career: at most `count`, changed once a season.
        * Each achieved one pays fame and XP; targets are career totals (caps: senior).
        */
+      /** Announcing the last season: the fame of the farewell. */
+      farewell: { fame: 15 },
+      /** A testimonial after this many seasons at one club: fame and the fans' affection. */
+      testimonial: { seasons: 8, fame: 20, fans: 10 },
+      /** Ambitions are under honours; the season review grade lives in `career.review`. */
       ambitions: {
         count: 3,
         targets: {
@@ -764,7 +855,7 @@ export const CONFIG = {
     unfamiliarFactor: 0.8,
   },
   saves: {
-    schemaVersion: 19,
+    schemaVersion: 20,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,
@@ -924,6 +1015,8 @@ export const CONFIG = {
       squadWeight: 0.4,
       minimumGoals: 0.15,
       penaltyWinnerChance: 0.5,
+      /** The career player's shootout kick (or save) moves their side's chance by this. */
+      shootoutKick: 0.15,
       penaltyLoserGoals: [2, 5],
       assistedGoalChance: 0.78,
       scorerWeights: { GK: 0.01, ST: 5, winger: 3, midfield: 1.5, defender: 0.5 },

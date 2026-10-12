@@ -1,3 +1,4 @@
+import { firstClubOf } from './lifestyle';
 import type { World } from '../../../model/domain';
 import { createRng } from '../../rng';
 import { postMessage } from '../market/records';
@@ -26,6 +27,12 @@ export function lifestyleWeek(world: World): void {
 export function lifestyleRollover(world: World): void {
   sponsorRollover(world);
   const career = world.career!;
+  // A stake held in the first club lifts its standing each season.
+  if (career.style.assets.some((asset) => asset.itemId === 'legacy:stake')) {
+    const clubId = firstClubOf(world);
+    const club = clubId ? world.clubs[clubId] : undefined;
+    if (club) club.reputation = Math.min(99, club.reputation + L.legacy.stakeReputation);
+  }
   const F = L.fameDecay;
   if (career.fame > F.above)
     career.fame = Math.round(F.above + (career.fame - F.above) * (1 - F.share));

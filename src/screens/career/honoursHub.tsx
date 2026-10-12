@@ -1,7 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom';
 import type { World } from '../../model/domain';
 import { CONFIG } from '../../engine/config';
-import { retirementAge, retirementState } from '../../engine/career/honours/retirement';
+import {
+  canAnnounceFarewell,
+  retirementAge,
+  retirementState,
+} from '../../engine/career/honours/retirement';
 import { Dialog } from '../../ui/Dialog';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
@@ -23,6 +27,7 @@ export function HonoursSummary({
   const career = world.career!;
   const navigate = useNavigate();
   const dialog = useUrlDialog('retire');
+  const farewellDialog = useUrlDialog('farewell');
   const { run, error, block } = useHonoursAction();
   const caps = Object.values(career.honours.caps).reduce((sum, value) => sum + value, 0);
   const goals = Object.values(career.honours.internationalGoals).reduce(
@@ -36,14 +41,19 @@ export function HonoursSummary({
   const state = retirementState(world);
   const age = retirementAge(world);
   const canRetire = state === 'available' || (state === 'forced' && world.phase === 'complete');
-  const message =
-    state === 'young'
-      ? format(h.retirement.young, { age: R.optionalAge })
-      : state === 'season'
-        ? h.retirement.season
-        : state === 'forced'
-          ? format(h.retirement.forced, { age })
-          : format(h.retirement.available, { age: R.forcedAge });
+  const farewell = canAnnounceFarewell(world);
+  const announced = career.farewell?.season === world.date.season;
+  const message = announced
+    ? h.retirement.farewellActive
+    : state === 'young' && farewell
+      ? h.retirement.farewellBody
+      : state === 'young'
+        ? format(h.retirement.young, { age: R.optionalAge })
+        : state === 'season'
+          ? h.retirement.season
+          : state === 'forced'
+            ? format(h.retirement.forced, { age })
+            : format(h.retirement.available, { age: R.forcedAge });
   return (
     <section
       aria-labelledby="honours-summary-heading"
@@ -72,7 +82,7 @@ export function HonoursSummary({
           {h.hub.open}
         </Link>
       </div>
-      {state !== 'young' && (
+      {(state !== 'young' || farewell || announced) && (
         <div
           className={`flex flex-wrap items-center gap-3 rounded-control border p-4 ${
             state === 'forced' ? 'border-gold bg-art-gold' : 'border-line bg-surface-soft'
@@ -82,6 +92,16 @@ export function HonoursSummary({
             <strong className="block text-sm">{h.retirement.title}</strong>
             <p className="text-sm text-muted">{message}</p>
           </div>
+          {farewell && (
+            <button
+              className="button secondary"
+              disabled={Boolean(block)}
+              title={block ?? undefined}
+              onClick={() => farewellDialog.open()}
+            >
+              {h.retirement.farewell}
+            </button>
+          )}
           {canRetire && (
             <button
               className="button secondary"
@@ -98,6 +118,18 @@ export function HonoursSummary({
         <p role="alert" className="inline-error">
           {error}
         </p>
+      )}
+      {farewellDialog.value && farewell && (
+        <Dialog
+          title={h.retirement.farewellConfirmTitle}
+          body={h.retirement.farewellConfirmBody}
+          confirmLabel={h.retirement.farewellConfirm}
+          onClose={farewellDialog.close}
+          onConfirm={() => {
+            run({ type: 'farewell' });
+            farewellDialog.close();
+          }}
+        />
       )}
       {dialog.value && canRetire && (
         <Dialog
