@@ -71,11 +71,16 @@ test('renames, repaints and recrests, reverts, exports and imports edits', async
   test.setTimeout(240000);
   const { json, club, league } = worldSave();
   await page.goto('/saves');
-  await page
-    .locator('.slot-card')
-    .nth(0)
-    .getByLabel('Import backup — Slot 1')
-    .setInputFiles({ name: 'edit.json', mimeType: 'application/json', buffer: Buffer.from(json) });
+  const importInput = page.locator('.slot-card').nth(0).getByLabel('Import backup — Slot 1');
+  // setInputFiles bypasses the disabled control's actionability checks. Wait for the
+  // initial slot read before selecting a file, as a player must do in the file picker.
+  await expect(importInput).toBeEnabled({ timeout: 30000 });
+  await importInput.setInputFiles({
+    name: 'edit.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(json),
+  });
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
   await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Edit world');
 
   await page.goto('/edit?save=1');
