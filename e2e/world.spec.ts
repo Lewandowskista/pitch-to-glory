@@ -276,6 +276,10 @@ test('world worker and route work offline after a connected visit', async ({
   context,
   browserName,
 }) => {
+  // First-install precaching took 21 seconds on Windows Firefox in run 38355263253.
+  // Give installation plus offline generation/advancement their own overall budget;
+  // the existing assertions still require a real offline world and worker result.
+  test.setTimeout(120000);
   await page.goto('/');
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
