@@ -70,7 +70,9 @@ jobs:
   # WebGL also crashes during the match renderer. Keep the real renderer in the journeys.
   browsers:
     needs: build
-    runs-on: ${{ matrix.browser == 'webkit' && 'macos-latest' || 'windows-latest' }}
+    # The standard Intel image has 14 GB RAM; the default ARM image has 7 GB.
+    # Keep headroom for the full career/world journeys and the Metal renderer.
+    runs-on: ${{ matrix.browser == 'webkit' && 'macos-15-intel' || 'windows-latest' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
