@@ -132,6 +132,23 @@ test('signs a sponsor, buys a car, dresses up and picks a celebration', async ({
 
   // Wardrobe: today's challenges arrive, a free hairstyle, long sleeves and a celebration.
   await openCareerPage(page, 'Wardrobe');
+  const figure = page.locator('[aria-labelledby="preview-heading"] [role="img"]');
+  const expectArms = async () => {
+    const count = await figure
+      .locator('img')
+      .nth(1)
+      .evaluate((image) => {
+        const svg = decodeURIComponent((image as HTMLImageElement).src.split(',')[1]!);
+        return new DOMParser().parseFromString(svg, 'image/svg+xml').querySelectorAll('[data-arm]')
+          .length;
+      });
+    expect(count).toBe(2);
+  };
+  await expectArms();
+  if (browserName === 'chromium') {
+    await mkdir('artifacts', { recursive: true });
+    await figure.screenshot({ path: 'artifacts/wardrobe-arms-short.png' });
+  }
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Challenges' }).getByRole('listitem')).toHaveCount(
     6,
@@ -146,6 +163,9 @@ test('signs a sponsor, buys a car, dresses up and picks a celebration', async ({
     'true',
   );
   await page.getByText('Long', { exact: true }).click();
+  await expectArms();
+  if (browserName === 'chromium')
+    await figure.screenshot({ path: 'artifacts/wardrobe-arms-long.png' });
   const celebrations = page.getByRole('list', { name: 'Celebrations' });
   await celebrations.getByRole('button', { name: /^Knee slide/ }).click();
   await expect(celebrations.getByRole('button', { name: /^Knee slide/ })).toHaveAttribute(

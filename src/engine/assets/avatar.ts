@@ -1,4 +1,4 @@
-import type { Avatar } from '../../model/domain';
+import type { Avatar, Hex } from '../../model/domain';
 import type { Rng } from '../rng';
 import { item, svg } from './shared';
 
@@ -21,7 +21,12 @@ const SKIN = [
   '#895035',
   '#6e412e',
   '#4d3027',
-];
+] as const;
+
+/** Share the portrait's palette with full-body wardrobe artwork. */
+export function avatarSkinColor(avatar: Pick<Avatar, 'skin'>): Hex {
+  return item(SKIN, avatar.skin);
+}
 const HAIR_COLOR = [
   '#242b30',
   '#412b23',
@@ -107,7 +112,7 @@ export function generateAvatar(rng: Rng): Avatar {
 }
 export function renderAvatar(avatar: Avatar, age: number): string {
   if (!Number.isFinite(age) || age < 0 || age > 110) throw new RangeError('Invalid avatar age');
-  const skin = item(SKIN, avatar.skin);
+  const skin = avatarSkinColor(avatar);
   const hair = item(HAIR_COLOR, avatar.hairColor);
   const hairstyle = item(HAIR, avatar.hair);
   const ageing = Math.max(0, Math.min(1, (age - 28) / 20));

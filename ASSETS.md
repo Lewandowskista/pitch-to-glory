@@ -17,6 +17,10 @@ and animation code were retained unchanged.
 
 ## Wardrobe and celebration artwork (milestone 7)
 
+The full-body Wardrobe preview adds original SVG arms and hands beneath the shirt, sharing
+the portrait's skin palette. Long sleeves cover the forearms; shirt trims and captain's bands
+remain on top. This composition is separate from live match token artwork.
+
 The live pitch's circular player tokens, keeper gloves, direction markers, panelled football,
 goal nets, corner arcs, flight trails and arrival rings are original procedural vector artwork
 in `src/screens/match/pitchScene.ts` and `SvgPitch.tsx`. `pitchArt.ts` shares dimensions and

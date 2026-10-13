@@ -14,8 +14,8 @@ import {
   type Availability,
   type CosmeticItem,
 } from '../../engine/career/lifestyle';
-import { renderAvatar } from '../../engine/assets/avatar';
-import { renderDressedKit, renderSocksAndBoots } from '../../engine/assets/gear';
+import { avatarSkinColor, renderAvatar } from '../../engine/assets/avatar';
+import { renderSocksAndBoots, renderWardrobeShirt } from '../../engine/assets/gear';
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
@@ -127,11 +127,12 @@ function Preview({
 }) {
   const equipped = career.style.equipped;
   const kit = club.kits.home;
+  const skin = avatarSkinColor(player.avatar);
   const armband = COSMETIC_BY_ID[equipped.armband]?.colors ?? null;
   const portrait = useMemo(() => renderAvatar(player.avatar, age), [player.avatar, age]);
   const shirt = useMemo(
-    () => renderDressedKit(kit, equipped.sleeves, armband),
-    [kit, equipped.sleeves, armband],
+    () => renderWardrobeShirt(kit, equipped.sleeves, armband, skin),
+    [kit, equipped.sleeves, armband, skin],
   );
   const shorts = useMemo(() => shortsSvg(kit), [kit]);
   const feet = useMemo(
@@ -144,7 +145,7 @@ function Preview({
     [kit, equipped.socks, equipped.boots],
   );
   const tokens = career.style.tokens;
-  // One figure built from the head, shirt, shorts and socks/boots artwork. Percentage margins
+  // One figure built from the head, arms/shirt, shorts and socks/boots artwork. Percentage margins
   // resolve against the figure's width, so the pieces overlap the same way at every size:
   // the shirt collar covers the neck, the shirt hem the shorts, the shorts the sock tops.
   return (

@@ -7,10 +7,34 @@ import {
   renderCrest,
 } from '../src/engine/assets/crest';
 import { KIT_PATTERNS, generateKits, renderKit } from '../src/engine/assets/kit';
-import { AVATAR_OPTIONS, generateAvatar, renderAvatar } from '../src/engine/assets/avatar';
+import {
+  AVATAR_OPTIONS,
+  avatarSkinColor,
+  generateAvatar,
+  renderAvatar,
+} from '../src/engine/assets/avatar';
+import { renderWardrobeShirt } from '../src/engine/assets/gear';
 import { contrastRatio, PALETTES } from '../src/engine/assets/shared';
 
 describe('procedural SVG artwork', () => {
+  it('gives the wardrobe both arms in the portrait skin tone beneath either sleeve length', () => {
+    const avatar = generateAvatar(createRng('wardrobe-arms'));
+    const kit = generateKits(createRng('wardrobe-arms')).home;
+    for (let skin = 0; skin < AVATAR_OPTIONS.skin; skin++) {
+      const color = avatarSkinColor({ skin });
+      expect(renderAvatar({ ...avatar, skin }, 17)).toContain(`fill="${color}"`);
+      for (const sleeves of ['short', 'long'] as const) {
+        const shirt = renderWardrobeShirt(kit, sleeves, ['#f1cf58', '#075e45'], color);
+        expect(shirt).toContain(`<g fill="${color}"`);
+        expect(shirt).toContain('data-arm="left"');
+        expect(shirt).toContain('data-arm="right"');
+        expect(shirt.indexOf('data-arm=')).toBeLessThan(shirt.indexOf('<defs>'));
+        expect(shirt).toContain('>C</text>');
+      }
+    }
+    expect(() => avatarSkinColor({ skin: 8 })).toThrow('Invalid asset option');
+    expect(() => renderWardrobeShirt(kit, 'short', null, '#invalid')).toThrow();
+  });
   it('keeps crest symbols readable for every club palette, including edited colours', () => {
     const palettes = [...PALETTES, ['#123456', '#123457', '#123458'] as const];
     for (const colors of palettes) {
@@ -78,6 +102,12 @@ describe('procedural SVG artwork', () => {
       renderCrest(generateCrest(rng)),
       renderKit(generateKits(rng).home),
       renderAvatar(generateAvatar(rng), 42),
+      renderWardrobeShirt(
+        generateKits(rng).home,
+        'long',
+        null,
+        avatarSkinColor(generateAvatar(rng)),
+      ),
     ]).flat();
     for (const svg of outputs) {
       expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/);

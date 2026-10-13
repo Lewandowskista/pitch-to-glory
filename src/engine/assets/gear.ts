@@ -1,6 +1,6 @@
 import type { Hex, Kit, SleeveLength } from '../../model/domain';
 import { renderKit } from './kit';
-import { svg } from './shared';
+import { colors, svg } from './shared';
 
 /**
  * Wardrobe artwork (milestone 7): the club shirt with the player's sleeve length and
@@ -21,6 +21,24 @@ export function renderDressedKit(
     ? `<path d="M15 51L33 59L30 66L12 58Z" fill="${armband[0]}" stroke="${armband[1]}" stroke-width="1.5"/><text x="22" y="61" font-family="Inter, sans-serif" font-size="7" font-weight="800" fill="${armband[1]}" text-anchor="middle" transform="rotate(24 22 61)">C</text>`
     : '';
   return shirt.replace('</svg>', `${long}${band}</svg>`);
+}
+
+/** Full-body preview only: skin beneath the sleeves, with both hands inside the viewBox. */
+export function renderWardrobeShirt(
+  kit: Kit,
+  sleeves: SleeveLength,
+  armband: [Hex, Hex] | null,
+  skin: Hex,
+): string {
+  colors([skin, skin, skin]);
+  const arm = 'M8 66L28 79L20 103L19 132Q22 140 17 145Q12 149 8 144L5 139Q3 134 5 128L7 99L3 85Z';
+  const forearm =
+    sleeves === 'long'
+      ? `<path d="M7 96L23 103L19 132L4 126Z" fill="${kit.colors[0]}"/><path d="M4 125L19 131" stroke="${kit.colors[1]}" stroke-width="4"/>`
+      : '';
+  const arms = `<g fill="${skin}" stroke="#51352b" stroke-opacity=".2" stroke-width="1.5" stroke-linejoin="round"><g data-arm="left"><path d="${arm}"/>${forearm}</g><g data-arm="right" transform="translate(160 0) scale(-1 1)"><path d="${arm}"/>${forearm}</g></g>`;
+  // Paint the arms first so the shirt, sleeve trims and captain's band stay on top.
+  return renderDressedKit(kit, sleeves, armband).replace(/(<svg[^>]*>)/, `$1${arms}`);
 }
 
 const SOCK = 'M18 4H42V58Q42 66 50 70L62 76Q70 80 70 88V92H18Z';
