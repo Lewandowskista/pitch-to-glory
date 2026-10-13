@@ -65,11 +65,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx vitest run --shard=${{ matrix.shard }}/3
-  # Browser journeys run on Windows, two machines per engine, against the build. Linux WebKit
-  # runners have no GPU, and its WebGL crashes the browser during the match renderer.
+  # Two machines per engine, against the build. WebKit uses macOS: the Windows runner
+  # stalled during match playback/teardown in run 38307621502. Linux WebKit's headless
+  # WebGL also crashes during the match renderer. Keep the real renderer in the journeys.
   browsers:
     needs: build
-    runs-on: windows-latest
+    runs-on: ${{ matrix.browser == 'webkit' && 'macos-latest' || 'windows-latest' }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
