@@ -89,7 +89,9 @@ jobs:
           name: web-build
           path: dist
       - run: npx playwright install ${{ matrix.browser }}
-      - run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2
+      # Hosted macOS WebKit exhausted Metal/WebGL memory with two concurrent journeys
+      # (run 38356702248). Run each WebKit shard serially; keep both shards and the GPU tests.
+      - run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2 --workers=${{ matrix.browser == 'webkit' && 1 || 2 }}
       # A second release replaces the first under a saved career (e2e/update.spec.ts).
       - if: matrix.browser == 'chromium' && matrix.shard == 1
         run: npm run test:update
