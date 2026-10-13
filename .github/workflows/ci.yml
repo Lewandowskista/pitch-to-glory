@@ -65,12 +65,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx vitest run --shard=${{ matrix.shard }}/3
-  # Two machines per engine, against the build. WebKit uses macOS: the Windows runner
-  # stalled during match playback/teardown in run 38307621502. Linux WebKit's headless
-  # WebGL also crashes during the match renderer. Keep the real renderer in the journeys.
+  # Two machines per engine, against the build. Keep Windows: hosted macOS WebKit
+  # exhausts Metal/WebGL memory, and Linux WebKit crashes in the GPU renderer.
+  # Serialize WebKit within each shard to avoid the original concurrent-test stall.
   browsers:
     needs: build
-    runs-on: ${{ matrix.browser == 'webkit' && 'macos-latest' || 'windows-latest' }}
+    runs-on: windows-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -89,8 +89,7 @@ jobs:
           name: web-build
           path: dist
       - run: npx playwright install ${{ matrix.browser }}
-      # Hosted macOS WebKit exhausted Metal/WebGL memory with two concurrent journeys
-      # (run 38356702248). Run each WebKit shard serially; keep both shards and the GPU tests.
+      # Keep both WebKit shards and the real GPU tests, with one journey per machine.
       - run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2 --workers=${{ matrix.browser == 'webkit' && 1 || 2 }}
       # A second release replaces the first under a saved career (e2e/update.spec.ts).
       - if: matrix.browser == 'chromium' && matrix.shard == 1
