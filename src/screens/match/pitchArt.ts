@@ -30,6 +30,22 @@ export function ballAtFeet(point: Point, angle: number, scale = 1): Point {
   };
 }
 
+/** Squad numbers by player id, for the tokens of both line-ups. */
+export function shirtNumbers(
+  players: Readonly<Record<string, { squadNumber?: number }>>,
+): Record<string, number> {
+  const numbers: Record<string, number> = {};
+  for (const [id, player] of Object.entries(players))
+    if (typeof player.squadNumber === 'number') numbers[id] = player.squadNumber;
+  return numbers;
+}
+/** A token's shirt number: the player's squad number, else his formation slot (1–11). */
+export const shirtNumber = (
+  numbers: Readonly<Record<string, number>> | undefined,
+  id: string,
+  index: number,
+): number => numbers?.[id] ?? (index % 11) + 1;
+
 /** Keep digits at least about 8 CSS pixels on phone-sized full-pitch views. */
 export const pitchAssetScale = (sceneScale: number) =>
   Math.max(1, Math.min(1.7, 8 / (pitchArt.numberSize * Math.max(sceneScale, 0.001))));

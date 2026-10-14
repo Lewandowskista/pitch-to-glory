@@ -1,7 +1,7 @@
 import { kitAppearance, PitchMarkings } from './Maps';
 import { pitchCopy as copy } from '../../i18n/pitch';
 import type { PitchProps } from './Pitch';
-import { ballAtFeet, kitNumberColor, pitchArt, pitchPoint } from './pitchArt';
+import { ballAtFeet, kitNumberColor, pitchArt, pitchPoint, shirtNumber } from './pitchArt';
 import { useSvgAssetScale, useSvgPlayback } from './useSvgPlayback';
 
 /**
@@ -13,6 +13,7 @@ export function SvgPitch({
   home,
   away,
   selectedPlayerId,
+  numbers,
   celebration,
   motion,
   rate = 18,
@@ -22,7 +23,9 @@ export function SvgPitch({
   viewBox = '0 0 116 80',
   label = copy.label,
 }: Pick<PitchProps, 'frame' | 'home' | 'away' | 'selectedPlayerId' | 'celebration'> &
-  Partial<Pick<PitchProps, 'motion' | 'rate' | 'maxMs' | 'reducedMotion' | 'paused'>> & {
+  Partial<
+    Pick<PitchProps, 'numbers' | 'motion' | 'rate' | 'maxMs' | 'reducedMotion' | 'paused'>
+  > & {
     /** The part of the 116 × 80 drawing to show. */
     viewBox?: string;
     label?: string;
@@ -197,7 +200,7 @@ export function SvgPitch({
                     fontSize={pitchArt.numberSize}
                     fontWeight="700"
                   >
-                    {(index % 11) + 1}
+                    {shirtNumber(numbers, player.id, index)}
                   </text>
                 </g>
               </g>

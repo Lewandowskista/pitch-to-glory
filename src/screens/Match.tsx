@@ -41,6 +41,7 @@ import '../styles/match.css';
 
 import { useMatchAudio } from './match/useMatchAudio';
 import { preparePlayback } from './match/playback';
+import { shirtNumbers } from './match/pitchArt';
 import { Tutorial } from '../ui/Tutorial';
 import { tutorialText as tt } from '../i18n/tutorial';
 import { StakeLine } from './career/stakesUi';
@@ -701,6 +702,7 @@ export default function MatchScreen() {
                           home={session.setup.home}
                           away={session.setup.away}
                           selectedPlayerId={session.setup.selectedPlayerId}
+                          numbers={shirtNumbers(session.setup.players)}
                           motion={state!.motion.frames}
                           {...motionPace(state!.motion.kind, speed)}
                           reducedMotion={settings.reducedMotion || !!systemReduced}

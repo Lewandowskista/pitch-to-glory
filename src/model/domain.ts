@@ -330,6 +330,11 @@ export interface Player {
   birthSeason: number;
   nationalityId: Id;
   clubId: Id | null;
+  /**
+   * Shirt number, 1–99, unique within the club's current squad (schema 21). Assigned without
+   * random draws by `engine/world/squadNumbers.ts` and kept across moves when free.
+   */
+  squadNumber: number;
   avatar: Avatar;
   foot: Foot;
   primaryPosition: Position;
@@ -1503,7 +1508,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 20;
+  schemaVersion: 21;
   engineVersion: string;
   slot: SlotId;
   name: string;

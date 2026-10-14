@@ -305,6 +305,12 @@
   flex-shrink: 0;
   font-weight: 800;
 }
+.match-lineup li > .match-lineup-number {
+  width: 1.4rem;
+  color: var(--ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .match-lineup li.selected {
   background: var(--accent-soft);
   border-radius: 0.4rem;

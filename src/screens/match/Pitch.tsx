@@ -9,6 +9,8 @@ export interface PitchProps {
   home: Club;
   away: Club;
   selectedPlayerId: string;
+  /** Squad numbers by player id (`shirtNumbers`); a token without one shows its slot. */
+  numbers?: Readonly<Record<string, number>>;
   /** The passage of play ending at `frame`, animated whenever a new one arrives. */
   motion?: ReplayFrame[] | null;
   /** Sporting milliseconds shown per real millisecond, and the longest a passage may take. */
@@ -74,6 +76,7 @@ export default function Pitch(props: PitchProps) {
           current.selectedPlayerId,
           current.frame,
           unavailable,
+          current.numbers,
         );
         ownedScene = created;
         if (cancelled || failed) {

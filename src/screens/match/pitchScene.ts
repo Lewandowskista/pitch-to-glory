@@ -5,7 +5,14 @@ import { Application, Container, Graphics, Text } from 'pixi.js';
 import type { Club, Point, ReplayFrame } from '../../model/domain';
 import { kitAppearance } from './Maps';
 import { preparePlayback, samplePlayback, type Playback } from './playback';
-import { ballAtFeet, kitNumberColor, pitchArt, pitchPoint, pitchAssetScale } from './pitchArt';
+import {
+  ballAtFeet,
+  kitNumberColor,
+  pitchArt,
+  pitchPoint,
+  pitchAssetScale,
+  shirtNumber,
+} from './pitchArt';
 
 interface Token {
   view: Container;
@@ -91,6 +98,7 @@ export async function createPitchScene(
   selectedPlayerId: string,
   frame: ReplayFrame,
   unavailable: () => void,
+  numbers?: Readonly<Record<string, number>>,
 ): Promise<PitchScene> {
   const app = new Application();
   try {
@@ -216,7 +224,7 @@ export async function createPitchScene(
     }
     body.addChild(shape);
     const number = new Text({
-      text: String((index % 11) + 1),
+      text: String(shirtNumber(numbers, id, index)),
       style: {
         fontFamily: 'Arial, sans-serif',
         // Rasterize at a real font size, then shrink the texture to scene units.

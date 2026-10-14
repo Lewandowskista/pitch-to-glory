@@ -248,6 +248,9 @@ export function validateEntities(
   }
   for (const player of Object.values(players)) {
     text(player.name);
+    // Schema 21. Uniqueness within a squad is kept by the assignment rules, not enforced
+    // here, so a stray duplicate can never make a save unloadable.
+    number(player.squadNumber, 1, 99, true);
     number(player.birthSeason, 1800, Number(currentDate.season) - 16, true);
     ref(player.nationalityId, countries);
     avatar(player.avatar);

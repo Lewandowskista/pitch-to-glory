@@ -6,6 +6,7 @@ import { recordEvent } from './events';
 import { generatePlayer } from './generate';
 import { playerAbility, wageFor } from '../strength';
 import { isActiveClub, refreshDressingRoom } from './dressing';
+import { isYouthIntake, joinSquad, nextSquadNumber } from './squadNumbers';
 
 /**
  * Squad lifecycle for AI clubs: retirement, contract renewal or release, academy intake,
@@ -185,6 +186,7 @@ function signPlayer(world: World, player: Player, club: Club, rng: Rng): void {
   world.contracts[contract.id] = contract;
   player.contractId = contract.id;
   club.playerIds.push(player.id);
+  joinSquad(world, player, club);
   recordEvent(world, 'signing', [player.id, club.id], { name: player.name, club: club.name });
 }
 function addGenerated(
@@ -195,7 +197,8 @@ function addGenerated(
   id: string,
   rng: Rng,
 ): Player {
-  const { player, contract } = generatePlayer(id, club, position, age, world.date, rng);
+  const number = nextSquadNumber(world, club, position, { youth: isYouthIntake(id) });
+  const { player, contract } = generatePlayer(id, club, position, age, world.date, rng, number);
   world.players[id] = player;
   world.contracts[contract.id] = contract;
   club.playerIds.push(id);

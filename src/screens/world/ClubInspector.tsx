@@ -133,6 +133,9 @@ export function ClubInspector({
           </caption>
           <thead>
             <tr>
+              <th scope="col" className="squad-number">
+                <abbr title={t.world.squadNumber}>#</abbr>
+              </th>
               <th scope="col">{t.world.player}</th>
               <th scope="col">{t.world.age}</th>
               <th scope="col" title={t.world.position}>
@@ -145,6 +148,7 @@ export function ClubInspector({
           <tbody>
             {squad.map((member) => (
               <tr key={member.id} className={member.id === player.id ? 'selected-row' : ''}>
+                <td className="squad-number">{member.squadNumber}</td>
                 <th scope="row">
                   <button
                     onClick={() => onPlayer(member.id)}
@@ -170,7 +174,8 @@ export function ClubInspector({
             <p className="eyebrow">{t.world.playerDetail}</p>
             <h3>{player.name}</h3>
             <p>
-              {player.primaryPosition} · {format(t.gallery.age, { age: age(player) })}
+              #{player.squadNumber} · {player.primaryPosition} ·{' '}
+              {format(t.gallery.age, { age: age(player) })}
             </p>
           </div>
         </header>

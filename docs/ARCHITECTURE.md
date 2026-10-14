@@ -375,6 +375,7 @@ export interface Player {
   birthSeason: number;
   nationalityId: Id;
   clubId: Id | null;
+  squadNumber: number; // 1–99, unique per squad (schema 21, engine/world/squadNumbers.ts)
   avatar: Avatar;
   foot: Foot;
   primaryPosition: Position;
