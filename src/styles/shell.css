@@ -1,4 +1,4 @@
-/* App shell: sidebar, top bar, page frame and bottom navigation. */
+/* App shell: sidebar, top bar, page frame, bottom tab bar and the More sheet. */
 .sidebar {
   width: 240px;
   height: 100dvh;
@@ -9,20 +9,26 @@
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  padding: 2.1rem 1.25rem 1.1rem;
+  padding: 1.75rem 1.125rem 1.25rem;
   z-index: 20;
 }
 .brand {
   display: flex;
-  gap: 0.65rem;
+  gap: 0.75rem;
   align-items: center;
-  padding: 0 0.5rem;
+  padding: 0 0.625rem;
+  color: var(--ink);
+}
+.brand-logo {
+  width: 44px;
+  height: 48px;
+  flex-shrink: 0;
 }
 .brand > span {
   font-family: var(--font-display);
-  font-size: 1.7rem;
-  line-height: 0.95;
-  letter-spacing: 0.025em;
+  font-size: 1.625rem;
+  line-height: 0.92;
+  letter-spacing: 0.01em;
 }
 .brand > span > span {
   display: block;
@@ -30,30 +36,31 @@
 .brand-caption {
   font-size: 0.75rem;
   color: var(--muted);
-  padding: 0.9rem 0.5rem 1.4rem;
+  padding: 0.75rem 0.625rem 1.25rem;
 }
 /* Scrolls on its own if a short window cannot fit every destination. */
 .sidebar nav {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   margin: 0 -0.25rem;
-  padding: 0 0.25rem;
+  padding: 0.25rem;
 }
 .sidebar nav a {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.75rem;
   min-height: 44px;
-  padding: 0.55rem 0.9rem;
+  padding: 0.5rem 0.75rem;
   border-radius: var(--radius-control);
   font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--muted);
+  font-weight: 600;
+  line-height: 1.25;
+  color: color-mix(in srgb, var(--ink) 78%, var(--muted));
   transition:
     background-color 150ms ease-out,
     color 150ms ease-out;
@@ -67,10 +74,14 @@
   background: var(--surface-soft);
   color: var(--ink);
 }
+/* The selected destination: a green tint with accent text (dark: plus an accent edge). */
 .sidebar nav a.active {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 700;
+}
+:root[data-theme='dark'] .sidebar nav a.active:not(.parent) {
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 /* On a career page the group carries the highlight; Career stays lit, without the fill. */
 .sidebar nav a.active.parent {
@@ -79,103 +90,104 @@
 .sidebar nav svg {
   flex-shrink: 0;
 }
+/* Career groups nest under Career, indented, a little smaller. */
 .sidebar-groups {
   list-style: none;
-  margin: 0.1rem 0 0.35rem 1.45rem;
-  padding: 0 0 0 0.6rem;
-  border-left: 1px solid var(--line);
+  margin: 0 0 0.25rem 1.375rem;
+  padding: 0;
   display: grid;
-  gap: 0.15rem;
+  gap: 0.125rem;
 }
 .sidebar .sidebar-groups a {
   min-height: 40px;
-  padding: 0.45rem 0.75rem;
-  gap: 0.65rem;
-  font-size: 0.85rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8125rem;
 }
 .sidebar .sidebar-groups svg {
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
 }
 .sidebar-divider {
   height: 1px;
   background: var(--line);
-  margin: 0.6rem 0.9rem;
+  margin: 0.625rem 0.75rem;
   flex-shrink: 0;
 }
-/* Unread count on Overview and Inbox. */
-.nav-badge {
-  display: inline-grid;
-  flex: 0 0 auto;
-  white-space: nowrap;
-  place-items: center;
-  min-width: 1.4rem;
-  height: 1.4rem;
-  padding: 0 0.4rem;
+.sidebar .nav-badge {
   margin-left: auto;
-  border-radius: 999px;
-  background: var(--color-gold);
-  color: var(--color-on-gold);
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1;
 }
 /* Shorter windows: drop the tagline so every destination fits without scrolling. */
 @media (max-height: 960px) {
   .sidebar {
-    padding-top: 1.5rem;
+    padding-top: 1.25rem;
   }
   .brand-caption {
     display: none;
   }
   .sidebar nav {
-    margin-top: 1.25rem;
+    margin-top: 1rem;
   }
 }
 .sidebar-bottom {
   margin-top: auto;
-  padding: 1rem 0.5rem 0;
+  padding: 0.75rem 0 0;
+  display: grid;
+  gap: 0.5rem;
   flex-shrink: 0;
 }
+/* The active save, with the career player's portrait. */
 .local-save {
   display: flex;
-  gap: 0.7rem;
+  gap: 0.75rem;
   align-items: center;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-control);
+  background: var(--bg);
 }
-.local-save svg {
-  flex-shrink: 0;
-  color: var(--accent);
+.local-save-portrait {
+  width: 40px;
+  height: 40px;
+}
+.local-save > div {
+  min-width: 0;
 }
 .local-save strong {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
-.local-save span {
+.local-save span:not(.local-save-portrait) {
   display: block;
   font-size: 0.75rem;
   color: var(--muted);
-  margin-top: 0.2rem;
+  margin-top: 0.125rem;
 }
 .shortcut-button {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  margin-top: 1.35rem;
+  gap: 0.625rem;
   border: 0;
   background: transparent;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--muted);
   min-height: 44px;
-  padding: 0.2rem 0;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-control);
+}
+.shortcut-button:hover {
+  color: var(--ink);
 }
 .shortcut-button span {
   display: inline-grid;
   place-items: center;
-  height: 24px;
-  width: 24px;
+  height: 22px;
+  width: 22px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-bottom-width: 2px;
+  border-radius: var(--radius-chip);
+  font-weight: 700;
+  color: var(--ink);
 }
 .workspace {
   margin-left: 240px;
@@ -183,45 +195,107 @@
   display: flex;
   flex-direction: column;
 }
+/* Top bar: where you are, the simulation pill, the save state and settings. */
 .topbar {
   display: flex;
   align-items: center;
-  min-height: 64px;
+  min-height: 72px;
   gap: 1rem;
-  padding: 0 clamp(1.5rem, 3vw, 3.2rem);
+  padding: 0.75rem clamp(1.5rem, 3vw, 2.75rem);
   border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.topbar-logo {
+  display: none;
 }
 .breadcrumb {
-  font-size: 0.85rem;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.breadcrumb-separator {
+  margin: 0 0.5rem;
+}
+.breadcrumb-page {
+  color: var(--ink);
   font-weight: 600;
 }
+.simulation-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.simulation-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Saved · saving · waiting to save · no active slot: the check only when saved and clean. */
 .save-indicator {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.375rem;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 .save-indicator svg {
   width: 15px;
   height: 15px;
 }
-.header-settings {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--surface);
+.save-indicator[data-state='saved'] svg {
+  color: var(--accent);
+}
+.save-indicator[data-state='dirty'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+.save-indicator[data-state='dirty'] svg {
+  color: var(--meter-gold);
+}
+.save-dot {
+  display: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.save-indicator[data-state='saved'] .save-dot {
+  background: var(--accent);
+}
+.save-indicator[data-state='dirty'] .save-dot {
+  background: var(--meter-gold);
+}
+.save-indicator[data-state='local'] .save-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--muted);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduced-motion='true']) .save-indicator[data-state='saving'] .save-dot {
+    animation: dot-pulse 1s ease-in-out infinite alternate;
+  }
+}
+@keyframes dot-pulse {
+  to {
+    opacity: 0.35;
+  }
+}
+.header-settings:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 #main {
   flex: 1;
   min-width: 0;
 }
 .page {
-  padding: 1.5rem clamp(1.5rem, 3vw, 3.2rem) 2.5rem;
+  padding: 1.75rem clamp(1.5rem, 3vw, 2.75rem) 3.5rem;
   max-width: 1600px;
   margin: 0 auto;
   /* Starts visible, so the first paint never waits for the entrance (keyframes below). */
@@ -235,49 +309,69 @@
 .career-page > .page-body {
   animation: page-in 0.18s ease-out both;
 }
-/* Functional pages get a compact title; the landing hero keeps the expressive type. */
+/* Page titles: Bebas, big on wide screens; an optional eyebrow and one line under it. */
 .page-heading {
   margin-bottom: var(--spacing-section);
 }
+.page-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 1.25rem;
+}
 .page-heading h1 {
   font-family: var(--font-display);
-  font-size: clamp(2.25rem, 3.2vw, 3rem);
+  font-size: clamp(2.5rem, 4.6vw, 4.5rem);
   font-weight: 400;
-  line-height: 1.05;
+  line-height: 0.92;
   letter-spacing: 0.005em;
+  text-wrap: balance;
+}
+.page-eyebrow {
+  margin-bottom: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
 }
 /* The description under a title (eyebrows carry their own classes). */
 .page-heading p:not([class]) {
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
   color: var(--muted);
-  max-width: 660px;
+  max-width: 640px;
   margin-top: var(--spacing-helper);
+}
+.page-heading :is(.eyebrow, [class*='uppercase']) {
+  margin-bottom: 0.35rem;
 }
 .page-footer {
   display: flex;
   gap: 1rem;
   justify-content: space-between;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--muted);
-  padding: 1.5rem clamp(1.5rem, 3vw, 3.2rem);
+  padding: 1rem clamp(1.5rem, 3vw, 2.75rem);
   border-top: 1px solid var(--line);
 }
 .bottom-nav {
   display: none;
 }
-/* The current career group's pages: first on every career page, so they never move. */
+/*
+ * The current career group's pages: first on every career page, so they never move. A white
+ * pill container; the selected tab is solid accent; Inbox carries the gold unread badge.
+ */
 .career-tabs {
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
 }
 .career-tabs ul {
   list-style: none;
   margin: 0;
   display: inline-grid;
-  grid-template-columns: repeat(var(--tabs), minmax(8.5rem, auto));
+  grid-template-columns: repeat(var(--tabs), minmax(7.5rem, auto));
   gap: 0.25rem;
   padding: 0.3rem;
   border: 1px solid var(--line);
-  border-radius: calc(var(--radius-control) + 0.3rem);
+  border-radius: var(--radius-control);
   background: var(--surface);
   box-shadow: var(--shadow-panel);
 }
@@ -288,24 +382,24 @@
   gap: 0.5rem;
   min-height: 44px;
   height: 100%;
-  padding: 0.5rem 1.1rem;
-  border-radius: var(--radius-control);
-  font-size: 0.9rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-chip);
+  font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
-  color: var(--muted);
+  color: var(--ink);
   transition:
     background-color 150ms ease-out,
     color 150ms ease-out;
 }
 .career-tabs a:hover {
   background: var(--surface-soft);
-  color: var(--ink);
 }
 .career-tabs a.active {
   background: var(--accent);
   color: var(--on-accent);
+  font-weight: 700;
 }
 .career-tabs .nav-badge {
   margin-left: 0;
@@ -314,26 +408,42 @@
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
-/* Phones: More, as a sheet rising from the bottom bar. */
+/*
+ * Phones: More, a sheet docked on top of the tab bar. The bar stays above the backdrop and
+ * live; the page behind is inert. `--tabbar` is the bar's height (0 where there is none).
+ */
+:root {
+  --tabbar: 0px;
+}
+.more-backdrop {
+  position: fixed;
+  inset: 0 0 var(--tabbar);
+  z-index: 28;
+  background: var(--scrim);
+}
 .more-sheet {
-  margin: auto 0 0;
-  width: 100%;
-  max-width: 100%;
-  max-height: 88dvh;
-  border: 0;
-  border-radius: 1.25rem 1.25rem 0 0;
-  padding: 0;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--tabbar);
+  z-index: 29;
+  display: grid;
+  gap: 1rem;
+  max-height: calc(100dvh - var(--tabbar) - 1rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.625rem 1rem 1.25rem;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 -12px 40px rgb(0 0 0 / 0.25);
+  box-shadow: var(--shadow-overlay);
 }
-.more-sheet::backdrop {
-  background: rgb(8 20 14 / 0.55);
-}
-.more-sheet-inner {
-  display: grid;
-  gap: 1.1rem;
-  padding: 1rem 1.2rem calc(1.25rem + env(safe-area-inset-bottom));
+.more-handle {
+  justify-self: center;
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
 }
 .more-sheet-head {
   display: flex;
@@ -342,15 +452,16 @@
 }
 .more-sheet h2 {
   font-family: var(--font-display);
-  font-size: 1.9rem;
+  font-size: 2.125rem;
   font-weight: 400;
   line-height: 1;
+  outline: none;
 }
 .more-sheet h3 {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: var(--muted);
-  margin: 0 0 0.45rem;
+  margin: 0 0 0.5rem;
 }
 .more-sheet ul {
   list-style: none;
@@ -363,13 +474,17 @@
 .more-sheet a {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  min-height: 48px;
-  padding: 0.6rem 0.8rem;
+  gap: 0.625rem;
+  min-height: 52px;
+  padding: 0.5rem 0.875rem;
   border-radius: var(--radius-control);
-  background: var(--surface-soft);
-  font-size: 0.9rem;
+  background: var(--bg);
+  font-size: 0.9375rem;
   font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.more-sheet a:hover {
+  background: var(--surface-soft);
 }
 .more-sheet a[aria-current='page'] {
   background: var(--accent-soft);
@@ -379,15 +494,32 @@
   flex-shrink: 0;
   color: var(--accent);
 }
+.more-hint {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  padding: 0.75rem 0.875rem;
+  border-radius: var(--radius-control);
+  background: var(--accent-soft);
+  font-size: 0.8125rem;
+}
 @media (prefers-reduced-motion: no-preference) {
-  :root:not([data-reduced-motion='true']) .more-sheet[open] {
+  :root:not([data-reduced-motion='true']) .more-sheet {
     animation: sheet-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  :root:not([data-reduced-motion='true']) .more-backdrop {
+    animation: fade-in 180ms ease-out;
   }
 }
 @keyframes sheet-in {
   from {
     transform: translateY(32px);
     opacity: 0.5;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
   }
 }
 @keyframes page-in {

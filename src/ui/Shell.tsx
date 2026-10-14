@@ -24,6 +24,10 @@ import { navigationText as n } from '../i18n/navigation';
 import { CAREER_GROUPS, careerGroupOf, groupHome } from '../screens/career/navigation';
 import { TrainingDraftGuard } from './TrainingDraftGuard';
 import { trainingDraftText } from '../i18n/trainingDraft';
+import { ShellPortrait } from './ShellPortrait';
+import { CountBadge } from './kit/Chip';
+import { IconButtonLink, Spinner } from './kit/Button';
+import { KeyHint } from './kit/KeyHint';
 type Item = { path: string; label: string; icon: IconName };
 const home: Item = { path: '/', label: t.app.menu, icon: 'home' };
 const careerItem: Item = { path: '/career', label: t.app.career, icon: 'career' };
@@ -42,6 +46,22 @@ const pageLabel = (pathname: string) => {
   const label = t.app.careerPages[pathname] ?? items.find((item) => item.path === pathname)?.label;
   return group && label ? `${group.label} · ${label}` : label;
 };
+/**
+ * Where the player is, for the top bar: a career page reads "Overview / Hub"; the wizard
+ * "Career / New career"; every other page its own name.
+ */
+const crumbOf = (pathname: string): { group?: string; page: string } => {
+  const group = careerGroupOf(pathname);
+  if (group) return { group: group.label, page: n.pages[pathname] ?? group.label };
+  if (pathname.startsWith('/career/'))
+    return { group: t.app.career, page: t.app.careerPages[pathname] ?? t.app.career };
+  return {
+    page:
+      t.app.careerPages[pathname] ??
+      items.find((item) => item.path === pathname)?.label ??
+      t.app.name,
+  };
+};
 /** Arrow keys move along a list of links, wrapping at the ends. */
 function arrowKeys(event: ReactKeyboardEvent<HTMLElement>, container: HTMLElement | null) {
   if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) return;
@@ -51,6 +71,23 @@ function arrowKeys(event: ReactKeyboardEvent<HTMLElement>, container: HTMLElemen
   const step = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : links.length - 1;
   links[(index + step) % links.length]?.focus();
 }
+/** The pitch-to-glory shield: the logo in the sidebar and the phone app bar. */
+function Logo({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 44 48" aria-hidden="true" focusable="false" className={className}>
+      <path d="M22 2L41 9V24Q41 39 22 46Q3 39 3 24V9Z" fill="#075e45" />
+      <path
+        d="M22 7L36 12V24Q36 35 22 41Q8 35 8 24V12Z"
+        fill="none"
+        stroke="#efcf63"
+        strokeWidth="2"
+      />
+      <circle cx="22" cy="24" r="8" fill="#fff7e4" />
+      <path d="M22 19.5L26 22.4L24.5 27H19.5L18 22.4Z" fill="#075e45" />
+    </svg>
+  );
+}
+type SaveState = 'saved' | 'saving' | 'dirty' | 'local';
 export function Shell() {
   const settings = useAppStore((s) => s.settings);
   const active = useAppStore((s) => s.activeSave);
@@ -67,6 +104,7 @@ export function Shell() {
   // entry afterwards (which a quick Back could land on).
   const keepSave = (path: string) => withSave(path, params.get('save'));
   const main = useRef<HTMLElement>(null);
+  const workspace = useRef<HTMLDivElement>(null);
   const helpPushed = useRef(false);
   const [recoverBusy, setRecoverBusy] = useState(false);
   const showHelp = () => {
@@ -116,6 +154,15 @@ export function Shell() {
       ?.autosave.flush()
       .catch(() => {});
   }, [location.pathname, location.search]);
+  const moreOpen = params.get('more') === '1';
+  const closeMore = () => {
+    if (window.history.state?.idx > 0) navigate(-1);
+    else {
+      const next = new URLSearchParams(params);
+      next.delete('more');
+      setParams(next, { replace: true });
+    }
+  };
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
@@ -141,29 +188,25 @@ export function Shell() {
     window.addEventListener('keydown', keyboard);
     return () => window.removeEventListener('keydown', keyboard);
   }, [location.pathname, location.search, navigate, setParams]);
+  // The page behind the More sheet is out of reach while it is open (the tab bar stays live).
+  useEffect(() => {
+    const element = workspace.current;
+    if (!element) return;
+    if (moreOpen) element.setAttribute('inert', '');
+    else element.removeAttribute('inert');
+  }, [moreOpen]);
   const hasCareer = useAppStore((s) => Boolean(s.world?.career));
   const unread = useAppStore((s) =>
     s.world?.career ? s.world.inbox.filter((message) => !message.read).length : 0,
   );
   const group = careerGroupOf(location.pathname);
+  const crumb = crumbOf(location.pathname);
   const sidebarNav = useRef<HTMLElement>(null);
   const bottomNav = useRef<HTMLElement>(null);
   // The visible count and its spoken form are separate, so the count is always announced
   // after the destination's name ("Overview, 2 unread") wherever the badge sits.
-  const badgeMark = (count: number) =>
-    count > 0 && (
-      <span aria-hidden="true" className="nav-badge">
-        {count > 99 ? '99+' : count}
-      </span>
-    );
   const unreadText = (count: number) =>
     count > 0 && <span className="sr-only">, {format(n.unread, { count })}</span>;
-  const badge = (count: number) => (
-    <>
-      {badgeMark(count)}
-      {unreadText(count)}
-    </>
-  );
   const sidebarLink = (item: Item) => (
     <NavLink
       end={item.path === '/'}
@@ -179,7 +222,6 @@ export function Shell() {
   );
   // Phones: five destinations. With a career, its groups (History sits in More); without
   // one, the main places. Everything else is one tap away in More.
-  const moreOpen = params.get('more') === '1';
   const bottomItems = hasCareer
     ? CAREER_GROUPS.filter((entry) => entry.id !== 'history').map((entry) => ({
         path: groupHome(entry),
@@ -203,14 +245,15 @@ export function Shell() {
     next.set('more', '1');
     setParams(next);
   };
-  const closeMore = () => {
-    if (window.history.state?.idx > 0) navigate(-1);
-    else {
-      const next = new URLSearchParams(params);
-      next.delete('more');
-      setParams(next, { replace: true });
-    }
-  };
+  const saveState: SaveState =
+    status === 'saving' ? 'saving' : dirty ? 'dirty' : active ? 'saved' : 'local';
+  const saveText = {
+    saving: t.app.saving,
+    dirty: t.app.dirty,
+    saved: t.app.saved,
+    local: t.app.local,
+  }[saveState];
+  const [hintBefore, hintAfter] = t.app.shortcutHint.split('{key}');
   return (
     <LazyMotion features={motionFeatures} strict>
       <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
@@ -219,7 +262,7 @@ export function Shell() {
         </a>
         <aside className="sidebar">
           <Link to="/" className="brand">
-            <img src="/icon.svg" width="42" height="42" alt="" />
+            <Logo className="brand-logo" />
             <span>
               {t.app.brandFirst}
               <span>{t.app.brandRest}</span>
@@ -241,7 +284,12 @@ export function Shell() {
                     >
                       <Icon name={entry.icon} />
                       <span>{entry.label}</span>
-                      {entry.id === 'overview' && badge(unread)}
+                      {entry.id === 'overview' && (
+                        <>
+                          <CountBadge count={unread} />
+                          {unreadText(unread)}
+                        </>
+                      )}
                     </Link>
                   </li>
                 ))}
@@ -254,62 +302,55 @@ export function Shell() {
           </nav>
           <div className="sidebar-bottom">
             <div className="local-save">
-              <Icon name="save" />
+              <ShellPortrait className="local-save-portrait" />
               <div>
                 <strong>{active?.name ?? t.app.unsaved}</strong>
-                <span>{active ? t.app.local : t.app.edition}</span>
+                <span>
+                  {active ? format(t.app.slotLocal, { slot: active.slot }) : t.app.edition}
+                </span>
               </div>
             </div>
-            <button className="shortcut-button" onClick={showHelp}>
-              <span>?</span>
+            <button type="button" className="shortcut-button" onClick={showHelp}>
+              <span aria-hidden="true">?</span>
               {t.app.help}
             </button>
           </div>
         </aside>
-        <div className="workspace">
+        <div className="workspace" ref={workspace}>
           <header className="topbar">
+            <Logo className="topbar-logo" />
             <span className="breadcrumb">
-              {group ? (
-                <>
-                  {group.label}
-                  {/* Phones show the group; the page title below names the page. */}
-                  <span className="breadcrumb-page">
-                    {' · '}
-                    {t.app.careerPages[location.pathname]}
+              {crumb.group && (
+                <span className="breadcrumb-group">
+                  {crumb.group}
+                  <span className="breadcrumb-separator" aria-hidden="true">
+                    /
                   </span>
-                </>
-              ) : (
-                (pageLabel(location.pathname) ?? t.app.name)
+                </span>
               )}
+              <span className="breadcrumb-page">{crumb.page}</span>
             </span>
             {worldJob && (
               <Link className="simulation-link" to="/world">
-                {t.world.advancing}
+                <Spinner />
+                <span>{t.world.advancing}</span>
               </Link>
             )}
-            <div className="save-indicator">
-              <Icon name={status === 'saved' && !dirty ? 'check' : 'save'} />
-              <span>
-                {status === 'saving'
-                  ? t.app.saving
-                  : dirty
-                    ? t.app.dirty
-                    : active
-                      ? t.app.saved
-                      : t.app.local}
-              </span>
+            <div className="save-indicator" data-state={saveState}>
+              <span className="save-dot" aria-hidden="true" />
+              <Icon name={saveState === 'saved' ? 'check' : 'save'} />
+              <span className="save-label">{saveText}</span>
             </div>
-            <Link
+            <IconButtonLink
               to="/settings"
-              aria-label={t.app.settings}
-              title={t.app.settings}
+              label={t.app.settings}
+              icon="settings"
               className="header-settings"
-            >
-              <Icon name="settings" />
-            </Link>
+            />
           </header>
           {trainingPending && (
             <div className="global-notice" role="status">
+              <Icon name="edit" />
               <Link className="text-button" to={keepSave('/career/training')}>
                 {trainingDraftText.pending}
               </Link>
@@ -317,8 +358,10 @@ export function Shell() {
           )}
           {error && (
             <div className="global-error" role="alert">
-              {errorText(error)}
+              <Icon name={error === 'locked' ? 'lock' : 'alert'} />
+              <span className="banner-text">{errorText(error)}</span>
               <button
+                type="button"
                 className="text-button"
                 onClick={() =>
                   void persistence()
@@ -331,6 +374,7 @@ export function Shell() {
               {active && (
                 <>
                   <button
+                    type="button"
                     className="text-button"
                     onClick={() => {
                       // Validation and serialization of a large world run in the persistence worker.
@@ -351,6 +395,7 @@ export function Shell() {
                     {t.app.exportUnsaved}
                   </button>
                   <button
+                    type="button"
                     className="text-button"
                     onClick={() => {
                       const next = new URLSearchParams(params);
@@ -366,8 +411,10 @@ export function Shell() {
           )}
           {saveNotice && (
             <div className="global-notice" role="status">
-              {t.app.notices[saveNotice]}
+              <Icon name="ball" />
+              <span className="banner-text">{t.app.notices[saveNotice]}</span>
               <button
+                type="button"
                 className="text-button"
                 onClick={() => useAppStore.getState().dismissSaveNotice()}
               >
@@ -383,6 +430,14 @@ export function Shell() {
             <span>{t.app.tagline}</span>
           </footer>
         </div>
+        {moreOpen && (
+          <MoreSheet
+            hasCareer={hasCareer}
+            pathname={location.pathname}
+            keepSave={keepSave}
+            onClose={closeMore}
+          />
+        )}
         <nav
           className="bottom-nav"
           aria-label={t.app.navigation}
@@ -393,13 +448,13 @@ export function Shell() {
             <Link
               key={item.path}
               to={keepSave(item.path)}
-              className={item.current ? 'active' : undefined}
+              className={item.current && !moreOpen ? 'active' : undefined}
               aria-current={item.current ? 'page' : undefined}
               onKeyDown={(event) => arrowKeys(event, bottomNav.current)}
             >
               <span className="bottom-nav-icon">
                 <Icon name={item.icon} />
-                {badgeMark(item.count)}
+                <CountBadge count={item.count} />
               </span>
               <span>
                 {item.label}
@@ -409,7 +464,7 @@ export function Shell() {
           ))}
           <button
             type="button"
-            className={moreCurrent ? 'active' : undefined}
+            className={moreCurrent || moreOpen ? 'active' : undefined}
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
             onClick={moreOpen ? closeMore : openMore}
@@ -421,17 +476,25 @@ export function Shell() {
             <span>{n.more}</span>
           </button>
         </nav>
-        {moreOpen && (
-          <MoreSheet
-            hasCareer={hasCareer}
-            pathname={location.pathname}
-            keepSave={keepSave}
-            onClose={closeMore}
-          />
-        )}
         <PwaPrompt />
         {params.get('help') === '1' && (
-          <Dialog title={t.app.help} body={t.app.helpNav} onClose={closeHelp} />
+          <Dialog title={t.app.help} onClose={closeHelp}>
+            <p className="shortcut-intro">
+              {hintBefore}
+              <KeyHint keys="?" />
+              {hintAfter}
+            </p>
+            <dl className="shortcut-list">
+              {t.app.shortcuts.map((entry) => (
+                <div key={entry.does}>
+                  <dt>
+                    <KeyHint keys={entry.keys} />
+                  </dt>
+                  <dd>{entry.does}</dd>
+                </div>
+              ))}
+            </dl>
+          </Dialog>
         )}
         {params.get('recover') === '1' && active && (
           <Dialog
@@ -492,9 +555,10 @@ function useAudio(settings: AudioSettings): void {
 }
 
 /**
- * Phones: everything the bottom bar does not hold, as a sheet over the page. It lives in the
- * URL (`?more=1`), so Back and Escape close it; its links replace that entry, so Back from a
- * destination returns to the page the sheet was opened from.
+ * Phones: everything the bottom bar does not hold, as a sheet docked on top of the tab bar.
+ * The bar stays visible and live above the sheet's backdrop (More shows as current), and the
+ * page behind is inert. It lives in the URL (`?more=1`), so Back and Escape close it; its links
+ * replace that entry, so Back from a destination returns to the page the sheet was opened from.
  */
 function MoreSheet({
   hasCareer,
@@ -507,11 +571,27 @@ function MoreSheet({
   keepSave: (path: string) => string;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
-    const dialog = ref.current;
-    dialog?.showModal();
-    return () => dialog?.close();
+    const opener = document.activeElement as HTMLElement | null;
+    const sheet = ref.current;
+    heading.current?.focus({ preventScroll: true });
+    // Escape closes the sheet from anywhere, including the tab bar beneath it, exactly once.
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (document.querySelector('dialog[open]')) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', key, true);
+    return () => {
+      window.removeEventListener('keydown', key, true);
+      // Back to the More button when the sheet closes without leaving the page.
+      if (opener?.isConnected && !sheet?.contains(opener)) opener.focus({ preventScroll: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only; onClose reads the URL
   }, []);
   const history = CAREER_GROUPS.find((entry) => entry.id === 'history')!;
   const sections: { title: string; links: Item[] }[] = [
@@ -527,29 +607,20 @@ function MoreSheet({
     { title: n.app, links: utilities },
   ];
   return (
-    <dialog
-      ref={ref}
-      className="more-sheet"
-      aria-labelledby="more-title"
-      // Escape is handled here and stopped, so it closes the sheet exactly once: WebKit can close
-      // the dialog before the shell's own Escape shortcut ("back") sees the key.
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape') return;
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }}
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div className="more-sheet-inner">
+    <>
+      <div className="more-backdrop" aria-hidden="true" onClick={onClose} />
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="more-title"
+        className="more-sheet"
+      >
+        <span className="more-handle" aria-hidden="true" />
         <div className="more-sheet-head">
-          <h2 id="more-title">{n.moreTitle}</h2>
+          <h2 id="more-title" ref={heading} tabIndex={-1}>
+            {n.moreTitle}
+          </h2>
           <button type="button" className="text-button" onClick={onClose}>
             {n.close}
           </button>
@@ -573,8 +644,14 @@ function MoreSheet({
             </ul>
           </section>
         ))}
+        {!hasCareer && (
+          <p className="more-hint">
+            <Icon name="career" />
+            <span>{n.moreHint}</span>
+          </p>
+        )}
       </div>
-    </dialog>
+    </>
   );
 }
 
