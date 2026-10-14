@@ -22,7 +22,8 @@ import { lifestyleText as l } from '../../i18n/lifestyle';
 import { CareerPage, filterButton, plural, ui } from './shared';
 import { useSearchParams } from 'react-router-dom';
 import { ActionError, BlockNote, money } from './marketUi';
-import { CelebrationPreview, useChallengeRefresh, useLifestyleAction } from './lifestyleUi';
+import { useChallengeRefresh, useLifestyleAction } from './lifestyleUi';
+import { CelebrationPreview } from './CelebrationPreview';
 import { Glyph } from './honoursUi';
 import { audio } from '../../audio';
 import { CONFIG } from '../../engine/config';
@@ -103,7 +104,9 @@ function WardrobeContent({
       {visible('kit') && (
         <KitOptions world={world} career={career} kit={club.kits.home} action={action} />
       )}
-      {visible('celebrations') && <Celebrations world={world} career={career} action={action} />}
+      {visible('celebrations') && (
+        <Celebrations world={world} career={career} kit={club.kits.home} action={action} />
+      )}
     </div>
   );
 }
@@ -489,8 +492,19 @@ function KitOptions({
   );
 }
 
-function Celebrations({ world, career, action }: { world: World; career: Career; action: Action }) {
+function Celebrations({
+  world,
+  career,
+  kit,
+  action,
+}: {
+  world: World;
+  career: Career;
+  kit: Kit;
+  action: Action;
+}) {
   const C = l.celebrations;
+  const token = useMemo(() => [kit.colors[0], kit.colors[1]] as const, [kit]);
   return (
     <section aria-labelledby="celebrations-heading" className={`${ui.panel} lg:col-span-8`}>
       <h2 id="celebrations-heading" className={ui.heading}>
@@ -521,6 +535,8 @@ function Celebrations({ world, career, action }: { world: World; career: Career;
               }
             >
               <CelebrationPreview
+                id={item.id}
+                kit={token}
                 motion={item.motion!}
                 label={format(C.preview, { name })}
                 onHover={!selected}

@@ -5,7 +5,9 @@ import {
   type MatchSession,
   type Tactics,
 } from '../../engine/match';
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
+import { pitchStateFor, renderPitch, renderWeather } from '../../engine/assets/conditions';
+import { Artwork } from '../../ui/Artwork';
 import { FORMATION_SLOTS, formationOf } from '../../engine/selection/formations';
 import { slotFit } from '../../engine/selection/lineup';
 import { selectionText as s } from '../../i18n/selection';
@@ -45,6 +47,9 @@ export function Preview({
   const signed = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100)}%`;
   const technical = conditionsEffect('technical', state.match.weather, state.match.pitchCondition);
   const direct = conditionsEffect('direct', state.match.weather, state.match.pitchCondition);
+  const pitch = pitchStateFor(state.match.weather, state.match.pitchCondition);
+  const weatherIcon = useMemo(() => renderWeather(state.match.weather), [state.match.weather]);
+  const pitchIcon = useMemo(() => renderPitch(pitch), [pitch]);
   return (
     <div className="match-preview">
       <section className="match-panel">
@@ -55,11 +60,17 @@ export function Preview({
         <div className="match-weather">
           <span>
             {m.weather}
-            <strong>{m[state.match.weather]}</strong>
+            <strong className="flex items-center gap-2">
+              <Artwork svg={weatherIcon} alt="" className="h-5 w-5 shrink-0" />
+              {m[state.match.weather]}
+            </strong>
           </span>
           <span>
             {m.pitch}
-            <strong>{matchFormat(m.pitchValue, { value: state.match.pitchCondition })}</strong>
+            <strong className="flex items-center gap-2">
+              <Artwork svg={pitchIcon} alt={m.pitchStates[pitch]} className="h-5 w-5 shrink-0" />
+              {matchFormat(m.pitchValue, { value: state.match.pitchCondition })}
+            </strong>
           </span>
           <span>
             {m.conditions}

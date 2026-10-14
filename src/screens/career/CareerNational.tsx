@@ -7,7 +7,8 @@ import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
 import { CareerPage, EmptySection, plural, ui } from './shared';
-import { Glyph } from './honoursUi';
+import { renderFlag } from '../../engine/assets/flags';
+import { Artwork } from '../../ui/Artwork';
 
 const I = CONFIG.career.honours.international;
 const LEVELS: NationalLevel[] = ['senior', 'U21', 'U19'];
@@ -51,6 +52,10 @@ function NationalContent({
     .reverse();
   const tournaments = [...(world.international?.tournaments ?? [])].reverse();
   const short = h.levelShort[level];
+  const flag = renderFlag(
+    world.countries[player.nationalityId]?.counterpart,
+    nation ? { colors: nation.colors } : undefined,
+  );
   return (
     // Two stable column stacks: selection, caps and tournaments beside squad and results.
     // Phones read the call-up, the tournaments, then the squad and its matches.
@@ -64,10 +69,10 @@ function NationalContent({
             <span
               aria-hidden="true"
               className={`grid h-12 w-12 shrink-0 place-items-center rounded-full ${
-                selected ? 'bg-gold text-on-gold' : 'bg-surface-soft text-accent'
+                selected ? 'bg-gold' : 'bg-surface-soft'
               }`}
             >
-              <Glyph name="flag" className="h-6 w-6" />
+              <Artwork svg={flag} alt="" className="h-5 w-[1.875rem] rounded-[3px]" />
             </span>
             <div className="min-w-0">
               <h2 id="national-heading" className={ui.heading}>

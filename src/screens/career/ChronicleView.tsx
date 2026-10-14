@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { ChronicleEntry, Player, World } from '../../model/domain';
-import { renderAvatar } from '../../engine/assets/avatar';
+import type { ChronicleEntry, World } from '../../model/domain';
 import { renderCrest } from '../../engine/assets/crest';
 import { Artwork } from '../../ui/Artwork';
 import { momentLink } from '../../engine/career/honours/clip';
@@ -11,57 +10,12 @@ import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
 import { ui } from './shared';
 import { CHRONICLE_GLYPH, chronicleSentence, counted, Glyph } from './honoursUi';
+import { POSTER_HIGHLIGHTS, posterFonts, posterPng, posterSvg } from './chroniclePoster';
 
-const HIGHLIGHT = new Set<ChronicleEntry['kind']>([
-  'start',
-  'debut',
-  'first-goal',
-  'trophy',
-  'award',
-  'record',
-  'tournament',
-  'move',
-  'hat-trick',
-  'goal-milestone',
-  'cap',
-  'retirement',
-]);
+/** Highlighted entries: bold in the timeline and on the poster. */
+const HIGHLIGHT = POSTER_HIGHLIGHTS;
 /** Gold badges for silverware and records; the rest use the accent. */
 const GOLD = new Set<ChronicleEntry['kind']>(['trophy', 'award', 'record', 'tournament']);
-
-const escape = (text: string) =>
-  text.replace(
-    /[&<>"']/g,
-    (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!,
-  );
-
-/** A shareable poster of the career: portrait, numbers and highlights, as SVG. */
-function posterSvg(world: World, player: Player, entries: ChronicleEntry[]): string {
-  const age = Math.min(60, world.date.season - player.birthSeason);
-  const portrait = `data:image/svg+xml,${encodeURIComponent(renderAvatar(player.avatar, age))}`;
-  const nation = world.countries[player.nationalityId]?.name ?? '';
-  const highlights = entries.filter((entry) => HIGHLIGHT.has(entry.kind)).slice(-9);
-  const lines = highlights
-    .map(
-      (entry, index) =>
-        `<text x="96" y="${760 + index * 56}" font-size="30" fill="#f9f5e9">${escape(`${entry.date.season} · ${chronicleSentence(world, entry)}`).slice(0, 120)}</text>`,
-    )
-    .join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><rect width="1080" height="1350" fill="#0b3d2c"/><rect x="40" y="40" width="1000" height="1270" rx="40" fill="#075e45"/><image href="${portrait}" x="96" y="96" width="300" height="300"/><text x="440" y="200" font-family="sans-serif" font-size="76" font-weight="800" fill="#f1cf58">${escape(player.name)}</text><text x="440" y="260" font-family="sans-serif" font-size="34" fill="#f9f5e9">${escape(`${c.positions[player.primaryPosition]} · ${nation}`)}</text><text x="440" y="330" font-family="sans-serif" font-size="34" fill="#f9f5e9">${escape(format(h.chronicle.poster.stats, { apps: counted(player.stats.appearances, h.chronicle.counts.apps), goals: counted(player.stats.goals, h.chronicle.counts.goals), caps: counted(entries.filter((e) => e.kind === 'cap').length, h.chronicle.counts.caps) }))}</text><text x="96" y="690" font-family="sans-serif" font-size="40" font-weight="800" fill="#f1cf58">${escape(h.chronicle.poster.highlights)}</text><g font-family="sans-serif">${lines}</g><text x="96" y="1270" font-family="sans-serif" font-size="30" fill="#f1cf58">${escape(h.chronicle.poster.footer)}</text></svg>`;
-}
-
-async function posterPng(svg: string): Promise<Blob> {
-  const image = new Image();
-  image.src = `data:image/svg+xml,${encodeURIComponent(svg)}`;
-  await image.decode();
-  const canvas = document.createElement('canvas');
-  canvas.width = 1080;
-  canvas.height = 1350;
-  canvas.getContext('2d')!.drawImage(image, 0, 0);
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('png'))), 'image/png'),
-  );
-}
 
 /** The entry's club crest for signings and moves, otherwise an icon for its kind. */
 function EntryArt({ world, entry }: { world: World; entry: ChronicleEntry }) {
@@ -120,7 +74,8 @@ export function ChronicleView({ world, playerId }: { world: World; playerId: str
           onClick={async () => {
             setStatus(h.chronicle.exporting);
             try {
-              const blob = await posterPng(posterSvg(world, player, entries));
+              const fonts = await posterFonts();
+              const blob = await posterPng(posterSvg(world, player, entries, fonts));
               await platform.shareFile(
                 `${player.name.replace(/\s+/g, '-').toLowerCase()}-chronicle.png`,
                 blob,
