@@ -30,4 +30,12 @@ export const selectionText = {
     unfamiliar: 'out of position',
   },
   and: ' and ',
+  /** The Club page's selection card (redesign phase 3). */
+  club: {
+    next: 'Next: {club} ({venue})',
+    home: 'H',
+    away: 'A',
+    pitch: '{club} in {formation}. {line}',
+    you: 'You',
+  },
 } as const;
