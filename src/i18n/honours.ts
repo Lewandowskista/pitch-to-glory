@@ -174,6 +174,7 @@ export const honoursText = {
       stats: '{apps} · {goals} · {caps}',
       highlights: 'Highlights',
       footer: 'Pitch to Glory',
+      more: '+{count}',
     },
     entries: {
       start: '{age}-year-old signs for {club} after a trial.',

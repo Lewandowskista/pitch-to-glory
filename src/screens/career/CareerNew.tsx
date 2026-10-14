@@ -14,6 +14,8 @@ import {
   clubDress,
   type AvatarPart,
 } from '../../engine/assets/avatar';
+import { counterpartOf, renderFlag } from '../../engine/assets/flags';
+import { PALETTES } from '../../engine/assets/shared';
 import { createRng } from '../../engine/rng';
 import { CONFIG } from '../../engine/config';
 import { REAL_COUNTRY_NAMES } from '../../engine/world/catalog';
@@ -22,7 +24,16 @@ import { trialOffers, validateDraft, type CareerDraft } from '../../engine/caree
 import { startWorldJob } from '../../workers/client';
 import { errorCode } from '../../persistence/errors';
 import { persistence } from '../../persistence/lazy';
-import type { Avatar, Club, Foot, Position, SlotId, World } from '../../model/domain';
+import type {
+  Avatar,
+  Club,
+  Counterpart,
+  Foot,
+  Hex,
+  Position,
+  SlotId,
+  World,
+} from '../../model/domain';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
@@ -151,8 +162,19 @@ export default function CareerNew() {
   const countries = usable
     ? Object.values(usable.countries)
         .filter((country) => !parent || country.id === parent.nationalityId)
-        .map((country) => ({ id: country.id, name: country.name }))
-    : REAL_COUNTRY_NAMES.map((name, index) => ({ id: `country:${index}`, name }));
+        .map((country) => ({
+          id: country.id,
+          name: country.name,
+          counterpart: country.counterpart,
+          // Worlds with fictional countries: the national team's colours, as on the national page.
+          colors: usable.international?.nations.find((nation) => nation.countryId === country.id)
+            ?.colors,
+        }))
+    : REAL_COUNTRY_NAMES.map((name, index) => ({
+        id: `country:${index}`,
+        name,
+        counterpart: counterpartOf(name) ?? undefined,
+      }));
   const offers = useMemo(
     () => (usable ? trialOffers(usable, draft.nationalityId, careerSeed(usable)) : []),
     [usable, draft.nationalityId],
@@ -445,13 +467,31 @@ function ChoiceCard({
 }
 
 type StepProps = { draft: WizardDraft; update: (patch: Partial<WizardDraft>) => void };
+type WizardCountry = {
+  id: string;
+  name: string;
+  counterpart?: Counterpart | undefined;
+  colors?: [Hex, Hex] | undefined;
+};
+
+/** The country's flag; worlds with fictional countries get a two-colour flag. Decorative. */
+function CountryFlag({ country, index }: { country: WizardCountry; index: number }) {
+  const svg = useMemo(
+    () =>
+      renderFlag(country.counterpart, {
+        colors: country.colors ?? (PALETTES[index % PALETTES.length]!.slice(0, 2) as [Hex, Hex]),
+      }),
+    [country.counterpart, country.colors, index],
+  );
+  return <Artwork svg={svg} alt="" className="h-6 w-9 shrink-0 rounded-[3px]" />;
+}
 
 function IdentityStep({
   draft,
   update,
   countries,
   parentName,
-}: StepProps & { countries: { id: string; name: string }[]; parentName: string | undefined }) {
+}: StepProps & { countries: WizardCountry[]; parentName: string | undefined }) {
   return (
     <>
       <StepHeading title={c.wizard.identityTitle} body={c.wizard.identityBody} />
@@ -493,15 +533,17 @@ function IdentityStep({
             columns keep six short names to three rows on a phone. */}
         <p className="-mt-1 mb-2 text-xs text-muted">{c.wizard.nationalityHint}</p>
         <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
-          {countries.map((country) => (
+          {countries.map((country, index) => (
             <ChoiceCard
               key={country.id}
               name="nationality"
               value={country.id}
               checked={draft.nationalityId === country.id}
               onChange={() => update({ nationalityId: country.id, clubId: null })}
+              className="items-center gap-3"
             >
-              <strong className="block">{country.name}</strong>
+              <CountryFlag country={country} index={index} />
+              <strong className="block min-w-0">{country.name}</strong>
             </ChoiceCard>
           ))}
         </div>

@@ -33,6 +33,12 @@ export const matchText = {
   weather: 'Weather',
   pitch: 'Pitch condition',
   pitchValue: '{value}% quality',
+  pitchStates: {
+    firm: 'Firm, fast pitch',
+    good: 'Good pitch',
+    heavy: 'Heavy, slow pitch',
+    frozen: 'Frozen pitch',
+  },
   conditions: 'Playing conditions',
   conditionsTechnical: 'Close control {value}',
   conditionsDirect: 'Long balls and crosses {value}',

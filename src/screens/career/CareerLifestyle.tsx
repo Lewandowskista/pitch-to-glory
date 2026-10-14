@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { m } from 'framer-motion';
 import type { Career, Sponsorship, World } from '../../model/domain';
@@ -23,6 +23,8 @@ import {
   weeklyUpkeep,
   type LifestyleItem,
 } from '../../engine/career/lifestyle';
+import { renderLifestyle } from '../../engine/assets/lifestyle';
+import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
 import { CareerPage, filterButton, plural, ui } from './shared';
@@ -338,6 +340,7 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
             : null;
   return (
     <li className="flex flex-col gap-2 rounded-control border border-line bg-surface-soft p-3">
+      <ItemArt itemId={item.id} kind={item.kind} className="h-[4.5rem] w-full" />
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
         <strong className="text-sm">{name}</strong>
         <span className="text-base font-bold tabular-nums">{money(price)}</span>
@@ -407,6 +410,37 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
   );
 }
 
+/** Each kind's tint behind its drawings (theme-aware tokens). */
+const TINT: Record<LifestyleItem['kind'], string> = {
+  car: 'bg-art-blue',
+  house: 'bg-art-gold',
+  staff: 'bg-accent-soft',
+  experience: 'bg-art-blue',
+  charity: 'bg-danger-soft',
+  investment: 'bg-art-gold',
+  legacy: 'bg-art-green',
+};
+
+/** A shop item's illustration on its kind's tint. Decorative: the name is always beside it. */
+function ItemArt({
+  itemId,
+  kind,
+  className,
+}: {
+  itemId: string;
+  kind: LifestyleItem['kind'] | undefined;
+  className: string;
+}) {
+  const svg = useMemo(() => renderLifestyle(itemId, kind), [itemId, kind]);
+  return (
+    <Artwork
+      svg={svg}
+      alt=""
+      className={`rounded-control object-contain ${kind ? TINT[kind] : 'bg-art-green'} ${className}`}
+    />
+  );
+}
+
 function LockIcon() {
   return (
     <svg
@@ -457,7 +491,12 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
                 key={asset.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-control bg-surface-soft p-3"
               >
-                <span className="min-w-0">
+                <ItemArt
+                  itemId={asset.itemId}
+                  kind={LIFESTYLE_BY_ID[asset.itemId]?.kind}
+                  className="h-9 w-[3.75rem] shrink-0"
+                />
+                <span className="min-w-0 flex-1">
                   <strong className="block text-sm">{name}</strong>
                   <span className="text-xs text-muted">
                     {format(l.lifestyle.value, { amount: money(asset.value) })}

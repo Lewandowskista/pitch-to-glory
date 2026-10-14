@@ -81,3 +81,31 @@
     transform: translateY(-60%) scaleY(-1) scale(1.2);
   }
 }
+/* Wardrobe previews: the celebration's still key frame shows until the token plays (hover or
+   focus on a tile that waits, or the looping signature celebration). Under reduced motion the
+   key frame always shows, since the token cannot move. */
+.celebration-preview .celebration-pose {
+  opacity: 0;
+}
+.celebration-preview[data-still] .celebration-pose,
+.group:is(:hover, :focus-visible) .celebration-preview[data-still] .celebration-token {
+  opacity: 1;
+}
+.celebration-preview[data-still] .celebration-token,
+.group:is(:hover, :focus-visible) .celebration-preview[data-still] .celebration-pose {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .celebration-preview .celebration-pose {
+    opacity: 1 !important;
+  }
+  .celebration-preview .celebration-token {
+    opacity: 0 !important;
+  }
+}
+[data-reduced-motion='true'] .celebration-preview .celebration-pose {
+  opacity: 1 !important;
+}
+[data-reduced-motion='true'] .celebration-preview .celebration-token {
+  opacity: 0 !important;
+}

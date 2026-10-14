@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { m } from 'framer-motion';
 import type { Award, Crest, Player, World } from '../../model/domain';
 import { CONTINENTAL_IDS, groupTable } from '../../engine/world/continental';
@@ -6,9 +6,11 @@ import { rivalOf } from '../../engine/career/social';
 import { trophyName } from '../../engine/career/honours/trophies';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
+import { renderTrophy, trophyKindFor, type TrophyKind } from '../../engine/assets/trophies';
+import { Artwork } from '../../ui/Artwork';
 import { CareerPage, CrestImage, EmptySection, ui } from './shared';
 import { useUrlDialog } from './useUrlDialog';
-import { Glyph, type GlyphName } from './honoursUi';
+import { Glyph } from './honoursUi';
 import { audio } from '../../audio';
 
 export default function CareerTrophies() {
@@ -92,12 +94,7 @@ function GoldenBall({
           <div
             className={`flex items-center gap-3 rounded-control p-4 ${won ? 'bg-gold text-on-gold' : 'bg-surface'}`}
           >
-            <span
-              aria-hidden="true"
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gold text-on-gold"
-            >
-              <Glyph name="star" className="h-7 w-7" />
-            </span>
+            <TrophyArt kind="golden-ball" className="h-12 w-12 shrink-0" />
             <span className="min-w-0 flex-1">
               <span className="block text-xs font-semibold">{h.awards.ballWinner}</span>
               <strong className="block truncate font-display text-2xl leading-none">
@@ -228,25 +225,28 @@ function Ceremony({
   );
 }
 
+/** A trophy on its gold-rimmed disc. Decorative: the trophy's name is always beside it. */
+function TrophyArt({ kind, className }: { kind: TrophyKind; className: string }) {
+  const svg = useMemo(() => renderTrophy(kind), [kind]);
+  return <Artwork svg={svg} alt="" className={className} />;
+}
+
 /** A medal tile in the cabinet: club trophies, individual awards and international honours. */
 function Medal({
-  glyph,
+  kind,
   title,
   meta,
   crest,
 }: {
-  glyph: GlyphName;
+  kind: TrophyKind;
   title: string;
   meta: string;
   crest?: Crest;
 }) {
   return (
     <li className="flex min-w-0 items-center gap-3 rounded-control bg-surface-soft p-3">
-      <span
-        aria-hidden="true"
-        className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gold text-on-gold shadow-surface"
-      >
-        <Glyph name={glyph} className="h-6 w-6" />
+      <span aria-hidden="true" className="relative h-11 w-11 shrink-0 rounded-full shadow-surface">
+        <TrophyArt kind={kind} className="h-11 w-11" />
         {crest && (
           <CrestImage
             crest={crest}
@@ -295,7 +295,7 @@ function Cabinet({ world, player }: { world: World; player: Player }) {
           return (
             <Medal
               key={trophy.id}
-              glyph="trophy"
+              kind={trophyKindFor(trophy.competitionId)}
               title={trophyName(world, trophy)}
               meta={`${club?.name ?? ''} · ${trophy.season}`}
               crest={club?.crest}
@@ -308,7 +308,7 @@ function Cabinet({ world, player }: { world: World; player: Player }) {
         awards.map((award) => (
           <Medal
             key={award.id}
-            glyph={award.kind === 'golden-ball' || award.kind === 'golden-boot' ? 'star' : 'medal'}
+            kind={trophyKindFor(award.kind)}
             title={h.awards.kinds[award.kind]}
             meta={
               award.kind === 'month' && award.month
@@ -321,7 +321,7 @@ function Cabinet({ world, player }: { world: World; player: Player }) {
       {group(
         h.cabinet.international,
         tournaments.map((t) => (
-          <Medal key={t.id} glyph="flag" title={t.name} meta={String(t.year)} />
+          <Medal key={t.id} kind={trophyKindFor(t.kind)} title={t.name} meta={String(t.year)} />
         )),
       )}
     </section>
