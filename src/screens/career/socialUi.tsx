@@ -1,12 +1,35 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppStore } from '../../store';
 import { applySocialAction, type SocialAction } from '../../engine/career/social';
-import type { Club, CliqueKind, MediaEffects, MediaItem } from '../../model/domain';
+import { clubDress, renderAvatar } from '../../engine/assets/avatar';
+import { Artwork } from '../../ui/Artwork';
+import type { Club, CliqueKind, MediaEffects, MediaItem, Player } from '../../model/domain';
 import { format } from '../../i18n';
 import { socialText as s } from '../../i18n/social';
 import { money } from './marketUi';
 import { useEditBlock } from './shared';
 import { audio } from '../../audio';
+
+/** A player's head-and-shoulders portrait in their club's home kit. */
+export function Portrait({
+  player,
+  age,
+  club,
+  alt,
+  className = '',
+}: {
+  player: Player;
+  age: number;
+  club: Club | undefined;
+  alt: string;
+  className?: string;
+}) {
+  const art = useMemo(
+    () => renderAvatar(player.avatar, age, clubDress(club)),
+    [player.avatar, age, club],
+  );
+  return <Artwork svg={art} alt={alt} className={className} />;
+}
 
 /** Run a social decision against the loaded world, waiting like other career edits. */
 export function useSocialAction() {
@@ -58,14 +81,27 @@ export function effectList(effects: MediaEffects): { label: string; value: numbe
  * Who an answer pleases and who it upsets. The press is a matter of voice: the direction is
  * shown, and a doubled arrow for a strong effect, never the exact numbers.
  */
-export function EffectChips({ effects }: { effects: MediaEffects }) {
+export function EffectChips({
+  effects,
+  className = '',
+  onTint = false,
+}: {
+  effects: MediaEffects;
+  className?: string;
+  /** On a tinted card the gains sit on the surface colour, so they still stand out. */
+  onTint?: boolean;
+}) {
   return (
-    <ul className="flex flex-wrap gap-1.5" aria-label={s.media.effects}>
+    <ul className={`flex flex-wrap gap-1.5 ${className}`} aria-label={s.media.effects}>
       {effectList(effects).map(({ label, value }) => (
         <li
           key={label}
-          className={`inline-flex min-h-6 items-center gap-1 rounded-full px-2 text-xs font-bold ${
-            value > 0 ? 'bg-accent-soft text-accent' : 'bg-danger-soft text-danger'
+          className={`inline-flex min-h-6 items-center gap-1 rounded-full px-2.5 text-xs font-extrabold ${
+            value > 0
+              ? onTint
+                ? 'bg-surface text-accent'
+                : 'bg-accent-soft text-accent'
+              : 'bg-danger-soft text-danger'
           }`}
         >
           <span aria-hidden="true">
