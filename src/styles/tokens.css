@@ -11,6 +11,17 @@
   --color-hero-muted: #e4edd7;
   --color-hero-eyebrow: #d9e2b7;
   --color-on-gold: #153c2d;
+  /*
+   * Night chrome: the always-dark surfaces of match screens and dark-tone panels. Fixed in
+   * both themes (bg-night, bg-night-soft, border-night-line, text-night-ink, text-mint).
+   */
+  --color-night: #14251e;
+  --color-night-soft: #1b2e25;
+  --color-night-raised: #233a2e;
+  --color-night-line: #354a3d;
+  --color-night-ink: #edf2e7;
+  --color-night-muted: #b2c1b5;
+  --color-mint: #9ed9b7;
   --spacing: 0.25rem;
   /*
    * Named spacing roles (utilities: gap-helper, mt-action, gap-section, p-panel, min-h-control
@@ -27,9 +38,20 @@
   --spacing-panel: 1.25rem;
   --spacing-panel-lg: 1.5rem;
   --spacing-control: 3rem;
-  --radius-panel: 1rem;
-  --radius-control: 0.65rem;
-  --shadow-panel: 0 2px 3px rgb(20 44 30 / 0.02), 0 8px 24px rgb(20 44 30 / 0.045);
+  /*
+   * The redesign's four radii, plus rounded-full for pills: chip 8px (result pills, kbd, small
+   * badges), control 12px (buttons, fields, rows), panel 20px (cards, dialogs), sheet 28px
+   * (phone sheets).
+   */
+  --radius-chip: 0.5rem;
+  --radius-control: 0.75rem;
+  --radius-panel: 1.25rem;
+  --radius-sheet: 1.75rem;
+  --shadow-panel: 0 1px 2px rgb(27 48 33 / 0.03), 0 8px 28px rgb(27 48 33 / 0.05);
+  /* Gold calls to action sit on their pressed edge (the "play" button). */
+  --shadow-gold: 0 4px 0 var(--color-gold-pressed);
+  /* Floating layers: dialogs, the tutorial card, prompts. */
+  --shadow-overlay: 0 24px 80px rgb(0 0 0 / 0.28);
 }
 /*
  * Theme colours for Tailwind utilities (bg-surface, text-muted, border-line, bg-accent-soft,
@@ -55,6 +77,16 @@
   --color-art-blue: var(--art-blue);
   /* Gold that still reads on a pale track: meter fills in the light theme. */
   --color-meter-gold: var(--meter-gold);
+  /* Text on gold tints (bg-art-gold chips and notices): dark gold, light gold in the dark. */
+  --color-gold-ink: var(--gold-ink);
+  /* Text on a danger fill (the "danger" button). */
+  --color-on-danger: var(--on-danger);
+  /* Meter and progress tracks: they read on white and on soft surfaces alike. */
+  --color-track: var(--track);
+  /* Modal backdrops (dialogs, the More sheet) and the tutorial's dimming. */
+  --color-scrim: var(--scrim);
+  /* The tutorial's lighter dimming around its target (the page stays usable). */
+  --color-spotlight: var(--spotlight);
   /* Use shadow-surface rather than shadow-panel: it follows the dark-theme shadow. */
   --shadow-surface: var(--shadow-panel);
 }
@@ -76,6 +108,11 @@
   --art-gold: #f4ead4;
   --art-blue: #e4ebee;
   --meter-gold: #9a7612;
+  --gold-ink: #5c4708;
+  --on-danger: #ffffff;
+  --track: #e3e9df;
+  --scrim: rgb(16 34 25 / 0.67);
+  --spotlight: rgb(16 34 25 / 0.4);
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -95,6 +132,11 @@
   --art-gold: #433e2e;
   --art-blue: #2d3e43;
   --meter-gold: #efcf63;
+  --gold-ink: #f2dc8f;
+  --on-danger: #351d1a;
+  --track: #2f473a;
+  --scrim: rgb(4 12 8 / 0.72);
+  --spotlight: rgb(0 0 0 / 0.5);
   --shadow-panel: 0 2px 4px rgb(0 0 0 / 0.08), 0 10px 28px rgb(0 0 0 / 0.12);
 }
 /*
@@ -120,6 +162,11 @@
     --art-gold: #433e2e;
     --art-blue: #2d3e43;
     --meter-gold: #efcf63;
+    --gold-ink: #f2dc8f;
+    --on-danger: #351d1a;
+    --track: #2f473a;
+    --scrim: rgb(4 12 8 / 0.72);
+    --spotlight: rgb(0 0 0 / 0.5);
     --shadow-panel: 0 2px 4px rgb(0 0 0 / 0.08), 0 10px 28px rgb(0 0 0 / 0.12);
   }
 }

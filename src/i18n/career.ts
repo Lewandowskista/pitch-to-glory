@@ -1,4 +1,6 @@
 /** Career copy (milestone 4): wizard, hub, profile, skill tree, training and match rewards. */
+import { kitText } from './kit';
+
 export const careerText = {
   nav: 'Career',
   titles: {
@@ -11,11 +13,11 @@ export const careerText = {
   sections: 'Career sections',
   sectionNames: { hub: 'Overview', profile: 'Profile', skills: 'Skills', training: 'Training' },
   common: {
-    level: 'Level {level}',
+    level: kitText.level,
     levelShort: 'Lv {level}',
-    xp: '{into} / {needed} XP',
-    xpMax: 'Maximum level reached',
-    xpLabel: 'Experience towards level {level}',
+    xp: kitText.xp,
+    xpMax: kitText.xpMax,
+    xpLabel: kitText.xpLabel,
     age: 'Age {age}',
     week: 'Week {week}',
     seasonWeek: '{season} · Week {week}',
@@ -41,7 +43,7 @@ export const careerText = {
     next: 'Continue',
     unknownClub: 'Free agent',
     meters: { form: 'Form', morale: 'Morale', fitness: 'Fitness', fatigue: 'Fatigue' },
-    meterValue: '{value} of 100',
+    meterValue: kitText.meterValue,
   },
   empty: {
     title: 'Your story starts here.',
