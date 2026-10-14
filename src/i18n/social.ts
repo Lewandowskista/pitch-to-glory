@@ -118,6 +118,29 @@ export const socialText = {
     },
     talks: 'Culture fit at {club}',
   },
+  /** The Club life page around its cards (redesign phase 3). */
+  club: {
+    description:
+      'How the manager, the dressing room and the fans see you, and what that does to your morale and your place in the side.',
+    drift: {
+      up: 'Target {target} this week, so it rises',
+      down: 'Target {target} this week, so it drifts down',
+      steady: 'Target {target} this week, so it holds',
+    },
+    trend: { up: 'rising', down: 'falling', steady: 'steady' },
+    moraleTrend: 'Morale {value} · {trend}',
+    formNote: 'Last {count} matches: {ratings}',
+    formNoteOne: 'Last match: {ratings}',
+    formNone: 'No matches played yet.',
+    lowers: 'Lowers',
+    raises: 'Raises',
+    chartSeason: 'Season {season}',
+    chartSeasons: 'Seasons {from}–{to}',
+    chartWeek: 'W{week}',
+    chartSoon: 'The chart starts once two weekly reviews are in.',
+    noLeaders: 'No clear leaders yet.',
+    prefers: '· prefers {formation}',
+  },
   media: {
     pending: 'Questions waiting',
     none: 'No questions right now. Journalists come to you after notable matches, moves and rival meetings.',
