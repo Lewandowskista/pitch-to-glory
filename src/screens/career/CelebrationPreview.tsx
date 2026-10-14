@@ -15,6 +15,7 @@ export function CelebrationPreview({
   label,
   kit,
   onHover = false,
+  className = 'h-16 w-24',
 }: {
   id: string;
   motion: string;
@@ -22,6 +23,8 @@ export function CelebrationPreview({
   /** Shirt and trim colours of the token. */
   kit?: readonly [Hex, Hex];
   onHover?: boolean;
+  /** Size of the preview (3:2). */
+  className?: string;
 }) {
   const pose = useMemo(
     () => `data:image/svg+xml,${encodeURIComponent(renderCelebration(id, kit))}`,
@@ -32,7 +35,7 @@ export function CelebrationPreview({
     <svg
       viewBox="0 0 60 40"
       data-still={onHover ? '' : undefined}
-      className={`celebration-preview h-16 w-24 ${
+      className={`celebration-preview shrink-0 rounded-chip ${className} ${
         onHover
           ? '[&_.celebrate]:[animation-play-state:paused] group-hover:[&_.celebrate]:[animation-play-state:running]! group-focus-visible:[&_.celebrate]:[animation-play-state:running]!'
           : ''
