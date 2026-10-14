@@ -221,7 +221,7 @@ export const careerText = {
       tie: 'Playoff tie',
       final: 'Final',
     },
-    fixtureDate: 'Week {week} · {competition}',
+    fixtureDate: '{date} · Week {week} · {competition}',
     player: 'Your footballer',
     points: 'Unspent points',
     allocate: 'Allocate attribute points',

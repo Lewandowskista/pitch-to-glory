@@ -13,6 +13,8 @@ import { canAnnounceFarewell, retirementState } from '../../engine/career/honour
 import type { Career, CareerMatchRecord, Club, Player, World } from '../../model/domain';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
+import { calendarDate } from '../../engine/world/calendar';
+import { formatGameDate } from '../../i18n/calendar';
 import {
   CareerPage,
   CrestImage,
@@ -371,6 +373,9 @@ function NextMatch({
         {fixture && !complete && (
           <p className="text-sm text-white/85">
             {format(c.hub.fixtureDate, {
+              date: formatGameDate(
+                calendarDate(fixture.date.season, fixture.date.week, fixture.date.day),
+              ),
               week: fixture.date.week,
               competition: competitionName(world, fixture.competitionId),
             })}{' '}

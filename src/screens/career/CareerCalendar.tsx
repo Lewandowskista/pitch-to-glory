@@ -4,6 +4,8 @@ import type { World } from '../../model/domain';
 import { format } from '../../i18n';
 import { agendaText as a } from '../../i18n/agenda';
 import { careerText as c } from '../../i18n/career';
+import { calendarDate } from '../../engine/world/calendar';
+import { formatGameDate } from '../../i18n/calendar';
 import { CareerPage, CrestImage, ui } from './shared';
 import { competitionName } from './selectors';
 import { seasonAgenda, withSave, type AgendaEntry, type AgendaWeek } from './agenda';
@@ -141,9 +143,14 @@ function WeekRow({ world, week }: { world: World; week: AgendaWeek }) {
       }`}
     >
       <div className="flex items-baseline gap-3 sm:block">
-        <h2 className="font-display text-2xl leading-none">
-          {format(a.calendar.week, { week: week.week })}
-        </h2>
+        <div>
+          <h2 className="font-display text-2xl leading-none">
+            {format(a.calendar.week, { week: week.week })}
+          </h2>
+          <p className="mt-1 text-xs font-semibold text-muted">
+            {formatGameDate(calendarDate(world.date.season, week.week, 1))}
+          </p>
+        </div>
         {week.current && (
           <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-bold text-on-accent sm:mt-2 sm:inline-block">
             {a.calendar.thisWeek}
