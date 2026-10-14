@@ -14,8 +14,8 @@ import {
   type Availability,
   type CosmeticItem,
 } from '../../engine/career/lifestyle';
-import { avatarSkinColor, renderAvatar } from '../../engine/assets/avatar';
-import { renderSocksAndBoots, renderWardrobeShirt } from '../../engine/assets/gear';
+import { AVATAR_OPTIONS, clubDress, renderAvatar } from '../../engine/assets/avatar';
+import { renderFigure } from '../../engine/assets/gear';
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
@@ -99,19 +99,15 @@ function WardrobeContent({
         })}
       </div>
       {visible('challenges') && <Challenges world={world} action={action} />}
-      {visible('look') && <Look world={world} player={player} age={age} action={action} />}
+      {visible('look') && (
+        <Look world={world} player={player} club={club} age={age} action={action} />
+      )}
       {visible('kit') && (
         <KitOptions world={world} career={career} kit={club.kits.home} action={action} />
       )}
       {visible('celebrations') && <Celebrations world={world} career={career} action={action} />}
     </div>
   );
-}
-
-/** Plain shorts in the kit colours, joining the shirt to the socks in the preview figure. */
-function shortsSvg(kit: Kit): string {
-  const [base, accent] = kit.colors;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40" fill="none"><path d="M4 0H96L100 36H56L50 18L44 36H0Z" fill="${base}" stroke="#182a35" stroke-opacity=".25" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 3L5 33M92 3L95 33" stroke="${accent}" stroke-width="3"/></svg>`;
 }
 
 function Preview({
@@ -127,27 +123,22 @@ function Preview({
 }) {
   const equipped = career.style.equipped;
   const kit = club.kits.home;
-  const skin = avatarSkinColor(player.avatar);
   const armband = COSMETIC_BY_ID[equipped.armband]?.colors ?? null;
-  const portrait = useMemo(() => renderAvatar(player.avatar, age), [player.avatar, age]);
-  const shirt = useMemo(
-    () => renderWardrobeShirt(kit, equipped.sleeves, armband, skin),
-    [kit, equipped.sleeves, armband, skin],
-  );
-  const shorts = useMemo(() => shortsSvg(kit), [kit]);
-  const feet = useMemo(
+  const boots = COSMETIC_BY_ID[equipped.boots]?.colors ?? null;
+  // One figure, head to boots, in the club's home kit.
+  const figure = useMemo(
     () =>
-      renderSocksAndBoots(
+      renderFigure(player.avatar, age, {
         kit,
-        equipped.socks,
-        COSMETIC_BY_ID[equipped.boots]?.colors ?? ['#1d1d1f', '#ffffff'],
-      ),
-    [kit, equipped.socks, equipped.boots],
+        crest: club.crest,
+        sleeves: equipped.sleeves,
+        armband,
+        socks: equipped.socks,
+        boots: boots ?? ['#1d1d1f', '#ffffff'],
+      }),
+    [player.avatar, age, kit, club.crest, equipped.sleeves, armband, equipped.socks, boots],
   );
   const tokens = career.style.tokens;
-  // One figure built from the head, arms/shirt, shorts and socks/boots artwork. Percentage margins
-  // resolve against the figure's width, so the pieces overlap the same way at every size:
-  // the shirt collar covers the neck, the shirt hem the shorts, the shorts the sock tops.
   return (
     <section
       aria-labelledby="preview-heading"
@@ -157,25 +148,14 @@ function Preview({
       <h2 id="preview-heading" className={`${ui.heading} col-start-2 self-end`}>
         {W.preview}
       </h2>
-      <div
-        role="img"
-        aria-label={`${player.name}. ${format(W.previewAlt, {
+      <Artwork
+        svg={figure}
+        alt={`${player.name}. ${format(W.previewAlt, {
           boots: W.bootNames[equipped.boots] ?? '',
           socks: W.sockNames[equipped.socks] ?? '',
         })}`}
-        className="col-start-1 row-span-3 row-start-1 w-full self-center lg:mx-auto lg:mt-4 lg:w-48"
-      >
-        <div className="relative z-0 mx-auto w-[95%] overflow-hidden [aspect-ratio:200/166]">
-          <Artwork svg={portrait} alt="" className="block w-full" />
-        </div>
-        <Artwork svg={shirt} alt="" className="relative z-20 -mt-[22.5%] block w-full" />
-        <Artwork svg={shorts} alt="" className="relative z-10 mx-auto -mt-[15%] block w-[52%]" />
-        <Artwork svg={feet} alt="" className="relative z-0 -mt-[6%] ml-[23%] block w-[61%]" />
-        <span
-          aria-hidden="true"
-          className="mx-auto -mt-[3%] block h-3 w-3/4 rounded-[50%] bg-ink/10"
-        />
-      </div>
+        className="col-start-1 row-span-3 row-start-1 block w-full self-center lg:mx-auto lg:mt-4 lg:w-48"
+      />
       <p className="col-start-2 mt-2 font-display text-2xl leading-none lg:mt-4 lg:text-center">
         {plural(tokens, W.tokensOne, W.tokens)}
       </p>
@@ -263,23 +243,36 @@ function Tile({
 }
 
 /** The lower face, where facial hair differs: a whole head hides it at thumbnail size. */
-const LOWER_FACE = 'viewBox="46 74 108 108"';
-function AvatarOption({ avatar, age, face }: { avatar: Avatar; age: number; face?: boolean }) {
+const LOWER_FACE = 'viewBox="54 80 92 92"';
+function AvatarOption({
+  avatar,
+  age,
+  club,
+  face,
+}: {
+  avatar: Avatar;
+  age: number;
+  club: Club;
+  face?: boolean;
+}) {
   const svg = useMemo(() => {
-    const art = renderAvatar(avatar, age);
+    const art = renderAvatar(avatar, age, clubDress(club));
     return face ? art.replace(/viewBox="[^"]*"/, LOWER_FACE) : art;
-  }, [avatar, age, face]);
-  return <Artwork svg={svg} alt="" className="h-14 w-14 rounded-full bg-art-blue" />;
+  }, [avatar, age, club, face]);
+  // The portrait draws its own disc; the lower-face crop is rounded to match.
+  return <Artwork svg={svg} alt="" className={`h-14 w-14${face ? ' rounded-full' : ''}`} />;
 }
 
 function Look({
   world,
   player,
+  club,
   age,
   action,
 }: {
   world: World;
   player: Player;
+  club: Club;
   age: number;
   action: Action;
 }) {
@@ -307,8 +300,11 @@ function Look({
               {format(W.facialHairNote, { age: beardAge })}
             </p>
           )}
-          <ul className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-8" aria-label={label}>
-            {Array.from({ length: 8 }, (_, value) => {
+          <ul
+            className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(4.5rem,1fr))] gap-2"
+            aria-label={label}
+          >
+            {Array.from({ length: AVATAR_OPTIONS[slot] }, (_, value) => {
               const item = gated ? (COSMETIC_BY_ID[`${slot}:${value}`] ?? null) : null;
               const name = format(option, { number: value + 1 });
               return (
@@ -324,6 +320,7 @@ function Look({
                   <AvatarOption
                     avatar={{ ...player.avatar, [slot]: value }}
                     age={slot === 'facialHair' ? beardAge : age}
+                    club={club}
                     face={slot === 'facialHair'}
                   />
                 </Tile>

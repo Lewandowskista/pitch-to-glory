@@ -2,6 +2,7 @@ import type { Avatar, Career, Club, Foot, Id, Position, World } from '../../mode
 import { emptyCoaching } from './coaching';
 import { CONFIG } from '../config';
 import { createRng, hashSeed } from '../rng';
+import { isAvatar } from '../assets/avatar';
 import {
   careerCap,
   isUntrained,
@@ -79,7 +80,7 @@ export function validateDraft(world: World, draft: CareerDraft): void {
     draft.age > S.ageRange[1] ||
     (archetype.family === 'keeper') !== (draft.position === 'GK') ||
     !['left', 'right', 'both'].includes(draft.foot) ||
-    Object.values(draft.avatar).some((part) => !Number.isInteger(part) || part < 0 || part > 7)
+    !isAvatar(draft.avatar)
   )
     throw new Error('Invalid career draft');
   if (draft.parentLegacyId !== undefined) {

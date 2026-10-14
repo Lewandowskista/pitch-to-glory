@@ -169,7 +169,12 @@ export function Report({
       <section className="match-panel match-report-hero">
         <span className="match-eyebrow">{m.headline}</span>
         <h2>{matchFormat(matchLabel(report.headlineId), report.headlineParams ?? {})}</h2>
-        <Footballer player={setup.players[setup.selectedPlayerId]!} season={setup.season} />
+        <Footballer
+          player={setup.players[setup.selectedPlayerId]!}
+          season={setup.season}
+          home={setup.home}
+          away={setup.away}
+        />
         <motion.div
           className="match-rewards"
           initial={reduced ? false : { opacity: 0, y: 12 }}

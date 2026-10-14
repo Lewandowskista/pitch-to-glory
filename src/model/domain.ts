@@ -85,6 +85,13 @@ export interface Avatar {
   eyebrows: number;
   eyes: number;
   accessory: number;
+  /**
+   * Eye colour, nose and mouth. Absent on generated people and in older saves: the renderer then
+   * derives them from the parts that never change after generation (see `resolveAvatar`).
+   */
+  iris?: number;
+  nose?: number;
+  mouth?: number;
 }
 export interface Stadium {
   id: Id;

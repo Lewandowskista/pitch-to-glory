@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import type { Player, Rivalry, World } from '../../model/domain';
+import type { Club, Player, Rivalry, World } from '../../model/domain';
 import { overallRating } from '../../engine/strength';
 import { marketValue } from '../../engine/career/market';
 import { rivalOf, rivalryOf, seasonLines } from '../../engine/career/social';
-import { renderAvatar } from '../../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { Artwork } from '../../ui/Artwork';
 import { HeadToHead } from '../../ui/HeadToHead';
 import { Icon } from '../../ui/Icon';
@@ -31,13 +31,16 @@ export default function CareerRival() {
   );
 }
 
-function Portrait({ player, age }: { player: Player; age: number }) {
-  const svg = useMemo(() => renderAvatar(player.avatar, age), [player.avatar, age]);
+function Portrait({ player, age, club }: { player: Player; age: number; club: Club }) {
+  const svg = useMemo(
+    () => renderAvatar(player.avatar, age, clubDress(club)),
+    [player.avatar, age, club],
+  );
   return (
     <Artwork
       svg={svg}
       alt={format(s.rival.portrait, { name: player.name })}
-      className="h-16 w-16 shrink-0 rounded-full bg-art-blue sm:h-20 sm:w-20"
+      className="h-16 w-16 shrink-0 sm:h-20 sm:w-20"
     />
   );
 }
@@ -168,7 +171,7 @@ function RivalContent({
           sides={[player, rival].map((p, index) => ({
             id: p.id,
             name: p.name,
-            artwork: <Portrait player={p} age={age(p)} />,
+            artwork: <Portrait player={p} age={age(p)} club={club(p)} />,
             detail: (
               <span className="flex min-w-0 items-start gap-2 text-sm text-muted">
                 <CrestImage crest={club(p).crest} alt="" className="h-6 w-6 shrink-0" />

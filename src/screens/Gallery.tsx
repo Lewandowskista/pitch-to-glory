@@ -5,7 +5,7 @@ import { format, t } from '../i18n';
 import { generateGallery } from '../engine/assets/gallery';
 import { renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
-import { renderAvatar } from '../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../engine/assets/avatar';
 import { CONFIG } from '../engine/config';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
@@ -151,14 +151,14 @@ export default function Gallery() {
         )}
         {view === 'avatars' && (
           <div className="avatar-grid">
-            {assets.players.map((player) => (
+            {assets.players.map((player, index) => (
               <article className="avatar-club" key={player.id}>
                 <h2>{player.name}</h2>
                 <div className="age-trio">
                   {CONFIG.gallery.ages.map((age) => (
                     <div key={age}>
                       <Artwork
-                        svg={renderAvatar(player.avatar, age)}
+                        svg={renderAvatar(player.avatar, age, clubDress(assets.clubs[index]))}
                         alt={format(t.gallery.avatarAlt, { name: player.name, age })}
                       />
                       <p>{format(t.gallery.age, { age })}</p>

@@ -15,6 +15,7 @@ import {
 } from '../../engine/career/market';
 import type { AmbitionId, Contract, InboxMessage, World } from '../../model/domain';
 import { renderAvatar } from '../../engine/assets/avatar';
+import { ART } from '../../engine/assets/shared';
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { marketText as m } from '../../i18n/market';
@@ -123,14 +124,9 @@ export function AgentPortrait({
   name: string;
   className?: string;
 }) {
-  const svg = useMemo(() => renderAvatar(avatar, 44), [avatar]);
-  return (
-    <Artwork
-      svg={svg}
-      alt={format(m.agent.portrait, { name })}
-      className={`rounded-full bg-art-gold ${className}`}
-    />
-  );
+  // Agents wear the neutral shirt on a gold disc, apart from any club.
+  const svg = useMemo(() => renderAvatar(avatar, 44, { background: ART.artGold }), [avatar]);
+  return <Artwork svg={svg} alt={format(m.agent.portrait, { name })} className={className} />;
 }
 
 export function ActionError({ error }: { error: string }) {

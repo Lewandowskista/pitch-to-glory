@@ -433,6 +433,7 @@ function TrainingPlanner({
                       <PlayerPortrait
                         player={mentor}
                         age={world.date.season - mentor.birthSeason}
+                        club={mentor.clubId ? world.clubs[mentor.clubId] : null}
                         className="h-12 w-12 shrink-0"
                       />
                       <div className="min-w-0">

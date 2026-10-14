@@ -47,7 +47,7 @@ export function Selection({
           <span>–</span>
           <ClubBadge club={away} />
         </div>
-        <Footballer player={player} season={world.date.season} />
+        <Footballer player={player} season={world.date.season} home={home} away={away} />
       </div>
       <form
         onSubmit={(event) => {

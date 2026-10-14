@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Legacy, World } from '../../model/domain';
-import { renderAvatar } from '../../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { trophyName } from '../../engine/career/honours/trophies';
 import { useAppStore } from '../../store';
 import { Page } from '../../ui/Page';
@@ -148,9 +148,11 @@ function LegacyDetail({
   latest: boolean;
   wide: boolean;
 }) {
+  // The retired player in the kit of the club they finished at.
+  const lastClub = world.clubs[legacy.clubIds[legacy.clubIds.length - 1] ?? ''];
   const portrait = useMemo(
-    () => renderAvatar(legacy.avatar, legacy.age),
-    [legacy.avatar, legacy.age],
+    () => renderAvatar(legacy.avatar, legacy.age, clubDress(lastClub)),
+    [legacy.avatar, legacy.age, lastClub],
   );
   const trophies = world.trophies.filter((trophy) => legacy.trophyIds.includes(trophy.id));
   const awards = world.awards.filter((award) => legacy.awardIds.includes(award.id));
@@ -169,7 +171,7 @@ function LegacyDetail({
         aria-labelledby="legacy-heading"
         className={`${ui.panel} grid grid-cols-[minmax(0,1fr)] gap-6 bg-art-green md:grid-cols-[10rem_minmax(0,1fr)]`}
       >
-        <Artwork svg={portrait} alt="" className="h-40 w-40 rounded-full bg-art-blue" />
+        <Artwork svg={portrait} alt="" className="h-40 w-40" />
         <div className="flex min-w-0 flex-col gap-3">
           {latest && !world.career && <p className={ui.eyebrow}>{h.legacy.yourLegacy}</p>}
           <h2 id="legacy-heading" className="font-display text-[2.6rem] leading-[0.95]">

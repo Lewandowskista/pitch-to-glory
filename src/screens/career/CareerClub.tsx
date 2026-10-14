@@ -13,7 +13,7 @@ import {
   type FitPart,
 } from '../../engine/career/social';
 import { relationshipValue } from '../../engine/career/market';
-import { renderAvatar } from '../../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
@@ -344,9 +344,12 @@ function SelectionCard({ world, club }: { world: World; club: Club }) {
   );
 }
 
-function TeammatePortrait({ player, age }: { player: Player; age: number }) {
-  const svg = useMemo(() => renderAvatar(player.avatar, age), [player.avatar, age]);
-  return <Artwork svg={svg} alt="" className="h-12 w-12 shrink-0 rounded-full bg-art-blue" />;
+function TeammatePortrait({ player, age, club }: { player: Player; age: number; club: Club }) {
+  const svg = useMemo(
+    () => renderAvatar(player.avatar, age, clubDress(club)),
+    [player.avatar, age, club],
+  );
+  return <Artwork svg={svg} alt="" className="h-12 w-12 shrink-0" />;
 }
 
 function Teammates({ world, player, club }: { world: World; player: Player; club: Club }) {
@@ -375,6 +378,7 @@ function Teammates({ world, player, club }: { world: World; player: Player; club
                 <TeammatePortrait
                   player={teammate}
                   age={world.date.season - teammate.birthSeason}
+                  club={club}
                 />
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-sm font-semibold">

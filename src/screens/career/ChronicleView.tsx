@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ChronicleEntry, Player, World } from '../../model/domain';
-import { renderAvatar } from '../../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { renderCrest } from '../../engine/assets/crest';
 import { Artwork } from '../../ui/Artwork';
 import { momentLink } from '../../engine/career/honours/clip';
@@ -38,7 +38,9 @@ const escape = (text: string) =>
 /** A shareable poster of the career: portrait, numbers and highlights, as SVG. */
 function posterSvg(world: World, player: Player, entries: ChronicleEntry[]): string {
   const age = Math.min(60, world.date.season - player.birthSeason);
-  const portrait = `data:image/svg+xml,${encodeURIComponent(renderAvatar(player.avatar, age))}`;
+  const club = player.clubId ? world.clubs[player.clubId] : undefined;
+  const dress = clubDress(club);
+  const portrait = `data:image/svg+xml,${encodeURIComponent(renderAvatar(player.avatar, age, dress))}`;
   const nation = world.countries[player.nationalityId]?.name ?? '';
   const highlights = entries.filter((entry) => HIGHLIGHT.has(entry.kind)).slice(-9);
   const lines = highlights
