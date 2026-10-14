@@ -294,6 +294,7 @@ export const careerText = {
   },
   profile: {
     eyebrow: 'Player profile',
+    squadNumber: 'Squad number {number}',
     attributes: 'Attributes',
     attributesSummary:
       'Spend points to raise an attribute. Each point costs more at and beyond its soft cap, the marker on its bar.',

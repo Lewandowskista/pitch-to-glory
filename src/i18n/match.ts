@@ -51,6 +51,7 @@ export const matchText = {
   objectives: 'Your objectives',
   lineup: 'Starting XI',
   bench: 'Bench',
+  shirtNumber: 'Number',
   tactics: 'Your approach',
   role: 'Personal role',
   risk: 'Risk level',

@@ -276,8 +276,15 @@
   font-weight: 550;
 }
 .standings-table thead th:nth-child(2),
-.squad-table thead th:first-child {
+.squad-table thead th:nth-child(2) {
   text-align: left;
+}
+.squad-table .squad-number {
+  width: 2rem;
+  font-weight: 700;
+}
+.squad-table abbr {
+  text-decoration: none;
 }
 .standings-table tbody th,
 .squad-table tbody th {

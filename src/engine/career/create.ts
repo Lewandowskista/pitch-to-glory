@@ -15,6 +15,7 @@ import {
 import { playerAbility } from '../strength';
 import { generatePlayer } from '../world/generate';
 import { refreshDressingRoom } from '../world/dressing';
+import { nextSquadNumber } from '../world/squadNumbers';
 import { getSeasonWeeks } from '../world/calendar';
 import { ARCHETYPE_BY_ID } from './catalogue';
 import { grantStartingSkill } from './progression';
@@ -101,7 +102,15 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
   const id = `career:${hashSeed(`${seed}:${draft.name}`)}`;
   if (world.players[id]) throw new Error('Career player already exists');
   const archetype = ARCHETYPE_BY_ID[draft.archetype]!;
-  const { player, contract } = generatePlayer(id, club, draft.position, draft.age, world.date, rng);
+  const { player, contract } = generatePlayer(
+    id,
+    club,
+    draft.position,
+    draft.age,
+    world.date,
+    rng,
+    nextSquadNumber(world, club, draft.position),
+  );
   player.name = draft.name.trim();
   player.avatar = { ...draft.avatar };
   player.nationalityId = draft.nationalityId;

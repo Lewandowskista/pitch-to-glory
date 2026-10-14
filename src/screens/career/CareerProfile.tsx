@@ -275,6 +275,12 @@ function Summary({
             <p className="mt-1 flex items-center gap-2 text-sm font-semibold">
               <CrestImage crest={club.crest} alt="" className="h-5 w-5 shrink-0" />
               <span className="min-w-0 break-words">{club.name}</span>
+              <span className="font-display text-xl leading-none tabular-nums">
+                <span aria-hidden="true">#{player.squadNumber}</span>
+                <span className="sr-only">
+                  {format(c.profile.squadNumber, { number: player.squadNumber })}
+                </span>
+              </span>
             </p>
           )}
         </div>

@@ -13,6 +13,7 @@ import { rankStandings } from './ranking';
 import { resetNationalSeason } from './movement';
 import { advanceContinental, isContinental, startContinental } from './continental';
 import { recordEvent as event } from './events';
+import { joinSquad } from './squadNumbers';
 import { startSeasonStatistics } from './statistics';
 import { decidedTitles, QUALIFYING_DIVISIONS } from './titles';
 import {
@@ -198,6 +199,7 @@ function exchangeTransfers(world: World, rng: Rng): void {
       };
       old.playerIds = old.playerIds.filter((id) => id !== player.id);
       destination.playerIds.push(player.id);
+      joinSquad(world, player, destination);
       event(world, 'transfer', [player.id, old.id, destination.id], {
         name: player.name,
         old: old.name,
@@ -488,6 +490,7 @@ function keepCareerInSimulatedLeagues(world: World): void {
   current.playerIds = current.playerIds.filter((id) => id !== player.id);
   destination.playerIds.push(player.id);
   player.clubId = destination.id;
+  joinSquad(world, player, destination);
   contract.clubId = destination.id;
   refreshDressingRoom(world, current);
   refreshDressingRoom(world, destination);

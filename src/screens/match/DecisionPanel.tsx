@@ -12,6 +12,7 @@ import {
 import { careerText as c } from '../../i18n/career';
 import { Factors } from './Shared';
 import { SvgPitch } from './SvgPitch';
+import { shirtNumbers } from './pitchArt';
 
 const percent = (value: number) => (value * 100).toFixed(value < 0.1 ? 1 : 0);
 const attributeName = (name: string) =>
@@ -112,6 +113,7 @@ export function DecisionPanel({
             home={session.setup.home}
             away={session.setup.away}
             selectedPlayerId={session.setup.selectedPlayerId}
+            numbers={shirtNumbers(session.setup.players)}
             viewBox={situationViewBox(moment)}
             label={matchFormat(m.situationPreview, { situation })}
           />

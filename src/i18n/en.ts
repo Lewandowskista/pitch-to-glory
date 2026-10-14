@@ -534,6 +534,7 @@ export const en = {
     transferBudget: 'Transfer budget',
     money: '{amount} Cr',
     squad: 'Squad',
+    squadNumber: 'Squad number',
     player: 'Player',
     age: 'Age',
     position: 'Position',

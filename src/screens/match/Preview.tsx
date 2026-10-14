@@ -14,6 +14,16 @@ import { selectionText as s } from '../../i18n/selection';
 import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
 import { ClubBadge, Footballer } from './Shared';
 
+/** The squad number at the start of a line-up row, announced as "Number 9". */
+function ShirtNumber({ value }: { value: number }) {
+  return (
+    <span className="match-lineup-number">
+      <span className="sr-only">{m.shirtNumber} </span>
+      {value}
+    </span>
+  );
+}
+
 export function Preview({
   session,
   onTactics,
@@ -184,6 +194,7 @@ export function Preview({
                 const fit = slotFit(starter, position);
                 return (
                   <li key={id} className={id === player.id ? 'selected' : ''}>
+                    <ShirtNumber value={starter.squadNumber} />
                     <span>{position}</span>
                     <strong>{starter.name}</strong>
                     {id === player.id && <small>{m.selected}</small>}
@@ -203,6 +214,7 @@ export function Preview({
               <ul className="match-lineup">
                 {lineup.benchIds.map((id) => (
                   <li key={id}>
+                    <ShirtNumber value={setup.players[id]!.squadNumber} />
                     <span>{setup.players[id]!.primaryPosition}</span>
                     {setup.players[id]!.name}
                   </li>

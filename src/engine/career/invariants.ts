@@ -6,6 +6,7 @@
  */
 import type { World } from '../../model/domain';
 import { allCompetitionTotals } from '../world/statistics';
+import { squadNumberProblems } from '../world/squadNumbers';
 import { hallOfFameRank } from './honours/retirement';
 
 export interface InvariantOptions {
@@ -46,6 +47,10 @@ export function careerInvariants(world: World, options: InvariantOptions = {}): 
         fail(`season appearances: statistics ${line?.apps ?? 0}, career records ${apps}`);
     }
   }
+
+  // Every squad wears valid, unique numbers (schema 21).
+  for (const clubId of squadNumberProblems(world))
+    fail(`club ${clubId} has a missing or repeated squad number`);
 
   // A completed season has resolved every fixture and added exactly one history entry.
   if (world.phase === 'complete') {

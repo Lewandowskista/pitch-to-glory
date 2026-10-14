@@ -11,6 +11,7 @@ import type { Rng } from '../../rng';
 import { playerAbility } from '../../strength';
 import { recordEvent } from '../../world/events';
 import { isActiveClub, refreshDressingRoom } from '../../world/dressing';
+import { joinSquad } from '../../world/squadNumbers';
 import {
   bonusesFor,
   clubLevel,
@@ -193,6 +194,7 @@ export function rivalTransfer(world: World, rng: Rng): { club: Club; fee: number
   current.playerIds = current.playerIds.filter((id) => id !== rival.id);
   destination.playerIds.push(rival.id);
   rival.clubId = destination.id;
+  joinSquad(world, rival, destination);
   const contract = world.contracts[rival.contractId!]!;
   const role = deservedRole(world, destination, rival);
   const weeklyWage = marketWage(destination, rival, role);
