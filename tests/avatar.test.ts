@@ -20,11 +20,13 @@ import { COSMETIC_BY_ID } from '../src/engine/career/lifestyle/catalogue';
 import { avatar as validateAvatar } from '../src/persistence/worldValidation';
 
 /** An entity's fields in their original order, without its avatar. */
+// Squad numbers (added in the same release, assigned without random draws and covered by
+// tests/squad-numbers.test.ts) are left out with the avatar, so these hashes keep their
+// pre-redesign values.
 const withoutAvatar = <T extends { avatar: Avatar }>(entity: T) =>
-  Object.fromEntries(Object.entries(entity).filter(([key]) => key !== 'avatar')) as Omit<
-    T,
-    'avatar'
-  >;
+  Object.fromEntries(
+    Object.entries(entity).filter(([key]) => key !== 'avatar' && key !== 'squadNumber'),
+  ) as Omit<T, 'avatar'>;
 const ids = (svg: string) => [...svg.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 
 describe('avatar parts', () => {
