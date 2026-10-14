@@ -19,17 +19,23 @@ import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
 import { honoursText } from '../../i18n/honours';
 import { FootballIllustration } from '../../ui/FootballIllustration';
+import { cardTitleClass, PageHeader, panelClass } from '../../ui/kit/Panel';
+import { chipClass, CountBadge } from '../../ui/kit/Chip';
+import { Meter as KitMeter, XpBar as KitXpBar, type MeterTone } from '../../ui/kit/Meter';
+import { Button, ButtonLink } from '../../ui/kit/Button';
 
-/** Shared Tailwind class strings, so every career card reads as one family. */
+/**
+ * Shared Tailwind class strings, so every career card reads as one family. They are the UI
+ * kit's classes (src/ui/kit, docs/UI-KIT.md); new code can use the kit components directly.
+ */
 export const ui = {
-  panel: 'ui-card rounded-panel border border-line bg-surface p-panel shadow-surface sm:p-panel-lg',
+  panel: panelClass('default', 'normal'),
   /** A dense or supporting card: summaries, quiet tiles, notices beside main content. */
-  panelCompact:
-    'ui-card rounded-panel border border-line bg-surface p-panel-compact shadow-surface sm:p-panel',
-  heading: 'font-display text-[1.75rem] leading-none tracking-[0.02em] text-ink',
+  panelCompact: panelClass('default', 'compact'),
+  heading: cardTitleClass('md'),
   eyebrow: 'text-xs font-bold uppercase tracking-[0.12em] text-accent',
   muted: 'text-sm text-muted',
-  chip: 'inline-flex min-h-7 items-center gap-1 rounded-full bg-accent-soft px-3 text-xs font-bold text-accent',
+  chip: chipClass('accent'),
   focus: 'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent',
   /** Helper text under a heading or label. */
   helper: 'mt-helper text-sm text-muted',
@@ -197,9 +203,7 @@ export function CareerNav() {
               <span>{page.label}</span>
               {page.path === '/career/inbox' && unread > 0 && (
                 <>
-                  <span aria-hidden="true" className="nav-badge">
-                    {unread > 99 ? '99+' : unread}
-                  </span>
+                  <CountBadge count={unread} />
                   <span className="sr-only"> · {format(m.inbox.unread, { count: unread })}</span>
                 </>
               )}
@@ -233,10 +237,7 @@ export function CareerPage({
           would push the whole page down. */}
       {(loading || (world?.career && player)) && <CareerNav />}
       <div className="page-body">
-        <header className="page-heading">
-          <h1>{title}</h1>
-          {description && <p>{description}</p>}
-        </header>
+        <PageHeader title={title} description={description} />
         {error && (
           <p role="alert" className="inline-error">
             {error}
@@ -272,14 +273,17 @@ function UnsavedCareer() {
   if (active) return null;
   return (
     <div className="mb-6 flex flex-wrap items-center gap-4 rounded-panel border border-line bg-art-gold p-4 sm:p-5">
-      <Icon name="save" className="shrink-0 text-accent" />
+      <span
+        aria-hidden="true"
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-control bg-gold text-on-gold"
+      >
+        <Icon name="save" />
+      </span>
       <div className="min-w-0 flex-1 basis-60">
         <strong className="block text-sm">{c.common.saveCareer}</strong>
-        <p className="text-sm text-muted">{c.common.saveCareerBody}</p>
+        <p className="text-sm text-gold-ink">{c.common.saveCareerBody}</p>
       </div>
-      <Link className="button" to="/saves">
-        {c.common.openSaves}
-      </Link>
+      <ButtonLink to="/saves">{c.common.openSaves}</ButtonLink>
     </div>
   );
 }
@@ -313,10 +317,9 @@ export function CareerEmpty() {
           <h2 className="font-display text-[2.6rem] leading-[0.95]">{c.empty.title}</h2>
           <p className="max-w-prose text-muted">{c.empty.body}</p>
           <div>
-            <Link className="button" to="/career/new">
+            <ButtonLink to="/career/new" iconEnd="arrow">
               {c.empty.start}
-              <Icon name="arrow" />
-            </Link>
+            </ButtonLink>
           </div>
         </div>
         <FootballIllustration kind="career" />
@@ -465,6 +468,7 @@ export function CrestImage({
   return <Artwork svg={svg} alt={alt} className={className} />;
 }
 
+/** A 0–100 career meter (form, morale, fitness, fatigue): the kit's `Meter`. */
 export function Meter({
   label,
   ariaLabel,
@@ -476,65 +480,22 @@ export function Meter({
   /** The full name for screen readers, when the visible label relies on the card title. */
   ariaLabel?: string;
   value: number;
-  tone?: 'accent' | 'danger' | 'gold';
+  tone?: MeterTone;
 }) {
-  const bounded = Math.max(0, Math.min(100, Math.round(value)));
-  const fill = tone === 'danger' ? 'bg-danger' : tone === 'gold' ? 'bg-meter-gold' : 'bg-accent';
-  return (
-    <div>
-      <div className="mb-1.5 flex items-baseline justify-between gap-2 text-sm">
-        <span className="font-semibold">{label}</span>
-        <span className="font-display text-xl leading-none tabular-nums">{bounded}</span>
-      </div>
-      <div
-        role="meter"
-        aria-label={ariaLabel ?? label}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={bounded}
-        aria-valuetext={format(c.common.meterValue, { value: bounded })}
-        className="h-2.5 overflow-hidden rounded-full bg-line"
-      >
-        <span className={`block h-full rounded-full ${fill}`} style={{ width: `${bounded}%` }} />
-      </div>
-    </div>
-  );
+  return <KitMeter label={label} ariaLabel={ariaLabel ?? label} value={value} tone={tone} />;
 }
 
+/** The career's level and experience: the kit's `XpBar`, fed from `levelProgress`. */
 export function XpBar({ career }: { career: Career }) {
   const { into, needed } = levelProgress(career);
-  const percent = needed ? Math.min(100, (into / needed) * 100) : 100;
-  return (
-    <div>
-      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2 text-sm">
-        <span className="font-display text-2xl leading-none text-accent">
-          {format(c.common.level, { level: career.level })}
-        </span>
-        <span className="text-muted">
-          {needed ? format(c.common.xp, { into, needed }) : c.common.xpMax}
-        </span>
-      </div>
-      <div
-        role="progressbar"
-        aria-label={format(c.common.xpLabel, { level: career.level + 1 })}
-        aria-valuemin={0}
-        aria-valuemax={Math.max(1, needed)}
-        aria-valuenow={needed ? into : 1}
-        className="h-3 overflow-hidden rounded-full bg-surface-soft"
-      >
-        <span
-          className="block h-full rounded-full bg-gradient-to-r from-accent to-gold"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-    </div>
-  );
+  return <KitXpBar level={career.level} into={into} needed={needed} />;
 }
 
 /** Live progress of a world job with its cancel control. */
 export function JobProgress() {
   const job = useAppStore((s) => s.worldJob);
   if (!job || job.type === 'commit-match') return null;
+  const total = Math.max(1, job.totalWeeks);
   return (
     <section
       aria-label={c.hub.simulating}
@@ -555,17 +516,24 @@ export function JobProgress() {
             {format(c.hub.progress, { completed: job.completedWeeks, total: job.totalWeeks })}
           </span>
         )}
-        <progress
-          className="mt-2 block h-2 w-full accent-[var(--accent)]"
-          max={Math.max(1, job.totalWeeks)}
-          value={job.completedWeeks}
+        <div
+          role="progressbar"
           aria-label={c.hub.simulating}
-        />
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={Math.min(total, job.completedWeeks)}
+          className="mt-2 h-2 overflow-hidden rounded-full bg-line"
+        >
+          <span
+            className="block h-full rounded-full bg-accent transition-[width] duration-300"
+            style={{ width: `${Math.min(100, (job.completedWeeks / total) * 100)}%` }}
+          />
+        </div>
       </div>
       {job.type !== 'create-career' && (
-        <button className="button secondary" disabled={job.cancelling} onClick={cancelWorldJob}>
+        <Button variant="secondary" disabled={job.cancelling} onClick={cancelWorldJob}>
           {c.hub.cancel}
-        </button>
+        </Button>
       )}
     </section>
   );

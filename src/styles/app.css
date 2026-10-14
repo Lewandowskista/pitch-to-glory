@@ -31,8 +31,8 @@
 
 /*
  * One segmented tab bar for in-page tablists (world views, gallery categories, edit kinds),
- * matching the career page tabs: a surface bar, a 1px line border and an accent active tab.
- * `segmented-tabs-fill` stretches the bar and its tabs across the available width.
+ * matching the career page tabs: a white bar with a 1px line border, quiet tabs, and the
+ * selected tab filled with the accent. `segmented-tabs-fill` stretches it across the width.
  */
 .segmented-tabs {
   display: flex;
@@ -40,11 +40,11 @@
   gap: 0.25rem;
   width: fit-content;
   max-width: 100%;
-  padding: 0.25rem;
-  border: 1px solid transparent;
-  border-radius: calc(var(--radius-control) + 0.3rem);
-  background: var(--surface-soft);
-  box-shadow: none;
+  padding: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
 }
 .segmented-tabs-fill {
   width: 100%;
@@ -54,13 +54,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
   min-height: 44px;
-  padding: 0.5rem 1.1rem;
+  padding: 0.5rem 1.15rem;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-chip);
   background: transparent;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
@@ -75,6 +76,7 @@
 .segmented-tabs > [role='tab'][aria-selected='true'] {
   background: var(--accent);
   color: var(--on-accent);
+  font-weight: 700;
 }
 .segmented-tabs > [role='tab']:focus-visible {
   outline: 3px solid var(--accent);
@@ -87,8 +89,41 @@
   }
 }
 
-/* The element a tutorial step points at (milestone 9). */
+/*
+ * The element a tutorial step points at: a 3px accent ring with a soft glow. The page around
+ * it is dimmed by the tutorial's own spotlight layer (src/ui/Tutorial.tsx). Gold buttons get
+ * the ring further out so it clears their pressed edge.
+ */
 [data-tour-active] {
   outline: 3px solid var(--accent);
   outline-offset: 4px;
+  box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.button.play[data-tour-active] {
+  outline-offset: 7px;
+  box-shadow: var(--shadow-gold);
+}
+/*
+ * The tutorial's dimming: a box over the target whose huge shadow darkens everything else. It
+ * never takes pointer events, so the target and the page stay usable on every step.
+ */
+.tour-spotlight {
+  position: fixed;
+  z-index: 35;
+  border-radius: var(--radius-panel);
+  box-shadow: 0 0 0 200vmax var(--spotlight);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduced-motion='true']) .tour-spotlight {
+    transition:
+      top 200ms ease-out,
+      left 200ms ease-out,
+      width 200ms ease-out,
+      height 200ms ease-out;
+  }
+}
+/* Reading steps move focus to the card's title (tabindex -1) without drawing a ring on it. */
+#tutorial-title:focus {
+  outline: none;
 }

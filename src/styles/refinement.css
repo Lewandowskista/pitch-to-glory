@@ -31,68 +31,6 @@
     height: auto;
   }
 }
-.page-heading h1 {
-  text-wrap: balance;
-  letter-spacing: 0.012em;
-}
-.page-heading {
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--line);
-}
-.page-heading h1::after {
-  content: '';
-  display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
-  margin-inline-start: 0.65rem;
-  margin-bottom: 0.15rem;
-  border-radius: 50%;
-  background: var(--meter-gold);
-}
-.page-heading :is(.eyebrow, [class*='uppercase']) {
-  margin-bottom: 0.35rem;
-}
-.topbar {
-  background: var(--bg);
-}
-.sidebar {
-  background: var(--surface);
-}
-.sidebar nav a.active:not(.parent) {
-  box-shadow: inset 3px 0 var(--accent);
-}
-.sidebar .sidebar-groups a.active {
-  box-shadow: inset 2px 0 var(--accent);
-}
-.local-save {
-  padding: 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--bg);
-}
-.shortcut-button {
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-}
-.header-settings:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-.career-tabs ul,
-.segmented-tabs {
-  box-shadow: none;
-  background: var(--surface-soft);
-  border-color: transparent;
-  padding: 0.25rem;
-}
-.career-tabs a.active,
-.segmented-tabs > [aria-selected='true'] {
-  box-shadow: 0 2px 5px rgb(0 0 0 / 0.08);
-}
-.page-footer {
-  font-size: 0.7rem;
-  padding-block: 1rem;
-}
 /* Empty primary destinations: art and explanation belong to one compact composition. */
 .illustrated-empty {
   display: grid;
@@ -109,19 +47,6 @@
 /* Native controls share a crisp edge and maintain strong focus in both themes. */
 select {
   accent-color: var(--accent);
-}
-.button > svg {
-  flex-shrink: 0;
-}
-.button {
-  box-shadow: 0 2px 3px rgb(0 0 0 / 0.045);
-}
-.button.secondary,
-.button:disabled {
-  box-shadow: none;
-}
-.button:hover:not(:disabled) {
-  filter: brightness(1.04);
 }
 :is(.crest-card, .kit-club, .avatar-club, .discovery) {
   border: 1px solid var(--line);
@@ -183,81 +108,19 @@ select {
   min-height: 44px;
   padding: 0.55rem 0.8rem;
 }
-/* Informational surfaces, including native dialogs and URL-backed sheets. */
-.dialog {
-  max-height: calc(100dvh - 2rem);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border-radius: 1.25rem;
-  box-shadow: 0 24px 80px rgb(0 0 0 / 0.28);
-}
-.dialog::backdrop,
-.more-sheet::backdrop,
-.skill-sheet::backdrop {
-  background: rgb(7 18 12 / 0.68);
-}
-.dialog-inner {
-  padding: clamp(1.25rem, 3vw, 2rem);
-}
-.dialog h2 {
-  font-family: var(--font-display);
-  font-size: 1.9rem;
-  font-weight: 400;
-  line-height: 1.1;
-  text-wrap: balance;
-}
-.dialog p {
-  font-size: 0.9rem;
-  line-height: 1.65;
-}
-.dialog-actions {
-  flex-wrap: wrap;
-  border-top: 1px solid var(--line);
-  padding-top: 1rem;
-  margin-top: 1.25rem;
-}
-.more-sheet,
 .skill-sheet {
   border: 1px solid var(--line);
 }
-.more-sheet-inner,
+.skill-sheet::backdrop {
+  background: var(--scrim, rgb(16 34 25 / 0.67));
+}
 .skill-sheet > div {
   border-top: 4px solid var(--accent);
-}
-[data-testid='tutorial'] {
-  border-width: 1px;
-  border-top-width: 4px;
-  box-shadow: 0 12px 40px rgb(0 0 0 / 0.16);
-}
-.global-notice,
-.global-error,
-.inline-error {
-  border-inline-start: 3px solid currentColor;
-}
-.pwa-prompt {
-  padding: 1rem;
-  gap: 0.75rem;
-  max-width: min(28rem, calc(100vw - 2rem));
-}
-.pwa-prompt > p {
-  flex: 1 1 100%;
-  font-size: 0.85rem;
-  line-height: 1.5;
-}
-.pwa-prompt .button {
-  font-size: 0.8rem;
 }
 .loading-page [role='status'] {
   color: var(--accent);
 }
 @media (max-width: 700px) {
-  .page-heading {
-    padding-bottom: 0.5rem;
-    margin-bottom: 1rem;
-  }
-  .local-save {
-    padding: 0.5rem;
-  }
   .illustrated-empty {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -265,13 +128,7 @@ select {
     width: 7rem;
     order: -1;
   }
-  .dialog-actions > .button {
-    flex: 1 1 9rem;
-  }
   .seed-toolbar {
     padding: 0.75rem;
-  }
-  .bottom-nav {
-    box-shadow: 0 -4px 20px rgb(0 0 0 / 0.07);
   }
 }
