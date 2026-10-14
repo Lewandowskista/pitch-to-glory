@@ -35,7 +35,7 @@ describe('procedural SVG artwork', () => {
         expect(shirt).toContain('data-arm="left"');
         expect(shirt).toContain('data-arm="right"');
         expect(shirt.indexOf('data-arm=')).toBeLessThan(shirt.indexOf('<defs>'));
-        expect(shirt).toContain('>C</text>');
+        expect(shirt).toContain('data-armband');
       }
     }
     expect(() => avatarSkinColor({ skin: 8 })).toThrow('Invalid asset option');

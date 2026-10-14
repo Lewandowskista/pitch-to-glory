@@ -1,6 +1,7 @@
 import type { Avatar, Crest, Hex, Kit, KitPattern, SleeveLength } from '../../model/domain';
 import { avatarHead, avatarSkinColor } from './avatar';
 import { ART, colors, item, svg } from './shared';
+import { textPath } from './glyphs';
 
 /**
  * Wardrobe artwork (milestone 7, redrawn in the redesign): the career player head to boots, in
@@ -103,7 +104,7 @@ export function renderFigure(avatar: Avatar, age: number, dress: FigureDress, id
   // The portrait's captain's armband accessory shows on the sleeve when no armband is worn.
   const armband = dress.armband ?? (avatar.accessory === 3 ? [ART.gold, ART.onGold] : null);
   const band = armband
-    ? `<path d="M156 40L176 28L181 37L161 49Z" fill="${armband[0]}" stroke="${armband[1]}" stroke-width="1"/><text x="168.5" y="41.5" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="${armband[1]}" text-anchor="middle" transform="rotate(-31 168.5 38.5)">C</text>`
+    ? `<path d="M156 40L176 28L181 37L161 49Z" fill="${armband[0]}" stroke="${armband[1]}" stroke-width="1"/><g data-armband="" transform="rotate(-31 168.5 38.5)">${textPath('C', { x: 168.5, y: 41.5, size: 6.5, anchor: 'middle', fill: armband[1] })}</g>`
     : '';
   const boot = (d: string) => `<path d="${d}" fill="${dress.boots[0]}" ${OUTLINE}/>`;
   const body = [

@@ -276,7 +276,7 @@ describe('avatar rendering', () => {
       socks: 'socks:classic',
       boots: ['#101820', '#3ddc97'] as [Hex, Hex],
     };
-    expect(renderFigure({ ...base, accessory: 3 }, 25, plain)).toContain('>C</text>');
-    expect(renderFigure({ ...base, accessory: 0 }, 25, plain)).not.toContain('>C</text>');
+    expect(renderFigure({ ...base, accessory: 3 }, 25, plain)).toContain('data-armband');
+    expect(renderFigure({ ...base, accessory: 0 }, 25, plain)).not.toContain('data-armband');
   });
 });
