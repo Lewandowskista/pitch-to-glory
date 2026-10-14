@@ -62,6 +62,22 @@ export const en = {
     cancel: 'Cancel',
     helpNav:
       'Tab: move between controls. Enter: activate. Space: play or pause a live match. 1–4: choose a key-moment action. Arrow keys: move between navigation links, tabs and match choices. Escape: close a dialog or go back. ?: open this guide.',
+    /** The shortcut guide as keycaps beside what they do (the same content as `helpNav`). */
+    shortcuts: [
+      { keys: ['Tab'], does: 'Move between controls.' },
+      { keys: ['Enter'], does: 'Activate.' },
+      { keys: ['Space'], does: 'Play or pause a live match.' },
+      { keys: ['1', '2', '3', '4'], does: 'Choose a key-moment action.' },
+      {
+        keys: ['←', '↑', '→', '↓'],
+        does: 'Move between navigation links, tabs and match choices.',
+      },
+      { keys: ['Esc'], does: 'Close a dialog or go back.' },
+      { keys: ['?'], does: 'Open this guide.' },
+    ],
+    shortcutHint: 'Press {key} anywhere',
+    slotLocal: 'Slot {slot} · Stored on this device',
+    saveStatus: 'Save status: {status}',
     offline: 'Your clubhouse is ready offline.',
     update: 'An update is ready.',
     updateAction: 'Save & update',
@@ -312,7 +328,8 @@ export const en = {
     simulation: 'The world could not advance. Your last completed week is retained. Try again.',
     'match-active': 'Finish your match on Matchday before advancing or replacing this world.',
     storage: 'The browser could not access local storage. Check available space and try again.',
-    render: 'The clubhouse could not open. Reload the page to try again.',
+    render: 'The clubhouse could not open.',
+    renderBody: 'Reload the page to try again. Your saves stay on this device.',
     reload: 'Reload page',
   },
   world: {

@@ -4,6 +4,8 @@ import { m, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../store';
 import { format } from '../i18n';
 import { tutorialText as tt } from '../i18n/tutorial';
+import { Icon } from './Icon';
+import { Button } from './kit/Button';
 
 export interface TutorialStep {
   /** Matches a `data-tour` attribute on the element the step points at. */
@@ -48,6 +50,13 @@ export function Tutorial({
   const heading = useRef<HTMLHeadingElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | 'sheet' | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
+  // The cut-out in the dimming: the target's box plus a margin, in viewport coordinates.
+  const [hole, setHole] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const active = enabled && !seen;
   const step = steps[index];
   const applies = step && step.when !== false;
@@ -95,6 +104,12 @@ export function Tutorial({
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const box = card.current;
+        // No dimming for a card that sits in the page: it would be dimmed with the page.
+        if (inline || !target) setHole(null);
+        else {
+          const r = target.getBoundingClientRect();
+          setHole({ top: r.top - 8, left: r.left - 8, width: r.width + 16, height: r.height + 16 });
+        }
         if (!box || inline) return;
         if (window.innerWidth < 640 || !target) return setPosition('sheet');
         const rect = target.getBoundingClientRect();
@@ -182,56 +197,101 @@ export function Tutorial({
       : { top: `${position.top}px`, left: `${position.left}px` };
   const layout = slot
     ? 'mt-4 w-full'
-    : `fixed z-40 w-[min(23rem,calc(100vw-2rem))] shadow-[0_18px_48px_rgb(0_0_0/0.25)] ${
+    : `fixed z-40 w-[min(23rem,calc(100vw-2rem))] shadow-overlay ${
         position === 'sheet' || position === null
-          ? 'inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] mx-auto sm:bottom-6'
+          ? 'inset-x-4 bottom-[calc(var(--tabbar)+1rem)] mx-auto sm:bottom-6'
           : ''
       } ${position === null ? 'invisible' : ''}`;
-  return createPortal(
-    <m.div
-      ref={card}
-      role="dialog"
-      aria-modal="false"
-      aria-labelledby="tutorial-title"
-      aria-describedby="tutorial-body"
-      data-testid="tutorial"
-      initial={reduced ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      key={index}
-      style={style}
-      className={`grid gap-3 rounded-panel border-2 border-accent bg-surface p-5 text-ink ${layout}`}
-    >
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">
-        {tt.label} · {format(tt.progress, { step: index + 1, total: steps.length })}
-      </p>
-      <h2
-        id="tutorial-title"
-        ref={heading}
-        tabIndex={-1}
-        className="font-display text-[1.6rem] leading-none outline-none"
-      >
-        {step.title}
-      </h2>
-      <p id="tutorial-body" className="text-sm" aria-live={step.action ? 'polite' : undefined}>
-        {step.body}
-      </p>
-      {step.action && <p className="text-xs font-semibold text-muted">{tt.waiting}</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        {!step.action && (
-          <button className="button" onClick={() => (last ? finish() : setIndex(index + 1))}>
-            {last ? tt.done : tt.next}
-          </button>
+  return (
+    <>
+      {hole &&
+        createPortal(
+          // Dims the page around the target. It never takes a click: the tour is non-modal,
+          // and action steps need the target (and the rest of the page) to stay usable.
+          <div
+            aria-hidden="true"
+            className="tour-spotlight"
+            style={{
+              top: `${hole.top}px`,
+              left: `${hole.left}px`,
+              width: `${hole.width}px`,
+              height: `${hole.height}px`,
+            }}
+          />,
+          document.body,
         )}
-        {index > 0 && !step.action && (
-          <button className="button secondary" onClick={() => setIndex(index - 1)}>
-            {tt.back}
-          </button>
-        )}
-        <button className="text-button ml-auto" onClick={finish}>
-          {tt.skip}
-        </button>
-      </div>
-    </m.div>,
-    slot ?? document.body,
+      {createPortal(
+        <m.div
+          ref={card}
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby="tutorial-title"
+          aria-describedby="tutorial-body"
+          data-testid="tutorial"
+          initial={reduced ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          key={index}
+          style={style}
+          className={`grid gap-3 rounded-panel border-2 border-accent bg-surface p-5 text-ink ${layout}`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-accent">
+              {tt.label} · {format(tt.progress, { step: index + 1, total: steps.length })}
+            </p>
+            <span aria-hidden="true" className="flex shrink-0 gap-1">
+              {steps.map((_, dot) => (
+                <span
+                  key={dot}
+                  className={`h-1.5 rounded-full ${
+                    dot === index
+                      ? 'w-4 bg-accent'
+                      : dot < index
+                        ? 'w-1.5 bg-accent/45'
+                        : 'w-1.5 bg-line'
+                  }`}
+                />
+              ))}
+            </span>
+          </div>
+          <h2
+            id="tutorial-title"
+            ref={heading}
+            tabIndex={-1}
+            className="font-display text-[1.75rem] leading-none font-normal outline-none"
+          >
+            {step.title}
+          </h2>
+          <p id="tutorial-body" className="text-sm" aria-live={step.action ? 'polite' : undefined}>
+            {step.body}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {step.action ? (
+              <p className="flex items-center gap-2 text-xs font-bold text-muted">
+                <span
+                  aria-hidden="true"
+                  className="grid h-[1.375rem] w-[1.375rem] place-items-center rounded-full bg-art-gold text-gold-ink"
+                >
+                  <Icon name="arrow" className="h-3 w-3" />
+                </span>
+                {tt.waiting}
+              </p>
+            ) : (
+              <Button onClick={() => (last ? finish() : setIndex(index + 1))}>
+                {last ? tt.done : tt.next}
+              </Button>
+            )}
+            {index > 0 && !step.action && (
+              <Button variant="secondary" onClick={() => setIndex(index - 1)}>
+                {tt.back}
+              </Button>
+            )}
+            <Button variant="text" className="ml-auto px-2" onClick={finish}>
+              {tt.skip}
+            </Button>
+          </div>
+        </m.div>,
+        slot ?? document.body,
+      )}
+    </>
   );
 }

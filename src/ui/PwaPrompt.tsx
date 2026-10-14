@@ -5,6 +5,8 @@ import { errorCode, UnsavedWorldError } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
 import { useAppStore } from '../store';
 import { errorText, t } from '../i18n';
+import { Icon } from './Icon';
+import { buttonClass } from './kit/Button';
 export function PwaPrompt() {
   const [error, setError] = useState('');
   const [activated, setActivated] = useState(false);
@@ -43,19 +45,33 @@ export function PwaPrompt() {
       });
   }
   if ((!offline && !refresh && !error) || deciding) return null;
+  const kind = error ? 'error' : refresh ? 'update' : 'offline';
   return (
     <div className="pwa-prompt" role="status">
+      <span className={`pwa-prompt-icon ${kind}`} aria-hidden="true">
+        <Icon
+          name={
+            kind === 'error'
+              ? 'alert'
+              : kind === 'offline'
+                ? 'check'
+                : unsavedWorld
+                  ? 'save'
+                  : 'refresh'
+          }
+        />
+      </span>
       <p>
         {error || (refresh ? (unsavedWorld ? t.app.updateSaveFirst : t.app.update) : t.app.offline)}
       </p>
       {refresh && unsavedWorld && (
-        <Link className="button" to="/saves">
+        <Link className={buttonClass('primary')} to="/saves">
           {t.world.save}
         </Link>
       )}
       {refresh && !unsavedWorld && (
         <button
-          className="button"
+          className={buttonClass('primary')}
           disabled={simulating}
           title={simulating ? t.errors.busy : undefined}
           onClick={() => {
