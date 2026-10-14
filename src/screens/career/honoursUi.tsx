@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import { promiseMilestone } from './storiesUi';
 import type { AmbitionId, ManagerPromise } from '../../model/domain';
 import { ambitionName } from './ambitionText';
@@ -31,6 +32,17 @@ export function useHonoursAction() {
   };
   return { run, error, block };
 }
+
+/** Reduced motion from the system setting or the in-game switch. */
+export function useReducedMotionSetting(): boolean {
+  const system = useReducedMotion();
+  const setting = useAppStore((s) => s.settings.reducedMotion);
+  return Boolean(system) || setting;
+}
+
+/** Turns a button's trailing chevron down, and up while `aria-expanded` is true. */
+export const EXPAND_CHEVRON =
+  '[&>svg:last-child]:rotate-90 [&>svg:last-child]:transition-transform aria-expanded:[&>svg:last-child]:-rotate-90';
 
 /** English ordinal: 1st, 2nd, 3rd, 11th, 21st, 92nd. */
 export function ordinal(value: number): string {
@@ -66,6 +78,7 @@ const GLYPHS = {
   contract: 'M6 3H15L19 7V21H6ZM15 3V7H19M9 12H16M9 16H14',
   lock: 'M6 11H18V21H6ZM8.5 11V7.5A3.5 3.5 0 0 1 15.5 7.5V11',
   check: 'M5 12L10 17L20 6',
+  link: 'M10 14L14 10M8.5 11.5L6 14A3.5 3.5 0 0 0 11 19L13.5 16.5M15.5 12.5L18 10A3.5 3.5 0 0 0 13 5L10.5 7.5',
 } as const;
 export type GlyphName = keyof typeof GLYPHS;
 
@@ -83,6 +96,20 @@ export function Glyph({ name, className = 'h-5 w-5' }: { name: GlyphName; classN
       aria-hidden="true"
     >
       <path d={GLYPHS[name]} />
+    </svg>
+  );
+}
+
+/** A filled star, for the ceremony's reveal and the Hall of Fame. Decorative. */
+export function StarMark({ className = 'h-[18px] w-[18px]' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+      className={`shrink-0 ${className}`}
+    >
+      <path d={GLYPHS.star} fill="currentColor" />
     </svg>
   );
 }
