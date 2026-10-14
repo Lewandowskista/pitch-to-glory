@@ -4,7 +4,16 @@ import { useAppStore } from '../../store';
 import { Page } from '../../ui/Page';
 import { Icon } from '../../ui/Icon';
 import { Artwork } from '../../ui/Artwork';
-import { renderAvatar, generateAvatar, AVATAR_OPTIONS } from '../../engine/assets/avatar';
+import {
+  renderAvatar,
+  generateAvatar,
+  isAvatar,
+  resolveAvatar,
+  AVATAR_OPTIONS,
+  AVATAR_PARTS,
+  clubDress,
+  type AvatarPart,
+} from '../../engine/assets/avatar';
 import { createRng } from '../../engine/rng';
 import { CONFIG } from '../../engine/config';
 import { REAL_COUNTRY_NAMES } from '../../engine/world/catalog';
@@ -22,7 +31,6 @@ import { POSITIONS } from './selectors';
 
 const STEPS = ['identity', 'appearance', 'position', 'world', 'trial', 'confirm'] as const;
 type Step = (typeof STEPS)[number];
-const PARTS = Object.keys(AVATAR_OPTIONS) as (keyof Avatar)[];
 const STORAGE_KEY = 'pitch-to-glory:career-draft';
 const [MIN_AGE, MAX_AGE] = CONFIG.career.start.ageRange;
 const AGES = Array.from({ length: MAX_AGE - MIN_AGE + 1 }, (_, index) => MIN_AGE + index);
@@ -48,7 +56,7 @@ const defaultDraft = (): WizardDraft => ({
   nationalityId: 'country:0',
   age: 17,
   foot: 'right',
-  avatar: generateAvatar(createRng('pitch-to-glory:career-avatar:0')),
+  avatar: rollAvatar(0),
   avatarRoll: 0,
   position: 'ST',
   archetype: 'finisher',
@@ -57,12 +65,24 @@ const defaultDraft = (): WizardDraft => ({
   saveSlot: null,
   parentLegacyId: null,
 });
+/**
+ * A random look with every part set, including eye colour, nose and mouth, so choosing one part
+ * never changes another.
+ */
+function rollAvatar(roll: number): Avatar {
+  return resolveAvatar(generateAvatar(createRng(`pitch-to-glory:career-avatar:${roll}`)));
+}
 function readDraft(): WizardDraft {
   try {
     const stored = JSON.parse(
       sessionStorage.getItem(STORAGE_KEY) ?? 'null',
     ) as Partial<WizardDraft>;
-    if (stored && typeof stored === 'object') return { ...defaultDraft(), ...stored };
+    if (stored && typeof stored === 'object') {
+      const draft = { ...defaultDraft(), ...stored };
+      // Drafts from older versions lack the newer parts; drafts with unknown options start over.
+      draft.avatar = isAvatar(stored.avatar) ? resolveAvatar(stored.avatar) : rollAvatar(0);
+      return draft;
+    }
   } catch {
     // Storage may be unavailable (private mode); the wizard works from memory.
   }
@@ -528,7 +548,8 @@ function IdentityStep({
 }
 
 function AppearanceStep({ draft, update }: StepProps) {
-  const [part, setPart] = useState<keyof Avatar>('hair');
+  const [part, setPart] = useState<AvatarPart>('hair');
+  const chosen = resolveAvatar(draft.avatar)[part];
   const previews = useMemo(
     () =>
       Array.from({ length: AVATAR_OPTIONS[part] }, (_, option) =>
@@ -545,17 +566,14 @@ function AppearanceStep({ draft, update }: StepProps) {
           <Artwork
             svg={renderAvatar(draft.avatar, draft.age)}
             alt={format(c.wizard.previewAlt, { age: draft.age })}
-            className="h-52 w-52 rounded-full bg-art-blue shadow-surface"
+            className="h-52 w-52 rounded-full shadow-surface"
           />
           <button
             type="button"
             className="button secondary w-full"
             onClick={() => {
               const roll = draft.avatarRoll + 1;
-              update({
-                avatarRoll: roll,
-                avatar: generateAvatar(createRng(`pitch-to-glory:career-avatar:${roll}`)),
-              });
+              update({ avatarRoll: roll, avatar: rollAvatar(roll) });
             }}
           >
             <Icon name="refresh" />
@@ -571,7 +589,7 @@ function AppearanceStep({ draft, update }: StepProps) {
                   <Artwork
                     svg={renderAvatar(draft.avatar, age)}
                     alt={format(c.wizard.previewAlt, { age })}
-                    className="h-14 w-14 rounded-full bg-surface-soft"
+                    className="h-14 w-14"
                   />
                   <figcaption className="text-xs text-muted">{age}</figcaption>
                 </figure>
@@ -581,7 +599,7 @@ function AppearanceStep({ draft, update }: StepProps) {
         </div>
         <div className="min-w-0">
           <div role="group" aria-label={c.wizard.feature} className="flex flex-wrap gap-2">
-            {PARTS.map((item) => (
+            {AVATAR_PARTS.map((item) => (
               <button
                 key={item}
                 type="button"
@@ -606,21 +624,17 @@ function AppearanceStep({ draft, update }: StepProps) {
                 <label
                   key={option}
                   className={`relative cursor-pointer rounded-control border-2 p-1 transition hover:border-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent ${
-                    draft.avatar[part] === option ? 'border-accent bg-accent-soft' : 'border-line'
+                    chosen === option ? 'border-accent bg-accent-soft' : 'border-line'
                   }`}
                 >
                   <input
                     type="radio"
                     name={`avatar-${part}`}
                     className="sr-only"
-                    checked={draft.avatar[part] === option}
+                    checked={chosen === option}
                     onChange={() => update({ avatar: { ...draft.avatar, [part]: option } })}
                   />
-                  <Artwork
-                    svg={svg}
-                    alt=""
-                    className="aspect-square w-full rounded-[0.55rem] bg-art-blue"
-                  />
+                  <Artwork svg={svg} alt="" className="aspect-square w-full" />
                   <span className="sr-only">
                     {format(c.wizard.option, { feature: c.wizard.parts[part], number: option + 1 })}
                   </span>
@@ -988,9 +1002,9 @@ function Summary({
       <div className="relative bg-field-stripes px-5 pt-6 pb-4 text-white">
         <div className="relative flex items-end gap-4">
           <Artwork
-            svg={renderAvatar(draft.avatar, draft.age)}
+            svg={renderAvatar(draft.avatar, draft.age, clubDress(club))}
             alt={format(c.wizard.previewAlt, { age: draft.age })}
-            className="h-24 w-24 shrink-0 rounded-full bg-art-blue ring-4 ring-white/30"
+            className="h-24 w-24 shrink-0 rounded-full ring-4 ring-white/30"
           />
           {club && <CrestImage crest={club.crest} alt={club.name} className="ml-auto h-14 w-14" />}
         </div>

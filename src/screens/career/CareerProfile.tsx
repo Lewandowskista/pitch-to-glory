@@ -263,7 +263,7 @@ function Summary({
       className={`${ui.panel} xl:col-start-2 xl:row-start-1`}
     >
       <div className="flex flex-wrap items-center gap-4">
-        <PlayerPortrait player={player} age={age} className="h-20 w-20 shrink-0" />
+        <PlayerPortrait player={player} age={age} club={club} className="h-20 w-20 shrink-0" />
         <div className="min-w-0 flex-1 basis-40">
           <h2 id="summary-heading" className="font-display text-[2rem] leading-none break-words">
             {player.name}

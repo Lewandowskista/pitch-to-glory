@@ -162,8 +162,8 @@
   color: var(--muted);
 }
 .match-avatar {
-  width: 82px;
-  height: 90px;
+  width: 88px;
+  height: 88px;
   flex-shrink: 0;
 }
 .match-preview {

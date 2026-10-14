@@ -1,25 +1,43 @@
+import { useMemo } from 'react';
 import { Artwork } from '../../ui/Artwork';
 import { renderCrest } from '../../engine/assets/crest';
 import { renderAvatar } from '../../engine/assets/avatar';
+import { chooseMatchKits } from '../../engine/assets/clash';
 import type { Club, Player, ProbabilityFactor } from '../../model/domain';
 import { matchText as m, matchLabel, matchFormat } from '../../i18n/match';
 
 export function ClubBadge({ club }: { club: Club }) {
   return <Artwork svg={renderCrest(club.crest)} alt={club.name} className="match-crest" />;
 }
-export function Footballer({ player, season }: { player: Player; season: number }) {
+/** The selected player, in the kit their side wears for this match. */
+export function Footballer({
+  player,
+  season,
+  home,
+  away,
+}: {
+  player: Player;
+  season: number;
+  home: Club;
+  away: Club;
+}) {
+  const age = season - player.birthSeason;
+  const svg = useMemo(() => {
+    const kits = chooseMatchKits(home, away);
+    const awaySide = player.clubId === away.id;
+    return renderAvatar(player.avatar, age, {
+      kit: awaySide ? kits.away : kits.home,
+      crest: (awaySide ? away : home).crest,
+    });
+  }, [player.avatar, player.clubId, age, home, away]);
   return (
     <div className="match-footballer">
-      <Artwork
-        svg={renderAvatar(player.avatar, season - player.birthSeason)}
-        alt={player.name}
-        className="match-avatar"
-      />
+      <Artwork svg={svg} alt={player.name} className="match-avatar" />
       <div>
         <span className="match-eyebrow">{m.selected}</span>
         <h2>{player.name}</h2>
         <p>
-          {player.primaryPosition} · {matchFormat(m.age, { age: season - player.birthSeason })}
+          {player.primaryPosition} · {matchFormat(m.age, { age })}
         </p>
       </div>
     </div>

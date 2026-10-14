@@ -6,7 +6,7 @@ import { useAppStore } from '../../store';
 import { Page } from '../../ui/Page';
 import { Icon } from '../../ui/Icon';
 import { Artwork } from '../../ui/Artwork';
-import { renderAvatar } from '../../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { renderCrest } from '../../engine/assets/crest';
 import { levelProgress } from '../../engine/career/progression';
 import { errorCode } from '../../persistence/errors';
@@ -428,23 +428,23 @@ function NoCareerInWorld() {
   );
 }
 
+/** A bust portrait in the club's home kit and crest, or the neutral shirt without a club. */
 export function PlayerPortrait({
   player,
   age,
+  club,
   className = '',
 }: {
   player: Player;
   age: number;
+  club?: Club | null;
   className?: string;
 }) {
-  const svg = useMemo(() => renderAvatar(player.avatar, age), [player.avatar, age]);
-  return (
-    <Artwork
-      svg={svg}
-      alt={format(c.wizard.previewAlt, { age })}
-      className={`rounded-full bg-art-blue ${className}`}
-    />
+  const svg = useMemo(
+    () => renderAvatar(player.avatar, age, clubDress(club)),
+    [player.avatar, age, club],
   );
+  return <Artwork svg={svg} alt={format(c.wizard.previewAlt, { age })} className={className} />;
 }
 export function CrestImage({
   crest,

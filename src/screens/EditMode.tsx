@@ -16,7 +16,7 @@ import { FootballIllustration } from '../ui/FootballIllustration';
 import { Artwork } from '../ui/Artwork';
 import { renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
-import { renderAvatar } from '../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../engine/assets/avatar';
 import { chooseMatchKits, safeDifference } from '../engine/assets/clash';
 import { CONFIG } from '../engine/config';
 import {
@@ -437,14 +437,16 @@ function NameEditor({
   const player = kind === 'players' ? (entity as Player) : undefined;
   const league = kind === 'leagues' ? (entity as League) : undefined;
   const age = player ? world.date.season - player.birthSeason : 0;
+  const club = player?.clubId ? world.clubs[player.clubId] : undefined;
   const portrait = useMemo(
-    () => (player ? renderAvatar(player.avatar, Math.max(16, Math.min(60, age))) : ''),
-    [player, age],
+    () =>
+      player ? renderAvatar(player.avatar, Math.max(16, Math.min(60, age)), clubDress(club)) : '',
+    [player, age, club],
   );
   return (
     <section aria-labelledby="editor-heading" className={`${ui.panel} flex flex-col gap-5`}>
       <div className="flex flex-wrap items-center gap-4">
-        {player && <Artwork svg={portrait} alt="" className="h-20 w-20 rounded-full bg-art-blue" />}
+        {player && <Artwork svg={portrait} alt="" className="h-20 w-20" />}
         <div className="min-w-0 flex-1">
           <p className={ui.eyebrow}>{e.kinds[kind]}</p>
           <h2 id="editor-heading" className={`${ui.heading} break-words`}>

@@ -12,7 +12,7 @@ import { Artwork } from '../ui/Artwork';
 import { generateGallery } from '../engine/assets/gallery';
 import { renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
-import { renderAvatar } from '../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../engine/assets/avatar';
 import stadium from '../assets/stadium.svg';
 const sample = generateGallery('pitch-to-glory');
 
@@ -270,7 +270,11 @@ export default function Menu() {
         <Link to="/gallery?view=avatars" className="discovery">
           <div className="discovery-art avatar-art">
             {sample.players.slice(0, 3).map((player, i) => (
-              <Artwork key={player.id} svg={renderAvatar(player.avatar, [17, 28, 42][i]!)} alt="" />
+              <Artwork
+                key={player.id}
+                svg={renderAvatar(player.avatar, [17, 28, 42][i]!, clubDress(sample.clubs[i]))}
+                alt=""
+              />
             ))}
           </div>
           <div className="discovery-copy">

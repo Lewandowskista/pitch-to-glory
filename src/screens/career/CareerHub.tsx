@@ -494,7 +494,12 @@ function PlayerCard({
   return (
     <section aria-labelledby="player-card-heading" data-tour="player-card" className={card}>
       <div className="flex flex-wrap items-center gap-4">
-        <PlayerPortrait player={player} age={age} className="h-20 w-20 shrink-0 sm:h-24 sm:w-24" />
+        <PlayerPortrait
+          player={player}
+          age={age}
+          club={club}
+          className="h-20 w-20 shrink-0 sm:h-24 sm:w-24"
+        />
         <div className="min-w-0 flex-1 basis-40">
           <h2
             id="player-card-heading"

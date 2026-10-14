@@ -50,7 +50,7 @@ export function Preview({
       <section className="match-panel">
         <span className="match-eyebrow">{m.preview}</span>
         {stake}
-        <Footballer player={player} season={setup.season} />
+        <Footballer player={player} season={setup.season} home={setup.home} away={setup.away} />
         {state.captain && <span className="match-tag">{m.captain}</span>}
         <div className="match-weather">
           <span>

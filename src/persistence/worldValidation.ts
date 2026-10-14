@@ -1,5 +1,6 @@
 ﻿import type { Attributes, KeeperAttributes, Standing } from '../model/domain';
 import { CREST_SHAPES, CREST_SYMBOLS } from '../engine/assets/crest';
+import { AVATAR_OPTIONS, AVATAR_PARTS } from '../engine/assets/avatar';
 
 export function requireValue(condition: unknown): asserts condition {
   if (!condition) throw new Error('invalid-world');
@@ -65,17 +66,11 @@ export function options(value: unknown, choices: readonly string[]): void {
 }
 export function avatar(value: unknown): void {
   const a = object(value);
-  for (const key of [
-    'face',
-    'skin',
-    'hair',
-    'hairColor',
-    'facialHair',
-    'eyebrows',
-    'eyes',
-    'accessory',
-  ])
-    number(a[key], 0, 7, true);
+  for (const part of AVATAR_PARTS) {
+    // Eye colour, nose and mouth arrived later and may be absent; the renderer derives them.
+    if (a[part] === undefined && (part === 'iris' || part === 'nose' || part === 'mouth')) continue;
+    number(a[part], 0, AVATAR_OPTIONS[part] - 1, true);
+  }
 }
 export function palette(value: unknown): void {
   const colors = array(value, 3);

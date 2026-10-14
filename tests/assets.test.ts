@@ -13,7 +13,7 @@ import {
   generateAvatar,
   renderAvatar,
 } from '../src/engine/assets/avatar';
-import { renderWardrobeShirt } from '../src/engine/assets/gear';
+import { renderFigure } from '../src/engine/assets/gear';
 import { contrastRatio, PALETTES } from '../src/engine/assets/shared';
 
 describe('procedural SVG artwork', () => {
@@ -24,7 +24,13 @@ describe('procedural SVG artwork', () => {
       const color = avatarSkinColor({ skin });
       expect(renderAvatar({ ...avatar, skin }, 17)).toContain(`fill="${color}"`);
       for (const sleeves of ['short', 'long'] as const) {
-        const shirt = renderWardrobeShirt(kit, sleeves, ['#f1cf58', '#075e45'], color);
+        const shirt = renderFigure({ ...avatar, skin }, 17, {
+          kit,
+          sleeves,
+          armband: ['#f1cf58', '#075e45'],
+          socks: 'socks:classic',
+          boots: ['#1d1d1f', '#ffffff'],
+        });
         expect(shirt).toContain(`<g fill="${color}"`);
         expect(shirt).toContain('data-arm="left"');
         expect(shirt).toContain('data-arm="right"');
@@ -33,7 +39,15 @@ describe('procedural SVG artwork', () => {
       }
     }
     expect(() => avatarSkinColor({ skin: 8 })).toThrow('Invalid asset option');
-    expect(() => renderWardrobeShirt(kit, 'short', null, '#invalid')).toThrow();
+    expect(() =>
+      renderFigure(avatar, 17, {
+        kit,
+        sleeves: 'short',
+        armband: null,
+        socks: 'socks:classic',
+        boots: ['#invalid' as `#${string}`, '#ffffff'],
+      }),
+    ).toThrow();
   });
   it('keeps crest symbols readable for every club palette, including edited colours', () => {
     const palettes = [...PALETTES, ['#123456', '#123457', '#123458'] as const];
@@ -102,12 +116,14 @@ describe('procedural SVG artwork', () => {
       renderCrest(generateCrest(rng)),
       renderKit(generateKits(rng).home),
       renderAvatar(generateAvatar(rng), 42),
-      renderWardrobeShirt(
-        generateKits(rng).home,
-        'long',
-        null,
-        avatarSkinColor(generateAvatar(rng)),
-      ),
+      renderFigure(generateAvatar(rng), 42, {
+        kit: generateKits(rng).home,
+        crest: generateCrest(rng),
+        sleeves: 'long',
+        armband: null,
+        socks: 'socks:taped',
+        boots: ['#1d1d1f', '#ffffff'],
+      }),
     ]).flat();
     for (const svg of outputs) {
       expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/);

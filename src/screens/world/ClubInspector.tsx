@@ -3,7 +3,7 @@ import { format, t } from '../../i18n';
 import { Artwork } from '../../ui/Artwork';
 import { renderCrest } from '../../engine/assets/crest';
 import { renderKit } from '../../engine/assets/kit';
-import { renderAvatar } from '../../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { overallRating } from '../../engine/strength';
 
 const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
@@ -22,6 +22,7 @@ export function ClubInspector({
 }) {
   const manager = world.managers[club.managerId]!;
   const squad = club.playerIds.map((id) => world.players[id]!);
+  const dress = clubDress(club);
   const player = squad.find((player) => player.id === selectedPlayer) ?? squad[0]!;
   const age = (player: Player) => world.date.season - player.birthSeason;
   const money = (value: number) => format(t.world.money, { amount: integer.format(value) });
@@ -91,7 +92,7 @@ export function ClubInspector({
         </div>
       </dl>
       <div className="manager-line">
-        <Artwork svg={renderAvatar(manager.avatar, Math.min(110, manager.age))} alt="" />
+        <Artwork svg={renderAvatar(manager.avatar, Math.min(110, manager.age), dress)} alt="" />
         <div>
           <span>{t.world.manager}</span>
           <strong>{manager.name}</strong>
@@ -150,7 +151,10 @@ export function ClubInspector({
                     onClick={() => onPlayer(member.id)}
                     aria-pressed={member.id === player.id}
                   >
-                    <Artwork svg={renderAvatar(member.avatar, Math.min(110, age(member)))} alt="" />
+                    <Artwork
+                      svg={renderAvatar(member.avatar, Math.min(110, age(member)), dress)}
+                      alt=""
+                    />
                     <span>{member.name}</span>
                   </button>
                 </th>
@@ -165,7 +169,7 @@ export function ClubInspector({
       </div>
       <section className="player-inspect">
         <header>
-          <Artwork svg={renderAvatar(player.avatar, Math.min(110, age(player)))} alt="" />
+          <Artwork svg={renderAvatar(player.avatar, Math.min(110, age(player)), dress)} alt="" />
           <div>
             <p className="eyebrow">{t.world.playerDetail}</p>
             <h3>{player.name}</h3>

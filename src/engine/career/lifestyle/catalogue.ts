@@ -41,6 +41,10 @@ export const COSMETICS: readonly CosmeticItem[] = [
   hair(5, 3, 30),
   hair(6, 4, 40),
   hair(7, 6, 60),
+  hair(8, 2, 20),
+  hair(9, 5, 50),
+  hair(10, 7, 80),
+  hair(11, 8, 100),
   accessory(0, 1, null),
   accessory(1, 1, null),
   accessory(2, 1, null),
@@ -49,6 +53,7 @@ export const COSMETICS: readonly CosmeticItem[] = [
   accessory(5, 4, 40),
   accessory(6, 5, 50),
   accessory(7, 7, 80),
+  accessory(8, 6, 60),
   {
     id: 'boots:classic',
     kind: 'boots',
