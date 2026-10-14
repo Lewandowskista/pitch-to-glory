@@ -450,12 +450,18 @@ export function CrestImage({
   crest,
   alt,
   className = '',
+  founded,
 }: {
   crest: Crest;
   alt: string;
   className?: string;
+  /** Show the club's founding-year ribbon (large crests on club pages only). */
+  founded?: number;
 }) {
-  const svg = useMemo(() => renderCrest(crest), [crest]);
+  const svg = useMemo(
+    () => renderCrest(crest, founded === undefined ? {} : { founded }),
+    [crest, founded],
+  );
   return <Artwork svg={svg} alt={alt} className={className} />;
 }
 

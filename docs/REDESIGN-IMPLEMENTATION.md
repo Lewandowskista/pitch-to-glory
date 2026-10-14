@@ -137,9 +137,8 @@ export type ChoiceTarget =
   | { kind: 'runner'; playerId: Id };
 ```
 
-**Shirt numbers.** Start with a UI mapping from slot role to a conventional number (GK 1, LB 3,
-ST 9…). Real squad numbers need `Player.squadNumber`, a world-schema migration and assignment in
-`world/generate.ts`; leave that for later.
+**Shirt numbers.** Done in phase 2: `Player.squadNumber` is real and persistent (decision 2), and
+the pitch tokens, line-ups, club inspector and profile show it. The engine never reads it.
 
 **Performance.** Match commands run on the main thread (`Match.tsx:140-187`). Replays run in workers
 at every minute checkpoint, and auto-played fixtures run in the world worker. Keep motion plus
@@ -269,6 +268,9 @@ These need code, but no engine or data work:
 
 Each phase leaves the game shippable, with typecheck, lint, unit tests and the critical Playwright
 flows passing.
+
+**Status:** phase 1 done (f71f9e5); phase 2 done (squad numbers, save schema v21, portraits,
+figure, crests, kits, lettering, illustrations and the poster). Next: phase 3.
 
 | Phase                                     | Contents                                                                                                                                                                                                                                                                                                                 | Outcome-changing?                 | Save impact                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------- |

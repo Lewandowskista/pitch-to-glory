@@ -1,7 +1,12 @@
-import type { Crest } from '../../model/domain';
-import type { Rng } from '../rng';
-import { colors, item, PALETTES, svg, withContrast } from './shared';
+import type { Club, ClubIdentity, Crest, Hex } from '../../model/domain';
+import { createRng, type Rng } from '../rng';
+import { textPath } from './glyphs';
+import { colors, contrastRatio, item, mix, PALETTES, svg, withContrast } from './shared';
 
+/**
+ * Badge silhouettes in a 160×180 box. Saved worlds and edit packs store the index, so entries
+ * may be redrawn in place or appended, never reordered or removed.
+ */
 export const CREST_SHAPES = [
   'M22 14H138V86Q138 135 80 169Q22 135 22 86Z',
   'M80 10A72 72 0 1 1 79.9 154A72 72 0 1 1 80 10Z',
@@ -19,59 +24,342 @@ export const CREST_SHAPES = [
   'M80 8L135 25V139L110 128L80 163L50 128L25 139V25Z',
   'M80 9L98 24L121 18L129 41L147 53L140 80L148 106L126 123L116 147L91 150L80 170L69 150L44 147L34 123L12 106L20 80L13 53L31 41L39 18L62 24Z',
 ] as const;
+/** Per shape: the visual centre the rim and field scale around, and the emblem scale. */
+const SHAPE_LAYOUT: readonly (readonly [cy: number, scale: number])[] = [
+  [86, 0.72],
+  [82, 0.7],
+  [89, 0.72],
+  [88, 0.74],
+  [86, 0.54],
+  [88, 0.72],
+  [88, 0.7],
+  [80, 0.64],
+  [87, 0.74],
+  [90, 0.66],
+  [86, 0.72],
+  [84, 0.72],
+  [88, 0.74],
+  [78, 0.68],
+  [89, 0.6],
+];
 
-// Every symbol is authored in the same 100×100 coordinate system.
+const f = (value: number) => value.toFixed(1);
+const circle = (cx: number, cy: number, r: number) =>
+  `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 ${-r * 2} 0Z`;
+const polar = (cx: number, cy: number, r: number, angle: number) =>
+  `${f(cx + Math.cos(angle) * r)} ${f(cy + Math.sin(angle) * r)}`;
+/** A star-like ring of points alternating between two radii. */
+function burst(cx: number, cy: number, outer: number, inner: number, points: number): string {
+  let d = '';
+  for (let i = 0; i < points * 2; i++) {
+    const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+    d += `${i ? 'L' : 'M'}${polar(cx, cy, i % 2 ? inner : outer, angle)}`;
+  }
+  return `${d}Z`;
+}
+const wave = (y: number) =>
+  `M8 ${y}Q20 ${y - 10} 32 ${y}T56 ${y}T80 ${y}T92 ${y}V${y + 10}Q80 ${y} 68 ${y + 10}T44 ${y + 10}T20 ${y + 10}T8 ${y + 10}Z`;
+function sun(): string {
+  let d = circle(50, 50, 20);
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2;
+    d += `M${polar(50, 50, 26, angle - 0.12)}L${polar(50, 50, 44, angle)}L${polar(50, 50, 26, angle + 0.12)}Z`;
+  }
+  return d;
+}
+/** One branch of a laurel: a curved stem with leaves pointing up and out. */
+function laurel(): string {
+  const [cx, cy] = [50, 52];
+  const rad = Math.PI / 180;
+  let d = `M${polar(cx, cy, 36, 100 * rad)}A36 36 0 0 1 ${polar(cx, cy, 36, 252 * rad)}L${polar(cx, cy, 32, 252 * rad)}A32 32 0 0 0 ${polar(cx, cy, 32, 100 * rad)}Z`;
+  for (let i = 0; i < 6; i++) {
+    const a = (108 + i * 27) * rad;
+    for (const [tilt, length, width] of [
+      [0.75, 16, 6],
+      [-0.6, 11, 4.5],
+    ] as const) {
+      const [bx, by] = [cx + Math.cos(a) * 34, cy + Math.sin(a) * 34];
+      // Up the stem (increasing angle), turned outwards or inwards.
+      const [tx, ty] = [-Math.sin(a), Math.cos(a)];
+      const [nx, ny] = [Math.cos(a), Math.sin(a)];
+      const [dx, dy] = [tx + nx * tilt, ty + ny * tilt];
+      const norm = Math.hypot(dx, dy);
+      const [ux, uy] = [dx / norm, dy / norm];
+      const [ex, ey] = [bx + ux * length, by + uy * length];
+      const [mx, my] = [(bx + ex) / 2, (by + ey) / 2];
+      d += `M${f(bx)} ${f(by)}Q${f(mx - uy * width)} ${f(my + ux * width)} ${f(ex)} ${f(ey)}Q${f(mx + uy * width)} ${f(my - ux * width)} ${f(bx)} ${f(by)}Z`;
+    }
+  }
+  return d;
+}
+function wheel(): { ring: string; spokes: string } {
+  const ring = `${circle(50, 50, 36)}${circle(50, 50, 28)}`;
+  let spokes = circle(50, 50, 10);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const [ux, uy, vx, vy] = [Math.cos(a), Math.sin(a), -Math.sin(a), Math.cos(a)];
+    const at = (r: number, w: number) => `${f(50 + ux * r + vx * w)} ${f(50 + uy * r + vy * w)}`;
+    spokes += `M${at(8, -2.6)}L${at(44, -2.6)}L${at(44, 2.6)}L${at(8, 2.6)}Z`;
+    spokes += circle(Number(f(50 + ux * 45)), Number(f(50 + uy * 45)), 4.5);
+  }
+  return { ring, spokes };
+}
+const symbol = (main: string, cut = '', over = '') =>
+  `<path d="${main}"/>${cut ? `<path d="${cut}" fill="currentColor"/>` : ''}${over ? `<path d="${over}"/>` : ''}`;
+const spokes = wheel();
+
+/**
+ * Emblems in a 100×100 box, filled in the emblem colour; `currentColor` cut-outs show the
+ * badge's base colour. Stored by index like the shapes: redraw in place or append only.
+ */
 export const CREST_SYMBOLS = [
-  '<path d="M20 27L38 20L50 29L67 20L81 29L72 45L78 65L62 83H37L22 64L29 43Z"/><path d="M33 48L44 53M58 53L68 48M40 68L50 74L60 68" fill="none" stroke="currentColor"/>',
-  '<path d="M10 25L40 40L50 22L60 40L90 25L79 59L61 69L50 87L39 69L21 59Z"/><path d="M45 47H55L50 57Z" fill="currentColor"/>',
-  '<path d="M25 16L47 32L74 16L73 56L50 84L27 57Z"/><path d="M35 48L44 51M56 51L65 48M42 67H58" stroke="currentColor"/>',
-  '<path d="M25 27Q17 10 32 15L39 26Q50 20 61 26Q77 10 77 27L74 64L60 81H40L26 64Z"/><path d="M38 51H40M60 51H62M42 67L50 72L58 67" stroke="currentColor"/>',
-  '<path d="M18 18L45 34L50 26L56 34L82 18L73 66L50 86L27 66Z"/><path d="M30 49L43 55L39 65M70 49L57 55L61 65" stroke="currentColor" fill="none"/>',
-  '<path d="M40 39L50 33L61 39L66 63L50 86L34 63Z"/><path d="M40 40L25 27L18 12M26 28L14 28M31 32L36 15M60 40L75 27L82 12M74 28L86 28M69 32L64 15" stroke="inherit" fill="none"/>',
-  '<path d="M23 20L38 30L62 30L77 20V68L50 87L23 68Z"/><circle cx="37" cy="48" r="10" fill="currentColor"/><circle cx="63" cy="48" r="10" fill="currentColor"/><path d="M45 61L50 69L55 61Z" fill="currentColor"/>',
-  '<path d="M28 79L32 52L24 42L44 19L58 16L76 42L69 53L52 47L62 78Z"/><path d="M44 19L42 8L54 17M29 48L22 60L22 76" fill="none"/>',
-  '<path d="M17 50Q43 19 71 42L88 28V73L71 58Q43 83 17 50Z"/><circle cx="31" cy="47" r="3" fill="currentColor"/><path d="M45 36L51 23L60 37"/>',
-  '<path d="M50 12L61 38L90 40L68 59L75 87L50 71L25 87L32 59L10 40L39 38Z"/>',
-  '<path d="M24 82V38H30V19H40V30H47V19H57V30H64V19H75V38H80V82Z"/><path d="M43 82V61Q50 49 57 61V82" fill="currentColor"/>',
-  '<path d="M12 32Q24 18 37 32T63 32T89 32M12 51Q24 37 37 51T63 51T89 51M12 70Q24 56 37 70T63 70T89 70" stroke="inherit" stroke-width="8" fill="none"/>',
-  '<path d="M22 14L66 68L74 67L86 79L79 86L67 75L68 65L14 22ZM78 14L34 68L26 67L14 79L21 86L33 75L32 65L86 22Z"/>',
-  '<circle cx="50" cy="22" r="10" fill="none"/><path d="M50 32V80M29 49H71M18 58Q20 85 50 86Q80 85 82 58M18 58L14 69M82 58L86 69" fill="none" stroke-width="8"/>',
-  '<circle cx="50" cy="50" r="21"/><path d="M50 9V19M50 81V91M9 50H19M81 50H91M20 20L28 28M72 72L80 80M20 80L28 72M72 28L80 20" fill="none" stroke-width="7"/>',
-  '<path d="M10 78L37 27L52 50L67 15L92 78Z"/><path d="M29 42L37 27L47 43M59 33L67 15L78 35" stroke="currentColor"/>',
-  '<path d="M50 11L75 41H64L84 65H58V86H42V65H16L36 41H25Z"/>',
-  '<path d="M29 16Q-1 50 29 83M71 16Q101 50 71 83" fill="none"/><path d="M25 25L12 19L16 36L29 38M18 46L6 39L9 56L23 59M23 68L13 63L19 79L35 80M75 25L88 19L84 36L71 38M82 46L94 39L91 56L77 59M77 68L87 63L81 79L65 80"/>',
-  '<path d="M51 10L21 57H47L39 91L79 39H53L64 10Z"/>',
-  '<path d="M17 28L36 46L50 18L64 46L83 28L74 74H26ZM27 85H73"/>',
-  '<path d="M12 76V33H23V48Q50 12 77 48V33H88V76H76V58Q50 29 24 58V76Z"/>',
-  '<path d="M50 13Q71 8 73 31Q94 33 81 54Q84 77 62 74Q48 93 34 75Q12 76 18 54Q4 32 27 31Q30 9 50 13Z"/><circle cx="50" cy="49" r="13" fill="currentColor"/>',
-  '<circle cx="50" cy="50" r="33" fill="none" stroke-width="8"/><circle cx="50" cy="50" r="8"/><path d="M50 17V83M17 50H83M27 27L73 73M27 73L73 27" fill="none"/>',
-  '<circle cx="50" cy="50" r="34" fill="none"/><path d="M50 29L69 43L61 65H39L31 43ZM31 43L18 39M50 29V17M69 43L82 39M61 65L70 77M39 65L30 77"/>',
-  '<circle cx="35" cy="35" r="18" fill="none" stroke-width="9"/><path d="M48 48L81 81M65 65L76 54M76 76L86 66" fill="none" stroke-width="9"/>',
-  '<path d="M52 11Q78 32 65 48Q90 45 79 72Q66 94 37 81Q13 72 26 49Q30 38 34 26Q40 48 48 44Q58 35 52 11Z"/>',
-  '<path d="M14 66H87L75 83H28ZM47 17V62H18ZM54 24L81 62H54Z"/>',
-  '<path d="M14 25Q32 15 50 28Q68 15 86 25V78Q68 68 50 81Q32 68 14 78Z"/><path d="M50 29V80M25 36L40 39M61 39L76 36" stroke="currentColor" fill="none"/>',
-  '<path d="M50 10L85 44L50 89L15 44ZM15 44H85M33 26L50 89L67 26"/>',
-  '<path d="M16 75L35 25L87 16L65 40L38 48L72 39L57 58L31 60L51 61L39 75Z"/>',
-  '<ellipse cx="50" cy="54" rx="17" ry="29"/><path d="M33 41Q7 8 14 45L34 57M67 41Q93 8 86 45L66 57M42 24L37 13M58 24L63 13"/><path d="M35 46H65M35 60H65" stroke="currentColor" stroke-width="7"/>',
-  '<path d="M50 12V88M23 20V45Q23 58 50 58Q77 58 77 45V20M15 27L23 14L31 27M42 25L50 12L58 25M69 27L77 14L85 27" fill="none" stroke-width="7"/>',
-  '<path d="M50 12L61 40L88 50L61 60L50 88L40 60L12 50L40 40Z"/><circle cx="50" cy="50" r="9" fill="currentColor"/>',
+  // 0 Lion
+  symbol(
+    burst(50, 52, 44, 34, 14),
+    'M50 24Q69 24 70 45Q71 63 60 74L50 81L40 74Q29 63 30 45Q31 24 50 24Z',
+    'M37 45H46V50H37ZM54 45H63V50H54ZM44 60H56L50 68Z',
+  ),
+  // 1 Eagle
+  symbol(
+    'M43 24a7 7 0 1 1 14 0a7 7 0 1 1 -14 0ZM56 21L64 25L56 29ZM45 30Q50 26 55 30L57 70L50 90L43 70ZM46 40L6 24L13 35L4 40L15 46L8 53L21 55L17 62L45 58ZM54 40L94 24L87 35L96 40L85 46L92 53L79 55L83 62L55 58Z',
+    circle(51.5, 22, 1.8),
+  ),
+  // 2 Fox
+  symbol(
+    'M22 6L40 30H60L78 6L82 40Q88 52 76 60L56 88Q50 94 44 88L24 60Q12 52 18 40Z',
+    'M28 16L36 29H31ZM72 16L64 29H69ZM35 46L46 50L42 55ZM65 46L54 50L58 55ZM45 78H55L50 84Z',
+  ),
+  // 3 Bear
+  symbol(
+    `${circle(30, 24, 12)}${circle(70, 24, 12)}M50 22Q81 22 82 52Q84 86 50 90Q16 86 18 52Q19 22 50 22Z`,
+    `${circle(28, 21, 5)}${circle(72, 21, 5)}${circle(39, 50, 3.5)}${circle(61, 50, 3.5)}M43 64H57L50 72Z`,
+  ),
+  // 4 Bull
+  symbol(
+    'M8 20Q20 34 34 30L40 26H60L66 30Q80 34 92 20Q88 42 68 44L64 70Q60 88 50 90Q40 88 36 70L32 44Q12 42 8 20Z',
+    `${circle(44.2, 74, 3.2)}${circle(55.8, 74, 3.2)}${circle(43, 50, 3)}${circle(57, 50, 3)}`,
+  ),
+  // 5 Stag
+  symbol(
+    'M38 44H62L60 70L50 90L40 70ZM40 46L26 38L36 54ZM60 46L74 38L64 54ZM44 44L36 30L24 26L28 21L37 25L33 9L38 8L43 23L47 16L50 19L47 30L49 44ZM56 44L64 30L76 26L72 21L63 25L67 9L62 8L57 23L53 16L50 19L53 30L51 44Z',
+    `${circle(45.4, 56, 2.4)}${circle(54.6, 56, 2.4)}M46 80H54L50 86Z`,
+  ),
+  // 6 Owl
+  symbol(
+    'M22 16L36 28Q50 22 64 28L78 16L80 48Q82 82 50 92Q18 82 20 48Z',
+    `${circle(39, 45, 10)}${circle(61, 45, 10)}M46 58H54L50 66Z`,
+    `${circle(40, 46, 4)}${circle(60, 46, 4)}`,
+  ),
+  // 7 Horse
+  symbol(
+    'M58 8L66 22Q86 34 88 62L74 68L66 56Q58 62 56 74L54 94H26Q24 66 34 48Q38 28 50 20Z',
+    `${circle(65, 34, 3)}M40 30L46 24L44 40Z`,
+  ),
+  // 8 Fish
+  symbol(
+    'M8 50Q30 22 62 34L84 18L80 50L84 82L62 66Q30 78 8 50Z',
+    `${circle(25.5, 46, 3.5)}M44 38Q50 50 44 62Q48 50 44 38Z`,
+  ),
+  // 9 Star
+  symbol('M50 8L61 37L92 38L68 57L76 88L50 70L24 88L32 57L8 38L39 37Z'),
+  // 10 Tower
+  symbol(
+    'M22 90V40H30V26H40V36H46V26H54V36H60V26H70V40H78V90Z',
+    'M42 90V72Q50 62 58 72V90ZM36 48H42V58H36ZM58 48H64V58H58Z',
+  ),
+  // 11 Waves
+  symbol(`${wave(28)}${wave(48)}${wave(68)}`),
+  // 12 Crossed swords
+  symbol(
+    'M16 12L27 10L76 70L84 68L89 77L81 82L83 91L74 89L70 81L72 76L22 21ZM84 12L73 10L24 70L16 68L11 77L19 82L17 91L26 89L30 81L28 76L78 21Z',
+  ),
+  // 13 Anchor
+  symbol(
+    'M43 14a7 7 0 1 1 14 0a7 7 0 1 1 -14 0ZM46 20H54V28H66V36H54V80Q70 78 76 64L68 62L84 48L88 70L82 67Q72 90 50 92Q28 90 18 67L12 70L16 48L32 62L24 64Q30 78 46 80V36H34V28H46Z',
+    circle(50, 14, 2.5),
+  ),
+  // 14 Sun
+  symbol(sun(), `${circle(42.5, 46, 2.5)}${circle(57.5, 46, 2.5)}M42 56Q50 63 58 56Q50 60 42 56Z`),
+  // 15 Mountains
+  symbol(
+    'M2 86L34 28L48 50L64 16L98 86Z',
+    'M57 30L64 16L71 30L67 28L64 32L61 28ZM28 40L34 28L40 38L36 37L33 40Z',
+  ),
+  // 16 Pine tree
+  symbol('M50 4L76 40H63L84 68H58V94H42V68H16L37 40H24Z'),
+  // 17 Laurel wreath
+  `<path d="${laurel()}"/><path d="${laurel()}" transform="matrix(-1 0 0 1 100 0)"/>`,
+  // 18 Lightning bolt
+  symbol('M58 4L20 56H46L36 96L80 38H55L68 4Z'),
+  // 19 Crown
+  symbol(
+    'M14 72L8 28L31 48L50 16L69 48L92 28L86 72ZM14 78H86V90H14Z',
+    `${circle(50, 60, 4)}${circle(29, 62, 3)}${circle(71, 62, 3)}`,
+  ),
+  // 20 Bridge
+  symbol(
+    'M4 42H96V52H88V90H74Q74 64 50 64Q26 64 26 90H12V52H4ZM16 20H26V42H16ZM74 20H84V42H74Z',
+    'M30 46H36V52H30ZM47 46H53V52H47ZM64 46H70V52H64Z',
+  ),
+  // 21 Rose
+  symbol(
+    'M50 16Q72 16 74 38Q76 60 50 64Q24 60 26 38Q28 16 50 16ZM48 62H52V94H48ZM52 76Q66 64 76 72Q66 84 52 80ZM48 82Q34 70 24 78Q34 90 48 86Z',
+    'M40 36Q50 24 62 36Q50 32 40 36ZM42 46Q52 56 62 44Q55 51 42 46Z',
+  ),
+  // 22 Ship's wheel
+  `<path d="${spokes.ring}" fill-rule="evenodd"/><path d="${spokes.spokes}"/><path d="${circle(50, 50, 3.5)}" fill="currentColor"/>`,
+  // 23 Football
+  symbol(
+    circle(50, 50, 40),
+    'M50 36L63 45L58 60H42L37 45ZM50 12L58 18L50 24L42 18ZM80 40L86 48L80 56L74 48ZM20 40L26 48L20 56L14 48ZM32 78L40 74L44 82L36 86ZM68 78L60 74L56 82L64 86Z',
+  ),
+  // 24 Key
+  symbol(
+    `${circle(50, 26, 19)}M45 40H55V92H45ZM55 66H69V73H55ZM55 80H65V87H55Z`,
+    circle(50, 26, 8),
+  ),
+  // 25 Flame
+  symbol(
+    'M50 6Q74 32 72 58Q71 90 50 94Q29 90 28 62Q28 46 41 33Q41 50 50 54Q45 30 50 6Z',
+    'M50 60Q61 70 59 80Q57 90 50 90Q42 88 43 78Q44 69 50 60Z',
+  ),
+  // 26 Ship
+  symbol(
+    'M8 64H92L80 86H20ZM47 8H53V64H47ZM56 12Q84 34 56 60ZM44 18Q20 38 44 60Z',
+    `${circle(26.5, 72, 2.5)}${circle(42.5, 72, 2.5)}${circle(58.5, 72, 2.5)}${circle(74.5, 72, 2.5)}`,
+  ),
+  // 27 Open book
+  symbol(
+    'M8 24Q30 14 48 24V86Q30 76 8 86ZM52 24Q70 14 92 24V86Q70 76 52 86Z',
+    'M16 36Q28 30 40 36V41Q28 35 16 41ZM16 50Q28 44 40 50V55Q28 49 16 55ZM16 64Q28 58 40 64V69Q28 63 16 69ZM60 36Q72 30 84 36V41Q72 35 60 41ZM60 50Q72 44 84 50V55Q72 49 60 55ZM60 64Q72 58 84 64V69Q72 63 60 69Z',
+  ),
+  // 28 Gem
+  symbol(
+    'M28 16H72L92 40L50 92L8 40Z',
+    'M14 37H86L83 42H17ZM39 42H45L50 80ZM55 42H61L50 80ZM38 19H44L36 37H30ZM56 19H62L70 37H64Z',
+  ),
+  // 29 Wing
+  symbol(
+    'M88 12Q50 16 24 40Q8 56 12 84Q22 72 34 72Q30 80 32 90Q44 78 58 76Q56 84 60 90Q70 72 76 58Q88 36 88 12Z',
+    'M30 60Q48 46 72 38Q52 52 33 65ZM42 74Q60 60 72 50Q62 64 46 77Z',
+  ),
+  // 30 Bee
+  symbol(
+    `${circle(50, 28, 8.5)}M36 56a14 22 0 1 0 28 0a14 22 0 1 0 -28 0ZM36 46Q8 26 14 50Q20 62 38 56ZM64 46Q92 26 86 50Q80 62 62 56ZM46 22L40 10L43 8.5L49 21ZM54 22L60 10L57 8.5L51 21ZM46 76L50 88L54 76Z`,
+    'M37 50H63V56H37ZM40 64H60V69H40Z',
+  ),
+  // 31 Trident
+  symbol(
+    'M24 22L30 10L36 22H33V36Q33 44 47 44V22H44L50 6L56 22H53V44Q67 44 67 36V22H64L70 10L76 22H73V38Q73 52 53 52V92H47V52Q27 52 27 38V22Z',
+  ),
+  // 32 Compass star
+  symbol(
+    'M50 4L58 42L96 50L58 58L50 96L42 58L4 50L42 42ZM24 24L50 42L76 24L58 50L76 76L50 58L24 76L42 50Z',
+    circle(50, 50, 7),
+  ),
 ] as const;
 
+/**
+ * Field divisions in the second club colour, clipped inside the badge. Each is drawn relative
+ * to the shape's visual centre `cy`: none, per pale, fess, bend, chevron, quartered, chief and
+ * pallets.
+ */
+export const CREST_DIVISIONS: readonly ((cy: number) => string)[] = [
+  () => '',
+  () => 'M80 0H160V180H80Z',
+  (cy) => `M0 ${cy + 18}H160V${cy + 38}H0Z`,
+  () => 'M-10 30L30 -10L170 130L130 170Z',
+  (cy) => `M0 ${cy + 36}L80 ${cy - 12}L160 ${cy + 36}V${cy + 64}L80 ${cy + 16}L0 ${cy + 64}Z`,
+  (cy) => `M80 0H160V${cy}H80ZM0 ${cy}H80V180H0Z`,
+  (cy) => `M0 0H160V${cy - 42}H0Z`,
+  () => 'M30 0H50V180H30ZM70 0H90V180H70ZM110 0H130V180H110Z',
+];
+
 export function generateCrest(rng: Rng): Crest {
+  // Exactly three draws: any change here reshuffles every club's kits, manager and squad.
   return {
     shape: rng.int(0, CREST_SHAPES.length - 1),
     symbol: rng.int(0, CREST_SYMBOLS.length - 1),
     colors: [...rng.pick(PALETTES)],
   };
 }
-export function renderCrest(crest: Crest): string {
-  colors(crest.colors);
+
+/**
+ * The field division a crest shows: derived from the crest itself on a side stream (never the
+ * world RNG), so it needs no stored field and changes along with "Draw a new crest". Plain
+ * fields are the most common, as on real badges.
+ */
+export function crestDivision(crest: Crest): number {
+  const draw = createRng(
+    `crest-division:${crest.shape}:${crest.symbol}:${crest.colors.join('')}`.toLowerCase(),
+  ).int(0, 9);
+  return draw < 3 ? 0 : draw - 2;
+}
+
+/**
+ * The year a club was founded: a pure function of its id and generated identity, so it is the
+ * same everywhere and never drawn from the world RNG. Professional clubs date from the early
+ * football era, smaller clubs later, and reserve sides later still.
+ */
+export function foundedYear(
+  club: Pick<Club, 'id'> & { identity?: Pick<ClubIdentity, 'status' | 'reserveParentId'> },
+): number {
+  const [from, to] = club.identity?.reserveParentId
+    ? [1946, 2004]
+    : club.identity?.status === 'professional'
+      ? [1863, 1925]
+      : club.identity?.status === 'semi-professional'
+        ? [1874, 1962]
+        : club.identity?.status === 'amateur'
+          ? [1885, 1995]
+          : [1867, 1950];
+  return createRng(`club-founded:${club.id}`).int(from, to);
+}
+
+/** The emblem colour, and a halo in the base colour when no colour reads on both fields. */
+function emblemInk(crest: Crest, division: number): { ink: Hex; halo: Hex | null } {
   const [base, accent, light] = crest.colors;
-  const foreground = withContrast(light, base, 4.5);
-  const path = item(CREST_SHAPES, crest.shape);
-  const symbol = item(CREST_SYMBOLS, crest.symbol);
-  return svg(
-    `<defs><clipPath id="crest-shape"><path d="${path}"/></clipPath></defs><path d="${path}" fill="${base}" stroke="${accent}" stroke-width="5" stroke-linejoin="round"/><path d="${path}" transform="translate(8 9) scale(.9)" stroke="${light}" stroke-opacity=".45" stroke-width="1.5"/><g clip-path="url(#crest-shape)"><path d="M0 0H160V42L0 110Z" fill="#ffffff" opacity=".055"/><path d="M0 142L160 104V180H0Z" fill="#000000" opacity=".07"/></g><g transform="translate(40 37) scale(.8)" fill="${foreground}" stroke="${foreground}" color="${base}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">${symbol}</g><path d="M57 133H103" stroke="${accent}" stroke-width="5" stroke-linecap="round"/>`,
-    '0 0 160 180',
+  const own = withContrast(light, base, 4.5);
+  if (!division) return { ink: own, halo: null };
+  const candidates: Hex[] = [light, own, withContrast(light, accent, 4.5), '#ffffff', '#000000'];
+  const both = candidates.find(
+    (ink) => contrastRatio(ink, base) >= 3 && contrastRatio(ink, accent) >= 3,
   );
+  return both ? { ink: both, halo: null } : { ink: own, halo: base };
+}
+
+export interface CrestOptions {
+  /** Show a founding-year ribbon ("EST 1887") across the bottom. */
+  founded?: number;
+  /** Override the derived division (review screens and tests). */
+  division?: number;
+}
+/** Crest layers in a 160×180 box, with resource ids namespaced by `id` for composed art. */
+export function crestMarkup(crest: Crest, id: string, options: CrestOptions = {}): string {
+  colors(crest.colors);
+  const [base, accent] = crest.colors;
+  const path = item(CREST_SHAPES, crest.shape);
+  const emblem = item(CREST_SYMBOLS, crest.symbol);
+  const [cy, scale] = item(SHAPE_LAYOUT, crest.shape);
+  const division = options.division ?? crestDivision(crest);
+  const field = item(CREST_DIVISIONS, division)(cy);
+  const { ink, halo } = emblemInk(crest, division);
+  const founded = options.founded;
+  if (founded !== undefined && (!Number.isInteger(founded) || founded < 1000 || founded > 9999))
+    throw new RangeError('Invalid founding year');
+  const inner = (factor: number) => `translate(80 ${cy}) scale(${factor}) translate(-80 -${cy})`;
+  const lift = founded === undefined ? 2 : 9;
+  const size = founded === undefined ? scale : scale * 0.9;
+  const place = `translate(${f(80 - 50 * size)} ${f(cy - 50 * size - lift)}) scale(${size})`;
+  const haloLayer = halo
+    ? `<g data-halo="" transform="${place}" fill="${halo}" stroke="${halo}" color="${halo}" stroke-width="${f(6 / size)}" stroke-linejoin="round">${emblem}</g>`
+    : '';
+  const ribbon =
+    founded === undefined
+      ? ''
+      : `<path d="M22 141H138L130 151.5L138 162H22L30 151.5Z" fill="${mix(ink, '#0b1410', 0.25)}" transform="translate(0 2)"/><path d="M22 141H138L130 151.5L138 162H22L30 151.5Z" fill="${ink}"/>${textPath(`EST ${founded}`, { x: 80, y: 157, size: 10.5, anchor: 'middle', fill: withContrast(base, ink, 4.5) })}`;
+  return `<defs><clipPath id="${id}-field"><path d="${path}" transform="${inner(0.9)}"/></clipPath></defs><path d="${path}" fill="${mix(base, '#0b1410', 0.55)}" transform="translate(0 4)"/><path d="${path}" fill="${base}"/><g clip-path="url(#${id}-field)">${field ? `<path d="${field}" fill="${accent}"/>` : ''}<path d="M0 0H80V180H0Z" fill="#ffffff" opacity=".08"/></g><path d="${path}" transform="${inner(0.86)}" stroke="${ink}" stroke-width="3.2" stroke-linejoin="round"/>${haloLayer}<g transform="${place}" fill="${ink}" color="${base}" data-emblem="">${emblem}</g>${ribbon}`;
+}
+export function renderCrest(crest: Crest, options: CrestOptions = {}): string {
+  return svg(crestMarkup(crest, 'crest', options), '0 0 160 180');
 }

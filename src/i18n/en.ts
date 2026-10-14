@@ -510,6 +510,7 @@ export const en = {
     inspect: 'Club details',
     jumpToClub: 'Go to club details',
     reputation: 'Reputation',
+    founded: 'Founded {year}',
     stadium: 'Stadium',
     capacity: '{count} seats',
     manager: 'Manager',
@@ -594,5 +595,18 @@ export const en = {
       release: '{name} leaves {club} as a free agent.',
       signing: '{name} signs for {club} on a free transfer.',
     },
+  },
+  art: {
+    /** Fictional shirt sponsors, chosen by a kit's sponsor number (0–7). */
+    sponsors: [
+      'Greenleaf',
+      'Kestrel Air',
+      'Tidewater',
+      'Ironbridge',
+      'Halcyon Bank',
+      'Brightwell',
+      'Oakmont & Co',
+      'Lumen Energy',
+    ],
   },
 } as const;

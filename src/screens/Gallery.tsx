@@ -3,13 +3,14 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { format, t } from '../i18n';
 import { generateGallery } from '../engine/assets/gallery';
-import { renderCrest } from '../engine/assets/crest';
+import { foundedYear, renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
 import { clubDress, renderAvatar } from '../engine/assets/avatar';
 import { CONFIG } from '../engine/config';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
 import { Artwork } from '../ui/Artwork';
+import { kitArt } from '../ui/kitArt';
 type View = 'crests' | 'kits' | 'avatars';
 const views: View[] = ['crests', 'kits', 'avatars'];
 export default function Gallery() {
@@ -112,7 +113,7 @@ export default function Gallery() {
               <article className="crest-card" key={club.id}>
                 <div className="asset-index">{String(i + 1).padStart(2, '0')}</div>
                 <Artwork
-                  svg={renderCrest(club.crest)}
+                  svg={renderCrest(club.crest, { founded: foundedYear(club) })}
                   alt={format(t.gallery.crestAlt, { name: club.name })}
                 />
                 <h2>{club.name}</h2>
@@ -137,7 +138,7 @@ export default function Gallery() {
                   {(['home', 'away', 'third'] as const).map((type) => (
                     <div key={type}>
                       <Artwork
-                        svg={renderKit(club.kits[type])}
+                        svg={renderKit(club.kits[type], kitArt(club.kits[type], club.crest))}
                         alt={format(t.gallery.kitAlt, { name: club.name, type: t.gallery[type] })}
                       />
                       <h3>{t.gallery[type]}</h3>
