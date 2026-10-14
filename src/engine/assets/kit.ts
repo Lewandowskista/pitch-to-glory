@@ -1,6 +1,8 @@
-import type { ClubKits, Kit, KitPattern } from '../../model/domain';
+import type { ClubKits, Crest, Kit, KitPattern } from '../../model/domain';
 import type { Rng } from '../rng';
-import { colors, item, PALETTES, svg } from './shared';
+import { crestMarkup } from './crest';
+import { textPath, textWidth } from './glyphs';
+import { colors, item, mix, PALETTES, svg, withContrast } from './shared';
 export const KIT_PATTERNS: readonly KitPattern[] = [
   'solid',
   'stripes',
@@ -13,16 +15,21 @@ export const KIT_PATTERNS: readonly KitPattern[] = [
 ];
 const SHIRT =
   'M48 23L27 31L7 68L29 81L40 62V143Q80 152 120 143V62L131 81L153 68L133 31L112 23Q80 39 48 23Z';
-const COLLARS = [
-  '<path d="M52 24Q80 53 108 24" fill="none"/>',
-  '<path d="M51 25L80 52L109 25L99 24L80 41L61 24Z"/>',
-  '<path d="M52 24L63 46L80 35L97 46L108 24L95 21L80 33L65 21Z"/>',
-  '<path d="M55 22V34Q80 54 105 34V22L94 25Q80 37 66 25Z"/>',
-  '<path d="M50 24Q80 56 110 24M57 23Q80 47 103 23" fill="none"/>',
-  '<path d="M58 22Q80 45 102 22L97 37H83V54H77V37H63Z"/>',
-  '<path d="M51 24L71 40H89L109 24L97 23L87 33H73L63 23Z"/>',
-  '<path d="M51 24Q80 53 109 24M80 37V55" fill="none"/>',
-];
+/** The four collar styles; a kit's collar value picks the style (0–3) and its treatment. */
+export const COLLAR_STYLES = ['crew', 'v-neck', 'polo', 'grandad'] as const;
+const COLLARS: Record<(typeof COLLAR_STYLES)[number], { band: string; placket?: string }> = {
+  crew: { band: 'M48 23Q80 39 112 23L117 26.5Q80 47 43 26.5Z' },
+  'v-neck': { band: 'M48 23L80 49L112 23L118 26.5L80 59L42 26.5Z' },
+  polo: {
+    band: 'M45 22Q80 40 115 22L120 31L98 45L80 38L62 45L40 31Z',
+    placket: 'M76.5 38H83.5V63H76.5Z',
+  },
+  grandad: {
+    band: 'M48 21Q80 37 112 21L112 28Q80 44 48 28Z',
+    placket: 'M77 35H83V58H77Z',
+  },
+};
+
 export function generateKits(rng: Rng, palette = rng.pick(PALETTES)): ClubKits {
   const make = (p: Kit['colors']): Kit => ({
     pattern: rng.pick(KIT_PATTERNS),
@@ -34,7 +41,24 @@ export function generateKits(rng: Rng, palette = rng.pick(PALETTES)): ClubKits {
   const [a, b, c] = palette;
   return { home: make([a, b, c]), away: make([c, a, b]), third: make([b, c, a]) };
 }
-export function renderKit(kit: Kit): string {
+
+/** A cuff band at the end of the left sleeve, `depth` units up the sleeve. */
+function cuff(depth: number, from = 0): string {
+  // The sleeve runs from the shoulder (27 31) to the cuff edge (7 68)–(29 81).
+  const [ux, uy] = [0.475, -0.88];
+  const at = (x: number, y: number, d: number) =>
+    `${(x + ux * d).toFixed(1)} ${(y + uy * d).toFixed(1)}`;
+  return `M${at(7, 68, from)}L${at(29, 81, from)}L${at(29, 81, depth)}L${at(7, 68, depth)}Z`;
+}
+const mirror = 'transform="matrix(-1 0 0 1 160 0)"';
+
+export interface KitOptions {
+  /** The club crest worn as the chest badge; a plain shield otherwise. */
+  crest?: Crest;
+  /** The shirt sponsor's name, lettered on the sponsor block. */
+  sponsorName?: string;
+}
+export function renderKit(kit: Kit, options: KitOptions = {}): string {
   colors(kit.colors);
   const [base, accent, light] = kit.colors;
   const patterns: Record<KitPattern, string> = {
@@ -60,19 +84,54 @@ export function renderKit(kit: Kit): string {
     ).join(''),
   };
   if (!(kit.pattern in patterns)) throw new Error('Invalid kit pattern');
-  item(COLLARS, kit.collar);
-  item(
-    Array.from({ length: 8 }, (_, i) => i),
-    kit.trim,
-  );
-  item(
-    Array.from({ length: 8 }, (_, i) => i),
-    kit.sponsor,
-  );
-  const trim = kit.trim;
-  const sponsor = `<g fill="${light}"><rect x="${52 - kit.sponsor}" y="89" width="${56 + kit.sponsor * 2}" height="14" rx="${kit.sponsor % 4}"/><path d="M58 109H102" stroke="${light}" stroke-width="2"/></g><path d="M66 93L72 99L80 93L88 99L94 93" stroke="${base}" stroke-width="2" fill="none"/>`;
+  const style = item(COLLAR_STYLES, item([0, 1, 2, 3, 4, 5, 6, 7], kit.collar) % 4);
+  const trim = item([0, 1, 2, 3, 4, 5, 6, 7], kit.trim);
+  const sponsor = item([0, 1, 2, 3, 4, 5, 6, 7], kit.sponsor);
+  const shadow = mix(base, '#0b1410', 0.6);
+
+  // Collar: the style, solid (0–3) or tipped with a contrasting edge (4–7).
+  const collar = COLLARS[style];
+  const tipped = kit.collar >= 4;
+  const collarInk = tipped ? light : accent;
+  const tip = tipped ? accent : light;
+  const neck = `<path d="M50 23Q80 13 110 23Q80 37 50 23Z" fill="${shadow}"/>${style === 'v-neck' ? `<path d="M48 23Q80 39 112 23L80 50Z" fill="${shadow}"/>` : ''}`;
+  const collarLayer = `<g fill="${collarInk}" stroke="${tip}" stroke-width="${tipped ? 1.6 : 0}" stroke-linejoin="round"><path d="${collar.band}"/>${collar.placket ? `<path d="${collar.placket}"/>` : ''}</g>${collar.placket ? `<g fill="${withContrast(tip, collarInk, 2)}"><circle cx="80" cy="${style === 'polo' ? 47 : 42}" r="1.4"/><circle cx="80" cy="${style === 'polo' ? 55 : 50}" r="1.4"/></g>` : ''}`;
+
+  // Cuffs: colour (bit 0), depth (bit 1) and a tipped line with shoulder piping (bit 2).
+  const cuffInk = trim & 1 ? light : accent;
+  const cuffOther = trim & 1 ? accent : light;
+  const depth = trim & 2 ? 8 : 4.5;
+  const cuffs = `<g fill="${cuffInk}"><path d="${cuff(depth)}"/><path d="${cuff(depth)}" ${mirror}/></g>${
+    trim & 4
+      ? `<g fill="${cuffOther}"><path d="${cuff(depth + 1.6, depth)}"/><path d="${cuff(depth + 1.6, depth)}" ${mirror}/></g><path d="M27 35L14 59M133 35L146 59" stroke="${cuffOther}" stroke-width="2.5"/>`
+      : ''
+  }`;
+
+  // Chest: maker mark, club badge and sponsor.
+  const maker = `<path d="M50 61L56 57L61 60L55 64Z" fill="${withContrast(light, base, 2.2)}"/>`;
+  const badge = options.crest
+    ? `<g transform="translate(97.5 54) scale(.11)">${crestMarkup(options.crest, 'kit-badge')}</g>`
+    : `<path d="M100 58L110 58V68L105 73L100 68Z" fill="${light}"/><path d="M103 61H107V67L105 69L103 67Z" fill="${base}"/>`;
+  const name = options.sponsorName?.trim() ?? '';
+  const block = sponsor % 2 ? accent : light;
+  const outlined = sponsor % 4 === 3;
+  const blockFill = outlined ? base : withContrast(block, base, 1.6);
+  const ink = outlined ? withContrast(light, base, 4.5) : withContrast(base, blockFill, 4.5);
+  let lettering = '';
+  let width = 52 + sponsor;
+  if (name) {
+    let size = 9;
+    while (size > 5 && textWidth(name, size) > 62) size -= 0.5;
+    width = Math.max(30, textWidth(name, size) + 12);
+    lettering = textPath(name, { x: 80, y: 96 + size / 2, size, anchor: 'middle', fill: ink });
+  } else {
+    lettering = `<path d="M66 93L72 99L80 93L88 99L94 93" stroke="${ink}" stroke-width="2" fill="none"/>`;
+  }
+  const radius = [1, 3, 8, 2][sponsor % 4]!;
+  const sponsorLayer = `<rect x="${(80 - width / 2).toFixed(1)}" y="88" width="${width.toFixed(1)}" height="16" rx="${radius}" fill="${blockFill}"${outlined ? ` stroke="${ink}" stroke-width="1.5"` : ''}/>${lettering}`;
+
   return svg(
-    `<defs><clipPath id="shirt"><path d="${SHIRT}"/></clipPath></defs><path d="${SHIRT}" fill="${base}"/><g clip-path="url(#shirt)">${patterns[kit.pattern]}<path d="M41 65L49 80V143H40ZM119 65L111 80V143H120Z" fill="#000000" opacity=".1"/><path d="M47 141H113" stroke="#ffffff" stroke-opacity=".25" stroke-dasharray="2 3" stroke-width="1"/><path d="M8 67L30 79M130 79L152 67" stroke="${accent}" stroke-width="${5 + trim}"/><path d="M42 ${137 - trim}H118" stroke="${accent}" stroke-width="${2 + (trim % 3)}"/>${trim >= 4 ? `<path d="M27 35L14 59M133 35L146 59" stroke="${light}" stroke-width="3"/>` : ''}</g><g fill="${accent}" stroke="${accent}" stroke-width="4" stroke-linejoin="round">${item(COLLARS, kit.collar)}</g><path d="M100 58L110 58V68L105 73L100 68Z" fill="${light}"/><path d="M103 61H107V67L105 69L103 67Z" fill="${base}"/><path d="M49 59H59" stroke="${light}" stroke-width="3"/>${sponsor}<path d="${SHIRT}" stroke="#182a35" stroke-opacity=".22" stroke-width="2" stroke-linejoin="round"/>`,
+    `<defs><clipPath id="kit-body"><path d="${SHIRT}"/></clipPath></defs><path d="${SHIRT}" fill="${shadow}" transform="translate(0 3)"/><path d="${SHIRT}" fill="${base}"/><g clip-path="url(#kit-body)">${patterns[kit.pattern]}<path d="M40 62V150H51Q46 110 50 62ZM27 31L7 68L13 71.5L31 34Z" fill="#000000" opacity=".12"/><path d="M120 62V150H111Q115 110 112 62Z" fill="#ffffff" opacity=".1"/><path d="M47 141H113" stroke="#ffffff" stroke-opacity=".25" stroke-dasharray="2 3" stroke-width="1"/>${cuffs}</g>${neck}${collarLayer}${maker}${badge}${sponsorLayer}<path d="${SHIRT}" stroke="#182a35" stroke-opacity=".22" stroke-width="2" stroke-linejoin="round"/>`,
     '0 0 160 165',
   );
 }

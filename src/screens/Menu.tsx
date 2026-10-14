@@ -9,6 +9,7 @@ import { format, t } from '../i18n';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
 import { Artwork } from '../ui/Artwork';
+import { kitArt } from '../ui/kitArt';
 import { generateGallery } from '../engine/assets/gallery';
 import { renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
@@ -255,7 +256,7 @@ export default function Menu() {
         <Link to="/gallery?view=kits" className="discovery">
           <div className="discovery-art kit-art">
             {Object.values(sample.clubs[0]!.kits).map((kit, i) => (
-              <Artwork key={i} svg={renderKit(kit)} alt="" />
+              <Artwork key={i} svg={renderKit(kit, kitArt(kit, sample.clubs[0]!.crest))} alt="" />
             ))}
           </div>
           <div className="discovery-copy">

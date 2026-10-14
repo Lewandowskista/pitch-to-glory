@@ -1,5 +1,5 @@
 import type { Hex, Kit, SleeveLength } from '../../model/domain';
-import { renderKit } from './kit';
+import { renderKit, type KitOptions } from './kit';
 import { colors, svg } from './shared';
 
 /**
@@ -10,9 +10,10 @@ export function renderDressedKit(
   kit: Kit,
   sleeves: SleeveLength,
   armband: [Hex, Hex] | null,
+  options: KitOptions = {},
 ): string {
   const [base, accent] = kit.colors;
-  const shirt = renderKit(kit);
+  const shirt = renderKit(kit, options);
   const long =
     sleeves === 'long'
       ? `<path d="M7 68L29 81L23 118L3 110Z" fill="${base}" stroke="#182a35" stroke-opacity=".22" stroke-width="2" stroke-linejoin="round"/><path d="M153 68L131 81L137 118L157 110Z" fill="${base}" stroke="#182a35" stroke-opacity=".22" stroke-width="2" stroke-linejoin="round"/><path d="M4 106L23 113M156 106L137 113" stroke="${accent}" stroke-width="5"/>`
@@ -29,6 +30,7 @@ export function renderWardrobeShirt(
   sleeves: SleeveLength,
   armband: [Hex, Hex] | null,
   skin: Hex,
+  options: KitOptions = {},
 ): string {
   colors([skin, skin, skin]);
   const arm = 'M8 66L28 79L20 103L19 132Q22 140 17 145Q12 149 8 144L5 139Q3 134 5 128L7 99L3 85Z';
@@ -38,7 +40,7 @@ export function renderWardrobeShirt(
       : '';
   const arms = `<g fill="${skin}" stroke="#51352b" stroke-opacity=".2" stroke-width="1.5" stroke-linejoin="round"><g data-arm="left"><path d="${arm}"/>${forearm}</g><g data-arm="right" transform="translate(160 0) scale(-1 1)"><path d="${arm}"/>${forearm}</g></g>`;
   // Paint the arms first so the shirt, sleeve trims and captain's band stay on top.
-  return renderDressedKit(kit, sleeves, armband).replace(/(<svg[^>]*>)/, `$1${arms}`);
+  return renderDressedKit(kit, sleeves, armband, options).replace(/(<svg[^>]*>)/, `$1${arms}`);
 }
 
 const SOCK = 'M18 4H42V58Q42 66 50 70L62 76Q70 80 70 88V92H18Z';

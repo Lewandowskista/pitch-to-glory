@@ -1,8 +1,9 @@
 import type { Club, Player, World } from '../../model/domain';
 import { format, t } from '../../i18n';
 import { Artwork } from '../../ui/Artwork';
-import { renderCrest } from '../../engine/assets/crest';
+import { foundedYear, renderCrest } from '../../engine/assets/crest';
 import { renderKit } from '../../engine/assets/kit';
+import { kitArt } from '../../ui/kitArt';
 import { renderAvatar } from '../../engine/assets/avatar';
 import { overallRating } from '../../engine/strength';
 
@@ -21,6 +22,7 @@ export function ClubInspector({
   onPlayer(id: string): void;
 }) {
   const manager = world.managers[club.managerId]!;
+  const founded = foundedYear(club);
   const squad = club.playerIds.map((id) => world.players[id]!);
   const player = squad.find((player) => player.id === selectedPlayer) ?? squad[0]!;
   const age = (player: Player) => world.date.season - player.birthSeason;
@@ -53,7 +55,7 @@ export function ClubInspector({
   return (
     <aside className="club-inspector" id="club-inspector" aria-label={t.world.inspect}>
       <header className="club-identity">
-        <Artwork svg={renderCrest(club.crest)} alt="" />
+        <Artwork svg={renderCrest(club.crest, { founded })} alt="" />
         <div>
           <p className="eyebrow">{club.city}</p>
           <h2 id="club-inspector-heading" tabIndex={-1}>
@@ -62,13 +64,14 @@ export function ClubInspector({
           <p>
             {t.world.reputation} <strong>{club.reputation}</strong>
           </p>
+          <p>{format(t.world.founded, { year: founded })}</p>
         </div>
       </header>
       <div className="club-kits">
         {(['home', 'away', 'third'] as const).map((type) => (
           <figure key={type}>
             <Artwork
-              svg={renderKit(club.kits[type])}
+              svg={renderKit(club.kits[type], kitArt(club.kits[type], club.crest))}
               alt={format(t.gallery.kitAlt, { name: club.name, type: t.gallery[type] })}
             />
             <figcaption>{t.gallery[type]}</figcaption>

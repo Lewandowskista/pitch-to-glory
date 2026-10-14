@@ -40,6 +40,18 @@ export function svg(body: string, viewBox: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" fill="none">${body}</svg>`;
 }
 
+/** Blend `color` towards `target` by `amount` (0 keeps the colour, 1 gives the target). */
+export function mix(color: Hex, target: Hex, amount: number): Hex {
+  const channel = (hex: Hex, index: number) => parseInt(hex.slice(index, index + 2), 16);
+  return `#${[1, 3, 5]
+    .map((index) =>
+      Math.round(channel(color, index) + (channel(target, index) - channel(color, index)) * amount)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}` as Hex;
+}
+
 function luminance(color: Hex): number {
   const [r, g, b] = [1, 3, 5].map((index) => {
     const channel = parseInt(color.slice(index, index + 2), 16) / 255;

@@ -14,6 +14,7 @@ import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
 import { FootballIllustration } from '../ui/FootballIllustration';
 import { Artwork } from '../ui/Artwork';
+import { kitArt } from '../ui/kitArt';
 import { renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
 import { renderAvatar } from '../engine/assets/avatar';
@@ -525,8 +526,11 @@ function ClubEditor({ world, club }: { world: World; club: Club }) {
   const changed = valid && valid.join() !== club.kits.home.colors.join();
   const crestSvg = useMemo(() => renderCrest(preview.crest), [preview.crest]);
   const kitSvgs = useMemo(
-    () => (['home', 'away', 'third'] as const).map((k) => [k, renderKit(preview.kits[k])] as const),
-    [preview.kits],
+    () =>
+      (['home', 'away', 'third'] as const).map(
+        (k) => [k, renderKit(preview.kits[k], kitArt(preview.kits[k], preview.crest))] as const,
+      ),
+    [preview.kits, preview.crest],
   );
   return (
     <section aria-labelledby="editor-heading" className={`${ui.panel} flex flex-col gap-6`}>

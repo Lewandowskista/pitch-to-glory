@@ -17,6 +17,7 @@ import {
 import { avatarSkinColor, renderAvatar } from '../../engine/assets/avatar';
 import { renderSocksAndBoots, renderWardrobeShirt } from '../../engine/assets/gear';
 import { Artwork } from '../../ui/Artwork';
+import { kitArt } from '../../ui/kitArt';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
 import { CareerPage, filterButton, plural, ui } from './shared';
@@ -131,8 +132,8 @@ function Preview({
   const armband = COSMETIC_BY_ID[equipped.armband]?.colors ?? null;
   const portrait = useMemo(() => renderAvatar(player.avatar, age), [player.avatar, age]);
   const shirt = useMemo(
-    () => renderWardrobeShirt(kit, equipped.sleeves, armband, skin),
-    [kit, equipped.sleeves, armband, skin],
+    () => renderWardrobeShirt(kit, equipped.sleeves, armband, skin, kitArt(kit, club.crest)),
+    [kit, equipped.sleeves, armband, skin, club.crest],
   );
   const shorts = useMemo(() => shortsSvg(kit), [kit]);
   const feet = useMemo(
