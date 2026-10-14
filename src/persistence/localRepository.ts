@@ -20,6 +20,8 @@ import {
   type AppSave,
   type SaveRecovery,
 } from './schema';
+import type { CareerSummary } from './summary';
+export { summaryPortrait, type CareerSummary } from './summary';
 export interface Lease {
   slot: SlotId;
   owner: string;
@@ -33,7 +35,7 @@ export interface WorldSummary {
   clubs: number;
   crests: Crest[];
   /** Present for career worlds: the player shown on the save card. */
-  career?: { name: string; level: number; clubName: string; crest: Crest };
+  career?: CareerSummary;
 }
 /**
  * Small per-slot envelope. The world graph and the match session live in their own
@@ -120,6 +122,9 @@ function careerSummary(world: World): Pick<WorldSummary, 'career'> {
           level: world.career!.level,
           clubName: club.name,
           crest: club.crest,
+          avatar: player.avatar,
+          birthSeason: player.birthSeason,
+          kit: club.kits.home,
         },
       }
     : {};

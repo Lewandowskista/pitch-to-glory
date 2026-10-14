@@ -120,6 +120,26 @@
   height: 96px;
   flex-shrink: 0;
 }
+/* A career slot: the club crest on mowing stripes, the Career tag and the player's portrait. */
+.slot-art.slot-art-career {
+  position: relative;
+  overflow: hidden;
+  justify-content: flex-start;
+  padding: 0 1.25rem;
+  background-color: var(--color-field);
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--color-field) 0 36px,
+    var(--color-field-stripe) 36px 72px
+  );
+}
+.slot-art.slot-art-career img.slot-portrait {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0;
+  width: 96px;
+  height: 96px;
+}
 .slot-art > svg {
   width: 45px;
   height: 45px;

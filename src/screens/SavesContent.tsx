@@ -14,6 +14,7 @@ import {
   saveSlot,
 } from '../persistence/session';
 import type { SlotListing } from '../persistence/localRepository';
+import { summaryPortrait, type CareerSummary } from '../persistence/summary';
 import { platform } from '../platform';
 import { errorText, format, t } from '../i18n';
 import { Icon } from '../ui/Icon';
@@ -21,6 +22,7 @@ import { Artwork } from '../ui/Artwork';
 import { Dialog } from '../ui/Dialog';
 import { generateGallery } from '../engine/assets/gallery';
 import { renderCrest } from '../engine/assets/crest';
+import { renderAvatar } from '../engine/assets/avatar';
 /** The save slots: loaded as its own chunk, with the save system, after the page heading. */
 export default function SavesContent() {
   const active = useAppStore((s) => s.activeSave);
@@ -231,18 +233,21 @@ export default function SavesContent() {
                   </span>
                 )}
               </div>
-              <div className="slot-art">
+              <div className={`slot-art ${collection?.world?.career ? 'slot-art-career' : ''}`}>
                 {collection?.world?.career ? (
-                  <div className="flex items-center gap-3">
-                    <Artwork
-                      svg={renderCrest(collection.world.career.crest)}
-                      alt={collection.world.career.clubName}
-                      className="slot-career-crest"
-                    />
-                    <span className="rounded-full bg-accent px-3 py-1 text-xs font-bold text-on-accent">
-                      {t.menu.careerSave}
-                    </span>
-                  </div>
+                  <>
+                    <div className="flex items-center gap-3">
+                      <Artwork
+                        svg={renderCrest(collection.world.career.crest)}
+                        alt={collection.world.career.clubName}
+                        className="slot-career-crest"
+                      />
+                      <span className="rounded-full bg-gold px-3 py-1 text-xs font-extrabold text-on-gold">
+                        {t.menu.careerSave}
+                      </span>
+                    </div>
+                    <SlotPortrait summary={collection.world} />
+                  </>
                 ) : collection ? (
                   (collection.world
                     ? collection.world.crests.map((crest, index) => ({ id: String(index), crest }))
@@ -449,4 +454,23 @@ export default function SavesContent() {
       )}
     </>
   );
+}
+
+/** The career player on a save card; older slot records without a portrait show none. */
+function SlotPortrait({ summary }: { summary: { season: number; career?: CareerSummary } }) {
+  const portrait = summaryPortrait(summary);
+  if (!portrait) return null;
+  let svg: string;
+  try {
+    svg = renderAvatar(
+      portrait.avatar,
+      portrait.age,
+      { kit: portrait.kit, crest: portrait.crest },
+      'slot',
+    );
+  } catch {
+    // An index record from another version of the avatar model: the crest alone is enough.
+    return null;
+  }
+  return <Artwork svg={svg} alt="" className="slot-portrait" />;
 }
