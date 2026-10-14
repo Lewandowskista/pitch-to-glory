@@ -216,3 +216,13 @@ Still class-based (no component yet, use as is): `.segmented-tabs` for in-page t
   Saturday of August; day 1 Saturday, 2 Tuesday, 3–4 Wednesday, 5 Thursday, 6–7 Friday.
 - Save cards: `summaryPortrait()` (`src/persistence/summary.ts`) returns the portrait inputs
   from a slot listing, or null for records written before the redesign.
+
+## Added by the screen work
+
+### `ValueMeter` (`ValueMeter.tsx`, phase 3b, Club group)
+
+Not in the barrel: import it from `src/ui/kit/ValueMeter`.
+
+| Props                                                                                                                                                                                                                                                                                                 | When                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `label`, `value`, `max` (100), `tone` (`accent` · `danger` · `gold` · `info`), `numberTone` (`ink` default, or a tone when the number carries meaning), `size` (`sm` 20px · `md` 24–26px · `lg` 40px numbers), `ariaLabel`, `valueText`, `note`, `track` (`track` · `surface` on soft or gold panels) | A meter that leads with its Bebas number (morale, chemistry, a club's confidence, an agent's network). The bar is `role="meter"` read as "72 of 100"; the visible number is hidden from assistive technology so it is not read twice. Use `Meter` for quieter rows. |
