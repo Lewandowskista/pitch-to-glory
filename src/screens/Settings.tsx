@@ -102,6 +102,22 @@ export default function Settings() {
                 onChange={(event) => update({ simulationOnly: event.target.checked })}
               />
             </section>
+            <section className="setting-section motion-setting">
+              <div>
+                <h2>
+                  <label htmlFor="backup-reminder">{t.settings.backups}</label>
+                </h2>
+                <p>{t.settings.backupsBody}</p>
+              </div>
+              <input
+                id="backup-reminder"
+                className="switch"
+                type="checkbox"
+                role="switch"
+                checked={settings.backupReminder}
+                onChange={(event) => update({ backupReminder: event.target.checked })}
+              />
+            </section>
             <section className="setting-section">
               <h2>{t.settings.tutorial}</h2>
               <p>{t.settings.tutorialBody}</p>

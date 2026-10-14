@@ -123,13 +123,9 @@ export function CareerFixture({
   return (
     <section
       aria-labelledby="career-fixture-heading"
-      className="relative overflow-hidden rounded-panel bg-field p-5 text-white shadow-surface sm:p-7"
+      className="relative overflow-hidden rounded-panel bg-field-stripes p-5 text-white shadow-surface sm:p-7"
       data-testid="career-fixture"
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-[0.12] [background:repeating-linear-gradient(90deg,transparent_0_56px,white_56px_112px)]"
-      />
       <div className="relative mx-auto flex max-w-[40rem] flex-col gap-5">
         <div className="flex flex-wrap items-center justify-center gap-2">
           <span className="text-xs font-bold uppercase tracking-[0.16em] text-gold">

@@ -131,6 +131,46 @@ export function playerAbility(
   return total / weight;
 }
 
+type RatedPlayer = Pick<Player, 'primaryPosition' | 'attributes' | 'keeperAttributes'>;
+export type OutfieldAxis = keyof typeof CONFIG.ratings.axes.outfield;
+export type KeeperAxis = keyof typeof CONFIG.ratings.axes.keeper;
+export interface AxisRating {
+  axis: OutfieldAxis | KeeperAxis;
+  value: number;
+}
+
+/** The single overall rating shown everywhere: the rounded, position-weighted ability. */
+export function overallRating(player: RatedPlayer): number {
+  return Math.round(playerAbility(player));
+}
+
+/**
+ * The six-axis summary (pace, shooting, passing, dribbling, defending, physical; keepers get
+ * their own six). Each axis is the rounded mean of its attributes in `CONFIG.ratings.axes`.
+ */
+export function attributeSummary(player: RatedPlayer): AxisRating[] {
+  const keeper = player.primaryPosition === 'GK';
+  const axes: Readonly<Record<string, readonly string[]>> = keeper
+    ? CONFIG.ratings.axes.keeper
+    : CONFIG.ratings.axes.outfield;
+  const values: Readonly<Record<string, number>> = keeper
+    ? player.keeperAttributes
+    : player.attributes;
+  return Object.entries(axes).map(([axis, keys]) => ({
+    axis: axis as AxisRating['axis'],
+    value: Math.round(keys.reduce((sum, key) => sum + values[key]!, 0) / keys.length),
+  }));
+}
+
+export type FamiliarityLevel = 'natural' | 'accomplished' | 'learning';
+/** The word for a 0–100 position familiarity (`CONFIG.ratings.familiarity`). */
+export function familiarityLevel(familiarity: number): FamiliarityLevel {
+  const { natural, accomplished } = CONFIG.ratings.familiarity;
+  if (familiarity >= natural) return 'natural';
+  if (familiarity >= accomplished) return 'accomplished';
+  return 'learning';
+}
+
 export function selectStartingPlayers<T extends Player>(players: readonly T[]): T[] {
   const ranked = players
     // Only the career player can be injured; AI selections are unchanged.

@@ -17,6 +17,19 @@
 @import './refinement.css';
 
 /*
+ * Field-green hero panels: solid pitch green with soft vertical mowing stripes. Use in place of
+ * bg-field on any hero that shows the football (next match, fixture, wizard summary).
+ */
+@utility bg-field-stripes {
+  background-color: var(--color-field);
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--color-field) 0 72px,
+    var(--color-field-stripe) 72px 144px
+  );
+}
+
+/*
  * One segmented tab bar for in-page tablists (world views, gallery categories, edit kinds),
  * matching the career page tabs: a surface bar, a 1px line border and an accent active tab.
  * `segmented-tabs-fill` stretches the bar and its tabs across the available width.

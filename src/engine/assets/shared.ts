@@ -1,4 +1,20 @@
 import type { Hex } from '../../model/domain';
+/**
+ * Brand colours for generated SVG art. Art is shown as image data URIs, which cannot read CSS
+ * variables, so these mirror src/styles/tokens.css; keep the two in step.
+ */
+export const ART = {
+  field: '#075e45',
+  fieldStripe: '#0a6a4e',
+  gold: '#efcf63',
+  goldPressed: '#c9a73c',
+  onGold: '#153c2d',
+  heroInk: '#fff7e4',
+  ink: '#1d3329',
+  surface: '#ffffff',
+  artBlue: '#e4ebee',
+  danger: '#a72d30',
+} as const satisfies Record<string, Hex>;
 export const PALETTES: readonly [Hex, Hex, Hex][] = [
   ['#075e45', '#f1cf58', '#f9f5e9'],
   ['#19386d', '#f6f2e7', '#e95042'],

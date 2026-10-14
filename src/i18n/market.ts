@@ -164,7 +164,7 @@ export const marketText = {
     patience: '{count} more counter-offers before they lose patience',
     patienceOne: 'One more counter-offer before they lose patience',
     patienceNone: 'Their patience has run out: another demand they cannot meet ends the talks.',
-    agentRead: '{agent} thinks they could go to about {wage} a week.',
+    agentRead: '{agent} thinks they could go to about {wage}.',
     noAgent: 'Without an agent you only see the club’s offer. An agent reads their limits.',
     fee: 'Fee agreed between the clubs: {fee}',
     preContract:

@@ -2,7 +2,11 @@
   --font-sans: 'Inter Variable', sans-serif;
   --font-display: 'Bebas Neue', sans-serif;
   --color-field: #075e45;
+  /* The lighter band of the mowing stripes on field-green heroes (bg-field-stripes). */
+  --color-field-stripe: #0a6a4e;
   --color-gold: #efcf63;
+  /* The "pressed" edge under gold calls to action: shadow-[0_4px_0_var(--color-gold-pressed)]. */
+  --color-gold-pressed: #c9a73c;
   --color-hero-ink: #fff7e4;
   --color-hero-muted: #e4edd7;
   --color-hero-eyebrow: #d9e2b7;
@@ -44,6 +48,8 @@
   --color-on-accent: var(--on-accent);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  /* Neutral information and "risky but fair" states: never good or bad, so never green or red. */
+  --color-info: var(--info);
   --color-art-green: var(--art-green);
   --color-art-gold: var(--art-gold);
   --color-art-blue: var(--art-blue);
@@ -65,6 +71,7 @@
   --on-accent: #ffffff;
   --danger: #a72d30;
   --danger-soft: #fff0ef;
+  --info: #2d6f8f;
   --art-green: #e4eddd;
   --art-gold: #f4ead4;
   --art-blue: #e4ebee;
@@ -83,6 +90,7 @@
   --on-accent: #14251e;
   --danger: #ffada5;
   --danger-soft: #422b29;
+  --info: #9cc9de;
   --art-green: #2d4636;
   --art-gold: #433e2e;
   --art-blue: #2d3e43;
@@ -107,6 +115,7 @@
     --on-accent: #14251e;
     --danger: #ffada5;
     --danger-soft: #422b29;
+    --info: #9cc9de;
     --art-green: #2d4636;
     --art-gold: #433e2e;
     --art-blue: #2d3e43;

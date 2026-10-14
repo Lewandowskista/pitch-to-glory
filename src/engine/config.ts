@@ -854,6 +854,33 @@ export const CONFIG = {
     /** A player's value in an unfamiliar position, as a share of their ability. */
     unfamiliarFactor: 0.8,
   },
+  /**
+   * How a player is summarised on screen (redesign phase 1). The overall rating is the rounded
+   * position-weighted `playerAbility`; the six axes are plain means of the listed attributes,
+   * with a separate set for goalkeepers. Presentation only: nothing in the simulation reads these.
+   */
+  ratings: {
+    axes: {
+      outfield: {
+        pace: ['pace', 'acceleration'],
+        shooting: ['finishing', 'longShots', 'composure'],
+        passing: ['passing', 'vision', 'crossing'],
+        dribbling: ['dribbling', 'firstTouch', 'agility'],
+        defending: ['tackling', 'positioning', 'heading'],
+        physical: ['stamina', 'strength', 'jumping'],
+      },
+      keeper: {
+        diving: ['diving'],
+        handling: ['handling'],
+        kicking: ['kicking'],
+        reflexes: ['reflexes'],
+        oneOnOnes: ['oneOnOnes'],
+        aerial: ['commandOfArea', 'aerialReach'],
+      },
+    },
+    /** Familiarity words: at least `natural` is Natural, at least `accomplished` is Accomplished. */
+    familiarity: { natural: 90, accomplished: 55 },
+  },
   saves: {
     schemaVersion: 20,
     slotCount: 3,

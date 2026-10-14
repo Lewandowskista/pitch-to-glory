@@ -318,12 +318,8 @@ function NextMatch({
     <section
       aria-labelledby="next-match-heading"
       data-tour="next-match"
-      className="hub-match-card relative overflow-hidden rounded-panel bg-field p-5 text-white shadow-surface sm:p-6"
+      className="hub-match-card relative overflow-hidden rounded-panel bg-field-stripes p-5 text-white shadow-surface sm:p-6"
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-[0.07] [background:repeating-linear-gradient(110deg,transparent_0_56px,white_56px_112px)]"
-      />
       <div className="relative flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-[0.16em] text-gold">

@@ -4,6 +4,7 @@ import { useAppStore } from '../../store';
 import { CONFIG } from '../../engine/config';
 import { careerCap, type AnyAttribute } from '../../engine/ageing';
 import { attributeCost, attributeValue, raiseAttribute } from '../../engine/career/progression';
+import { familiarityLevel } from '../../engine/strength';
 import type { Career, CareerMatchRecord, Club, Player, World } from '../../model/domain';
 import { format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
@@ -352,7 +353,10 @@ function Positions({ player }: { player: Player }) {
                 <span className="text-muted">
                   {entry.primary
                     ? c.profile.primary
-                    : format(c.profile.familiarity, { value: entry.familiarity })}
+                    : format(c.profile.familiarityLevel, {
+                        level: c.profile.familiarityLevels[familiarityLevel(entry.familiarity)],
+                        value: entry.familiarity,
+                      })}
                 </span>
               </div>
               <div

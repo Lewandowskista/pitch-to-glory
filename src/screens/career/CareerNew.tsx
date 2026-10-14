@@ -985,11 +985,7 @@ function Summary({
       aria-label={c.wizard.summary}
       className="self-start overflow-hidden rounded-panel border border-line bg-surface shadow-surface xl:sticky xl:top-6"
     >
-      <div className="relative bg-field px-5 pt-6 pb-4 text-white">
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 opacity-[0.12] [background:repeating-linear-gradient(90deg,transparent_0_40px,white_40px_80px)]"
-        />
+      <div className="relative bg-field-stripes px-5 pt-6 pb-4 text-white">
         <div className="relative flex items-end gap-4">
           <Artwork
             svg={renderAvatar(draft.avatar, draft.age)}

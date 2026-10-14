@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Player, Rivalry, World } from '../../model/domain';
-import { playerAbility } from '../../engine/strength';
+import { overallRating } from '../../engine/strength';
 import { marketValue } from '../../engine/career/market';
 import { rivalOf, rivalryOf, seasonLines } from '../../engine/career/social';
 import { renderAvatar } from '../../engine/assets/avatar';
@@ -83,8 +83,8 @@ function RivalContent({
   const bestFee = (fees: number[]) => (fees.length ? Math.max(...fees) : null);
   const myValue = marketValue(world, player);
   const rivalValue = marketValue(world, rival);
-  const myAbility = Math.round(playerAbility(player));
-  const rivalAbility = Math.round(playerAbility(rival));
+  const myAbility = overallRating(player);
+  const rivalAbility = overallRating(rival);
   const myFee = bestFee(careerFees);
   const rivalFee = bestFee(rivalFees);
   /** Label, both shown values and, where higher is better, both raw numbers to compare. */

@@ -4,14 +4,11 @@ import { Artwork } from '../../ui/Artwork';
 import { renderCrest } from '../../engine/assets/crest';
 import { renderKit } from '../../engine/assets/kit';
 import { renderAvatar } from '../../engine/assets/avatar';
+import { overallRating } from '../../engine/strength';
 
 const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
-function ability(player: Player): number {
-  const values = Object.values(
-    player.primaryPosition === 'GK' ? player.keeperAttributes : player.attributes,
-  );
-  return Math.round(values.reduce((total, value) => total + value, 0) / values.length);
-}
+/** The same overall rating the career screens show (position-weighted, not a plain mean). */
+const ability = (player: Player): number => overallRating(player);
 export function ClubInspector({
   world,
   club,
