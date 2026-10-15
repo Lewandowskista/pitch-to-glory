@@ -326,5 +326,14 @@ export function validateMarket(w: Record<string, unknown>): void {
     params(message.params);
     requireValue(typeof message.read === 'boolean');
     if (message.actionId !== null) id(message.actionId);
+    // Phase 7 (C5): optional, absent in older saves.
+    if (message.sender !== undefined) {
+      const sender = object(message.sender);
+      requireValue(Object.keys(sender).every((key) => ['kind', 'id', 'name'].includes(key)));
+      options(sender.kind, ['club', 'agent', 'press', 'manager']);
+      if (sender.id !== undefined) id(sender.id);
+      text(sender.name);
+    }
+    if (message.deadline !== undefined) date(message.deadline);
   }
 }

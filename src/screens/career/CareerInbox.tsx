@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { memo, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { Agent, Club, InboxMessage, World } from '../../model/domain';
+import type { Agent, Club, InboxMessage, Manager, World } from '../../model/domain';
+import { renderAvatar } from '../../engine/assets/avatar';
+import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
@@ -144,17 +146,44 @@ const FROM_CLUB: Record<string, string> = {
 };
 const FROM_AGENT = new Set(['agent-hired', 'agent-pitch', 'agent-push', 'agent-renewal']);
 
-interface Sender {
+export interface Sender {
   label: string;
   club?: Club;
   agent?: Agent;
+  manager?: Manager;
 }
-/** Who sent a message, where the message itself says so. */
-function messageSender(
+/**
+ * Who sent a message. The sender stored when it arrived comes first, so a later manager change
+ * or move never rewrites it; older messages fall back to what their parameters say.
+ */
+export function messageSender(
   world: World,
   message: InboxMessage,
   clubs: Map<string, Club>,
 ): Sender | null {
+  const stored = message.sender;
+  if (stored) {
+    const name = stored.name;
+    switch (stored.kind) {
+      case 'club':
+        return {
+          label: format(m.inbox.sender.club, { name }),
+          club: (stored.id ? world.clubs[stored.id] : undefined) ?? clubs.get(name),
+        };
+      case 'agent':
+        return {
+          label: format(m.inbox.sender.agent, { name }),
+          agent: stored.id ? world.agents[stored.id] : undefined,
+        };
+      case 'press':
+        return { label: format(m.inbox.sender.press, { name }) };
+      case 'manager':
+        return {
+          label: format(m.inboxMeta.manager, { name }),
+          manager: stored.id ? world.managers[stored.id] : undefined,
+        };
+    }
+  }
   const clubParam = FROM_CLUB[message.subjectKey];
   if (clubParam && typeof message.params[clubParam] === 'string') {
     const name = String(message.params[clubParam]);
@@ -172,13 +201,17 @@ function messageSender(
   return null;
 }
 
-/** The last week to answer, when the message's item still waits for the player. */
-function messageDeadline(world: World, message: InboxMessage): Priority['deadline'] {
+/**
+ * The last week to answer, while the message's item still waits for the player: the date
+ * stored when it arrived, or for older messages the item's own.
+ */
+export function messageDeadline(world: World, message: InboxMessage): Priority['deadline'] {
   if (!message.actionId) return null;
   const item = deadlineItems(world).find(
     (entry) => entry.id.slice(entry.id.indexOf(':') + 1) === message.actionId,
   );
-  return item?.deadline ?? null;
+  if (!item) return null;
+  return message.deadline ?? item.deadline ?? null;
 }
 
 const KIND_GLYPH: Record<MessageKind, GlyphName> = {
@@ -195,6 +228,18 @@ const KIND_GLYPH: Record<MessageKind, GlyphName> = {
   rival: 'rival',
   market: 'transfer',
 };
+
+/** A manager's portrait, as the match preview draws it. Decorative. */
+const ManagerFace = memo(function ManagerFace({
+  manager,
+  className,
+}: {
+  manager: Manager;
+  className: string;
+}) {
+  const svg = useMemo(() => renderAvatar(manager.avatar, manager.age, {}, 'inbox'), [manager]);
+  return <Artwork svg={svg} alt="" className={cx('bg-surface-soft', className)} />;
+});
 
 /** The sender's crest or portrait, or the message type's icon. Decorative. */
 function SenderMark({
@@ -213,6 +258,15 @@ function SenderMark({
         alt=""
         className={size === 'md' ? 'h-9 w-8 shrink-0' : 'h-[2.4rem] w-[2.125rem] shrink-0'}
       />
+    );
+  if (sender?.manager)
+    return (
+      <span aria-hidden="true" className="shrink-0 overflow-hidden rounded-full leading-none">
+        <ManagerFace
+          manager={sender.manager}
+          className={size === 'md' ? 'h-12 w-12' : 'h-10 w-10'}
+        />
+      </span>
     );
   if (sender?.agent)
     return (
