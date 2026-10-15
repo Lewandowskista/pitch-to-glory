@@ -19,8 +19,9 @@ import {
   type MatchSession,
   type MatchSetup,
 } from '../src/engine/match';
-import { SITUATIONS } from '../src/engine/match';
+import { NARRATION_FAMILIES, NARRATION_VARIANTS, SITUATIONS } from '../src/engine/match';
 import { hasMatchLabel } from '../src/i18n/match';
+import { hasNarrationLabel } from '../src/i18n/narration';
 import type { Player, Position } from '../src/model/domain';
 
 const world = generateWorld('match-tests', { format: 'legacy' });
@@ -558,6 +559,7 @@ describe('match edge cases', () => {
   });
   it('has copy for every situation, choice, factor and commentary line the engine emits', () => {
     const keys = new Set<string>();
+    const narration = new Set<string>();
     for (const situation of SITUATIONS) {
       keys.add(`match.situation.${situation.id}`);
       for (const choice of situation.choices) {
@@ -577,8 +579,15 @@ describe('match edge cases', () => {
         for (const moment of s.match.keyMoments)
           for (const c of moment.choices) for (const f of c.factors) keys.add(f.labelKey);
         for (const f of s.report!.ratingFactors) keys.add(f.labelKey);
+        for (const line of s.narration) narration.add(line.key);
       }
     expect([...keys].filter((key) => !hasMatchLabel(key))).toEqual([]);
+    // Narration copy (match-14) lives in its own module, loaded with the match screen.
+    for (const family of NARRATION_FAMILIES)
+      for (let variant = 0; variant < NARRATION_VARIANTS; variant++)
+        narration.add(`match.narration.${family}.${variant}`);
+    expect(narration.size).toBeGreaterThan(NARRATION_FAMILIES.length * NARRATION_VARIANTS - 1);
+    expect([...narration].filter((key) => !hasNarrationLabel(key))).toEqual([]);
   });
   it('rejects outdated or missing engine versions before replaying', () => {
     const session = finish(createMatchSession(setup, tactics));
