@@ -140,7 +140,7 @@ function noteOf(outlook: PlanOutlook, club: Club, age: number): PlanNote | null 
 
 /**
  * The manager's plan for the career player in a fixture of their club, or null when there is
- * no plan to give (no career, no club, injured, or a fixture of another club). Pure: the same
+ * no plan to give (no career, no club, injured or suspended, or a fixture of another club). Pure: the same
  * world and fixture always give the same plan.
  */
 export function matchPlan(world: World, fixture: Fixture): MatchPlan | null {
@@ -153,6 +153,8 @@ export function matchPlan(world: World, fixture: Fixture): MatchPlan | null {
   const opponent = world.clubs[fixture.homeId === player.clubId ? fixture.awayId : fixture.homeId];
   if (!club || !opponent) return null;
   const selection = careerSelection(world, fixture);
+  // A suspended player has no part in the plan (the discipline phase).
+  if (selection.suspended) return null;
   const thisWeek =
     fixture.date.season === world.date.season && fixture.date.week === world.date.week;
   // This week's selection is settled; a later fixture is the manager's current intention.

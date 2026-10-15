@@ -12,6 +12,13 @@ import { lineupAbility } from '../selection/lineup';
 import { clubLineup, clubStarters } from '../selection/world';
 import { isKnockoutFixture } from './continental';
 import { recordFixtureStatistics } from './statistics';
+import {
+  applyDiscipline,
+  backgroundCards,
+  suspendedFor,
+  type FixtureCard,
+  type NewBan,
+} from './discipline';
 
 const BACKGROUND = CONFIG.world.background;
 const RATING = CONFIG.match.rating;
@@ -35,6 +42,8 @@ export interface PlayedFixture {
   selected: { playerId: Id; rating: number };
   /** The player's shootout kick or save, taken at full time, for their side (match-13). */
   shootout?: { teamId: Id; success: boolean };
+  /** Cards shown in regulation (engine match-16); absent from earlier engines' sessions. */
+  cards?: FixtureCard[];
 }
 export interface FixtureGoal {
   playerId: Id;
@@ -73,6 +82,8 @@ export interface FinalizedFixture {
   goals: FixtureGoal[];
   /** Home participants first, in selection order. */
   participants: FixtureParticipant[];
+  /** An interactive fixture's cards; absent for a background fixture, drawn when applied. */
+  cards?: FixtureCard[];
 }
 
 function poisson(rng: Rng, mean: number): number {
@@ -185,6 +196,13 @@ export function finalizeFixture(
   const appeared = (side: Record<Id, number>) => Object.keys(side).map((id) => world.players[id]!);
   // The eleven each club fields; with formations, each starter is valued in their slot.
   const exclude = benched ? [benched] : [];
+  // Suspended players sit out (the discipline phase), as long as eleven remain.
+  const out = (club: typeof home) => {
+    const suspended = played ? [] : suspendedFor(world, club, fixture);
+    return suspended.length ? [...exclude, ...suspended] : exclude;
+  };
+  const homeOut = out(home),
+    awayOut = out(away);
   // Background elevens rotate by fatigue and a fixture-seeded jitter, more in domestic cups.
   const rotation =
     world.competitions[fixture.competitionId]?.kind === 'domestic'
@@ -192,18 +210,18 @@ export function finalizeFixture(
       : BACKGROUND.rotation.jitter;
   const homeLineup = played
     ? null
-    : clubLineup(world, home, { exclude, seed: `${fixture.id}:home`, rotation });
+    : clubLineup(world, home, { exclude: homeOut, seed: `${fixture.id}:home`, rotation });
   const awayLineup = played
     ? null
-    : clubLineup(world, away, { exclude, seed: `${fixture.id}:away`, rotation });
+    : clubLineup(world, away, { exclude: awayOut, seed: `${fixture.id}:away`, rotation });
   const homePlayers = played
     ? appeared(played.minutes.home)
     : (homeLineup?.starterIds.map((id) => world.players[id]!) ??
-      clubStarters(world, home, { exclude }));
+      clubStarters(world, home, { exclude: homeOut }));
   const awayPlayers = played
     ? appeared(played.minutes.away)
     : (awayLineup?.starterIds.map((id) => world.players[id]!) ??
-      clubStarters(world, away, { exclude }));
+      clubStarters(world, away, { exclude: awayOut }));
   // Shared with the interactive match engine so played and simulated fixtures agree.
   const bonus = (club: typeof home) =>
     managerStrengthBonus(world.managers[club.managerId]?.ability ?? 60);
@@ -394,6 +412,8 @@ export function finalizeFixture(
     decided: penalties ? 'penalties' : extraTime ? 'extra-time' : 'regulation',
     goals,
     participants,
+    // An interactive fixture's cards are its session's (none before match-16).
+    ...(played ? { cards: played.cards ?? [] } : {}),
   };
 }
 /**
@@ -406,8 +426,11 @@ export function withExtraTime(rating: number, goals: number, assists: number): n
   return Math.round(Math.max(RATING.minimum, Math.min(RATING.maximum, total)) * 10) / 10;
 }
 
-/** Store a finalized fixture: its result, every participant's statistics and the table. */
-export function applyFinalizedFixture(world: World, final: FinalizedFixture): void {
+/**
+ * Store a finalized fixture: its result, every participant's statistics and the table, then
+ * its discipline (bans served, cards recorded). Returns the suspensions it started.
+ */
+export function applyFinalizedFixture(world: World, final: FinalizedFixture): NewBan[] {
   const fixture = world.fixtures[final.fixtureId]!;
   const result: BackgroundResult = {
     fixtureId: final.fixtureId,
@@ -481,6 +504,12 @@ export function applyFinalizedFixture(world: World, final: FinalizedFixture): vo
         club.finances.balance = Math.round(club.finances.balance + club.reputation ** 2 * rate);
     }
   }
+  // Cards: an interactive match's from its session; background matches draw theirs in national
+  // worlds (worlds from before the pyramid keep their rules), on their own stream.
+  const cards =
+    final.cards ??
+    (world.format === 'national-v1' ? backgroundCards(world, fixture, final.participants) : []);
+  return applyDiscipline(world, fixture, cards);
 }
 /** How much of a match's injury chance a player carries: minutes over 90, extra time included. */
 export function matchExposure(minutes: number): number {

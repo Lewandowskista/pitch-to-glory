@@ -76,7 +76,8 @@ export type InboxKind =
   | 'story-outcome'
   | 'farewell'
   | 'testimonial'
-  | 'legacy-project';
+  | 'legacy-project'
+  | 'suspended';
 
 /** Messages written by a club, naming it in a parameter (your club, or the one you left). */
 const FROM_CLUB: Partial<Record<InboxKind, string>> = {
@@ -100,6 +101,7 @@ const FROM_AGENT = new Set<InboxKind>([
 ]);
 const FROM_MANAGER = new Set<InboxKind>([
   'dropped',
+  'suspended',
   'promise-offer',
   'promise-achieved',
   'promise-missed',

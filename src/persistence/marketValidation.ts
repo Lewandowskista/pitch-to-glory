@@ -80,6 +80,7 @@ export const INBOX_KINDS = [
   'farewell',
   'testimonial',
   'legacy-project',
+  'suspended',
 ];
 
 const nullableDate = (value: unknown) => {

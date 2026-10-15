@@ -10,6 +10,7 @@ import {
   CUT_FAMILIES,
   NARRATION_FAMILIES,
   NARRATION_VARIANTS,
+  OFF_ANIMATION,
   OutdatedMatchSessionError,
   type MatchSession,
   type MatchSetup,
@@ -155,8 +156,12 @@ describe('match patterns', { timeout: 180000 }, () => {
       const to = spotOf(side, passage.minute, frame.ball);
       expect(to.d).toBeGreaterThan(from.d);
       // The second-last defender when the ball was played.
+      // Players sent off (match-16) are parked off the pitch and hold no line.
       const line = before.players
-        .filter((player) => sideOf(passage.session, player.id) !== side)
+        .filter(
+          (player) =>
+            sideOf(passage.session, player.id) !== side && player.animation !== OFF_ANIMATION,
+        )
         .map((player) => spotOf(side, passage.minute, player.point).d)
         .sort((a, b) => b - a)[1]!;
       expect(to.d).toBeGreaterThan(line);

@@ -16,6 +16,7 @@ import { effectiveAbility, available, selectLineup, slotFit } from '../../select
 import { FORMATION_SLOTS, type Formation } from '../../selection/formations';
 import { clubFormation, clubStarters, usesFormations } from '../../selection/world';
 import { getSeasonWeeks } from '../../world/calendar';
+import { suspension } from '../../world/discipline';
 
 /**
  * Pure market rules: transfer windows, market value, wages, the role a club can promise,
@@ -288,7 +289,7 @@ export function slotCompetition(world: World, club: Club, player: Player): SlotC
 }
 
 export type SelectionReasonKind =
-  'role' | 'competition' | 'form' | 'trust' | 'fatigue' | 'limit' | 'registration';
+  'role' | 'competition' | 'form' | 'trust' | 'fatigue' | 'limit' | 'registration' | 'suspended';
 /** One part of the selection chance, in probability points (null when it only gates). */
 export interface SelectionReason {
   kind: SelectionReasonKind;
@@ -300,6 +301,8 @@ export interface Selection {
   selected: boolean;
   probability: number;
   registered: boolean;
+  /** Matches still to serve of a suspension in this fixture's scope (the discipline phase). */
+  suspended: number;
   competition: SlotCompetition;
   /** The parts of `probability`, in the order they are applied. */
   reasons: SelectionReason[];
@@ -341,11 +344,19 @@ export function careerSelection(world: World, fixture: Fixture): Selection {
     probability = Math.max(probability, S.keyFloor);
   if (probability !== raw) reasons.push({ kind: 'limit', contribution: probability - raw });
   if (!registered) reasons.push({ kind: 'registration', contribution: null });
+  // A suspended player cannot be picked (the discipline phase): the ban takes the whole
+  // chance, so the parts still add up to it.
+  const suspended = suspension(world, player.id, fixture);
+  if (suspended) {
+    reasons.push({ kind: 'suspended', contribution: -probability, detail: suspended });
+    probability = 0;
+  }
   const draw = createRng(`${world.seed}:selection:${fixture.id}`).next();
   return {
-    selected: registered && draw < probability,
+    selected: registered && !suspended && draw < probability,
     probability,
     registered,
+    suspended,
     competition,
     reasons,
   };

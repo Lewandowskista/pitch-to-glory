@@ -148,6 +148,13 @@ export function validateCareer(w: Record<string, unknown>): void {
       requireValue(Number(passes[0]) <= Number(passes[1]));
     }
     if (match.tackles !== undefined) number(match.tackles, 0, 200, true);
+    // Cards (the discipline phase): yellows shown, and a dismissal with its minute and reason.
+    if (match.yellowCards !== undefined) number(match.yellowCards, 1, 2, true);
+    if (match.sentOff !== undefined) {
+      const sentOff = object(match.sentOff);
+      number(sentOff.minute, 1, 90, true);
+      options(sentOff.reason, ['second-yellow', 'straight-red']);
+    }
   }
   if (career.coaching !== undefined) validateCoaching(career.coaching, current);
   if (career.ambitions !== undefined) validateAmbitions(career.ambitions, current, object(w.clubs));

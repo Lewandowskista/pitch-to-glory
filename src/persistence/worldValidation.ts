@@ -295,6 +295,9 @@ export function validateEntities(
       number(stats[key], 0, 1e7, true);
     number(stats.ratingTotal, 0, 1e8);
     ids(stats.trophies, 1000);
+    // Career cards (the discipline phase), absent until the first.
+    for (const key of ['yellowCards', 'redCards'])
+      if (stats[key] !== undefined) number(stats[key], 0, 1e5, true);
   }
   // A loaned player is registered with the loan club while contracted to the parent club;
   // marketValidation checks the loan itself.
