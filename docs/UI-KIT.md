@@ -216,3 +216,15 @@ Still class-based (no component yet, use as is): `.segmented-tabs` for in-page t
   Saturday of August; day 1 Saturday, 2 Tuesday, 3–4 Wednesday, 5 Thursday, 6–7 Friday.
 - Save cards: `summaryPortrait()` (`src/persistence/summary.ts`) returns the portrait inputs
   from a slot listing, or null for records written before the redesign.
+
+## Added in phase 3b (Player screens)
+
+- **`PositionPitch`** (`src/ui/kit/PositionPitch.tsx`, imported directly, not through the
+  barrel): `positions` (`{ position, familiarity, primary? }[]`), `label`, `width` (92). A
+  small vertical pitch with the player's positions, made for field-green heroes: the primary
+  position is a gold disc, comfortable secondary positions mint discs, positions still being
+  learned (`familiarityLevel` "learning") dashed rings. The drawing is one `role="img"`; pass a
+  `label` that names every position in words, so nothing rests on colour.
+- Fixed bottom bars on phones (the Profile points bar, the Training action bar) sit at
+  `calc(var(--tabbar) + 0.75rem)`; a bar inside a page that animates in must be `sticky` or
+  portalled to `body`, because the page transition's transform traps `position: fixed`.
