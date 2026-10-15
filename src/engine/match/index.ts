@@ -536,6 +536,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   };
   updatePossession(session);
   const opening = openingKickoff(session);
+  delete opening.frame.beat;
   session.state.frames = [opening.frame];
   session.state.play = opening.play;
   session.state.motion = { kind: 'kickoff', frames: [opening.frame] };
@@ -555,11 +556,14 @@ function applyPassage(
 ): void {
   const s = session.state;
   const last = passage.frames[passage.frames.length - 1]!;
-  const snapshot = { ...last, timeMs: s.match.minute * 60000 };
+  // Snapshots keep positions only: beats live in the passage's keyframes (and the last one in
+  // the play state), so the per-minute history stays small.
+  const snapshot: ReplayFrame = { ...last, timeMs: s.match.minute * 60000 };
+  delete snapshot.beat;
   if (replace) s.frames[s.frames.length - 1] = snapshot;
   else s.frames.push(snapshot);
   s.play = passage.play;
-  s.motion = { kind, frames: passage.frames };
+  s.motion = { kind, frames: passage.frames, ...(passage.focus ? { focus: passage.focus } : {}) };
   for (const goal of passage.goals)
     if (goal.playerId === session.setup.selectedPlayerId)
       s.highlights = [
@@ -1406,6 +1410,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     }
     const first = m.events.length;
     resolveChoice(next, command.choiceId);
+    const decided = m.events.length - first;
     if (state.chain) {
       // The defender is beaten: play carries on into the shot it leads to, in the same minute.
       const goal = state.chain.goal;
@@ -1419,7 +1424,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     applyPassage(
       next,
       'outcome',
-      outcomePassage(next, m.events.slice(first), state.currentMoment.situationId),
+      outcomePassage(next, m.events.slice(first), state.currentMoment.situationId, decided),
       lead,
     );
     state.currentMoment = null;

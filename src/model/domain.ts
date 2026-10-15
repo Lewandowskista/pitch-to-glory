@@ -1170,6 +1170,60 @@ export interface Point {
  * instantly (the second-half kickoff).
  */
 export type BallMotion = 'ground' | 'air' | 'shot' | 'over' | 'carry' | 'loose' | 'dead' | 'reset';
+/**
+ * What a player does with the ball in a keyframe (engine match-14). Passes split by shape:
+ * `cross` from wide in the final third into the box, `cutback` low from the byline, `switch`
+ * across the pitch in the air, `through` behind the line, `long` any other lofted pass.
+ * `intercept` is a pass cut out or a loose ball won; `restart` a dead ball being placed.
+ */
+export type BeatKind =
+  | 'pass'
+  | 'cross'
+  | 'switch'
+  | 'through'
+  | 'long'
+  | 'cutback'
+  | 'carry'
+  | 'dribble'
+  | 'shot'
+  | 'header'
+  | 'tackle'
+  | 'intercept'
+  | 'block'
+  | 'save'
+  | 'clearance'
+  | 'restart'
+  | 'celebration';
+/** Thirds of the pitch, from the acting team's own goal: defensive, middle, final. */
+export type PitchZone = 'def' | 'mid' | 'final';
+/** Channels of the pitch, as the acting team faces the goal it attacks. */
+export type PitchFlank = 'left' | 'centre' | 'right';
+/** A recognisable move a beat belongs to (the pattern library fills these in). */
+export type PatternId =
+  | 'wing-play'
+  | 'overlap'
+  | 'switch'
+  | 'through-ball'
+  | 'counter'
+  | 'cut-back'
+  | 'long-ball'
+  | 'recycle';
+/**
+ * The ball action that leads into a keyframe: who played it, to whom, from where. Zone and
+ * flank are where the actor plays the ball (where they win it, for tackles, interceptions,
+ * blocks and saves), relative to the actor's team's attacking direction.
+ */
+export interface Beat {
+  kind: BeatKind;
+  actorId: Id;
+  /** The teammate a completed pass, cross or switch reached. */
+  receiverId?: Id;
+  /** The engine event this action plays out (a shot, a decision, a goal's celebration). */
+  eventId?: Id;
+  pattern?: PatternId;
+  zone: PitchZone;
+  flank: PitchFlank;
+}
 export interface ReplayFrame {
   timeMs: number;
   ball: Point;
@@ -1177,6 +1231,8 @@ export interface ReplayFrame {
   /** Player with the ball at their feet; null while it travels, runs loose or is out of play. */
   carrierId?: Id | null;
   ballMotion?: BallMotion;
+  /** The action between the previous keyframe and this one (engine match-14). */
+  beat?: Beat;
 }
 /** A memorable play, stored as a compact clip that can be replayed and shared as a link. */
 export interface Moment {
@@ -1288,6 +1344,12 @@ export interface MatchEvent {
   /** On goal events: the selected player, when their key-moment choice created the goal. */
   assistId?: Id;
   outcome: DecisionOutcome | null;
+  /** The teammate a completed pass reached, as choreographed (engine match-14). */
+  receiverId?: Id;
+  /** How the event was played on the pitch: a cross, a header, an interception… */
+  action?: BeatKind;
+  /** The third of the pitch it happened in, from the acting team's own goal. */
+  zone?: PitchZone;
 }
 export interface MatchReport {
   playerId: Id;

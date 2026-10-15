@@ -1,4 +1,5 @@
 import type {
+  Beat,
   Club,
   Player,
   Match,
@@ -11,8 +12,12 @@ import type { RatingFamily } from './situations';
 import type { Formation } from '../selection/formations';
 export type { Tactics } from '../../model/domain';
 
-/** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
-export const MATCH_ENGINE_VERSION = 'match-13';
+/**
+ * Bumped whenever replayed state changes; saved sessions from another engine are discarded.
+ * `match-14` annotates the choreography (beats, a focus range) without changing any outcome of
+ * `match-13`.
+ */
+export const MATCH_ENGINE_VERSION = 'match-14';
 /**
  * The engine before big occasions (a shootout kick, chained moments, final and derby
  * headlines). A setup with `dramaMoments` but without `occasions` still replays as it was.
@@ -135,6 +140,8 @@ export interface PlayState {
   /** Player on the ball, or null while it runs loose or is out of play. */
   carrierId: string | null;
   restart: Restart | null;
+  /** The most recent ball action (engine match-14): a shot met from a cross is a header. */
+  last?: Beat;
 }
 /**
  * Keyframes of the most recent passage of play, starting at the previously shown frame:
@@ -143,6 +150,12 @@ export interface PlayState {
 export interface MatchMotion {
   kind: 'kickoff' | 'minute' | 'moment' | 'outcome';
   frames: ReplayFrame[];
+  /**
+   * In an outcome passage: the keyframes (indices into `frames`, inclusive) from where the
+   * chosen action starts to the end of what it led to (the follow-up shot, a goal's
+   * celebration), so a camera can replay just the decision.
+   */
+  focus?: { start: number; end: number };
 }
 export interface MatchState {
   match: Match;

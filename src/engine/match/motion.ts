@@ -1,4 +1,12 @@
-import type { BallMotion, MatchEvent, Point, ReplayFrame } from '../../model/domain';
+import type {
+  BallMotion,
+  Beat,
+  BeatKind,
+  MatchEvent,
+  PatternId,
+  Point,
+  ReplayFrame,
+} from '../../model/domain';
 import { createRng, hashSeed, type Rng } from '../rng';
 import { clamp } from './decisions';
 import { SITUATION_BY_ID, type Situation } from './situations';
@@ -25,6 +33,9 @@ import {
  *   kicks after misses, corners after parries;
  * - players never move faster than a sprint and the ball always starts where the previous
  *   passage ended, so nothing teleports except the second-half kickoff.
+ *
+ * Every action keyframe carries a `Beat` (engine match-14): what was done with the ball, by whom,
+ * to whom and where, so a viewer can draw the last pass, label players and narrate the play.
  *
  * Coordinates: `x` 0–100 along the pitch (home attacks x = 100 in the first half), `y` 0–100
  * across it. Each team reasons in its attack frame: depth `d` from its own goal line (0) to the
@@ -56,12 +67,23 @@ interface Want {
   side: Side;
   target: Actor;
 }
+/** How a keyframe's beat is described to `emit`. */
+interface BeatSpec {
+  kind: BeatKind;
+  actor: Actor;
+  receiver?: Actor;
+  eventId?: string;
+  /** Locate the beat where the ball is won (its end) rather than where it was played. */
+  won?: boolean;
+}
 export interface Passage {
   /** Keyframes, starting with the frame shown before the passage. */
   frames: ReplayFrame[];
   play: PlayState;
   /** Goals choreographed in this passage, with the index of their celebration frame. */
   goals: { eventId: string; playerId: string; frame: number }[];
+  /** The keyframes of the decision and what it led to (outcome passages). */
+  focus?: { start: number; end: number };
 }
 
 /** One width unit is 0.65 length units (68 m across, 105 m along). */
@@ -109,6 +131,15 @@ const PASS_STYLES: Record<string, PassStyle> = {
   'quick-release': 'long',
   'corner-inswinger': 'cross',
   'corner-near-post': 'cross',
+};
+/** Ball-carrying choices that gain ground without taking on a defender. */
+const CARRY_ONLY = ['carry-forward', 'carry-out', 'control-shoot'];
+/** Defensive choices whose winning action is not a plain tackle. */
+const CHALLENGES: Record<string, BeatKind> = {
+  intercept: 'intercept',
+  'goal-line-clear': 'clearance',
+  'body-block': 'block',
+  'slide-block': 'block',
 };
 /** Carries: depth gained and width moved towards the centre. */
 const CARRIES: Record<string, Spot> = {
@@ -170,6 +201,11 @@ class Director {
   beats = 0;
   /** A goal was celebrated in this passage: its kickoff waits for the next one. */
   celebrated = false;
+  /** The most recent beat, carried over between passages in the play state. */
+  last: Beat | null;
+  /** The move the next beats belong to, when one is being played out. */
+  pattern: PatternId | null = null;
+  focus: { start: number; end: number } | undefined;
   private time = 0;
   private readonly lookup = new Map<string, Actor>();
   /** Current positions, by actor index. */
@@ -201,6 +237,7 @@ class Director {
       });
     });
     this.play = { ...play };
+    this.last = play.last ?? null;
     this.ball = start ? { ...start.ball } : { ...CENTRE };
     const shown = new Map(start?.players.map((p) => [p.id, p.point]));
     for (const actor of this.actors) {
@@ -298,7 +335,12 @@ class Director {
 
   // ── Keyframes ───────────────────────────────────────────────────────────────
 
-  private snapshot(ball: Point, carrierId: string | null, motion: BallMotion): ReplayFrame {
+  private snapshot(
+    ball: Point,
+    carrierId: string | null,
+    motion: BallMotion,
+    beat?: Beat,
+  ): ReplayFrame {
     return {
       timeMs: this.startTime + this.time,
       ball: { x: tenth(ball.x), y: tenth(ball.y) },
@@ -309,7 +351,45 @@ class Director {
       })),
       carrierId,
       ballMotion: motion,
+      ...(beat ? { beat } : {}),
     };
+  }
+  /** The third and channel of a point, for a side facing the goal it attacks. */
+  locate(side: Side, point: Point): Pick<Beat, 'zone' | 'flank'> {
+    const spot = this.toSpot(side, point);
+    return {
+      zone: spot.d < 100 / 3 ? 'def' : spot.d < 200 / 3 ? 'mid' : 'final',
+      flank: spot.w < 100 / 3 ? 'left' : spot.w > 200 / 3 ? 'right' : 'centre',
+    };
+  }
+  private beatOf(spec: BeatSpec, origin: Point, end: Point): Beat {
+    const where = this.locate(spec.actor.side, spec.won ? end : origin);
+    return {
+      kind: spec.kind,
+      actorId: spec.actor.id,
+      ...(spec.receiver ? { receiverId: spec.receiver.id } : {}),
+      ...(spec.eventId ? { eventId: spec.eventId } : {}),
+      ...(this.pattern ? { pattern: this.pattern } : {}),
+      zone: where.zone,
+      flank: where.flank,
+    };
+  }
+  /**
+   * The shape of a pass between teammates: a cross from wide in the final third into the box
+   * (a cut-back when pulled back low from the byline), a switch across the pitch, a through
+   * ball behind the line, any other lofted ball long, otherwise a pass.
+   */
+  passKind(side: Side, from: Point, to: Point, air: boolean, hint?: BeatKind): BeatKind {
+    const origin = this.locate(side, from);
+    const a = this.toSpot(side, from),
+      b = this.toSpot(side, to);
+    if (origin.zone === 'final' && origin.flank !== 'centre' && Math.abs(b.w - 50) <= 25) {
+      if (!air && a.d >= 85 && b.d < a.d - 3 && b.d >= 72) return 'cutback';
+      if (b.d >= 80) return 'cross';
+    }
+    if (hint === 'through' && b.d > a.d) return 'through';
+    if ((air || hint === 'cross') && Math.abs(b.w - a.w) >= 45) return 'switch';
+    return air ? 'long' : 'pass';
   }
   /**
    * Emit one keyframe. The carrier stands on the ball; `fixed` players go to given marks;
@@ -327,8 +407,11 @@ class Director {
     dead?: boolean;
     snap?: boolean;
     action?: boolean;
+    /** The ball action this keyframe shows (engine match-14). */
+    beat?: BeatSpec;
   }): void {
     const count = this.actors.length;
+    const origin = this.ball;
     const marks: (Point | undefined)[] = new Array<Point | undefined>(count);
     for (const [id, point] of options.fixed ?? []) marks[this.lookup.get(id)!.index] = point;
     const carrier = this.actor(options.carrier);
@@ -383,7 +466,9 @@ class Director {
     this.play.side = side;
     this.play.carrierId = carrier?.id ?? null;
     if (options.action !== false) this.beats++;
-    this.frames.push(this.snapshot(this.ball, this.play.carrierId, options.motion));
+    const beat = options.beat ? this.beatOf(options.beat, origin, this.ball) : undefined;
+    if (beat) this.last = beat;
+    this.frames.push(this.snapshot(this.ball, this.play.carrierId, options.motion, beat));
   }
   /** Hold a run level with the current second-last defender (or the ball) in their half. */
   onside(side: Side, point: Point): Point {
@@ -461,6 +546,8 @@ class Director {
     air: boolean,
     fixed?: Map<string, Point>,
     exact = false,
+    /** A hint at the pass's shape, or `save` for a keeper claiming it; the decision it plays. */
+    tag: { hint?: BeatKind; eventId?: string } = {},
   ): Point {
     const flight = (end: Point) => {
       const length = span(this.ball, end);
@@ -476,11 +563,36 @@ class Director {
       reach = this.reachable(receiver.id, target, dt);
       dt = Math.max(dt, flight(reach));
     }
-    this.emit({ dt, ball: reach, motion: air ? 'air' : 'ground', carrier: receiver.id, fixed });
+    // An opponent taking the ball wins it; between teammates the shape names the pass.
+    const passer = this.carrier();
+    const beat: BeatSpec =
+      !passer || passer.side !== receiver.side
+        ? {
+            kind: tag.hint === 'save' ? 'save' : 'intercept',
+            actor: receiver,
+            eventId: tag.eventId,
+            won: true,
+          }
+        : passer.id === receiver.id
+          ? { kind: 'carry', actor: passer, eventId: tag.eventId }
+          : {
+              kind: this.passKind(passer.side, this.ball, reach, air, tag.hint),
+              actor: passer,
+              receiver,
+              eventId: tag.eventId,
+            };
+    this.emit({
+      dt,
+      ball: reach,
+      motion: air ? 'air' : 'ground',
+      carrier: receiver.id,
+      fixed,
+      beat,
+    });
     return reach;
   }
   /** A pass towards `target` cut out by the opponent best placed along its path. */
-  intercept(passingSide: Side, target: Point, air: boolean): Actor {
+  intercept(passingSide: Side, target: Point, air: boolean, eventId?: string): Actor {
     const from = { ...this.ball };
     const defenders = this.teammates((1 - passingSide) as Side).filter(
       (actor) => !actor.keeper || span(this.at(actor.id), target) < 10,
@@ -508,10 +620,23 @@ class Director {
     dt = Math.max(dt, flight(ball));
     ball = this.reachable(best.id, point, dt);
     dt = Math.max(dt, flight(ball));
-    this.emit({ dt, ball, motion: air ? 'air' : 'ground', carrier: best.id });
+    this.emit({
+      dt,
+      ball,
+      motion: air ? 'air' : 'ground',
+      carrier: best.id,
+      beat: { kind: 'intercept', actor: best, eventId, won: true },
+    });
     return best;
   }
-  carry(actor: Actor, target: Point, fixed?: Map<string, Point>): void {
+  /** Run with the ball; a `dribble` takes it past an opponent. */
+  carry(
+    actor: Actor,
+    target: Point,
+    fixed?: Map<string, Point>,
+    kind: 'carry' | 'dribble' = 'carry',
+    eventId?: string,
+  ): void {
     const destination = { x: clamp(target.x, 1, 99), y: clamp(target.y, 1, 99) };
     this.emit({
       dt: 600 + span(this.ball, destination) * 170,
@@ -519,15 +644,23 @@ class Director {
       motion: 'carry',
       carrier: actor.id,
       fixed,
+      beat: { kind, actor, eventId },
     });
   }
-  /** A defender wins the ball from the carrier. */
-  tackle(winner: Actor): void {
+  /** A defender wins the ball from the carrier (a tackle, block or clearance). */
+  tackle(winner: Actor, eventId?: string, kind: BeatKind = 'tackle'): void {
     const loser = this.carrier();
     const ball = lerp(this.ball, this.at(winner.id), 0.3);
     const fixed = new Map<string, Point>();
     if (loser) fixed.set(loser.id, { ...this.ball });
-    this.emit({ dt: 900, ball, motion: 'loose', carrier: winner.id, fixed });
+    this.emit({
+      dt: 900,
+      ball,
+      motion: 'loose',
+      carrier: winner.id,
+      fixed,
+      beat: { kind, actor: winner, eventId, won: true },
+    });
   }
   /** Choose a pass for the team in possession: forward when on top, safe under pressure. */
   pickReceiver(side: Side, cap: number): { actor: Actor; point: Point } | null {
@@ -589,7 +722,13 @@ class Director {
     const collector = pool.sort(
       (a, b) => span(this.at(a.id), this.ball) - span(this.at(b.id), this.ball) || byId(a, b),
     )[0]!;
-    this.emit({ dt: 700, ball: this.ball, motion: 'loose', carrier: collector.id });
+    this.emit({
+      dt: 700,
+      ball: this.ball,
+      motion: 'loose',
+      carrier: collector.id,
+      beat: { kind: 'intercept', actor: collector, won: true },
+    });
   }
   /** The side gains possession: a tackle when close, otherwise an interception. */
   winBall(side: Side): void {
@@ -685,6 +824,7 @@ class Director {
         fixed: marks,
         dead: true,
         action: false,
+        beat: { kind: 'restart', actor: kicker, won: true },
       });
       return;
     }
@@ -699,6 +839,7 @@ class Director {
       snap: true,
       dead: true,
       action: false,
+      beat: { kind: 'restart', actor: kicker, won: true },
     });
   }
   kickoff(): void {
@@ -720,6 +861,7 @@ class Director {
       carrier: keeper.id,
       dead: true,
       action: false,
+      beat: { kind: 'restart', actor: keeper, won: true },
     });
     const short = want ? want.side === side && atBack(want.target) : this.rng.next() < 0.5;
     if (short) {
@@ -784,6 +926,7 @@ class Director {
       fixed: marks,
       dead: true,
       action: false,
+      beat: { kind: 'restart', actor: taker, won: true },
     });
     if (want && want.side === side && !want.target.keeper && want.target.id !== taker.id) {
       this.passTo(
@@ -829,13 +972,24 @@ class Director {
                 : { d: 87 + r * 5, w: 42 + s * 16 };
     return this.toPitch(actor.side, spot);
   }
-  /** Strike from the ball's position; returns where the ball ended. */
-  shoot(shooter: Actor, visual: ShotVisual, aim: number): Point {
+  /**
+   * Strike from the ball's position; returns where the ball ended. The strike keyframe is the
+   * shot (a header when met straight from a cross); a parry, punch or block adds the keeper's
+   * or defender's keyframe, and a goal its celebration.
+   */
+  shoot(
+    shooter: Actor,
+    visual: ShotVisual,
+    aim: number,
+    ids: { shot?: string; save?: string; block?: string; goal?: string } = {},
+    kind: 'shot' | 'header' = 'shot',
+  ): Point {
     const side = shooter.side,
       defending = (1 - side) as Side;
     const keeper = this.keeperOf(defending);
     const origin = { ...this.ball };
     const toward = (d: number, w: number) => this.toPitch(side, { d, w });
+    const shot: BeatSpec = { kind, actor: shooter, eventId: ids.shot };
     const strike = (
       end: Point,
       motion: BallMotion,
@@ -848,6 +1002,7 @@ class Director {
         carrier: null,
         side,
         dead: true,
+        beat: shot,
         ...extra,
       });
     const fixed = (point: Point) => new Map([[keeper.id, point]]);
@@ -855,7 +1010,7 @@ class Director {
       const end = toward(101.5, aim);
       // The keeper dives, a yard short of the ball.
       strike(end, 'shot', { fixed: fixed(toward(98.5, aim + (aim < 50 ? 3 : -3))) });
-      this.celebrate(shooter, defending);
+      this.celebrate(shooter, defending, ids.goal);
       return end;
     }
     if (visual === 'catch' || visual === 'smother') {
@@ -865,6 +1020,7 @@ class Director {
         ball: end,
         motion: 'shot',
         carrier: keeper.id,
+        beat: shot,
       });
       return end;
     }
@@ -877,6 +1033,7 @@ class Director {
         carrier: null,
         side,
         fixed: fixed(hands),
+        beat: shot,
       });
       const away =
         visual === 'parry'
@@ -889,6 +1046,7 @@ class Director {
         carrier: null,
         side: visual === 'parry' ? side : defending,
         dead: visual === 'parry',
+        beat: { kind: 'save', actor: keeper, eventId: ids.save },
       });
       if (visual === 'parry') this.play.restart = 'corner';
       return away;
@@ -903,6 +1061,7 @@ class Director {
         carrier: null,
         side,
         fixed: new Map([[blocker.id, blockAt]]),
+        beat: shot,
       });
       const rebound = lerp(blockAt, origin, 0.4);
       this.emit({
@@ -911,6 +1070,7 @@ class Director {
         motion: 'loose',
         carrier: null,
         side: defending,
+        beat: { kind: 'block', actor: blocker, eventId: ids.block },
       });
       return this.ball;
     }
@@ -924,7 +1084,7 @@ class Director {
     return end;
   }
   /** The scorer runs to the corner flag, nearby teammates join, then a kickoff awaits. */
-  celebrate(scorer: Actor, conceding: Side): void {
+  celebrate(scorer: Actor, conceding: Side, eventId?: string): void {
     const spot = this.toSpot(scorer.side, this.at(scorer.id));
     const corner = this.toPitch(scorer.side, { d: 93, w: spot.w < 50 ? 7 : 93 });
     const marks = new Map([[scorer.id, corner]]);
@@ -940,6 +1100,7 @@ class Director {
       fixed: marks,
       dead: true,
       action: false,
+      beat: { kind: 'celebration', actor: scorer, eventId },
     });
     this.play = { side: conceding, carrierId: null, restart: 'goal' };
     this.celebrated = true;
@@ -947,22 +1108,35 @@ class Director {
 
   // ── Events ─────────────────────────────────────────────────────────────────
 
-  /** Choreograph engine events in order, fixing their pitch points to what is shown. */
-  run(events: MatchEvent[], situation: Situation | null): void {
+  /**
+   * Choreograph engine events in order, fixing their pitch points to what is shown. The first
+   * `focusCount` events are a decision and what it led to: their keyframes become the focus.
+   */
+  run(events: MatchEvent[], situation: Situation | null, focusCount = 0): void {
     const done = new Set<MatchEvent>();
     events.forEach((event, index) => {
       if (done.has(event)) return;
+      const start = this.frames.length - 1;
       const actor = this.actor(event.playerId);
       if (event.kind === 'shot' && actor)
         this.shot(event, actor, events.slice(index + 1), done, situation);
       else if (event.kind === 'pass' && actor) this.pass(event, actor, events[index + 1]);
       else if (event.kind === 'dribble' && actor) this.dribble(event, actor);
       else if (event.kind === 'tackle' && actor) this.challenge(event, actor);
+      else if (event.kind === 'save' && actor) this.note(event, 'save', actor);
+      if (index < focusCount)
+        this.focus = { start: this.focus?.start ?? start, end: this.frames.length - 1 };
     });
   }
   private mark(event: MatchEvent, point: Point, end: Point) {
     event.point = { x: tenth(point.x), y: tenth(point.y) };
     event.endPoint = { x: tenth(end.x), y: tenth(end.y) };
+  }
+  /** How an event was played on the pitch: its action, third and receiver (match-14). */
+  private note(event: MatchEvent, action: BeatKind, actor: Actor, receiver?: Actor) {
+    event.action = action;
+    event.zone = this.locate(actor.side, event.point).zone;
+    if (receiver) event.receiverId = receiver.id;
   }
   private shot(
     event: MatchEvent,
@@ -1018,7 +1192,8 @@ class Director {
       // The keeper comes for the cross before it reaches the attacker.
       const landing = this.toPitch(side, { d: 93, w: 46 + this.rng.next() * 8 });
       const run = new Map([[shooter.id, this.reachable(shooter.id, landing, 2000)]]);
-      if (visual === 'catch') this.passTo(keeper, landing, true, run);
+      if (visual === 'catch')
+        this.passTo(keeper, landing, true, run, false, { hint: 'save', eventId: save.id });
       else {
         this.emit({
           dt: 1800,
@@ -1027,30 +1202,64 @@ class Director {
           carrier: null,
           side,
           fixed: new Map([...run, [keeper.id, landing]]),
+          beat: { kind: this.passKind(side, this.ball, landing, true, 'cross'), actor: carrier },
         });
         const away = this.toPitch(side, { d: 77, w: 30 + this.rng.next() * 40 });
-        this.emit({ dt: 900, ball: away, motion: 'air', carrier: null, side: (1 - side) as Side });
+        this.emit({
+          dt: 900,
+          ball: away,
+          motion: 'air',
+          carrier: null,
+          side: (1 - side) as Side,
+          beat: { kind: 'save', actor: keeper, eventId: save.id },
+        });
       }
       this.mark(event, this.at(shooter.id), landing);
+      this.note(event, 'header', shooter);
       this.mark(save, this.at(keeper.id), this.ball);
+      this.note(save, 'save', keeper);
       return;
     }
-    if (!(carrier?.id === shooter.id && this.toSpot(side, this.ball).d >= 62))
+    if (!(carrier?.id === shooter.id && this.toSpot(side, this.ball).d >= 62)) {
+      const counter = event.commentaryKey.includes('.counter.');
+      if (counter) this.pattern = 'counter';
       this.bringBall({ side, target: shooter }, this.shootingSpot(shooter), {
         air: crossing || undefined,
-        passes: event.commentaryKey.includes('.counter.') ? 1 : 3,
+        passes: counter ? 1 : 3,
       });
+      this.pattern = null;
+    }
     const origin = { ...this.ball };
-    const end = this.shoot(shooter, visual, aim);
+    // Met first time from a cross into the box: a header (an overhead kick stays a shot).
+    const kind =
+      this.last?.kind === 'cross' &&
+      this.last.receiverId === shooter.id &&
+      this.carrier()?.id === shooter.id &&
+      event.outcome?.input.choiceId !== 'bicycle-kick'
+        ? 'header'
+        : 'shot';
+    const end = this.shoot(
+      shooter,
+      visual,
+      aim,
+      { shot: event.id, save: save?.id, block: block?.id, goal: scored?.id },
+      kind,
+    );
     this.mark(event, origin, end);
+    this.note(event, kind, shooter);
     if (scored) {
       this.mark(scored, origin, end);
+      this.note(scored, kind, shooter);
       this.goals.push({ eventId: scored.id, playerId: shooter.id, frame: this.frames.length - 1 });
     }
-    if (save) this.mark(save, this.at(keeper.id), end);
+    if (save) {
+      this.mark(save, this.at(keeper.id), end);
+      this.note(save, 'save', keeper);
+    }
     if (block) {
       const blocker = this.actor(block.playerId);
       this.mark(block, blocker ? this.at(blocker.id) : end, end);
+      if (blocker) this.note(block, 'block', blocker);
     }
   }
   private pass(event: MatchEvent, passer: Actor, next: MatchEvent | undefined) {
@@ -1118,9 +1327,16 @@ class Director {
       target = option.point;
     }
     const air = style === 'cross' || style === 'long';
-    if (event.outcome?.success ?? true) this.passTo(receiver, target, air);
-    else this.intercept(side, target, air);
-    this.mark(event, origin, this.ball);
+    const hint: BeatKind = style === 'short' ? 'pass' : style;
+    if (event.outcome?.success ?? true) {
+      this.passTo(receiver, target, air, undefined, false, { hint, eventId: event.id });
+      this.mark(event, origin, this.ball);
+      this.note(event, this.last?.kind ?? 'pass', passer, receiver);
+    } else {
+      this.intercept(side, target, air, event.id);
+      this.mark(event, origin, this.ball);
+      this.note(event, this.passKind(side, origin, target, air, hint), passer);
+    }
   }
   private dribble(event: MatchEvent, runner: Actor) {
     const side = runner.side;
@@ -1128,34 +1344,46 @@ class Director {
     const origin = { ...this.ball };
     const from = this.toSpot(side, origin);
     const defender = this.nearest((1 - side) as Side, origin)[0]!;
+    // Carries gain ground; dribbles take the ball past a defender.
+    const choice = event.outcome?.input.choiceId ?? '';
+    const kind = CARRY_ONLY.includes(choice) ? 'carry' : 'dribble';
     if (event.outcome?.success ?? true) {
-      const style = CARRIES[event.outcome?.input.choiceId ?? ''] ?? { d: 9, w: 2 };
+      const style = CARRIES[choice] ?? { d: 9, w: 2 };
       const toward = from.w < 50 ? 1 : -1;
       const destination = this.toPitch(side, {
         d: clamp(from.d + style.d, 2, 95),
         w: clamp(from.w + toward * Math.min(style.w, Math.abs(50 - from.w)), 3, 97),
       });
       // The beaten defender lunges at where the ball was.
-      this.carry(runner, destination, new Map([[defender.id, origin]]));
-    } else this.tackle(defender);
+      this.carry(runner, destination, new Map([[defender.id, origin]]), kind, event.id);
+    } else this.tackle(defender, event.id);
     this.mark(event, origin, this.ball);
+    this.note(event, kind, runner);
   }
   private challenge(event: MatchEvent, defender: Actor) {
     const attacker = this.carrier();
+    const choice = event.outcome?.input.choiceId ?? '';
+    const action = CHALLENGES[choice] ?? 'tackle';
     if (!attacker || attacker.side === defender.side) {
       this.mark(event, this.at(defender.id), this.ball);
+      this.note(event, action, defender);
       return;
     }
     const start = { ...this.at(defender.id) };
     const origin = { ...this.ball };
     const side = attacker.side;
     const from = this.toSpot(side, origin);
-    const choice = event.outcome?.input.choiceId ?? '';
     if (event.outcome?.success ?? true) {
       if (choice === 'intercept') {
         const option = this.pickReceiver(side, 95);
         const lane = option ? lerp(origin, option.point, 0.45) : origin;
-        this.emit({ dt: 900, ball: lane, motion: 'ground', carrier: defender.id });
+        this.emit({
+          dt: 900,
+          ball: lane,
+          motion: 'ground',
+          carrier: defender.id,
+          beat: { kind: 'intercept', actor: defender, eventId: event.id, won: true },
+        });
       } else if (choice === 'jockey') {
         const wide = this.toPitch(side, {
           d: from.d + 3,
@@ -1168,17 +1396,18 @@ class Director {
             (from.w < 50 ? 2 : -2),
         });
         this.carry(attacker, wide, new Map([[defender.id, shadow]]));
-        this.tackle(defender);
-      } else this.tackle(defender);
+        this.tackle(defender, event.id);
+      } else this.tackle(defender, event.id, action);
     } else {
       // The attacker gets past; the defender is left where the ball was.
       const past = this.toPitch(side, {
         d: clamp(from.d + (choice === 'jockey' ? 6 : 10), 2, 94),
         w: clamp(from.w + (50 - from.w) * 0.3, 3, 97),
       });
-      this.carry(attacker, past, new Map([[defender.id, origin]]));
+      this.carry(attacker, past, new Map([[defender.id, origin]]), 'dribble', event.id);
     }
     this.mark(event, start, this.ball);
+    this.note(event, action, defender);
   }
 
   /**
@@ -1200,7 +1429,12 @@ class Director {
    * by their relative times).
    */
   finish(): Passage {
-    return { frames: this.frames, play: { ...this.play }, goals: this.goals };
+    return {
+      frames: this.frames,
+      play: { ...this.play, ...(this.last ? { last: this.last } : {}) },
+      goals: this.goals,
+      ...(this.focus ? { focus: this.focus } : {}),
+    };
   }
 
   // ── Key-moment scenes ──────────────────────────────────────────────────────
@@ -1256,6 +1490,7 @@ class Director {
             ball: landing,
             motion: 'air',
             carrier: selected.id,
+            beat: { kind: 'intercept', actor: selected, won: true },
           });
           this.carry(selected, spot);
         }
@@ -1278,6 +1513,7 @@ class Director {
           carrier: selected.id,
           fixed: marks,
           action: false,
+          beat: { kind: 'restart', actor: selected, won: true },
         });
         return;
       }
@@ -1295,6 +1531,7 @@ class Director {
           carrier: selected.id,
           fixed: marks,
           action: false,
+          beat: { kind: 'restart', actor: selected, won: true },
         });
         return;
       }
@@ -1307,6 +1544,7 @@ class Director {
           carrier: selected.id,
           fixed: marks,
           action: false,
+          beat: { kind: 'restart', actor: selected, won: true },
         });
         return;
       }
@@ -1382,6 +1620,7 @@ class Director {
           carrier: attacker.id,
           fixed: marks,
           action: false,
+          beat: { kind: 'carry', actor: attacker },
         });
         return;
       }
@@ -1402,6 +1641,7 @@ class Director {
           carrier: selected.id,
           fixed: marks,
           action: false,
+          beat: { kind: 'carry', actor: selected },
         });
       }
     }
@@ -1491,13 +1731,20 @@ export function outcomePassage(
   session: MatchSession,
   events: MatchEvent[],
   situationId: string,
+  /** How many of `events` the decision produced: its action and what followed from it. */
+  decisionEvents = 0,
 ): Passage {
-  return timed(() => outcomeScene(session, events, situationId));
+  return timed(() => outcomeScene(session, events, situationId, decisionEvents));
 }
-function outcomeScene(session: MatchSession, events: MatchEvent[], situationId: string): Passage {
+function outcomeScene(
+  session: MatchSession,
+  events: MatchEvent[],
+  situationId: string,
+  decisionEvents: number,
+): Passage {
   const minute = session.state.match.minute;
   const scene = director(session, lastFrame(session), minute * 60000 - 20000, 'outcome');
-  scene.run(events, SITUATION_BY_ID[situationId] ?? null);
+  scene.run(events, SITUATION_BY_ID[situationId] ?? null, decisionEvents);
   scene.fill(2);
   return scene.finish();
 }
