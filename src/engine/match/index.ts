@@ -45,8 +45,10 @@ import {
   momentPassage,
   openingKickoff,
   outcomePassage,
+  timedNarration,
   type Passage,
 } from './motion';
+import { narrate } from './narration';
 import { MATCH_CONFIG as C } from './tuning';
 import { performanceFame, performanceXp } from './rewards';
 import { reportCopy } from './headlines';
@@ -75,6 +77,12 @@ export {
   shiftMentality,
 } from './roles';
 export { span, attacksRightAt, type Passage } from './motion';
+export {
+  NARRATION_FAMILIES,
+  NARRATION_VARIANTS,
+  CUT_FAMILIES,
+  type NarrationFamily,
+} from './narration';
 export {
   buildChoices,
   expectedImpact,
@@ -533,6 +541,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
         touches: 0,
       },
       ratingByMinute: [],
+      narration: [],
       heat: new Array<number>(HEAT_COLUMNS * HEAT_ROWS).fill(0),
       ratingParts: Object.fromEntries(RATING_PARTS.map((part) => [part, 0])) as Record<
         RatingPart,
@@ -577,7 +586,16 @@ function applyPassage(
   if (replace) s.frames[s.frames.length - 1] = snapshot;
   else s.frames.push(snapshot);
   s.play = passage.play;
-  s.motion = { kind, frames: passage.frames, ...(passage.focus ? { focus: passage.focus } : {}) };
+  // Narration from the passage's beats (match-14), on its own stream.
+  const narrationStart = s.narration.length;
+  const lines = timedNarration(() => narrate(session, passage.frames, kind, narrationStart));
+  if (lines.length) s.narration = [...s.narration, ...lines];
+  s.motion = {
+    kind,
+    frames: passage.frames,
+    ...(passage.focus ? { focus: passage.focus } : {}),
+    narrationStart,
+  };
   // Bookkeeping from what is shown (match-14): shots on target, and the selected player's
   // distance, touches and heat, oriented with their team attacking towards x = 100.
   const stats = s.stats;
@@ -1599,13 +1617,15 @@ export function validateMatchSession(value: unknown): MatchSession {
   // Sessions from another engine cannot replay; callers discard them and keep the world. A
   // session from before formations, or before slot-aware moments, replays with the rules its
   // setup implies.
-  // Sessions saved before the choreography annotations and bookkeeping stats (match-14) lack
-  // them whatever their engine, so they cannot replay to the same state either.
+  // Sessions saved before the choreography annotations and bookkeeping stats (match-14), or
+  // before its narration, lack them whatever their engine, so they cannot replay to the same
+  // state either.
   if (
     !session.setup ||
     typeof session.setup !== 'object' ||
     session.engine !== engineFor(session.setup) ||
-    !Array.isArray(session.state?.stats?.xg)
+    !Array.isArray(session.state?.stats?.xg) ||
+    !Array.isArray(session.state?.narration)
   )
     throw new OutdatedMatchSessionError(session.engine);
   if (

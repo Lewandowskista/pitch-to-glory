@@ -175,6 +175,30 @@ export interface MatchMotion {
    * celebration), so a camera can replay just the decision.
    */
   focus?: { start: number; end: number };
+  /**
+   * Where this passage's narration starts in `MatchState.narration` (match-14): lines from this
+   * index on describe `frames` (`NarrationLine.frame`); earlier lines were already shown.
+   */
+  narrationStart?: number;
+}
+/**
+ * A line of narration (match-14, redesign step M3), generated from a passage's beats after it
+ * is choreographed (see narration.ts). The copy lives in `src/i18n/narration.ts`.
+ */
+export interface NarrationLine {
+  minute: number;
+  /** The keyframe it describes, as an index into the passage's `frames`. */
+  frame: number;
+  /** `match.narration.<family>.<variant>`. */
+  key: string;
+  /**
+   * `player` and `receiver` are player ids (opponents in the `…cut` families: the passer and
+   * the player who cut it out); `flank` (left, centre, right), `zone` (def, mid, final), `post`
+   * (near, far) and `pattern` (a PatternId) are plain descriptors.
+   */
+  params: Record<string, string>;
+  /** The engine event the move led to (a shot, or the decision it played). */
+  eventId?: string;
 }
 export interface MatchState {
   match: Match;
@@ -201,6 +225,8 @@ export interface MatchState {
   stats: LiveStats;
   /** The live rating at the end of each played minute, to two decimals (engine match-14). */
   ratingByMinute: number[];
+  /** What the pitch showed, as narration lines in the order they were played (match-14). */
+  narration: NarrationLine[];
   /**
    * Milliseconds the selected player spent in each heat cell (`HEAT_COLUMNS` × `HEAT_ROWS`,
    * row-major), sampled along every keyframe span and oriented with their team attacking

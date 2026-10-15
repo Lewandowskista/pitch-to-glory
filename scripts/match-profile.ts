@@ -52,8 +52,8 @@ export interface PositionProfile {
    * worst policy on a specialised profile. */
   policy: { best: [number, number]; worst: [number, number]; involvement: [number, number] };
   calibration: Record<string, Bucket>;
-  /** Milliseconds per full match: everything, and the choreography (motion) alone. */
-  cost: { matchMs: number; motionMs: number };
+  /** Milliseconds per full match: everything, and the choreography (motion, narration included). */
+  cost: { matchMs: number; motionMs: number; narrationMs?: number };
 }
 
 function argument(name: string): string | undefined {
@@ -120,6 +120,7 @@ export function profilePosition(position: Position, matches: number): PositionPr
   motionProbe.clock = () => performance.now();
   motionProbe.ms = 0;
   motionProbe.passages = 0;
+  motionProbe.narrationMs = 0;
   const started = performance.now();
   for (let index = 0; index < matches; index++) {
     const [home, away] = index % 2 ? [clubs[1]!, clubs[0]!] : [clubs[0]!, clubs[1]!];
@@ -198,6 +199,7 @@ export function profilePosition(position: Position, matches: number): PositionPr
   result.cost = {
     matchMs: round((performance.now() - started) / (3 * matches)),
     motionMs: round(motionProbe.ms / (3 * matches)),
+    narrationMs: round(motionProbe.narrationMs / (3 * matches)),
   };
   motionProbe.clock = null;
   result.goals = round(result.goals / matches);
@@ -333,7 +335,7 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/match-profile.ts')) {
     const profiles = positions.map((position) => {
       const profile = profilePosition(position, matches);
       console.log(
-        `${position}: ${profile.goals} g ${profile.assists} a · rating ${profile.rating.mean} (p10 ${profile.rating.p10}, p90 ${profile.rating.p90}, 9+ ${profile.rating.nineOrMore}) · ${profile.moments} moments · subs ${profile.substituted} · fatigue ${profile.fatigueAtEnd} · xp ${profile.xp} fame ${profile.fame} · best ${profile.policy.best.join('-')} worst ${profile.policy.worst.join('-')} involvement ${profile.policy.involvement.join('/')} · ${profile.cost.matchMs} ms a match (motion ${profile.cost.motionMs}) · objectives ${JSON.stringify(profile.objectives)}`,
+        `${position}: ${profile.goals} g ${profile.assists} a · rating ${profile.rating.mean} (p10 ${profile.rating.p10}, p90 ${profile.rating.p90}, 9+ ${profile.rating.nineOrMore}) · ${profile.moments} moments · subs ${profile.substituted} · fatigue ${profile.fatigueAtEnd} · xp ${profile.xp} fame ${profile.fame} · best ${profile.policy.best.join('-')} worst ${profile.policy.worst.join('-')} involvement ${profile.policy.involvement.join('/')} · ${profile.cost.matchMs} ms a match (motion ${profile.cost.motionMs}, narration ${profile.cost.narrationMs ?? 0}) · objectives ${JSON.stringify(profile.objectives)}`,
       );
       return profile;
     });
