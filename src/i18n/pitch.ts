@@ -1,10 +1,10 @@
 export const pitchCopy = {
   label:
-    'Live football pitch. Home players have solid outlines; away players have dashed outer rings. Your player has a double gold ring.',
+    'Live football pitch. Home players have solid outlines; away players have dashed outer rings. Your player has a gold ring and a You label.',
   fallback: 'Using the accessible pitch view. Match decisions and controls remain available.',
   home: 'Home · solid outline',
   away: 'Away · dashed ring',
-  selected: 'You · double gold ring',
+  selected: 'You · gold ring',
   heatmap: 'Movement heatmap',
   passes: 'Pass map',
   shots: 'Shot map',
@@ -20,4 +20,15 @@ export const pitchCopy = {
   attempts: 'attempts',
   completed: 'completed',
   scored: 'scored',
+  /** The redesigned pitch and maps (redesign phase 5b). */
+  you: 'You',
+  liveLabel:
+    'Live pitch: {formations}. Your player has a gold ring and a You label; away players have dashed outer rings. A fading dashed line shows the last pass.',
+  heatTime: 'Brighter cells show where you spent more time.',
+  heatDirection: '{club} attack left to right.',
+  shotSizes: 'Larger circles were bigger chances.',
+  completedLegend: 'Completed',
+  incompleteLegend: 'Incomplete',
+  goalLegend: 'Goal',
+  otherShotLegend: 'Other shot',
 };
