@@ -17,6 +17,17 @@ import {
   type FormationSlot,
   type SlotRole,
 } from '../selection/formations';
+import {
+  crossFinish,
+  onGoal,
+  planMove,
+  wingOf,
+  type Area,
+  type MoveContext,
+  type PassStep,
+  type Plan,
+  type Wing,
+} from './patterns';
 
 /**
  * Match motion: turns the engine's events into a continuous, football-logical passage of
@@ -36,6 +47,8 @@ import {
  *
  * Every action keyframe carries a `Beat` (engine match-14): what was done with the ball, by whom,
  * to whom and where, so a viewer can draw the last pass, label players and narrate the play.
+ * Build-up follows the pattern library (patterns.ts: wing play, overlaps, switches, balls in
+ * behind, counters, cut-backs, long balls, recycling), and those beats carry their `pattern`.
  *
  * Coordinates: `x` 0–100 along the pitch (home attacks x = 100 in the first half), `y` 0–100
  * across it. Each team reasons in its attack frame: depth `d` from its own goal line (0) to the
@@ -67,6 +80,22 @@ interface Want {
   side: Side;
   target: Actor;
 }
+/** What a move is for, so the pattern library can choose one (see patterns.ts). */
+interface MoveRequest {
+  purpose: MoveContext['purpose'];
+  /** The engine calls it a counter-attack. */
+  counter?: boolean;
+  situationId?: string;
+}
+/** Beats that win the ball for the actor's side. */
+const WINS: ReadonlySet<BeatKind> = new Set(['tackle', 'intercept', 'save', 'block', 'clearance']);
+/** How often ordinary possession plays out a recognisable move before passing it about. */
+const FILL_PATTERN = 0.5;
+/** A wide player's slot on each flank, for the decision passes that go down a wing. */
+const FLANK_ROLES = {
+  left: { wide: 'wide-left', back: 'left-back' },
+  right: { wide: 'wide-right', back: 'right-back' },
+} as const satisfies Record<string, Record<string, SlotRole>>;
 /** How a keyframe's beat is described to `emit`. */
 interface BeatSpec {
   kind: BeatKind;
@@ -136,6 +165,8 @@ const PASS_STYLES: Record<string, PassStyle> = {
   'corner-inswinger': 'cross',
   'corner-near-post': 'cross',
 };
+/** Short decision passes that keep the ball: patient circulation (the recycle pattern). */
+const RECYCLES = ['short-pass', 'short-distribution', 'lay-off', 'cushion'];
 /** Ball-carrying choices that gain ground without taking on a defender. */
 const CARRY_ONLY = ['carry-forward', 'carry-out', 'control-shoot'];
 /** Defensive choices whose winning action is not a plain tackle. */
@@ -211,6 +242,8 @@ class Director {
   pattern: PatternId | null = null;
   readonly onTarget: [number, number] = [0, 0];
   focus: { start: number; end: number } | undefined;
+  /** How the ball reached the passage's first frame. */
+  private readonly arrived: BallMotion | undefined;
   private time = 0;
   private readonly lookup = new Map<string, Actor>();
   /** Current positions, by actor index. */
@@ -259,6 +292,11 @@ class Director {
       this.play.carrierId = this.actors[index]?.id ?? null;
     }
     this.frames.push(this.snapshot(this.ball, this.play.carrierId, 'dead'));
+    this.arrived = start?.ballMotion;
+  }
+  /** How the ball arrived where it is: in the air, along the ground… (across passages too). */
+  arrival(): BallMotion | undefined {
+    return this.frames.length > 1 ? this.frames[this.frames.length - 1]!.ballMotion : this.arrived;
   }
 
   // ── Geometry ────────────────────────────────────────────────────────────────
@@ -475,12 +513,16 @@ class Director {
     if (beat) this.last = beat;
     this.frames.push(this.snapshot(this.ball, this.play.carrierId, options.motion, beat));
   }
-  /** Hold a run level with the current second-last defender (or the ball) in their half. */
-  onside(side: Side, point: Point): Point {
+  /** The offside line a side attacks: the second-last defender, the ball or halfway. */
+  lineDepth(side: Side): number {
     const depths = this.teammates((1 - side) as Side)
       .map((actor) => this.toSpot(side, this.pos[actor.index]!).d)
       .sort((a, b) => b - a);
-    const line = Math.max(50, depths[1] ?? 50, this.toSpot(side, this.ball).d) - 0.5;
+    return Math.max(50, depths[1] ?? 50, this.toSpot(side, this.ball).d);
+  }
+  /** Hold a run level with the current second-last defender (or the ball) in their half. */
+  onside(side: Side, point: Point): Point {
+    const line = this.lineDepth(side) - 0.5;
     const spot = this.toSpot(side, point);
     return spot.d > line ? this.toPitch(side, { d: line, w: spot.w }) : point;
   }
@@ -755,9 +797,58 @@ class Director {
    * Get the ball to `target` (at `spot`, when given): resolve any restart, win it back if
    * needed, then move it up the pitch through teammates while the target makes the run.
    */
-  bringBall(want: Want, spot: Point | null, options: { air?: boolean; passes?: number } = {}) {
+  bringBall(
+    want: Want,
+    spot: Point | null,
+    options: {
+      air?: boolean;
+      passes?: number;
+      /** Play a recognisable move from the pattern library (match-14); a shot's spot follows it. */
+      move?: MoveRequest;
+    } = {},
+  ): void {
     this.restart(want);
-    if (this.play.side !== want.side || !this.carrier()) this.winBall(want.side);
+    const move = options.move;
+    if (this.play.side !== want.side || !this.carrier()) {
+      // A counter-attack starts with the regain.
+      if (move?.counter) this.pattern = 'counter';
+      this.winBall(want.side);
+    }
+    const holder = this.carrier();
+    if (move && holder && holder.side === want.side && holder.id !== want.target.id) {
+      const plan = planMove(this.context(want.side, want.target, move, spot), this.rng);
+      if (plan) {
+        this.pattern = plan.id;
+        const ended = this.follow(
+          plan,
+          want.side,
+          want.target,
+          move.purpose === 'scene' ? spot : null,
+        );
+        if (this.carrier()?.id === want.target.id) {
+          // Received from the move's final ball (a cross met first time stays where it is
+          // met), or earlier in the move: then on to the spot.
+          const end =
+            spot ??
+            (plan.finish
+              ? this.toPitch(want.side, plan.finish)
+              : ended === 'early' && move.purpose === 'shot'
+                ? this.shootingSpot(want.target)
+                : null);
+          if (end && span(this.ball, end) > 2) this.carry(want.target, end);
+          this.pattern = null;
+          return;
+        }
+        if (ended === 'lost') this.winBall(want.side);
+      }
+    }
+    this.pattern = move?.counter ? 'counter' : null;
+    const finish = spot ?? (move?.purpose === 'shot' ? this.shootingSpot(want.target) : null);
+    this.relay(want, finish, options);
+    this.pattern = null;
+  }
+  /** The ball moves up through teammates to the target (the generic way, no pattern). */
+  private relay(want: Want, spot: Point | null, options: { air?: boolean; passes?: number }) {
     const limit = options.passes ?? 3;
     for (let pass = 0; ; pass++) {
       const carrier = this.carrier()!;
@@ -797,6 +888,136 @@ class Director {
       if (spot && span(this.ball, spot) > 2) this.carry(want.target, spot);
       return;
     }
+  }
+
+  // ── Patterns (match-14, redesign step M2) ──────────────────────────────────
+
+  /** What the pattern library needs to know about a move for one side. */
+  private context(
+    side: Side,
+    target: Actor | null,
+    move: MoveRequest,
+    spot: Point | null,
+  ): MoveContext {
+    const carrier = this.carrier();
+    const own = carrier && carrier.side === side ? carrier : null;
+    const m = this.session.state.match;
+    const last = this.last;
+    return {
+      purpose: move.purpose,
+      ball: this.toSpot(side, this.ball),
+      carrierRole: own ? own.post.role : null,
+      carrierAtBack: !!own && atBack(own),
+      targetRole: target ? target.post.role : null,
+      ...(target ? { targetAt: this.toSpot(side, this.at(target.id)) } : {}),
+      roles: new Set(this.teammates(side).map((actor) => actor.post.role)),
+      style: (side === 0 ? this.session.setup.home : this.session.setup.away).playingStyle,
+      formation: formationOf((side === 0 ? m.home : m.away).formation),
+      line: this.lineDepth(side),
+      counter: !!move.counter,
+      won: !!last && WINS.has(last.kind) && this.actor(last.actorId)?.side === side,
+      ...(move.situationId ? { situationId: move.situationId } : {}),
+      ...(spot ? { spot: this.toSpot(side, spot) } : {}),
+    };
+  }
+  /** The first outfield teammate, other than the carrier, holding one of the roles. */
+  private resolve(side: Side, roles: readonly SlotRole[], carrier: Actor): Actor | undefined {
+    const team = this.teammates(side);
+    for (const role of roles) {
+      const actor = team.find(
+        (entry) => entry.post.role === role && entry.id !== carrier.id && !entry.keeper,
+      );
+      if (actor) return actor;
+    }
+    return undefined;
+  }
+  /**
+   * Play a planned move's steps for `side`. The finisher (`target`) and the next receiver time
+   * their runs to stay onside until the ball is played; a ball in behind goes beyond the line
+   * as it stands when it is played; a contested ball into the box may be cut out. Returns how
+   * it ended: the finisher received the final ball (`target`) or an earlier one (`early`), the
+   * side still has it without a finisher (`open`), or lost it (`lost`).
+   */
+  private follow(
+    plan: Plan,
+    side: Side,
+    target: Actor | null,
+    spot: Point | null,
+  ): 'target' | 'early' | 'open' | 'lost' {
+    const steps = plan.steps;
+    const point = (area: Area) =>
+      this.toPitch(side, { d: clamp(area.d, 1, 99), w: clamp(area.w, 2, 98) });
+    const final = steps.find(
+      (step): step is PassStep => step.kind === 'pass' && step.who === 'target',
+    );
+    const arrival = spot ?? (final ? point(final.to) : plan.finish ? point(plan.finish) : null);
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i]!;
+      const carrier = this.carrier();
+      if (!carrier || carrier.side !== side) return 'lost';
+      if (target && carrier.id === target.id) return 'early';
+      const runs = new Map<string, Point>();
+      if (target && arrival)
+        runs.set(target.id, this.reachable(target.id, this.onside(side, arrival), 2500));
+      if (step.kind === 'carry') {
+        const to = point(step.to);
+        // Never carry backwards, except to hold the ball up for an overlap.
+        if (!step.run && this.toSpot(side, to).d < this.toSpot(side, this.ball).d - 3) continue;
+        const runner = step.run ? this.resolve(side, step.run.who, carrier) : undefined;
+        if (step.run && runner && runner.id !== target?.id)
+          runs.set(
+            runner.id,
+            this.reachable(runner.id, this.onside(side, point(step.run.to)), 4000),
+          );
+        runs.delete(carrier.id);
+        this.carry(carrier, to, runs.size ? runs : undefined, step.dribble ? 'dribble' : 'carry');
+        continue;
+      }
+      const receiver = step.who === 'target' ? target : this.resolve(side, step.who, carrier);
+      if (!receiver || receiver.id === carrier.id) continue;
+      const finishing = !!target && receiver.id === target.id;
+      let to = finishing && step.who === 'target' && spot ? spot : point(step.to);
+      if (step.behind !== undefined && !(finishing && spot)) {
+        // Beyond the line as it stands now, in the runner's channel.
+        const depth = Math.min(92, this.lineDepth(side) + step.behind);
+        to = this.toPitch(side, { d: depth, w: this.toSpot(side, to).w });
+      }
+      runs.delete(receiver.id);
+      // The next receiver gets moving too.
+      const next = steps.slice(i + 1).find((entry): entry is PassStep => entry.kind === 'pass');
+      if (next && next.who !== 'target') {
+        const mate = this.resolve(side, next.who, receiver);
+        if (mate && mate.id !== target?.id && mate.id !== carrier.id)
+          runs.set(mate.id, this.reachable(mate.id, this.onside(side, point(next.to)), 2000));
+      }
+      if (step.contest && this.rng.next() < 0.6) {
+        this.intercept(side, to, step.air);
+        return 'lost';
+      }
+      // A ball in behind is weighted for the runner to arrive on it; one the runner cannot reach
+      // in time, or to a spot short of the line, is an ordinary forward pass.
+      let hint = step.hint,
+        exact = false;
+      if (hint === 'through') {
+        if (span(this.at(receiver.id), to) < 40 && this.toSpot(side, to).d > this.lineDepth(side))
+          exact = true;
+        else hint = 'pass';
+      }
+      this.passTo(receiver, to, step.air, runs.size ? runs : undefined, exact, { hint });
+      if (finishing) return step.who === 'target' ? 'target' : 'early';
+    }
+    const holder = this.carrier();
+    if (!holder || holder.side !== side) return 'lost';
+    return target && holder.id === target.id ? 'early' : 'open';
+  }
+  /** Ordinary possession plays out a recognisable move (no finisher; a ball into the box may be cut out). */
+  private build(): void {
+    const side = this.play.side;
+    const plan = planMove(this.context(side, null, { purpose: 'fill' }, null), this.rng);
+    if (!plan) return;
+    this.pattern = plan.id;
+    this.follow(plan, side, null, null);
+    this.pattern = null;
   }
 
   // ── Restarts ───────────────────────────────────────────────────────────────
@@ -1200,6 +1421,8 @@ class Director {
       // The keeper comes for the cross before it reaches the attacker.
       const landing = this.toPitch(side, { d: 93, w: 46 + this.rng.next() * 8 });
       const run = new Map([[shooter.id, this.reachable(shooter.id, landing, 2000)]]);
+      // A wide man's cross: wing play.
+      this.pattern = 'wing-play';
       if (visual === 'catch')
         this.passTo(keeper, landing, true, run, false, { hint: 'save', eventId: save.id });
       else {
@@ -1222,6 +1445,7 @@ class Director {
           beat: { kind: 'save', actor: keeper, eventId: save.id },
         });
       }
+      this.pattern = null;
       this.onTarget[side]++;
       this.mark(event, this.at(shooter.id), landing);
       this.note(event, 'header', shooter);
@@ -1231,19 +1455,21 @@ class Director {
     }
     if (!(carrier?.id === shooter.id && this.toSpot(side, this.ball).d >= 62)) {
       const counter = event.commentaryKey.includes('.counter.');
-      if (counter) this.pattern = 'counter';
-      this.bringBall({ side, target: shooter }, this.shootingSpot(shooter), {
+      // The pattern library brings the ball to the shooter (and picks the spot it is struck from).
+      this.bringBall({ side, target: shooter }, null, {
         air: crossing || undefined,
         passes: counter ? 1 : 3,
+        move: { purpose: 'shot', counter },
       });
-      this.pattern = null;
     }
     const origin = { ...this.ball };
-    // Met first time from a cross into the box: a header (an overhead kick stays a shot).
+    // Met first time from a lofted cross into the box: a header (an overhead kick stays a shot;
+    // a low cross is struck).
     const kind =
       this.last?.kind === 'cross' &&
       this.last.receiverId === shooter.id &&
       this.carrier()?.id === shooter.id &&
+      this.arrival() === 'air' &&
       event.outcome?.input.choiceId !== 'bicycle-kick'
         ? 'header'
         : 'shot';
@@ -1273,62 +1499,128 @@ class Director {
   }
   private pass(event: MatchEvent, passer: Actor, next: MatchEvent | undefined) {
     const side = passer.side;
-    if (this.carrier()?.id !== passer.id) this.bringBall({ side, target: passer }, null);
-    const style = PASS_STYLES[event.outcome?.input.choiceId ?? ''] ?? 'short';
+    if (this.carrier()?.id !== passer.id)
+      this.bringBall({ side, target: passer }, null, { move: { purpose: 'reach' } });
+    const choice = event.outcome?.input.choiceId ?? '';
+    const style = PASS_STYLES[choice] ?? 'short';
     const origin = { ...this.ball };
     const from = this.toSpot(side, origin);
+    const team = this.teammates(side).filter((actor) => actor.id !== passer.id);
     const follower =
       next?.kind === 'shot' && next.teamId === event.teamId && next.playerId !== passer.id
         ? this.actor(next.playerId)
         : undefined;
-    let receiver: Actor | undefined, target: Point | undefined;
-    if (follower) {
-      receiver = follower;
-      target =
-        style === 'short' && from.d > 70
-          ? this.toPitch(side, { d: clamp(from.d + 4, 76, 92), w: 44 + this.rng.next() * 12 })
-          : this.shootingSpot(follower);
-    } else if (style === 'through' || style === 'long') {
-      const forwards = this.teammates(side)
-        .filter(
-          (actor) =>
-            (style === 'long' ? !atBack(actor) : actor.post.line === 'attack') &&
-            actor.id !== passer.id,
-        )
+    const wing: Wing = from.w < 50 ? 'left' : 'right';
+    const farWing: Wing = wing === 'left' ? 'right' : 'left';
+    const pitch = (area: Area) =>
+      this.toPitch(side, { d: clamp(area.d, 1, 99), w: clamp(area.w, 2, 98) });
+    /** Forwards furthest up the pitch first. */
+    const forwards = (long: boolean) =>
+      team
+        .filter((actor) => (long ? !atBack(actor) : actor.post.line === 'attack'))
         .sort(
           (a, b) =>
             this.toSpot(side, this.at(b.id)).d - this.toSpot(side, this.at(a.id)).d || byId(a, b),
         );
-      receiver =
-        forwards[style === 'long' ? 0 : Math.floor(this.rng.next() * Math.min(2, forwards.length))];
-      if (receiver) {
-        const spot = this.toSpot(side, this.at(receiver.id));
-        target = this.toPitch(side, {
-          d: clamp(spot.d + (style === 'through' ? 12 : 4), 1, 92),
-          w: spot.w,
-        });
-      }
+    /** In behind the line as it stands, in the receiver's channel. */
+    const inBehind = (receiver: Actor, beyond: number) => {
+      const lane = this.toSpot(side, this.at(receiver.id)).w;
+      return pitch({
+        d: clamp(this.lineDepth(side) + beyond, from.d + 4, 92),
+        w: lane + (50 - lane) * 0.2,
+      });
+    };
+    // The decision pass, the move it belongs to (match-14 pattern library), and what takes the
+    // ball on to the follower's shot once it arrives.
+    let receiver: Actor | undefined, target: Point | undefined;
+    let pattern: PatternId | null = null;
+    let then: ((holder: Actor) => void) | null = null;
+    let exact = false;
+    if (style === 'cross' && ((from.d > 66 && Math.abs(from.w - 50) > 17) || from.d > 80)) {
+      // A cross into the box: wing play to a run at the near or far post.
+      pattern = 'wing-play';
+      receiver = follower ?? byRole(team, 'striker', 'second-striker', 'attacking-mid');
+      target = pitch(crossFinish(wing, this.rng.next() < 0.5 ? 'near' : 'far', this.rng));
     } else if (style === 'cross') {
-      const box = from.d > 66;
-      receiver = byRole(
-        this.teammates(side).filter((actor) => actor.id !== passer.id),
-        'striker',
-      );
-      if (box && receiver)
-        target = this.toPitch(side, { d: 88 + this.rng.next() * 4, w: 42 + this.rng.next() * 16 });
-      else {
-        receiver = byRole(
-          this.teammates(side).filter((actor) => actor.id !== passer.id),
-          from.w < 50 ? 'wide-right' : 'wide-left',
+      // Switch play: a long diagonal to the far flank, then the attack goes down that side.
+      pattern = 'switch';
+      const far = FLANK_ROLES[farWing];
+      receiver =
+        follower && wingOf(follower.post.role) === farWing
+          ? follower
+          : byRole(team, far.wide, far.back);
+      if (receiver)
+        target = this.reachable(
+          receiver.id,
+          this.toPitch(side, { d: from.d + 8, w: farWing === 'right' ? 88 : 12 }),
+          3000,
         );
-        if (receiver)
-          target = this.reachable(
-            receiver.id,
-            this.toPitch(side, { d: from.d + 8, w: from.w < 50 ? 88 : 12 }),
-            3000,
+      if (follower && receiver && receiver.id !== follower.id)
+        then = (holder) => {
+          this.carry(
+            holder,
+            pitch({ d: 80 + this.rng.next() * 4, w: farWing === 'right' ? 91 : 9 }),
           );
+          this.passTo(
+            follower,
+            pitch(crossFinish(farWing, 'far', this.rng)),
+            true,
+            undefined,
+            false,
+            { hint: 'cross' },
+          );
+        };
+    } else if (style === 'through') {
+      // A ball in behind for a runner.
+      pattern = 'through-ball';
+      const runners = forwards(false);
+      receiver = follower ?? runners[Math.floor(this.rng.next() * Math.min(2, runners.length))];
+      if (receiver) {
+        target = inBehind(receiver, 5 + this.rng.next() * 6);
+        exact = span(this.at(receiver.id), target) < 40;
       }
-    }
+      if (follower) then = (holder) => this.carry(holder, pitch(onGoal(this.rng)));
+    } else if (style === 'long' && choice === 'quick-release') {
+      // The keeper sets a counter going: one ball to a runner.
+      pattern = 'counter';
+      receiver = follower ?? forwards(true)[0];
+      if (receiver) {
+        target = inBehind(receiver, 3 + this.rng.next() * 5);
+        exact = span(this.at(receiver.id), target) < 40;
+      }
+      if (follower) then = (holder) => this.carry(holder, pitch(onGoal(this.rng)));
+    } else if (style === 'long') {
+      // Long to the target man, who knocks it down.
+      pattern = 'long-ball';
+      receiver = byRole(team, 'striker', 'second-striker') ?? forwards(true)[0];
+      if (follower && receiver?.id === follower.id) receiver = follower;
+      const knock = { d: 62 + this.rng.next() * 10, w: 40 + this.rng.next() * 20 };
+      if (receiver) target = pitch(knock);
+      if (follower)
+        then = (holder) => {
+          if (holder.id !== follower.id)
+            this.passTo(
+              follower,
+              pitch({ d: knock.d + 3 + this.rng.next() * 5, w: knock.w }),
+              false,
+            );
+          this.carry(follower, this.shootingSpot(follower));
+        };
+    } else if (follower) {
+      receiver = follower;
+      if (from.d >= 85 && Math.abs(from.w - 50) > 17) {
+        // From the byline: pulled back to the penalty spot area.
+        pattern = 'cut-back';
+        target = pitch({
+          d: clamp(from.d - 4 - this.rng.next() * 5, 76, 87),
+          w: 42 + this.rng.next() * 16,
+        });
+      } else
+        target =
+          from.d > 70
+            ? this.toPitch(side, { d: clamp(from.d + 4, 76, 92), w: 44 + this.rng.next() * 12 })
+            : this.shootingSpot(follower);
+    } else if (RECYCLES.includes(choice)) pattern = 'recycle';
     if (!receiver || !target) {
       const option = this.pickReceiver(side, 92);
       if (!option) return;
@@ -1336,20 +1628,33 @@ class Director {
       target = option.point;
     }
     const air = style === 'cross' || style === 'long';
-    const hint: BeatKind = style === 'short' ? 'pass' : style;
+    const hint: BeatKind =
+      style === 'short'
+        ? 'pass'
+        : pattern === 'counter'
+          ? exact
+            ? 'through'
+            : 'long'
+          : style === 'through' && !exact
+            ? 'pass'
+            : style;
+    this.pattern = pattern;
     if (event.outcome?.success ?? true) {
-      this.passTo(receiver, target, air, undefined, false, { hint, eventId: event.id });
+      this.passTo(receiver, target, air, undefined, exact, { hint, eventId: event.id });
       this.mark(event, origin, this.ball);
       this.note(event, this.last?.kind ?? 'pass', passer, receiver);
+      if (then && this.carrier()?.id === receiver.id) then(receiver);
     } else {
       this.intercept(side, target, air, event.id);
       this.mark(event, origin, this.ball);
       this.note(event, this.passKind(side, origin, target, air, hint), passer);
     }
+    this.pattern = null;
   }
   private dribble(event: MatchEvent, runner: Actor) {
     const side = runner.side;
-    if (this.carrier()?.id !== runner.id) this.bringBall({ side, target: runner }, null);
+    if (this.carrier()?.id !== runner.id)
+      this.bringBall({ side, target: runner }, null, { move: { purpose: 'reach' } });
     const origin = { ...this.ball };
     const from = this.toSpot(side, origin);
     const defender = this.nearest((1 - side) as Side, origin)[0]!;
@@ -1424,6 +1729,15 @@ class Director {
    * ends it; any later passage, even a quiet minute, starts with that goal's kickoff.
    */
   fill(minimum: number): void {
+    const carrier = this.carrier();
+    if (
+      this.beats < minimum &&
+      !this.play.restart &&
+      carrier &&
+      carrier.side === this.play.side &&
+      this.rng.next() < FILL_PATTERN
+    )
+      this.build();
     for (let guard = 0; this.beats < minimum && guard < 8; guard++) {
       if (this.play.restart) {
         if (this.play.restart === 'goal' && this.celebrated) return;
@@ -1476,8 +1790,12 @@ class Director {
         );
         const crosser = byRole(wide, at.w <= 50 ? 'wide-right' : 'wide-left') ?? wide[0]!;
         const crossFrom = ownFrame(85, hasRole(crosser, ['wide-right', 'right-back']) ? 90 : 10);
-        this.bringBall({ side: own, target: crosser }, crossFrom);
+        // Wing play: down the crosser's wing, then the cross to the selected player's run.
+        this.bringBall({ side: own, target: crosser }, crossFrom, {
+          move: { purpose: 'scene', situationId: situation.id },
+        });
         const marker = outfield(opponents.defender, spot);
+        this.pattern = 'wing-play';
         this.passTo(
           selected,
           spot,
@@ -1485,6 +1803,7 @@ class Director {
           new Map([[marker.id, ownFrame(at.d + 1.5, at.w + 1.5)]]),
           true,
         );
+        this.pattern = null;
         return;
       }
       case 'distribution': {
@@ -1585,8 +1904,12 @@ class Director {
                     : situation.id === 'one-on-one'
                       ? ownFrame(13, 44 + this.rng.next() * 12)
                       : ownFrame(8, at.w <= 50 ? 94 : 6);
+        // The opposition's move into the danger the selected player faces (not a penalty).
         this.bringBall({ side: opposition, target: attacker }, ballAt, {
           air: situation.id === 'one-on-one' || situation.id === 'penalty-save' ? false : undefined,
+          ...(situation.id === 'penalty-save'
+            ? {}
+            : { move: { purpose: 'scene' as const, situationId: situation.id } }),
         });
         const ball = this.toSpot(own, this.ball);
         marks.set(
@@ -1637,7 +1960,9 @@ class Director {
       default: {
         // Attacking scenes: the selected player receives at the spot, the direct opponent
         // goal-side of them (a presser for build-out).
-        this.bringBall({ side: own, target: selected }, spot);
+        this.bringBall({ side: own, target: selected }, spot, {
+          move: { purpose: 'scene', situationId: situation.id },
+        });
         const presser = situation.id === 'build-out';
         const opponent = outfield(presser ? opponents.attacker : opponents.defender, spot);
         marks.set(
@@ -1676,12 +2001,19 @@ function director(
 }
 const lastFrame = (session: MatchSession) => session.state.frames[session.state.frames.length - 1]!;
 /**
- * Cost probe for `npm run profile:match`: with a clock set, every passage adds its duration.
- * Unset in the game, so it costs nothing and never touches replayed state.
+ * Cost probe for `npm run profile:match`: with a clock set, every passage adds its duration
+ * (choreography plus its narration; `narrationMs` keeps the narration's share). Unset in the
+ * game, so it costs nothing and never touches replayed state.
  */
-export const motionProbe: { clock: (() => number) | null; ms: number; passages: number } = {
+export const motionProbe: {
+  clock: (() => number) | null;
+  ms: number;
+  narrationMs: number;
+  passages: number;
+} = {
   clock: null,
   ms: 0,
+  narrationMs: 0,
   passages: 0,
 };
 function timed<T>(work: () => T): T {
@@ -1691,6 +2023,17 @@ function timed<T>(work: () => T): T {
   const result = work();
   motionProbe.ms += clock() - start;
   motionProbe.passages++;
+  return result;
+}
+/** Narration's share of the probe: counted in the choreography budget too. */
+export function timedNarration<T>(work: () => T): T {
+  const clock = motionProbe.clock;
+  if (!clock) return work();
+  const start = clock();
+  const result = work();
+  const spent = clock() - start;
+  motionProbe.ms += spent;
+  motionProbe.narrationMs += spent;
   return result;
 }
 

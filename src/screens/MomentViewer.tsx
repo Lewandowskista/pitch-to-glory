@@ -5,6 +5,7 @@ import { ButtonLink, PageHeader, StatusLine } from '../ui/kit';
 import { format, t } from '../i18n';
 import { honoursText as h } from '../i18n/honours';
 import { MomentPitch } from './career/MomentPitch';
+import { clipCaption } from './career/clipReplay';
 
 /** A team in the scoreline: its name beside a disc in its kit colour (from the link). */
 function TeamMark({ team, end = false }: { team: [string, string]; end?: boolean }) {
@@ -132,9 +133,12 @@ export default function MomentViewer() {
                 </p>
               </div>
               <MomentPitch
+                key={moment.clip}
                 clip={moment.decoded}
                 home={moment.home[1]}
                 away={moment.away[1]}
+                scorer={moment.scorer}
+                caption={clipCaption(moment.decoded, moment.scorer)}
                 label={format(h.moments.pitch, { scorer: moment.scorer, minute: moment.minute })}
               />
               <p className="text-xs text-muted tabular-nums">
