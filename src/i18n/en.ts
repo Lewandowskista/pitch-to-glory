@@ -685,6 +685,19 @@ export const en = {
       release: 'Release',
       signing: 'Free signing',
     },
+    /** Phase 7 (C7): career news in the "Around the world" feed, and its labels. */
+    careerEvents: {
+      debut: '{name} makes a debut for {club} against {opponent}.',
+      'first-goal': '{name} scores a first goal for {club}, against {opponent}.',
+      injury: '{name} of {club} is out injured for about {weeks} weeks.',
+      rivalry: '{name} and {rival} of {club}: a rivalry is born.',
+    },
+    careerEventKinds: {
+      debut: 'Debut',
+      'first-goal': 'First goal',
+      injury: 'Injury',
+      rivalry: 'Rivalry',
+    },
     showSquad: 'Show all {count} players',
     showFewer: 'Show fewer players',
     allAttributes: 'Show all attributes',

@@ -109,6 +109,12 @@ export function startRivalry(world: World, rng: Rng): Rivalry | null {
     rival: rival.name,
     club: world.clubs[rival.clubId!]!.name,
   });
+  // The world's news notices the pairing (phase 7, C7).
+  recordEvent(world, 'rivalry', [player.id, rival.id], {
+    name: player.name,
+    rival: rival.name,
+    club: world.clubs[rival.clubId!]!.name,
+  });
   world.rivalries = [rivalry];
   return rivalry;
 }

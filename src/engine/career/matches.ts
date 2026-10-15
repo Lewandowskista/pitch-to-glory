@@ -27,6 +27,7 @@ import { expectedImpact } from '../match/decisions';
 import { performanceFame, performanceXp } from '../match/rewards';
 import { rolesForPosition } from '../match/roles';
 import { commitPlayedFixture, type PlayedFixture } from '../world/simulate';
+import { recordEvent } from '../world/events';
 import { matchExposure } from '../world/finalize';
 import { isKnockoutFixture } from '../world/continental';
 import { addXp } from './progression';
@@ -284,6 +285,7 @@ export function commitCareerMatch(
   socialMatch(world, record, fixture);
   const signature = celebrationFame(world, record.goals, importance);
   honoursMatch(world, session, record, importance);
+  careerNews(world, player, record);
   if (career.market.selection.season === world.date.season) career.market.selection.selected++;
   if (career.matches.length > C.historyLimit)
     career.matches.splice(0, career.matches.length - C.historyLimit);
@@ -313,6 +315,23 @@ export function commitCareerMatch(
     extraTimeAssists: me.extraTimeAssists,
   };
   return { record, final, previousLevel, levelsGained, injury, celebrationFame: signature };
+}
+
+/**
+ * The world's news notices a career's first steps (phase 7, C7): the debut and the first
+ * goal, as the Chronicle does.
+ */
+function careerNews(world: World, player: Player, record: CareerMatchRecord): void {
+  const club = player.clubId ? world.clubs[player.clubId] : undefined;
+  const ids = club ? [player.id, club.id, record.opponentId] : [player.id, record.opponentId];
+  const params = {
+    name: player.name,
+    club: club?.name ?? '',
+    opponent: world.clubs[record.opponentId]?.name ?? '',
+  };
+  if (player.stats.appearances === 1) recordEvent(world, 'debut', ids, params);
+  if (record.goals > 0 && player.stats.goals === record.goals)
+    recordEvent(world, 'first-goal', ids, params);
 }
 
 /** Minutes in a secondary position teach it: familiarity grows with time played there. */

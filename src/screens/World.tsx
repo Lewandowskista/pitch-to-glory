@@ -1052,13 +1052,33 @@ const EVENT_ICONS: Record<string, { path: string; tone: string }> = {
   },
   release: { path: 'M9 6H5V18H9M15 8L19 12L15 16M19 12H9', tone: 'bg-danger-soft text-danger' },
   signing: { path: 'M4 20H8L19 9L15 5L4 16Z', tone: 'bg-accent-soft text-accent' },
+  // Career news (phase 7): a shirt, a ball, a medical cross and a spark.
+  debut: {
+    path: 'M8 4L4 7L6 11L8 10V20H16V10L18 11L20 7L16 4Q12 7 8 4Z',
+    tone: 'bg-accent-soft text-accent',
+  },
+  'first-goal': {
+    path: 'M12 3A9 9 0 1 0 12 21A9 9 0 1 0 12 3ZM12 8L15.5 10.5L14.2 14.5H9.8L8.5 10.5Z',
+    tone: 'bg-art-gold text-gold-ink',
+  },
+  injury: { path: 'M10 4H14V10H20V14H14V20H10V14H4V10H10Z', tone: 'bg-danger-soft text-danger' },
+  rivalry: { path: 'M13 3L5 14H12L11 21L19 10H12Z', tone: 'bg-art-blue text-info' },
+};
+/** Every feed kind with wording: the world's own news and a career's. */
+const EVENT_TEXT: Record<string, string> = { ...t.world.events, ...t.world.careerEvents };
+const EVENT_KINDS: Record<string, string> = {
+  ...t.world.eventKinds,
+  ...t.world.careerEventKinds,
 };
 
-/** World news: the latest transfers, sackings, academy intakes, retirements and trophies. */
+/**
+ * World news: the latest transfers, sackings, academy intakes, retirements and trophies, and
+ * the career's own news (debut, first goal, injuries, the rivalry).
+ */
 function WorldActivity({ world }: { world: World }) {
-  const kinds = t.world.events as Record<string, string>;
+  const kinds = EVENT_TEXT;
   const events = world.events
-    .filter((event: GameEvent) => kinds[event.kind])
+    .filter((event: GameEvent) => kinds[event.kind] && EVENT_ICONS[event.kind])
     .slice(-12)
     .reverse();
   return (
@@ -1107,7 +1127,7 @@ function WorldActivity({ world }: { world: World }) {
                       season: event.date.season,
                       week: event.date.week,
                     })}{' '}
-                    · {t.world.eventKinds[event.kind as keyof typeof t.world.eventKinds]}
+                    · {EVENT_KINDS[event.kind]}
                   </span>
                   <span className="block font-semibold break-words">
                     {format(kinds[event.kind]!, event.params)}
