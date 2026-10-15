@@ -226,3 +226,15 @@ Not in the barrel: import it from `src/ui/kit/ValueMeter`.
 | Props                                                                                                                                                                                                                                                                                                 | When                                                                                                                                                                                                                                                                |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `label`, `value`, `max` (100), `tone` (`accent` · `danger` · `gold` · `info`), `numberTone` (`ink` default, or a tone when the number carries meaning), `size` (`sm` 20px · `md` 24–26px · `lg` 40px numbers), `ariaLabel`, `valueText`, `note`, `track` (`track` · `surface` on soft or gold panels) | A meter that leads with its Bebas number (morale, chemistry, a club's confidence, an agent's network). The bar is `role="meter"` read as "72 of 100"; the visible number is hidden from assistive technology so it is not read twice. Use `Meter` for quieter rows. |
+
+## Added in phase 3b (Player screens)
+
+- **`PositionPitch`** (`src/ui/kit/PositionPitch.tsx`, imported directly, not through the
+  barrel): `positions` (`{ position, familiarity, primary? }[]`), `label`, `width` (92). A
+  small vertical pitch with the player's positions, made for field-green heroes: the primary
+  position is a gold disc, comfortable secondary positions mint discs, positions still being
+  learned (`familiarityLevel` "learning") dashed rings. The drawing is one `role="img"`; pass a
+  `label` that names every position in words, so nothing rests on colour.
+- Fixed bottom bars on phones (the Profile points bar, the Training action bar) sit at
+  `calc(var(--tabbar) + 0.75rem)`; a bar inside a page that animates in must be `sticky` or
+  portalled to `body`, because the page transition's transform traps `position: fixed`.

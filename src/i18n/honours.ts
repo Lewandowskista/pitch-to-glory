@@ -72,6 +72,13 @@ export const honoursText = {
     inSquad: 'You were in the squad',
     notInSquad: 'You were not selected',
     penalties: '{home}–{away} on penalties',
+    pageBody:
+      'Your international career: who is picked in your line, and when the next squad is named.',
+    windowPlayed: 'Week {week} · played',
+    windowNext: 'Week {week} · next',
+    windowLater: 'Week {week}',
+    windowsLabel: 'International windows this season',
+    youSuffix: '{name} · You',
   },
   awards: {
     kinds: {

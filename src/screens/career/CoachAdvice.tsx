@@ -14,6 +14,7 @@ import { format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { coachingText as k } from '../../i18n/coaching';
 import { ui, useEditBlock } from './shared';
+import { Button, CardTitle, Panel, cx } from '../../ui/kit';
 import { focusLabel } from './trainingLabels';
 import { withSave } from './agenda';
 import { samePlan } from './selectors';
@@ -80,42 +81,47 @@ export function CoachAdvice({
               position,
             });
   return (
-    <section aria-labelledby="coach-advice-heading" className={`${ui.panel} ${className}`}>
-      <h2 id="coach-advice-heading" className={ui.heading}>
-        {k.title}
-      </h2>
-      <p className="mt-1 text-sm text-muted">{basis}</p>
-      <ol className="mt-3 grid gap-3">
+    <Panel
+      aria-labelledby="coach-advice-heading"
+      padding={compact ? 'compact' : 'normal'}
+      className={cx('flex flex-col gap-3', className)}
+    >
+      <div>
+        <CardTitle id="coach-advice-heading" size={compact ? 'sm' : 'md'}>
+          {k.title}
+        </CardTitle>
+        <p className="mt-1 text-[0.8125rem] text-muted">{basis}</p>
+      </div>
+      <ol className="grid gap-3">
         {advice.recommendations.map((recommendation, index) => (
           <li key={`${recommendation.focus}:${index}`} className="flex items-start gap-3">
             <span
               aria-hidden="true"
-              className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-[0.8125rem] font-extrabold text-accent"
             >
               {index + 1}
             </span>
             <div className="min-w-0">
-              <p className="font-bold">{focusLabel(recommendation.focus)}</p>
-              {!compact && <p className="text-sm text-muted">{evidence(world, recommendation)}</p>}
+              <p className="font-extrabold">{focusLabel(recommendation.focus)}</p>
+              {!compact && (
+                <p className="mt-0.5 text-[0.8125rem] text-muted">
+                  {evidence(world, recommendation)}
+                </p>
+              )}
             </div>
           </li>
         ))}
       </ol>
       {advice.basis === 'decisions' && !compact && (
-        <p className="mt-3 text-xs text-muted">{k.caveat}</p>
+        <p className="border-l-3 border-line pl-2.5 text-xs text-muted">{k.caveat}</p>
       )}
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
         {following && !applied ? (
-          <p className="text-sm font-semibold text-muted">{k.already}</p>
+          <p className="text-[0.8125rem] font-bold text-muted">{k.already}</p>
         ) : onApply ? (
-          <button
-            type="button"
-            className="button secondary"
-            disabled={Boolean(block)}
-            onClick={() => onApply(draft)}
-          >
+          <Button variant="secondary" disabled={Boolean(block)} onClick={() => onApply(draft)}>
             {k.apply}
-          </button>
+          </Button>
         ) : (
           <Link
             className="text-button -ml-3"
@@ -124,9 +130,9 @@ export function CoachAdvice({
             {k.open}
           </Link>
         )}
-        {applied && <p className="text-sm font-semibold text-accent">{k.applied}</p>}
+        {applied && <p className="text-[0.8125rem] font-bold text-accent">{k.applied}</p>}
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -149,35 +155,23 @@ export function SeasonGoalCard({ world, className = '' }: { world: World; classN
     useAppStore.getState().setWorld(action(current));
   };
   return (
-    <section aria-labelledby="season-goal-heading" className={`${ui.panel} ${className}`}>
-      <h2 id="season-goal-heading" className={ui.heading}>
-        {k.goal.title}
-      </h2>
+    <Panel aria-labelledby="season-goal-heading" className={cx('min-w-0', className)}>
+      <CardTitle id="season-goal-heading">{k.goal.title}</CardTitle>
       {goal ? (
         <GoalProgress world={world} goal={goal} />
       ) : offer ? (
-        <div className="mt-3">
-          <p className="text-sm font-semibold text-muted">{k.goal.offer}</p>
-          <p className="font-display text-2xl leading-tight">{goalText(offer)}</p>
-          <p className="mt-1 text-sm text-muted">{k.goal.why[offer.kind]}</p>
-          {block && <p className="mt-2 text-xs text-muted">{block}</p>}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="button"
-              disabled={Boolean(block)}
-              onClick={() => act(acceptGoal)}
-            >
+        <div className="mt-3 grid gap-1.5">
+          <p className="text-[0.8125rem] font-bold text-muted">{k.goal.offer}</p>
+          <p className="font-display text-[1.625rem] leading-none">{goalText(offer)}</p>
+          <p className="text-[0.8125rem] text-muted">{k.goal.why[offer.kind]}</p>
+          {block && <p className="text-xs text-muted">{block}</p>}
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            <Button disabled={Boolean(block)} onClick={() => act(acceptGoal)}>
               {k.goal.accept}
-            </button>
-            <button
-              type="button"
-              className="button secondary"
-              disabled={Boolean(block)}
-              onClick={() => act(declineGoal)}
-            >
+            </Button>
+            <Button variant="secondary" disabled={Boolean(block)} onClick={() => act(declineGoal)}>
               {k.goal.decline}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
@@ -186,7 +180,7 @@ export function SeasonGoalCard({ world, className = '' }: { world: World; classN
         </p>
       )}
       {last && (
-        <p className="mt-3 text-xs text-muted">
+        <p className="mt-3 border-t border-line pt-2.5 text-xs text-muted">
           {format(k.goal.last, {
             goal: goalText(last),
             result: last.completed
@@ -195,7 +189,7 @@ export function SeasonGoalCard({ world, className = '' }: { world: World; classN
           })}
         </p>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -205,9 +199,9 @@ function GoalProgress({ world, goal }: { world: World; goal: SeasonGoal }) {
   const label = format(k.goal.progress[goal.kind], { value, target: goal.target });
   const done = value >= goal.target;
   return (
-    <div className="mt-3">
-      <p className="font-display text-2xl leading-tight">{goalText(goal)}</p>
-      <p className="mt-2 text-sm font-semibold">{label}</p>
+    <div className="mt-2.5">
+      <p className="font-display text-[1.75rem] leading-none">{goalText(goal)}</p>
+      <p className="mt-2 text-sm font-bold">{label}</p>
       <div
         role="progressbar"
         aria-label={k.goal.label}
@@ -215,7 +209,7 @@ function GoalProgress({ world, goal }: { world: World; goal: SeasonGoal }) {
         aria-valuemax={goal.target}
         aria-valuenow={Math.min(value, goal.target)}
         aria-valuetext={label}
-        className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-line"
+        className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-track"
       >
         <div
           className={`h-full rounded-full ${done ? 'bg-meter-gold' : 'bg-accent'}`}

@@ -168,12 +168,13 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await expect(points).toHaveText(String(before - 1));
   await expect(page.getByRole('status').filter({ hasText: 'Finishing raised to' })).toBeAttached();
 
-  // Unlock an available skill with confirmation; arrow keys move through the tree.
+  // Unlock an available skill with confirmation; arrow keys move through the tree as drawn
+  // (each branch is a row of tiers, so Right reaches the next tier of the same branch).
   await openCareerPage(page, 'Skills');
   await expect(page).toHaveURL(/\/career\/skills/);
   const firstNode = page.locator('[data-skill]').first();
   await firstNode.focus();
-  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowRight');
   await expect(page.locator('[data-skill]').nth(1)).toBeFocused();
   const available = page.locator('[data-skill][aria-label*="Available"]').first();
   // Skills cost two points or more: unlock one if the points already cover it.
