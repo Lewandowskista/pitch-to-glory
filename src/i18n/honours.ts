@@ -242,6 +242,11 @@ export const honoursText = {
     viewerBody: 'A moment shared from Pitch to Glory, replayed from its clip and seed.',
     start: 'Start your own career',
     seed: 'Match seed: {seed}',
+    invalidBody:
+      'Ask whoever shared it to copy the full link again. The clip lives in the link itself, so nothing is lost on our side.',
+    ctaBody:
+      'Six countries. Hundreds of clubs. A football world that grows with every season. Free in your browser, no account needed.',
+    score: '{home} {homeGoals}–{awayGoals} {away}',
   },
   retirement: {
     title: 'Retirement',
