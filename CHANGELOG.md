@@ -6,7 +6,7 @@ Player-facing notes for every release of Pitch to Glory, newest first. Generated
 
 _2026-10-15_
 
-A new look for every screen, new art for players and clubs, and a richer live match that frames every key moment.
+A new look for every screen, new art for players and clubs, a richer live match that frames every key moment, and red cards with suspensions.
 
 ### New
 
@@ -22,6 +22,11 @@ A new look for every screen, new art for players and clubs, and a richer live ma
 - A pass in a key moment now goes to the teammate you saw on the pitch.
 - Your match objectives are previewed on the hub before matchday.
 - Yellow cards, substitutions made by the managers, and a bench of seven.
+- Second yellows and straight red cards: a player sent off leaves their side a man short and visibly weaker.
+- Get sent off yourself and your match is over: the rest plays out without you, and it shows in your rating, XP, fame and the manager’s mood.
+- Suspensions: a red card or a run of yellows bans you, and AI players, from the next matches in that competition. The hub, calendar and inbox tell you for how long.
+- Tackles and other defending choices show their booking risk, or red card risk once you are on a yellow, with a breakdown of why.
+- Your profile keeps a disciplinary record of yellow and red cards, by season and across your career.
 - Weather intensity and pitch condition, each with its own effect on your choices.
 - The manager’s plan for you on the hub before each match.
 - Your live Hall of Fame rank while your career is still going.
