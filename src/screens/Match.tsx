@@ -1,4 +1,12 @@
-import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { lazyPage } from '../ui/lazyPage';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
@@ -46,6 +54,7 @@ import {
   Timeline,
 } from './match/Live';
 import type { NarrationLine } from './match/feed';
+import { narrationFeed } from '../i18n/narration';
 import { pendingCareerFixture } from '../engine/career/fixtures';
 import { careerMatchSetup, defaultTactics } from '../engine/career/matches';
 import { startWorldJob } from '../workers/client';
@@ -86,11 +95,6 @@ function useMediaQuery(query: string): boolean {
 }
 /** The two-column match layout, with the live numbers beside the pitch. */
 const WIDE = '(min-width: 951px)';
-/**
- * Beat-based narration lines (engine M3) join the commentary through the feed adapter
- * (`match/feed.ts`). Until the engine provides them, the feed shows event commentary alone.
- */
-const NARRATION: readonly NarrationLine[] | undefined = undefined;
 
 export default function MatchScreen() {
   const world = useAppStore((store) => store.world);
@@ -115,6 +119,19 @@ export default function MatchScreen() {
   const [announcement, setAnnouncement] = useState('');
   const announcedScore = useRef('');
   useMatchAudio(session, playing);
+  // Beat-based narration (engine M3) joins the commentary through the feed adapter.
+  const narration = useMemo<NarrationLine[] | undefined>(
+    () =>
+      session?.state.narration
+        ? narrationFeed(session).map((entry) => ({
+            id: String(entry.index),
+            minute: entry.minute,
+            text: entry.text,
+            ...(entry.eventId ? { eventId: entry.eventId } : {}),
+          }))
+        : undefined,
+    [session],
+  );
   const reduced = settings.reducedMotion || systemReduced;
   const momentId = state?.currentMoment?.id;
   const latestEvent = state?.match.events[state.match.events.length - 1];
@@ -754,7 +771,7 @@ export default function MatchScreen() {
                 <StatsCard session={session} />
                 <CommentaryCard
                   session={session}
-                  narration={NARRATION}
+                  narration={narration}
                   celebration={
                     celebrationItem ? l.celebrations.names[celebrationItem.id] : undefined
                   }
