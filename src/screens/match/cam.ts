@@ -86,11 +86,22 @@ export function zoneOf(ball: Point, you: Point | undefined): CamZone {
       : 'defensive';
 }
 
-/** The window for a zone at an aspect ratio (width / height); phones use a wider crop. */
-export function camWindow(zone: CamZone, aspect = WINDOW_WIDTH / 42.2): CamWindow {
+/**
+ * The window for a zone at an aspect ratio (width / height); phones use a wider crop. Given a
+ * centre (metres from the attacked goal), the window follows the play instead of the third's
+ * fixed frame, kept within the pitch's ends; the zone still names the third.
+ */
+export function camWindow(
+  zone: CamZone,
+  aspect = WINDOW_WIDTH / 42.2,
+  centreAt?: number,
+): CamWindow {
   const height = WINDOW_WIDTH / aspect;
-  const centre = ZONE_TOP[zone] + 42.2 / 2;
-  const top = centre - height / 2;
+  const centre = centreAt ?? ZONE_TOP[zone] + 42.2 / 2;
+  const top =
+    centreAt === undefined
+      ? centre - height / 2
+      : Math.max(ZONE_TOP.final, Math.min(ZONE_TOP.defensive + 42.2 - height, centre - height / 2));
   const d = (value: number) => Math.round(value * 10);
   return {
     zone,
@@ -352,13 +363,24 @@ export function momentCamera(
   const ball = toCam(moment.frame.ball, attacksRight);
   const youPoint = moment.frame.players.find((p) => p.id === setup.selectedPlayerId)?.point;
   const you = youPoint ? toCam(youPoint, attacksRight) : undefined;
-  const window = camWindow(moment.zone ? CAM_ZONES[moment.zone] : zoneOf(ball, you), aspect);
   const attacking = attackingMoment(moment, side, setup.home);
+  const engine = you && moment.zone ? targetArrows(moment, you, attacksRight) : null;
+  // The engine names the third (match-15), and the window follows the play: halfway between
+  // the player and where the choices go, so a build-up on the edge of a third shows its runs.
+  const ends = (engine ?? []).map((arrow) => arrow.to.y);
+  const window =
+    moment.zone && you
+      ? camWindow(
+          CAM_ZONES[moment.zone],
+          aspect,
+          ends.length ? (you.y + ends.reduce((sum, y) => sum + y, 0) / ends.length) / 2 : you.y,
+        )
+      : camWindow(zoneOf(ball, you), aspect);
   // The engine's cast and targets (match-15); the derivation stays for earlier sessions.
   const cast =
     engineCast(moment, setup, attacking) ??
     deriveCast(moment.frame, setup, attacksRight, window, attacking);
-  const arrows = you ? (targetArrows(moment, you, attacksRight) ?? choiceArrows(moment, you)) : [];
+  const arrows = you ? (engine ?? choiceArrows(moment, you)) : [];
   return { attacksRight, window, cast, arrows };
 }
 /** The phones' camera crop: a little wider than the desktop frame, to save height. */

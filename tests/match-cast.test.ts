@@ -206,4 +206,20 @@ describe('the engine cast on the camera', () => {
       expect(camera.arrows.length).toBe(targeted);
     }
   });
+  it('frames the play: the player is always in view, with the third the engine names', () => {
+    const zones = { def: 'defensive', mid: 'middle', final: 'final' } as const;
+    for (const position of ['ST', 'LW', 'CM', 'CB', 'GK'] as const)
+      for (const { session, moment } of moments(position, `cast-frame-${position}`)) {
+        for (const aspect of [undefined, 1.9]) {
+          const camera = momentCamera(session.setup, moment, aspect);
+          const you = toCam(
+            moment.frame.players.find((p) => p.id === session.setup.selectedPlayerId)!.point,
+            camera.attacksRight,
+          );
+          expect(camera.window.zone).toBe(zones[moment.zone!]);
+          expect(you.y).toBeGreaterThan(camera.window.top + 1);
+          expect(you.y).toBeLessThan(camera.window.bottom - 1);
+        }
+      }
+  });
 });

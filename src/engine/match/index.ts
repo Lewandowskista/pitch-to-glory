@@ -1325,11 +1325,11 @@ function pickReceivers(
   }
   return receivers;
 }
+/** Shots at a named post; the rest (a penalty into the corner too) go where the catalogue aims. */
 const POSTS: Record<string, 'near' | 'far'> = {
   'near-post': 'near',
   'far-post': 'far',
   curler: 'far',
-  'penalty-corner': 'far',
 };
 /** Defending choices that go at a player: the one on the ball, or the runner to track. */
 const AT_PLAYER: Record<string, 'presser' | 'runner'> = {
