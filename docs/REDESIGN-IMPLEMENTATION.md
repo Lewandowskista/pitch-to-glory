@@ -300,7 +300,11 @@ figure, crests, kits, lettering, illustrations and the poster); phase 3 done (UI
 career screen); phase 4 done (World, saved games, settings, edit mode, gallery; switch,
 slider and radio-tile kit components). Phase 5 done (engine `match-14`: outcome hashes unchanged; M0 harness, M1 beats, M2 patterns, M3
 narration, M6 stats, M9 clips v2, M10 maps, and the redesigned match screens with the tactical
-camera). Phase 7 done (C2, C3, C5, C6, C7, C10; optional fields only). Next: phase 6.
+camera). Phase 6 done (engine `match-15`: M4 cast and targets, M5 track the runner, the
+objectives stream with a hub preview, cosmetic yellow cards, AI substitutions and a bench of
+seven, M8 weather and pitch; re-gated at 2.65 goals a match, shot objectives raised to five for
+a striker and three for other attackers). Phase 7 done (C2, C3, C5, C6, C7, C10; optional fields
+only). Next: the optional discipline phase, then the release pass (Firefox and WebKit flows).
 
 | Phase                                     | Contents                                                                                                                                                                                                                                                                                                                 | Outcome-changing?                 | Save impact                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------- |

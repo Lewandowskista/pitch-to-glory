@@ -220,7 +220,7 @@ export const CONFIG = {
       passingRange: [65, 90] as const,
       tackles: { defender: 3, midfield: 2 },
       saves: 5,
-      shots: { striker: 4, other: 2 },
+      shots: { striker: 5, other: 3 },
     },
   },
   /** Career player progression (milestone 4). See docs/BALANCING.md. */

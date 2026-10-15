@@ -42,6 +42,9 @@ import type { Position } from '../src/model/domain';
  *   does) and the managers' changes and the bench of seven change line-ups and who scores.
  * - M8 weather and pitch: the combined conditions factor splits into a weather factor (scaled
  *   by the new intensity) and a pitch factor, so choice factors and probabilities change.
+ * - Shot objectives: the targets rise to five shots for a striker and three for other attackers
+ *   (the profile read 76% completion against its 75% ceiling); only the objectives, and so the
+ *   AM, RW and ST hashes, change. Goals and moments are untouched.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
@@ -51,9 +54,9 @@ const EXPECTED: Record<string, { hash: string; goals: number; moments: number }>
   LB: { hash: 'c79dbf303b9cce13a59fd9f2', goals: 51, moments: 238 },
   DM: { hash: '38a1e53575534e61081111c5', goals: 58, moments: 207 },
   CM: { hash: '1965a808123a8e4e960ea515', goals: 76, moments: 242 },
-  AM: { hash: '2af6bae95678fcada54a5778', goals: 74, moments: 277 },
-  RW: { hash: 'b7c2bbb0e2030480943ec02e', goals: 53, moments: 294 },
-  ST: { hash: 'a8635930b0733947545159a8', goals: 71, moments: 301 },
+  AM: { hash: '838af718612b298a0c3af003', goals: 74, moments: 277 },
+  RW: { hash: '6832eff46902c10b0fcfdf7a', goals: 53, moments: 294 },
+  ST: { hash: '16c89f360f61c603d4bd76f2', goals: 71, moments: 301 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });
