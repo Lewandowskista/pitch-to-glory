@@ -1,4 +1,12 @@
-import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { lazyPage } from '../ui/lazyPage';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
@@ -9,10 +17,10 @@ import {
   type MatchCommand,
   type MatchMotion,
 } from '../engine/match';
-import type { MatchEvent, SlotId } from '../model/domain';
+import type { SlotId } from '../model/domain';
 import { errorCode } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
-import { errorText } from '../i18n';
+import { errorText, format } from '../i18n';
 import {
   matchText as m,
   matchLabel,
@@ -20,6 +28,7 @@ import {
   pressureText,
   situationText,
 } from '../i18n/match';
+import { pitchCopy } from '../i18n/pitch';
 import { careerText as c } from '../i18n/career';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
@@ -27,9 +36,25 @@ import { FootballIllustration } from '../ui/FootballIllustration';
 import { Selection } from './match/Selection';
 import { Preview } from './match/Preview';
 import { Report } from './match/Report';
-import { ClubBadge, DecisiveFactors } from './match/Shared';
-import { DecisionPanel } from './match/DecisionPanel';
+import { DecisionPanel, DecisionReplay } from './match/DecisionPanel';
 import { CareerFixture, CareerNoMatch, CareerReportActions } from './match/CareerMatchday';
+import {
+  CaptainPanel,
+  CommentaryCard,
+  commentaryText,
+  HalfTimePanel,
+  MatchControls,
+  OutcomePanel,
+  PitchOverlay,
+  RatingCard,
+  Scoreboard,
+  SimulationCard,
+  StatsCard,
+  SubstitutionPanel,
+  Timeline,
+} from './match/Live';
+import type { NarrationLine } from './match/feed';
+import { narrationFeed } from '../i18n/narration';
 import { pendingCareerFixture } from '../engine/career/fixtures';
 import { careerMatchSetup, defaultTactics } from '../engine/career/matches';
 import { startWorldJob } from '../workers/client';
@@ -56,9 +81,6 @@ function motionPace(kind: MatchMotion['kind'], speed: number) {
   if (kind === 'kickoff') return { rate: 1, maxMs: 0 };
   return { rate: 6, maxMs: 4200 };
 }
-function commentaryText(event: MatchEvent): string {
-  return matchFormat(matchLabel(event.commentaryKey), event.commentaryParams ?? {});
-}
 /** Whether the viewport is at least `query` wide, following resizes. */
 function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
@@ -71,7 +93,7 @@ function useMediaQuery(query: string): boolean {
     () => false,
   );
 }
-/** The two-column match layout, with the decision beside the pitch. */
+/** The two-column match layout, with the live numbers beside the pitch. */
 const WIDE = '(min-width: 951px)';
 
 export default function MatchScreen() {
@@ -97,6 +119,20 @@ export default function MatchScreen() {
   const [announcement, setAnnouncement] = useState('');
   const announcedScore = useRef('');
   useMatchAudio(session, playing);
+  // Beat-based narration (engine M3) joins the commentary through the feed adapter.
+  const narration = useMemo<NarrationLine[] | undefined>(
+    () =>
+      session?.state.narration
+        ? narrationFeed(session).map((entry) => ({
+            id: String(entry.index),
+            minute: entry.minute,
+            text: entry.text,
+            ...(entry.eventId ? { eventId: entry.eventId } : {}),
+          }))
+        : undefined,
+    [session],
+  );
+  const reduced = settings.reducedMotion || systemReduced;
   const momentId = state?.currentMoment?.id;
   const latestEvent = state?.match.events[state.match.events.length - 1];
   const latestText = latestEvent ? commentaryText(latestEvent) : '';
@@ -306,8 +342,8 @@ export default function MatchScreen() {
     );
   }, [scoreText, momentText, latestText, latestEvent?.id]);
   // A new key moment moves focus to its first choice unless the player is typing elsewhere.
-  // Focus alone would scroll the pitch away; instead the view starts at the pitch and the
-  // decision beside it (wide screens), or at the decision with its situation preview (phones).
+  // Focus alone would scroll the camera away; instead the view starts at the camera and the
+  // choices under it (wide screens), or at the decision with its camera (phones).
   useEffect(() => {
     if (!momentId) return;
     const active = document.activeElement;
@@ -347,7 +383,11 @@ export default function MatchScreen() {
     previousStatus.current = status;
     if (status === 'finished' && was && was !== 'finished' && careerFixture) recordResult();
   }, [status, careerFixture, recordResult]);
-  const outcome = state?.match.events.find((event) => event.id === outcomeId)?.outcome;
+  const outcomeEvent = state?.match.events.find((event) => event.id === outcomeId);
+  const outcome = outcomeEvent?.outcome;
+  const outcomeMoment = outcome
+    ? state?.match.keyMoments.find((moment) => moment.id === outcome.input.momentId)
+    : undefined;
   // The career player's signature celebration after their goals (milestone 7).
   const celebrationItem =
     world?.career?.style?.equipped.celebration &&
@@ -366,96 +406,32 @@ export default function MatchScreen() {
     !state?.captainDecisionPending &&
     !state?.substitutionDecisionPending &&
     !job;
-  const decision = session?.state.currentMoment ? (
-    <DecisionPanel
-      session={session}
-      choicesRef={choicesRef}
-      preview={!wide && !settings.simulationOnly}
-      onChoose={(choiceId) => command({ type: 'choose', choiceId })}
-    />
-  ) : null;
   const deciding = Boolean(state?.currentMoment);
-  const statsPanel = state ? (
-    <section className="match-panel">
-      <h2>{m.stats}</h2>
-      <div className="match-rating">
-        <strong>{state.stats.rating.toFixed(1)}</strong>
-        <span>{m.rating}</span>
-      </div>
-      <dl className="match-stat-list">
-        <div>
-          <dt>{m.shots}</dt>
-          <dd>
-            {state.stats.homeShots} – {state.stats.awayShots}
-          </dd>
-        </div>
-        <div>
-          <dt>{m.possession}</dt>
-          <dd>
-            {state.stats.homePossession}% – {100 - state.stats.homePossession}%
-          </dd>
-        </div>
-        <div>
-          <dt>{m.expectedGoals}</dt>
-          <dd>
-            {state.stats.xg[0].toFixed(2)} – {state.stats.xg[1].toFixed(2)}
-          </dd>
-        </div>
-        <div>
-          <dt>{m.passes}</dt>
-          <dd>
-            {state.stats.passesCompleted}/{state.stats.passesAttempted}
-          </dd>
-        </div>
-        <div>
-          <dt>{m.fatigue}</dt>
-          <dd>{Math.round(state.stats.fatigue)}%</dd>
-        </div>
-      </dl>
-    </section>
-  ) : null;
-  const commentaryPanel = state ? (
-    <section className="match-panel match-commentary" data-tour="live">
-      <h2 id="match-commentary-heading">{m.commentary}</h2>
-      {!state.match.events.length && <p className="muted">{m.opening}</p>}
-      {/* Scrolls within its bounded height, so the keyboard can reach and scroll it too. */}
-      <ol tabIndex={0} aria-labelledby="match-commentary-heading">
-        {[...state.match.events].reverse().map((event) => (
-          <li key={event.id}>
-            <time>{matchFormat(m.minute, { minute: event.minute })}</time>
-            <div>
-              <p>{commentaryText(event)}</p>
-              {celebrationItem &&
-                event.kind === 'goal' &&
-                event.playerId === session.setup.selectedPlayerId && (
-                  <p className="match-celebration">
-                    {matchFormat(l.celebrations.commentary, {
-                      player: session.setup.players[event.playerId]?.name ?? '',
-                      name: l.celebrations.names[celebrationItem.id] ?? '',
-                    })}
-                  </p>
-                )}
-              <small>
-                {event.playerId
-                  ? session.setup.players[event.playerId]?.name
-                  : event.teamId === session.setup.home.id
-                    ? session.setup.home.name
-                    : session.setup.away.name}
-              </small>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </section>
-  ) : null;
+  const camera = !settings.simulationOnly;
+  const replaying = Boolean(outcome && outcomeMoment && camera && motion?.kind === 'outcome');
+  // While the camera has the stage, the live pitch waits out of view.
+  const pitchAway = camera && (deciding || replaying);
   const reset = () => {
     setPlaying(false);
     setOutcomeId(null);
     useAppStore.getState().setMatchSession(null);
   };
+  const competition =
+    careerFixture && world
+      ? [
+          competitionName(world, careerFixture.competitionId),
+          world.fixtures[careerFixture.id]
+            ? format(m.ui.week, { week: world.fixtures[careerFixture.id]!.date.week })
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : m.friendly;
+  const inMatch = Boolean(session) && status !== 'preview' && status !== 'finished';
+  const numbers = session ? shirtNumbers(session.setup.players) : undefined;
   return (
-    <Page className="match-page">
-      <header className="page-heading match-heading">
+    <Page className={`match-page${inMatch ? ' is-live' : ''}`}>
+      <header className={`page-heading match-heading${inMatch ? ' is-quiet' : ''}`}>
         <div>
           {/* The competition (or a friendly); never a repeat of the title. */}
           {(careerFixture || !world?.career) && (
@@ -468,10 +444,12 @@ export default function MatchScreen() {
           <h1>{m.title}</h1>
           <p>{m.description}</p>
         </div>
-        <Link className="match-back" to={world?.career ? '/career' : '/world'}>
-          <Icon name="arrow" />
-          {world?.career ? c.report.hub : m.backWorld}
-        </Link>
+        {!inMatch && (
+          <Link className="match-back" to={world?.career ? '/career' : '/world'}>
+            <Icon name="arrow" />
+            {world?.career ? c.report.hub : m.backWorld}
+          </Link>
+        )}
       </header>
       <span
         className="sr-only"
@@ -491,20 +469,30 @@ export default function MatchScreen() {
         {announcement}
       </div>
       {world && !active && (
-        <p className="notice">
-          {m.saveHint} <Link to="/saves">{m.saveLink}</Link>
+        <p className="notice match-notice">
+          <Icon name="save" />
+          <span>
+            {m.saveHint} <Link to="/saves">{m.saveLink}</Link>
+          </span>
         </p>
       )}
       {error && (
-        <p className="notice error" role="alert">
-          {error}
+        <p className="notice error match-notice" role="alert">
+          <Icon name="warning" />
+          <span>{error}</span>
         </p>
       )}
       {loading ? (
-        <p role="status">{m.loading}</p>
+        <section className="match-panel match-loading">
+          <span className="match-spinner" aria-hidden="true" />
+          <p role="status">{m.loading}</p>
+        </section>
       ) : !world ? (
         <section className="match-panel match-empty illustrated-empty max-w-3xl">
           <div className="grid justify-items-start gap-4">
+            <span className="match-empty-icon" aria-hidden="true">
+              <Icon name="globe" />
+            </span>
             <h2>{m.empty}</h2>
             <p>{m.emptyBody}</p>
             <Link className="button" to="/world">
@@ -551,7 +539,8 @@ export default function MatchScreen() {
         )
       ) : !session ? (
         job ? (
-          <section className="match-panel">
+          <section className="match-panel match-busy">
+            <span className="match-spinner is-info" aria-hidden="true" />
             <p role="status">{m.busy}</p>
           </section>
         ) : (
@@ -575,71 +564,56 @@ export default function MatchScreen() {
           />
         )
       ) : (
-        <>
-          <section className="match-scoreboard" aria-label={m.score}>
-            <div>
-              <ClubBadge club={session.setup.home} />
-              <strong>{session.setup.home.name}</strong>
-            </div>
-            <div className="match-score">
-              <span>
-                {state!.match.score[0]} <span>–</span> {state!.match.score[1]}
-              </span>
-              <small>
-                {status === 'preview'
-                  ? m.preview
-                  : status === 'finished'
-                    ? m.finished
-                    : status === 'halftime'
-                      ? m.halftime
-                      : status === 'decision'
-                        ? m.decision
-                        : playing
-                          ? m.live
-                          : m.paused}{' '}
-                · {matchFormat(m.minute, { minute: state!.match.minute })}
-              </small>
-            </div>
-            <div>
-              <ClubBadge club={session.setup.away} />
-              <strong>{session.setup.away.name}</strong>
-            </div>
-          </section>
+        <div className={inMatch ? 'match-live' : 'match-session'}>
+          <Scoreboard
+            session={session}
+            status={status!}
+            playing={playing}
+            competition={competition}
+            stadium={session.setup.neutral ? undefined : session.setup.home.stadium.name}
+            controls={
+              inMatch ? (
+                <MatchControls
+                  playing={playing}
+                  canPlay={canPlay}
+                  speed={speed}
+                  onToggle={() => {
+                    setOutcomeId(null);
+                    setPlaying(!playing);
+                  }}
+                  onSpeed={setSpeed}
+                  onNext={nextMoment}
+                />
+              ) : undefined
+            }
+          />
           {status === 'preview' ? (
-            <>
-              <Preview
-                session={session}
-                note={careerFixture ? c.report.previewNote : undefined}
-                stake={
-                  careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
-                    <StakeLine
-                      world={world}
-                      fixture={world.fixtures[careerFixture.id]!}
-                      tone="panel"
-                    />
-                  ) : undefined
-                }
-                selection={
-                  careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
-                    <CareerSelectionBriefing world={world} fixtureId={careerFixture.id} />
-                  ) : undefined
-                }
-                onTactics={(tactics) =>
-                  useAppStore.getState().setMatchSession(createMatchSession(session.setup, tactics))
-                }
-                onKickoff={() => {
-                  command({ type: 'kickoff' });
-                  setPlaying(false);
-                }}
-              />
-              {!careerFixture && (
-                <div className="match-controls" style={{ marginTop: '1rem' }}>
-                  <button className="button secondary" onClick={reset}>
-                    {m.newFixture}
-                  </button>
-                </div>
-              )}
-            </>
+            <Preview
+              session={session}
+              note={careerFixture ? c.report.previewNote : undefined}
+              stake={
+                careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
+                  <StakeLine
+                    world={world}
+                    fixture={world.fixtures[careerFixture.id]!}
+                    tone="panel"
+                  />
+                ) : undefined
+              }
+              selection={
+                careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
+                  <CareerSelectionBriefing world={world} fixtureId={careerFixture.id} />
+                ) : undefined
+              }
+              onTactics={(tactics) =>
+                useAppStore.getState().setMatchSession(createMatchSession(session.setup, tactics))
+              }
+              onKickoff={() => {
+                command({ type: 'kickoff' });
+                setPlaying(false);
+              }}
+              onNewFixture={careerFixture ? undefined : reset}
+            />
           ) : status === 'finished' && careerFixture ? (
             <Report
               session={session}
@@ -663,18 +637,120 @@ export default function MatchScreen() {
               onNew={reset}
             />
           ) : (
-            <>
-              <div className={`match-live-layout${deciding ? ' is-deciding' : ''}`} ref={layoutRef}>
-                <div className="match-live-main">
-                  {/* Phones and tablets: the decision, with its cropped situation, comes first;
-                      the whole pitch follows it. */}
-                  {deciding && !wide && decision}
-                  <section className="match-panel match-pitch-panel">
-                    <div className="match-pitch-heading">
-                      <strong>{session.setup.home.stadium.name}</strong>
+            <div className={`match-live-layout${deciding ? ' is-deciding' : ''}`} ref={layoutRef}>
+              <div className="match-live-main">
+                {deciding && (
+                  <DecisionPanel
+                    session={session}
+                    choicesRef={choicesRef}
+                    camera={camera}
+                    compact={!wide}
+                    reducedMotion={reduced}
+                    onChoose={(choiceId) => command({ type: 'choose', choiceId })}
+                  />
+                )}
+                {/* What the match is waiting on comes first. */}
+                {status === 'halftime' && (
+                  <HalfTimePanel
+                    session={session}
+                    world={world}
+                    onTalk={(response) => {
+                      setOutcomeId(null);
+                      command({ type: 'halftime', response });
+                    }}
+                  />
+                )}
+                {state!.captainDecisionPending && (
+                  <CaptainPanel
+                    session={session}
+                    onCall={(instruction) => command({ type: 'captain', instruction })}
+                  />
+                )}
+                {state!.substituted && (
+                  <SubstitutionPanel
+                    session={session}
+                    onResponse={(response) => command({ type: 'substitution', response })}
+                  />
+                )}
+                {replaying && outcomeMoment && (
+                  <DecisionReplay
+                    session={session}
+                    moment={outcomeMoment}
+                    compact={!wide}
+                    reducedMotion={reduced}
+                  />
+                )}
+                {outcome && outcomeMoment && (
+                  <OutcomePanel
+                    outcome={outcome}
+                    minute={outcomeMoment.minute}
+                    choice={matchLabel(
+                      outcomeMoment.choices.find((choice) => choice.id === outcome.input.choiceId)
+                        ?.labelKey ?? '',
+                    )}
+                    onContinue={() => {
+                      setOutcomeId(null);
+                      if (canPlay) setPlaying(true);
+                    }}
+                  />
+                )}
+                <section
+                  className={`match-panel match-stage${pitchAway ? ' is-away' : ' match-pitch-panel'}`}
+                  aria-labelledby="match-stage-heading"
+                >
+                  {settings.simulationOnly ? (
+                    <SimulationCard session={session} />
+                  ) : (
+                    <Suspense
+                      fallback={
+                        <p className="match-pitch-loading" role="status">
+                          {m.pitchLoading}
+                        </p>
+                      }
+                    >
+                      <Pitch
+                        frame={
+                          state!.currentMoment?.frame ?? state!.frames[state!.frames.length - 1]!
+                        }
+                        home={session.setup.home}
+                        away={session.setup.away}
+                        selectedPlayerId={session.setup.selectedPlayerId}
+                        numbers={numbers}
+                        motion={state!.motion.frames}
+                        {...motionPace(state!.motion.kind, speed)}
+                        reducedMotion={reduced}
+                        paused={!playing && status === 'live' && !outcomeId}
+                        still={pitchAway}
+                        celebration={celebration}
+                        label={matchFormat(pitchCopy.liveLabel, {
+                          formations: matchFormat(m.ui.formations, {
+                            home: session.setup.home.name,
+                            homeFormation: state!.match.home.formation,
+                            away: session.setup.away.name,
+                            awayFormation: state!.match.away.formation,
+                          }),
+                        })}
+                        overlay={<PitchOverlay session={session} />}
+                      />
+                    </Suspense>
+                  )}
+                  <div className="match-stage-body">
+                    <div className="match-stage-head">
+                      <h2 id="match-stage-heading">{session.setup.home.stadium.name}</h2>
+                      <span className="match-card-note">
+                        {matchFormat(m.ui.keyMoments, {
+                          count: state!.match.keyMoments.filter((moment) =>
+                            state!.match.events.some(
+                              (event) => event.outcome?.input.momentId === moment.id,
+                            ),
+                          ).length,
+                        })}
+                      </span>
                       <label className="match-toggle">
                         <input
                           type="checkbox"
+                          role="switch"
+                          className="switch"
                           checked={settings.simulationOnly}
                           onChange={(event) =>
                             useAppStore
@@ -685,190 +761,25 @@ export default function MatchScreen() {
                         {m.simulation}
                       </label>
                     </div>
-                    {settings.simulationOnly ? (
-                      <div className="match-simulation">
-                        <span className="match-eyebrow">{m.simulation}</span>
-                        <p>{m.simulationBody}</p>
-                        <strong>{state!.stats.rating.toFixed(1)}</strong>
-                        <span>{m.rating}</span>
-                      </div>
-                    ) : (
-                      <Suspense fallback={<p role="status">{m.pitchLoading}</p>}>
-                        <Pitch
-                          frame={
-                            state!.currentMoment?.frame ?? state!.frames[state!.frames.length - 1]!
-                          }
-                          home={session.setup.home}
-                          away={session.setup.away}
-                          selectedPlayerId={session.setup.selectedPlayerId}
-                          numbers={shirtNumbers(session.setup.players)}
-                          motion={state!.motion.frames}
-                          {...motionPace(state!.motion.kind, speed)}
-                          reducedMotion={settings.reducedMotion || !!systemReduced}
-                          paused={!playing && status === 'live' && !outcomeId}
-                          celebration={celebration}
-                        />
-                      </Suspense>
-                    )}
-                    <div className="match-momentum">
-                      <span>{m.momentum}</span>
-                      <div
-                        role="meter"
-                        aria-label={m.momentum}
-                        aria-valuenow={state!.match.momentum}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                      >
-                        <span style={{ width: `${state!.match.momentum}%` }} />
-                      </div>
-                    </div>
-                  </section>
-                  {outcome && (
-                    <section
-                      className="match-panel match-outcome"
-                      role="status"
-                      data-tour="outcome"
-                    >
-                      <h2>{outcome.success ? m.succeeded : m.failed}</h2>
-                      <p>
-                        {matchFormat(m.roll, {
-                          probability: (outcome.probability * 100).toFixed(1),
-                          roll: (outcome.roll * 100).toFixed(1),
-                        })}
-                      </p>
-                      <DecisiveFactors
-                        factors={outcome.factors}
-                        probability={outcome.probability}
-                        success={outcome.success}
-                      />
-                      <p className="muted">{m.returnToPlay}</p>
-                    </section>
-                  )}
-                  {status === 'halftime' && (
-                    <section className="match-panel">
-                      <span className="match-eyebrow">{m.halftime}</span>
-                      <h2>{m.managerTalk}</h2>
-                      <div className="match-talk">
-                        {(['motivate', 'role', 'complain'] as const).map((response) => (
-                          <button
-                            className="button secondary"
-                            key={response}
-                            onClick={() => {
-                              setOutcomeId(null);
-                              command({ type: 'halftime', response });
-                            }}
-                          >
-                            <strong>
-                              {response === 'role'
-                                ? m.roleTalk
-                                : response === 'complain' && session!.setup.occasions
-                                  ? m.demand
-                                  : m[response]}
-                            </strong>
-                            <span>
-                              {response === 'role'
-                                ? m.roleBody
-                                : response === 'motivate'
-                                  ? m.motivateBody
-                                  : session!.setup.occasions
-                                    ? m.demandBody
-                                    : m.complainBody}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-                  )}
-                  {state!.captainDecisionPending && (
-                    <section className="match-panel">
-                      <h2>{m.captainTalk}</h2>
-                      <div className="match-controls">
-                        {(['push', 'calm'] as const).map((instruction) => (
-                          <button
-                            className="button secondary"
-                            key={instruction}
-                            onClick={() => command({ type: 'captain', instruction })}
-                          >
-                            {m[instruction]}
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-                  )}
-                  {state!.substituted && (
-                    <section className="match-panel" role="status">
-                      <h2>{m.substitution}</h2>
-                      <p>{m.substitutionBody}</p>
-                      {state!.substitutionDecisionPending && (
-                        <div className="match-controls">
-                          <button
-                            className="button secondary"
-                            onClick={() => command({ type: 'substitution', response: 'accept' })}
-                          >
-                            {m.acceptSubstitution}
-                          </button>
-                          <button
-                            className="button secondary"
-                            onClick={() => command({ type: 'substitution', response: 'encourage' })}
-                          >
-                            {m.encourageSubstitution}
-                          </button>
-                        </div>
-                      )}
-                    </section>
-                  )}
-                  <section className="match-panel" data-tour="controls">
-                    <div className="match-controls">
-                      <button
-                        className="button"
-                        disabled={!canPlay}
-                        onClick={() => {
-                          setOutcomeId(null);
-                          setPlaying(!playing);
-                        }}
-                      >
-                        {playing ? m.pause : m.play}
-                      </button>
-                      <div className="match-speeds" role="group" aria-label={m.speed}>
-                        {[1, 2, 4].map((value) => (
-                          <button
-                            key={value}
-                            aria-pressed={speed === value}
-                            onClick={() => setSpeed(value)}
-                          >
-                            {matchFormat(m.speedValue, { speed: value })}
-                          </button>
-                        ))}
-                      </div>
-                      <button className="button secondary" disabled={!canPlay} onClick={nextMoment}>
-                        {m.next}
-                      </button>
-                    </div>
-                    <p className="muted match-shortcuts">{m.shortcuts}</p>
-                  </section>
-                  {/* While a wide-screen decision fills the side column, the live numbers and
-                      commentary sit under the pitch instead of below the choices. */}
-                  {deciding && wide && (
-                    <div className="match-live-extras">
-                      {statsPanel}
-                      {commentaryPanel}
-                    </div>
-                  )}
-                </div>
-                <aside className="match-live-aside">
-                  {/* Wide screens: the key moment has the column to itself. */}
-                  {deciding && wide && decision}
-                  {deciding && wide ? null : (
-                    <>
-                      {statsPanel}
-                      {commentaryPanel}
-                    </>
-                  )}
-                </aside>
+                    <Timeline session={session} />
+                  </div>
+                </section>
+                <p className="match-shortcuts">{m.shortcuts}</p>
               </div>
-            </>
+              <aside className="match-live-aside" aria-label={m.stats}>
+                <RatingCard session={session} />
+                <StatsCard session={session} />
+                <CommentaryCard
+                  session={session}
+                  narration={narration}
+                  celebration={
+                    celebrationItem ? l.celebrations.names[celebrationItem.id] : undefined
+                  }
+                />
+              </aside>
+            </div>
           )}
-        </>
+        </div>
       )}
       <Tutorial
         track="match"

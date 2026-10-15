@@ -6,11 +6,18 @@ export const pitchArt = {
   radius: 1.95,
   numberSize: 1.85,
   ballRadius: 0.8,
-  grass: '#153f30',
-  stripes: ['#327653', '#2c6b4b'],
-  line: '#e0eed7',
-  gold: '#ffda70',
+  /** The flat redesign pitch: mowing stripes, white lines at 78%, gold for your player. */
+  grass: '#2f7a4f',
+  stripes: ['#2f7a4f', '#2a7148'],
+  line: '#ffffff',
+  lineAlpha: 0.78,
+  gold: '#efcf63',
+  /** The fading dashed line of the last pass. */
+  trail: '#fff7e4',
+  night: '#14251e',
 } as const;
+/** Dark mowing bands, in drawing units, across the whole 116 × 80 drawing. */
+export const pitchBands: readonly number[] = Array.from({ length: 6 }, (_, i) => -2 + i * 20);
 
 export const pitchPoint = (point: Point, overrun = 0): Point => ({
   x: 8 + Math.max(-overrun, Math.min(100 + overrun, point.x)),
