@@ -375,6 +375,7 @@ Distribution of the 10,000-match gate after each step (`goalsPerMatch` / `homeWi
 | ------------------- | ------ | -------- | ------ | ----------- | ---------- |
 | `match-14` baseline | 2.6594 | 0.423    | 0.2602 | 0.224       | 0.087      |
 | M4 cast and targets | 2.6507 | 0.4195   | 0.264  | 0.232       | 0.086      |
+| M5 Track the runner | 2.6507 | 0.4195   | 0.264  | 0.232       | 0.086      |
 
 ### M4: the cast and each choice's target
 
@@ -387,3 +388,9 @@ Distribution of the 10,000-match gate after each step (`goalsPerMatch` / `homeWi
 **Targets.** `DecisionChoice.target` (`ChoiceTarget`): shots at a post (`near-post` the post on the shooter's side, `far-post`, `curler` and the placed penalty the other; everything else where the catalogue aims it, `centre`), and the strike goes there; passes to the named teammate (`teammate`, their point in the frame); carries along their lane (`lane`, the carry the outcome plays); challenges on the attacker on the ball (tackles, blocks, rushing out) or the runner (`runner`); and the space an interception, a jockey, a step up or a drop off, a goal-line clearance or a claimed cross goes to (`lane`).
 
 **Camera.** `src/screens/match/cam.ts` uses the engine's cast (labels: pressing, on the ball, covering, free, runner, crossing) and draws one arrow for every targeted choice (shots to a marked near or far post, passes to the named teammate, dotted lanes, solid challenges); the frame-based derivation stays for sessions from earlier engines.
+
+### M5: Track the runner
+
+`defend-attack` gains a fourth choice, appended after the catalogue's others: **Track the runner** (`track-runner`; work rate 0.4, pace 0.3, positioning 0.3; base 0.7; a `tackle` event credited as a tackle, against the attacker; Man Marker is its skill, and Engine, Sprinter and Defensive Wall also help it through the template's own `boostedBy`, so the offside trap's choice of the same name is untouched). Like every choice it is anchored to the moment budget, so at the reference player it concedes the same as intercepting, tackling or jockeying (`decision fairness` asserts it within ±15 % and below the background expectation). It is `latest`: offered only on `match-15`, and only while the moment has fewer than four choices, so a Last-Ditch defender keeps the sliding block in fourth place and keys 1–4 still cover every option. Its target is the runner the cast names; the outcome plays the carrier's ball into the run, cut out by the defender who went with it (an `intercept` beat) or played past one a step behind.
+
+Policy goals [for, against] with every footballer rated 60, 250 matches per index: CB index 3 (now Track the runner rather than a repeat of the jockey) 1.38 / 1.276; the four indices stay within ±12 % of their mean. The 10,000-match gate fields a striker, so it is unchanged. Splitting `cross-switch` into a cross and a switch was optional and is left for later.

@@ -126,6 +126,8 @@ function contexts(position: Position, value = 60): DecisionContext[] {
     teammateFinishing: 60,
     consistencyShift: 0,
     chemistry: 60,
+    // The current engine's appended choices (Track the runner, match-15) are judged too.
+    latest: true,
   }));
 }
 const sideOf = (s: MatchSetup) => (s.players[s.selectedPlayerId]!.clubId === s.home.id ? 0 : 1);
@@ -356,6 +358,51 @@ describe('decision fairness', () => {
         if (context.situation.choices.every((c) => c.opponent === 'attacker'))
           for (const impact of impacts) expect(impact.against).toBeLessThan(context.budget.against);
       }
+  });
+  it('appends Track the runner to defending an attack on match-15, as fair as the others', () => {
+    for (const position of ['CB', 'LB', 'DM'] as const) {
+      const context = contexts(position).find((c) => c.situation.id === 'defend-attack')!;
+      const choices = buildChoices(context);
+      // Appended, never inserted, so choice indices keep their meaning; earlier engines never
+      // offer it.
+      expect(choices.map((c) => c.id)).toEqual(['intercept', 'tackle', 'jockey', 'track-runner']);
+      expect(buildChoices({ ...context, latest: false }).map((c) => c.id)).not.toContain(
+        'track-runner',
+      );
+      const impacts = choices.map(expectedImpact);
+      const mean = impacts.reduce((n, i) => n + i.net, 0) / impacts.length;
+      const track = expectedImpact(choices.at(-1)!);
+      expect(Math.abs(track.net - mean)).toBeLessThanOrEqual(0.15 * context.budget.against);
+      expect(track.against).toBeLessThan(context.budget.against);
+      expect(choices.at(-1)!.attributes[0]).toBe('workRate');
+      expect(choices.at(-1)!.stakes.successConcede).toBeGreaterThanOrEqual(0);
+      // Man Marker, Engine and Sprinter help it; Engine does not touch the offside trap's
+      // choice of the same name.
+      for (const skill of ['man-marker', 'engine', 'sprinter']) {
+        const skilled = buildChoices({
+          ...context,
+          player: { ...context.player, traits: [skill] },
+        }).at(-1)!;
+        expect(skilled.probability, skill).toBeGreaterThan(choices.at(-1)!.probability);
+      }
+      // With Last-Ditch the sliding block keeps the fourth place: never more than four choices.
+      const ditch = buildChoices({
+        ...context,
+        player: { ...context.player, traits: ['last-ditch'] },
+      }).map((c) => c.id);
+      expect(ditch).toEqual(['intercept', 'tackle', 'jockey', 'slide-block']);
+    }
+    const offside = SITUATIONS.find((s) => s.id === 'offside-line')!;
+    const trap = contexts('CB').find((c) => c.situation.id === 'defend-attack')!;
+    const plain = buildChoices({ ...trap, situation: offside }).find(
+      (c) => c.id === 'track-runner',
+    )!;
+    const engine = buildChoices({
+      ...trap,
+      situation: offside,
+      player: { ...trap.player, traits: ['engine'] },
+    }).find((c) => c.id === 'track-runner')!;
+    expect(engine.probability).toBe(plain.probability);
   });
   it('shows football-plausible box-chance shot probabilities', () => {
     const at = (value: number) =>

@@ -55,6 +55,8 @@ export interface DecisionContext {
   chemistry: number;
   /** Attribute points lost to playing an unfamiliar slot (0 in the player's own position). */
   positionPenalty?: number;
+  /** The current engine (`match-15`): its appended choices are offered. */
+  latest?: boolean;
 }
 
 export function governingValue(
@@ -136,12 +138,13 @@ export const TRAIT_BOOSTS: Readonly<Record<string, readonly string[]>> = {
 /** How many of the player's skills improve one choice. */
 export function traitCount(
   traits: readonly string[],
-  template: Pick<ChoiceTemplate, 'id' | 'traitId'>,
+  template: Pick<ChoiceTemplate, 'id' | 'traitId' | 'boostedBy'>,
 ): number {
   return traits.filter(
     (trait) =>
       (template.traitId !== null && trait === template.traitId) ||
-      TRAIT_BOOSTS[trait]?.includes(template.id),
+      TRAIT_BOOSTS[trait]?.includes(template.id) ||
+      template.boostedBy?.includes(trait),
   ).length;
 }
 /** Odds multiplier from the player's skills: each further skill stacks, to a limit. */
@@ -186,8 +189,15 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
   const { player, situation, budget, tactics } = context;
   const role = roleEffect(tactics.role);
   const risk = D.risk[tactics.risk];
-  return situation.choices
-    .filter((t) => !t.requiredTraitId || player.traits.includes(t.requiredTraitId))
+  // Choices appended by the current engine come last, and only while a moment has fewer than
+  // four (the number keys 1–4 cover every option): a skill-unlocked choice keeps its place.
+  const unlocked = situation.choices.filter(
+    (t) => !t.requiredTraitId || player.traits.includes(t.requiredTraitId),
+  );
+  const room = Math.max(0, 4 - unlocked.filter((t) => !t.latest).length);
+  const appended = context.latest ? unlocked.filter((t) => t.latest).slice(0, room) : [];
+  return unlocked
+    .filter((t) => !t.latest || appended.includes(t))
     .map((t) => {
       const value = governingValue(player, t.attributes);
       const relative = value + context.consistencyShift - context.matchLevel;

@@ -789,6 +789,16 @@ const commentary: Record<string, [string, string, string]> = {
     '{player} backs off and invites the shot.',
     '{player} is turned and the attacker is away.',
   ],
+  'track.success': [
+    '{player} spots the run, goes with it and cuts out the pass.',
+    '{player} tracks the runner all the way and nicks the ball away.',
+    'Great awareness from {player}, who reads the run and steps in front.',
+  ],
+  'track.failure': [
+    '{player} is a yard behind the runner, and the ball is played through.',
+    'The runner loses {player} with a clever change of pace.',
+    '{player} follows the wrong man and the runner is free.',
+  ],
   'recycle.success': [
     '{player} plays it short and keeps possession.',
     'Calm on the ball from {player} under pressure.',

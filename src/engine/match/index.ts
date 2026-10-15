@@ -1138,6 +1138,7 @@ function contextFor(
     consistencyShift: s.consistencyShift,
     chemistry: setup.chemistry ?? 60,
     positionPenalty: round6((100 - slot.familiarity) * C.decision.positionPenalty),
+    ...(latest(setup) ? { latest: true } : {}),
   };
 }
 /**

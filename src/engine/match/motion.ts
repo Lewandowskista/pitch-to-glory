@@ -1750,6 +1750,35 @@ class Director {
     const origin = { ...this.ball };
     const side = attacker.side;
     const from = this.toSpot(side, origin);
+    // Tracking the runner (match-15): the carrier looks for the run the cast named.
+    const tracked = this.targetOf(event);
+    const runner =
+      choice === 'track-runner' && tracked?.kind === 'runner'
+        ? this.actor(tracked.playerId)
+        : undefined;
+    if (runner && runner.side === side && runner.id !== attacker.id) {
+      const run = this.toSpot(side, this.at(runner.id));
+      const lane = this.toPitch(side, { d: clamp(Math.max(run.d, from.d) + 8, 2, 94), w: run.w });
+      if (event.outcome?.success ?? true) {
+        // The defender goes with the run and cuts out the ball played into it.
+        const cut = lerp(origin, lane, 0.7);
+        this.emit({
+          dt: 700 + span(origin, cut) * 60,
+          ball: cut,
+          motion: 'ground',
+          carrier: defender.id,
+          fixed: new Map([[runner.id, this.reachable(runner.id, lane, 1500)]]),
+          beat: { kind: 'intercept', actor: defender, eventId: event.id, won: true },
+        });
+      } else
+        // The runner is away from the defender, who is a step behind.
+        this.passTo(runner, lane, false, new Map([[defender.id, lerp(start, lane, 0.6)]]), false, {
+          eventId: event.id,
+        });
+      this.mark(event, start, this.ball);
+      this.note(event, 'intercept', defender);
+      return;
+    }
     if (event.outcome?.success ?? true) {
       if (choice === 'intercept') {
         const option = this.pickReceiver(side, 95);

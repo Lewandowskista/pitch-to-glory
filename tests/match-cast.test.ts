@@ -157,6 +157,40 @@ describe('key-moment cast (match-15)', () => {
   });
 });
 
+describe('Track the runner (match-15, M5)', () => {
+  it('targets the runner the cast names and plays the run', () => {
+    let offered = 0,
+      won = 0;
+    for (const position of ['CB', 'LB', 'DM'] as const)
+      for (let n = 0; n < 6; n++)
+        for (const { moment, next } of moments(
+          position,
+          `track-${position}-${n}`,
+          (m) => (m.choices.find((c) => c.id === 'track-runner') ?? m.choices[0]!).id,
+        )) {
+          if (moment.situationId !== 'defend-attack') continue;
+          const track = moment.choices.at(-1)!;
+          expect(track.id).toBe('track-runner');
+          offered++;
+          expect(track.target).toEqual({ kind: 'runner', playerId: moment.cast!.runner });
+          const action = next.state.match.events.find(
+            (e) => e.outcome?.input.momentId === moment.id,
+          )!;
+          expect(action.kind).toBe('tackle');
+          expect(action.action).toBe('intercept');
+          if (action.outcome!.success) {
+            won++;
+            // The defender comes away with the ball.
+            const frames = next.state.motion.frames;
+            const beat = frames.find((f) => f.beat?.eventId === action.id)!.beat!;
+            expect(beat).toMatchObject({ kind: 'intercept', actorId: action.playerId });
+          }
+        }
+    expect(offered).toBeGreaterThan(5);
+    expect(won).toBeGreaterThan(0);
+  });
+});
+
 describe('the engine cast on the camera', () => {
   it('labels the cast and draws an arrow for every targeted choice', () => {
     for (const { session, moment } of moments('ST', 'cast-camera')) {

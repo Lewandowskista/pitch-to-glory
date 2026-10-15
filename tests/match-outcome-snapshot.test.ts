@@ -33,16 +33,19 @@ import type { Position } from '../src/model/domain';
  * - M4 cast and targets: a pass reaches the teammate named before the choice (the receiver is
  *   drawn on its own stream instead of the decision stream), so every later roll in a decision
  *   shifts.
+ * - M5 Track the runner: a fourth choice when defending an attack, so the policies that pick
+ *   by index (and the headless player, who now weighs it) choose differently for players who
+ *   defend (CB, LB, DM, and CM and AM in midfield slots); GK, RW and ST are unchanged.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
   GK: { hash: 'd4ba7406a1202a740abe8ce6', goals: 63, moments: 214 },
-  CB: { hash: '6a91fbb8db11115ea8039516', goals: 64, moments: 228 },
-  LB: { hash: 'fa3d61ef176b39d6ba846e53', goals: 52, moments: 241 },
-  DM: { hash: '539bdd1d2333a33b5b6d87f0', goals: 58, moments: 208 },
-  CM: { hash: 'a9baaf4ef0a556972b65190d', goals: 74, moments: 244 },
-  AM: { hash: 'd83caa6eef01092f0ca19a48', goals: 71, moments: 277 },
+  CB: { hash: 'fb5801028ed4b3f6e90a931e', goals: 61, moments: 231 },
+  LB: { hash: 'e6056602f22882abe72879ec', goals: 52, moments: 241 },
+  DM: { hash: '13f361d6cf55571de3815154', goals: 58, moments: 207 },
+  CM: { hash: '8ef42bc7b012b2acb627081a', goals: 77, moments: 243 },
+  AM: { hash: '1290933aa54df2c22934b261', goals: 71, moments: 277 },
   RW: { hash: '9c27b2b7b703e5395df4578c', goals: 55, moments: 296 },
   ST: { hash: 'ddc93956cfc458ea17493eeb', goals: 70, moments: 302 },
 };
