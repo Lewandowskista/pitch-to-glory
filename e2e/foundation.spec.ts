@@ -54,7 +54,8 @@ test('gallery reseeds and reproduces all three SVG asset categories', async ({ p
   await page.getByRole('tab', { name: 'Match kits' }).click();
   await expect(page.locator('.kit-trio img')).toHaveCount(45);
   await page.getByRole('tab', { name: 'Player portraits' }).click();
-  await expect(page.locator('.age-trio img')).toHaveCount(24);
+  // Twelve players, so the twelve hairstyles (and every other portrait option) all appear.
+  await expect(page.locator('.age-trio img')).toHaveCount(36);
   await expect(page.getByAltText('Alex Moreno, aged 42')).toBeVisible();
   expect(await page.getByAltText('Alex Moreno, aged 17').getAttribute('src')).not.toBe(
     await page.getByAltText('Alex Moreno, aged 42').getAttribute('src'),

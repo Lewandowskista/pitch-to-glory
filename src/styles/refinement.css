@@ -48,31 +48,8 @@
 select {
   accent-color: var(--accent);
 }
-:is(.crest-card, .kit-club, .avatar-club, .discovery) {
+.discovery {
   border: 1px solid var(--line);
-}
-.seed-toolbar {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
-  padding: 1rem;
-}
-.gallery-navigation {
-  margin-top: 1.25rem;
-}
-.gallery-note {
-  margin-block: 0.75rem 1rem;
-}
-.asset-index {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: var(--accent);
-}
-.crest-card h2 {
-  font-size: 0.8rem;
-}
-.swatches span {
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
 }
 .slot-art {
   border-block: 1px solid var(--line);
@@ -127,8 +104,5 @@ select {
   .illustrated-empty .football-illustration {
     width: 7rem;
     order: -1;
-  }
-  .seed-toolbar {
-    padding: 0.75rem;
   }
 }

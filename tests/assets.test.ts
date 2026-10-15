@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../src/engine/rng';
+import { generateGallery } from '../src/engine/assets/gallery';
 import {
   CREST_SHAPES,
   CREST_SYMBOLS,
@@ -9,7 +11,9 @@ import {
 import { KIT_PATTERNS, generateKits, renderKit } from '../src/engine/assets/kit';
 import {
   AVATAR_OPTIONS,
+  AVATAR_PARTS,
   avatarSkinColor,
+  isAvatar,
   generateAvatar,
   renderAvatar,
 } from '../src/engine/assets/avatar';
@@ -78,6 +82,28 @@ describe('procedural SVG artwork', () => {
       );
       expect(new Set(svgs).size).toBe(count);
     }
+  });
+  it('shows every portrait option in the gallery without changing its crests or kits', () => {
+    // Fingerprints of the clubs these seeds generated before the portrait range widened: a
+    // saved gallery seed must keep drawing the same crests and kits.
+    const clubs = {
+      'pitch-to-glory': 'a415f945ec96e799',
+      a11y: '6b08770c9df8bf1e',
+      'reseed-7': '63f2347391274d7b',
+    };
+    for (const [seed, fingerprint] of Object.entries(clubs)) {
+      const gallery = generateGallery(seed);
+      expect(
+        createHash('sha256').update(JSON.stringify(gallery.clubs)).digest('hex').slice(0, 16),
+      ).toBe(fingerprint);
+      expect(generateGallery(seed)).toEqual(gallery);
+      for (const part of AVATAR_PARTS) {
+        const shown = new Set(gallery.players.map((player) => player.avatar[part]));
+        expect(shown.size, `${seed} ${part}`).toBe(AVATAR_OPTIONS[part]);
+      }
+      for (const player of gallery.players) expect(isAvatar(player.avatar)).toBe(true);
+    }
+    expect(generateGallery('a11y').players).not.toEqual(generateGallery('reseed-7').players);
   });
   it('is reproducible and produces complete home, away and third kits', () => {
     const a = createRng('club');
