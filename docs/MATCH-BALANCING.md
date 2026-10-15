@@ -380,6 +380,18 @@ Distribution of the 10,000-match gate after each step (`goalsPerMatch` / `homeWi
 | M7 cards and subs   | 2.6527 | 0.4205   | 0.2628 | 0.229       | 0.083      |
 | M8 weather, pitch   | 2.6542 | 0.4218   | 0.2625 | 0.2285      | 0.082      |
 
+On `match-15` the equal-team cohort scores 1.450 home and 1.225 away goals (home wins 42.2 %, away wins 31.6 %). Policy fairness (every footballer rated 60, 250 matches per "always choose index k", team goals [for, against]):
+
+| Selected | Index 0      | Index 1      | Index 2      | Index 3      |
+| -------- | ------------ | ------------ | ------------ | ------------ |
+| ST       | 1.440, 1.296 | 1.468, 1.292 | 1.468, 1.280 | 1.384, 1.280 |
+| CB       | 1.400, 1.304 | 1.388, 1.308 | 1.376, 1.272 | 1.376, 1.288 |
+| GK       | 1.344, 1.068 | 1.316, 1.144 | 1.316, 1.160 | 1.316, 1.160 |
+
+Every column stays within ±12 % of its mean; CB index 3 is now Track the runner. The analytic fairness tests (each choice within ±15 % of the moment budget, no defensive choice above the background expectation) include Track the runner and the split conditions.
+
+**Profile** (`npm run profile:match`, 300 matches a position): striker 0.49 goals a match, keeper p90 8.6, every position reaching 9, outfield substitutions 6–9 %, attacker involvement best/worst ×1.4–1.8, stated odds honest, and choreography 5.1–5.6 ms a match (motion and narration; 7.6–8.3 ms a whole match), inside the 10 ms budget. The objectives gate reads 76 % for the striker's and the attacking midfielder's shots objective against a 75 % ceiling: moving the objectives to their own stream changed which of the 300 matches are offered it. Over all 1,200 matches of a longer run, a striker reaches four shots in 73.8 % of matches (72.9 % on `match-14`) and an attacking midfielder two in 72.3 % (71.7 %), so the population rate is unchanged and sits just under the ceiling; at 300 matches the measured subset (about 150 matches) varies by ±4 points either way (`match-14`'s subset read 69 %).
+
 ### M4: the cast and each choice's target
 
 **Cast.** Every key moment carries `KeyMoment.zone` (`def`, `mid`, `final`: the third of the situation's spot) and `KeyMoment.cast` (`MomentCast`): `selected`; `presser` (attacking: the opponent set goal-side of you, drawn for the odds by `contextFor`; defending: the attacker on the ball); `cover` (attacking: the next one or two opponents nearest the ball; defending: the one or two teammates nearest it); `keeper` (theirs when the spot is in the final third, yours in your own third, none when you are the keeper); `free` (the teammates the moment's passes go to); `runner` (attacking: the receiver of a ball in behind; defending: their attacker nearest you, off the ball); `crosser` (the teammate crossing an aerial chance, or their winger on a cross into your box). `scene()` names them after the build-up and moves them towards their marks in the scene's last keyframe, as far as a sprint takes them in its time (covering opponents goal-side of the spot, the runner on the offside line, free teammates a step into space, covering teammates goal-side of the ball; set pieces keep their set-up). Every cast id is on the pitch in the moment's frame.
