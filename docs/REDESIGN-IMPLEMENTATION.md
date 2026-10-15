@@ -273,8 +273,9 @@ flows passing.
 figure, crests, kits, lettering, illustrations and the poster); phase 3 done (UI kit in
 `src/ui/kit` with `docs/UI-KIT.md`, shell, tutorial, save-card portraits, fixture dates, and every
 career screen); phase 4 done (World, saved games, settings, edit mode, gallery; switch,
-slider and radio-tile kit components). Phase 5 (match engine presentation) in progress: M0, M1, M2,
-M3, M6 and M9 done (engine `match-14`, outcome hashes unchanged; see `MATCH-BALANCING.md`).
+slider and radio-tile kit components). Phase 5 done (engine `match-14`: outcome hashes unchanged; M0 harness, M1 beats, M2 patterns, M3
+narration, M6 stats, M9 clips v2, M10 maps, and the redesigned match screens with the tactical
+camera). Next: phases 6 and 7 in parallel.
 
 | Phase                                     | Contents                                                                                                                                                                                                                                                                                                                 | Outcome-changing?                 | Save impact                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------- |
