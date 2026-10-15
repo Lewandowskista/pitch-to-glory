@@ -307,6 +307,33 @@ export const marketText = {
     list: 'Messages',
     selectPrompt: 'Choose a message to read it.',
     reader: 'Message',
+    // Redesign (phase 3b): message types, senders and deadlines.
+    description:
+      'Offers, call-ups and news from your club and agent. Messages that need an answer take you straight to it.',
+    keys: 'Up and down arrows move through the list. Opening a message marks it as read.',
+    newestFirst: '{unread} · newest first',
+    kinds: {
+      transfer: 'Transfer',
+      contract: 'Contract',
+      agent: 'Agent',
+      press: 'Press',
+      national: 'National',
+      honours: 'Honours',
+      sponsor: 'Sponsor',
+      lifestyle: 'Lifestyle',
+      club: 'Club',
+      story: 'Story',
+      rival: 'Rival',
+      market: 'Market',
+    },
+    sender: {
+      club: 'Your club · {name}',
+      agent: 'Your agent · {name}',
+      press: '{name} · Press',
+    },
+    deadline: 'Needs your answer by week {week}',
+    deadlineNow: 'Needs your answer this week',
+    offerLine: '{kind} · fee {fee}',
   },
   hub: {
     market: 'Market',
