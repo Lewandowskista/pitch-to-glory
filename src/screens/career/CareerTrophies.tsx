@@ -37,7 +37,11 @@ import { audio } from '../../audio';
 
 export default function CareerTrophies() {
   return (
-    <CareerPage title={h.titles.trophies} description={h.cabinet.pageBody}>
+    <CareerPage
+      title={h.titles.trophies}
+      description={h.cabinet.pageBody}
+      actions={({ world, player }) => <Summary world={world} player={player} />}
+    >
       {({ world, player }) => <TrophiesContent world={world} player={player} />}
     </CareerPage>
   );
@@ -95,7 +99,6 @@ function TrophiesContent({ world, player }: { world: World; player: Player }) {
   const latest = balls.at(-1);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
-      <Summary world={world} player={player} />
       <GoldenBall world={world} player={player} award={latest} onOpen={ceremony.open} />
       {/* Two independent columns: the player's honours and the world's, the season's awards. */}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:col-span-7">
@@ -131,7 +134,7 @@ function Summary({ world, player }: { world: World; player: Player }) {
     [tournaments.length, h.cabinet.counts.international],
   ];
   return (
-    <ul aria-label={h.cabinet.summary} className="flex flex-wrap gap-2 lg:col-span-12">
+    <ul aria-label={h.cabinet.summary} className="flex flex-wrap gap-2">
       {items
         .filter(([count]) => count > 0)
         .map(([count, forms]) => {

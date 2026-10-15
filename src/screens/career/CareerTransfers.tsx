@@ -63,7 +63,11 @@ const heroButton =
 
 export default function CareerTransfers() {
   return (
-    <CareerPage title={m.titles.transfers} description={m.offers.pageBody}>
+    <CareerPage
+      title={m.titles.transfers}
+      description={m.offers.pageBody}
+      actions={({ world }) => <WindowBanner world={world} />}
+    >
       {(context) => <TransfersContent {...context} />}
     </CareerPage>
   );
@@ -85,13 +89,11 @@ function TransfersContent({
   if (offer)
     return (
       <div className="grid gap-5">
-        <WindowBanner world={world} />
         <Talks world={world} offer={offer} onClose={talks.close} />
       </div>
     );
   return (
     <div className="grid gap-5">
-      <WindowBanner world={world} />
       <Offers world={world} onOpen={(id) => talks.open(id)} />
       {/* Two independent columns on wide screens so short cards never stretch to match a long
           neighbour; on phones the columns dissolve and `order` sets the sequence. */}

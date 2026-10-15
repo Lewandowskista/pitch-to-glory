@@ -22,13 +22,18 @@ const AHEAD_WEEKS = 8;
 
 export default function CareerCalendar() {
   return (
-    <CareerPage title={a.calendar.title} description={a.calendar.description}>
+    <CareerPage
+      title={a.calendar.title}
+      description={a.calendar.description}
+      actions={() => <CalendarViews />}
+    >
       {({ world }) => <CalendarContent world={world} />}
     </CareerPage>
   );
 }
 
-function CalendarContent({ world }: { world: World }) {
+/** The From this week / Whole season switch, in the page header beside the title. */
+function CalendarViews() {
   const [params, setParams] = useSearchParams();
   const view: View = params.get('weeks') === 'all' ? 'all' : 'ahead';
   const select = (next: View) => {
@@ -37,6 +42,36 @@ function CalendarContent({ world }: { world: World }) {
     else search.delete('weeks');
     setParams(search, { replace: true });
   };
+  return (
+    <div className="segmented-tabs" role="tablist" aria-label={a.calendar.views}>
+      {VIEWS.map((entry) => (
+        <button
+          key={entry}
+          type="button"
+          role="tab"
+          id={`weeks-${entry}`}
+          aria-controls="calendar-weeks"
+          aria-selected={view === entry}
+          tabIndex={view === entry ? 0 : -1}
+          onClick={() => select(entry)}
+          onKeyDown={(event) => {
+            if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const next = entry === 'ahead' ? 'all' : 'ahead';
+            select(next);
+            document.getElementById(`weeks-${next}`)?.focus();
+          }}
+        >
+          {a.calendar[entry]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CalendarContent({ world }: { world: World }) {
+  const [params, setParams] = useSearchParams();
+  const view: View = params.get('weeks') === 'all' ? 'all' : 'ahead';
   const agenda = seasonAgenda(world);
   const complete = world.phase === 'complete';
   const upcoming = view === 'all' || complete ? agenda : agenda.filter((week) => !week.past);
@@ -52,32 +87,7 @@ function CalendarContent({ world }: { world: World }) {
   };
   return (
     <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <Legend />
-        <div className="segmented-tabs" role="tablist" aria-label={a.calendar.views}>
-          {VIEWS.map((entry) => (
-            <button
-              key={entry}
-              type="button"
-              role="tab"
-              id={`weeks-${entry}`}
-              aria-controls="calendar-weeks"
-              aria-selected={view === entry}
-              tabIndex={view === entry ? 0 : -1}
-              onClick={() => select(entry)}
-              onKeyDown={(event) => {
-                if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
-                event.preventDefault();
-                const next = entry === 'ahead' ? 'all' : 'ahead';
-                select(next);
-                document.getElementById(`weeks-${next}`)?.focus();
-              }}
-            >
-              {a.calendar[entry]}
-            </button>
-          ))}
-        </div>
-      </div>
+      <Legend />
       {complete && <SeasonOver />}
       <div id="calendar-weeks" role="tabpanel" aria-labelledby={`weeks-${view}`}>
         {/* Two cards a row on wide screens, in week order, one under another on phones. */}

@@ -270,7 +270,9 @@ Each phase leaves the game shippable, with typecheck, lint, unit tests and the c
 flows passing.
 
 **Status:** phase 1 done (f71f9e5); phase 2 done (squad numbers, save schema v21, portraits,
-figure, crests, kits, lettering, illustrations and the poster). Next: phase 3.
+figure, crests, kits, lettering, illustrations and the poster); phase 3 done (UI kit in
+`src/ui/kit` with `docs/UI-KIT.md`, shell, tutorial, save-card portraits, fixture dates, and every
+career screen). Next: phase 4 (World, saves, settings, edit mode, gallery).
 
 | Phase                                     | Contents                                                                                                                                                                                                                                                                                                                 | Outcome-changing?                 | Save impact                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------- |

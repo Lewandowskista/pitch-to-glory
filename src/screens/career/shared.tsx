@@ -222,22 +222,39 @@ export function CareerNav() {
 export function CareerPage({
   title,
   description,
+  actions,
   children,
 }: {
   title: string;
   description?: string;
+  /** Controls beside the page title (view tabs, a status pill), once a career is loaded. */
+  actions?: (context: CareerContext) => ReactNode;
   children: (context: CareerContext) => ReactNode;
 }) {
   const world = useAppStore((s) => s.world);
   const { loading, error } = useRestoredWorld();
   const player = world?.career ? world.players[world.career.playerId] : undefined;
+  const context: CareerContext | null =
+    !loading && world?.career && player
+      ? {
+          world,
+          career: world.career,
+          player,
+          club: player.clubId ? world.clubs[player.clubId] : undefined,
+          age: world.date.season - player.birthSeason,
+        }
+      : null;
   return (
     <Page className="career-page">
       {/* Shown while a save loads too: the tabs depend only on the route, and appearing late
           would push the whole page down. */}
       {(loading || (world?.career && player)) && <CareerNav />}
       <div className="page-body">
-        <PageHeader title={title} description={description} />
+        <PageHeader
+          title={title}
+          description={description}
+          actions={context && actions ? actions(context) : undefined}
+        />
         {error && (
           <p role="alert" className="inline-error">
             {error}
@@ -247,18 +264,12 @@ export function CareerPage({
           <CareerLoading />
         ) : !world ? (
           <CareerEmpty />
-        ) : !world.career || !player ? (
+        ) : !context ? (
           <NoCareerInWorld />
         ) : (
           <>
             <UnsavedCareer />
-            {children({
-              world,
-              career: world.career,
-              player,
-              club: player.clubId ? world.clubs[player.clubId] : undefined,
-              age: world.date.season - player.birthSeason,
-            })}
+            {children(context)}
           </>
         )}
       </div>
