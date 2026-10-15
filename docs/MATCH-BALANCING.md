@@ -378,6 +378,7 @@ Distribution of the 10,000-match gate after each step (`goalsPerMatch` / `homeWi
 | M5 Track the runner | 2.6507 | 0.4195   | 0.264  | 0.232       | 0.086      |
 | Objectives stream   | 2.652  | 0.4202   | 0.2632 | 0.229       | 0.083      |
 | M7 cards and subs   | 2.6527 | 0.4205   | 0.2628 | 0.229       | 0.083      |
+| M8 weather, pitch   | 2.6542 | 0.4218   | 0.2625 | 0.2285      | 0.082      |
 
 ### M4: the cast and each choice's target
 
@@ -414,3 +415,14 @@ Taking that draw off the preview stream moves its later draws (the consistency s
 **The managers' substitutions.** Each side's plan is drawn on `${seed}:ai-subs`: how many changes (1 to 5 with weights 0.10 / 0.25 / 0.40 / 0.20 / 0.05, at most `aiSubstitutions.limit` 5, one fewer on the career player's side so their own substitution always fits) and their minutes, 60′–80′ (five minute draws a side whatever the count). At a planned minute the manager takes off an outfielder who started (never the keeper, the career player or someone who came on), weighted `1 + 0.05 × fatigue + 0.06 × (70 − stamina)⁺ + 0.05 × (55 − form)⁺`, drawn on `${seed}:ai-subs:${minute}:${side}:${change}`; the best bench replacement comes on (same position, then a compatible one, then any outfielder), the line-up's starter and bench ids are updated, and a `substitution` event names the player off (`playerId`) and on (`receiverId`, commentary `match.commentary.change.*`). The career player's own substitution now names who comes on too. Choreography already puts a substitute in the slot of the player who left. Changes alter who can score and who the drawn opponents are, so they change outcomes.
 
 **Minutes.** `commitCareerMatch` credits minutes from the substitution events: a starter plays until taken off, a substitute from the minute they came on (`90 − minute`, at least 1), the career player the session's own count; players taken off keep their appearance. Each side's minutes therefore add up to 990 in regulation (`match-accounting.test.ts`). Sessions from earlier engines, whose only change was the career player's, are credited as before.
+
+### M8: weather intensity and the pitch's state
+
+**Intensity.** After the weather is picked, one more draw on the preview stream (the last it makes, so every earlier draw is unchanged) sets `Match.weatherIntensity`: light, steady or heavy with weights 0.3 / 0.4 / 0.3 (`conditions.intensityWeights`, a mean scale of exactly 1). **Pitch state** (`Match.pitchState`) is derived without a draw (`engine/match/conditions.ts`, `pitchStateFor`, also used by the preview's pitch icon): snow freezes the pitch (light snow only makes it heavy), rain makes it heavy unless it is light rain on a good surface, a surface below `pitchGood` (70) is heavy whatever the sky, and a good surface is firm under clear skies, otherwise good.
+
+**Two factors.** The combined conditions factor is split into two shown factors, each an odds multiplier `1 + effect` in the usual order, so the factors still sum exactly to the probability:
+
+- **Weather** (`match.factor.weather.<intensity>.<weather>`, "Light rain", "Strong wind"): the weather's own effect × the intensity's scale (light 0.5, steady 1, heavy 1.5). Technical choices: rain −0.03, snow −0.05; direct choices (crosses, long balls, long shots, headers, claims, punches): rain −0.02, wind −0.08, snow −0.05.
+- **Pitch** (`match.factor.pitch.<state>`, "Heavy pitch"): technical choices only, the larger of the loss from a surface the rain or snow made heavy or frozen (−0.05) and the loss from a poor surface (`pitchSlope` 0.004 a point below 70, as before).
+
+Averaged over intensities, direct choices lose exactly what they did, and close control on a good surface within a point of the combined factor (rain −0.065 against −0.06, snow −0.10 as before). Earlier engines keep the single "Weather and pitch" factor. The briefing names the weather with its intensity and draws its icon ("Light rain"), the pitch tile reads "Heavy pitch · 62% quality", the live chip "Light rain · Heavy pitch", and a choice's reason can cite "Heavy pitch −1.2%" (the factor's contribution to the chance).

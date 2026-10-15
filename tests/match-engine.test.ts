@@ -619,9 +619,25 @@ describe('match edge cases', () => {
       (c) => c.id === 'take-on',
     )!;
     expect(poor.probability).toBeLessThan(good.probability);
+    // Engine match-15 splits the weather (with its intensity) from the pitch.
+    expect(poor.factors.some((f) => f.labelKey === 'match.factor.conditions')).toBe(false);
     expect(
-      poor.factors.find((f) => f.labelKey === 'match.factor.conditions')!.contribution,
+      poor.factors.find((f) => f.labelKey === 'match.factor.weather.steady.rain')!.contribution,
     ).toBeLessThan(0);
+    expect(
+      poor.factors.find((f) => f.labelKey === 'match.factor.pitch.heavy')!.contribution,
+    ).toBeLessThan(0);
+    // Earlier engines keep one combined factor.
+    const legacy = buildChoices({
+      ...context,
+      latest: false,
+      pitchCondition: 40,
+      weather: 'rain',
+    }).find((c) => c.id === 'take-on')!;
+    expect(
+      legacy.factors.find((f) => f.labelKey === 'match.factor.conditions')!.contribution,
+    ).toBeLessThan(0);
+    expect(legacy.factors.some((f) => f.labelKey.startsWith('match.factor.weather.'))).toBe(false);
   });
   it('has copy for every situation, choice, factor and commentary line the engine emits', () => {
     const keys = new Set<string>();

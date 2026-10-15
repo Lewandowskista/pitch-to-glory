@@ -1,5 +1,25 @@
+/** The weather as the match reports it, with its intensity (engine match-15). */
+const weatherNames = {
+  light: { clear: 'Sunny spells', rain: 'Light rain', snow: 'Light snow', wind: 'A breeze' },
+  steady: { clear: 'Clear skies', rain: 'Rain', snow: 'Snow', wind: 'Wind' },
+  heavy: { clear: 'Bright sunshine', rain: 'Heavy rain', snow: 'Heavy snow', wind: 'Strong wind' },
+} as const;
+/** The pitch's state in a few words (engine match-15). */
+const pitchNames = {
+  firm: 'Firm pitch',
+  good: 'Good pitch',
+  heavy: 'Heavy pitch',
+  frozen: 'Frozen pitch',
+} as const;
+
 export const matchText = {
   saveHint: 'Save your world to keep this match after refreshing or closing the browser.',
+  weatherNames,
+  pitchNames,
+  /** "Light rain · Heavy pitch". */
+  conditionsLine: '{weather} · {pitch}',
+  /** "Heavy pitch · 62% quality". */
+  pitchLine: '{state} · {value}% quality',
   saveLink: 'Choose a save slot',
   acceptSubstitution: 'Accept the change',
   encourageSubstitution: 'Encourage your teammates',
@@ -1086,6 +1106,18 @@ const engineText: Record<string, string> = {
   'match.factor.role': 'Personal role',
   'match.factor.risk': 'Risk level',
   'match.factor.conditions': 'Weather and pitch',
+  // Engine match-15: the weather (with its intensity) and the pitch are separate factors.
+  ...Object.fromEntries(
+    Object.entries(weatherNames).flatMap(([intensity, names]) =>
+      Object.entries(names).map(([weather, name]) => [
+        `match.factor.weather.${intensity}.${weather}`,
+        name,
+      ]),
+    ),
+  ),
+  ...Object.fromEntries(
+    Object.entries(pitchNames).map(([state, name]) => [`match.factor.pitch.${state}`, name]),
+  ),
   'match.factor.limit': 'Probability limit',
   'match.commentary.halftime': 'The whistle brings the first half to a close.',
   'match.commentary.substitution': 'The manager makes a change. Your shift is over.',

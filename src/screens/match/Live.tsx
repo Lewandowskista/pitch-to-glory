@@ -240,7 +240,12 @@ export function PitchOverlay({ session }: { session: MatchSession }) {
       </span>
       <span className="match-cam-chip is-quiet">
         {matchFormat(u.attacking, { club: club.name })} {right ? '→' : '←'} ·{' '}
-        {m[state.match.weather]}
+        {state.match.weatherIntensity && state.match.pitchState
+          ? matchFormat(m.conditionsLine, {
+              weather: m.weatherNames[state.match.weatherIntensity][state.match.weather],
+              pitch: m.pitchNames[state.match.pitchState],
+            })
+          : m[state.match.weather]}
       </span>
     </div>
   );

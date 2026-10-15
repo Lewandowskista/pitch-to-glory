@@ -40,18 +40,20 @@ import type { Position } from '../src/model/domain';
  *   preview stream's later draws (the consistency shift and the weather) move for every match.
  * - M7 cards and substitutions: bookings add events (ids and commentary variants move, no roll
  *   does) and the managers' changes and the bench of seven change line-ups and who scores.
+ * - M8 weather and pitch: the combined conditions factor splits into a weather factor (scaled
+ *   by the new intensity) and a pitch factor, so choice factors and probabilities change.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '7ddf1ab2d449041636e8fde1', goals: 63, moments: 214 },
-  CB: { hash: '902105b4d3911b8bcb4e05d9', goals: 61, moments: 231 },
-  LB: { hash: '259c5f16947308b265de9ec7', goals: 51, moments: 238 },
-  DM: { hash: '356790a07545657bd229b01f', goals: 58, moments: 207 },
-  CM: { hash: 'ebff334fd2518812cd3933d5', goals: 76, moments: 242 },
-  AM: { hash: '5db9326c139d49ef6efd1e1d', goals: 74, moments: 276 },
-  RW: { hash: 'cdfa802933e49d517d81d54f', goals: 53, moments: 295 },
-  ST: { hash: 'cde5d8fc26ed2aa1e6d115f3', goals: 71, moments: 301 },
+  GK: { hash: '004f2120207ee97fc7dadc43', goals: 63, moments: 214 },
+  CB: { hash: 'f598c70b8e585f4c3df20aa8', goals: 62, moments: 231 },
+  LB: { hash: 'c79dbf303b9cce13a59fd9f2', goals: 51, moments: 238 },
+  DM: { hash: '38a1e53575534e61081111c5', goals: 58, moments: 207 },
+  CM: { hash: '1965a808123a8e4e960ea515', goals: 76, moments: 242 },
+  AM: { hash: '2af6bae95678fcada54a5778', goals: 74, moments: 277 },
+  RW: { hash: 'b7c2bbb0e2030480943ec02e', goals: 53, moments: 294 },
+  ST: { hash: 'a8635930b0733947545159a8', goals: 71, moments: 301 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });

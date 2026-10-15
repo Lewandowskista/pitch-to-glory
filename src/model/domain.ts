@@ -1409,7 +1409,11 @@ export interface Match {
   home: Lineup;
   away: Lineup;
   weather: 'clear' | 'rain' | 'snow' | 'wind';
+  /** How hard it rains, blows or snows (engine match-15; absent on earlier engines). */
+  weatherIntensity?: 'light' | 'steady' | 'heavy';
   pitchCondition: number;
+  /** The pitch's state from the weather and its quality (engine match-15). */
+  pitchState?: 'firm' | 'good' | 'heavy' | 'frozen';
   instructionsKey: string;
   tactics: Tactics;
   objectives: Objective[];

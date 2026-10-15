@@ -63,6 +63,7 @@ import { halftimeRole, roleEffect, shiftMentality } from './roles';
 import { cutHighlight } from './highlight';
 import { matchObjectives, objectivesFor } from './objectives';
 import { bookings, substitutionOff, substitutionPlan } from './discipline';
+import { intensityFor, pitchStateFor } from './conditions';
 import {
   buildChoices,
   clamp,
@@ -98,6 +99,13 @@ export {
   conditionsEffect,
   type DecisionContext,
 } from './decisions';
+export {
+  pitchEffect,
+  pitchStateFor,
+  weatherEffect,
+  type Intensity,
+  type PitchState,
+} from './conditions';
 
 /** Thrown before replay when a saved session was produced by a different match engine. */
 export class OutdatedMatchSessionError extends Error {
@@ -483,6 +491,12 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
     keyMoments: [],
     reports: [],
   };
+  if (latest(setup)) {
+    // How hard it rains, blows or snows (match-15), drawn after the weather so every earlier
+    // draw is unchanged, and the pitch's state, derived without a draw.
+    match.weatherIntensity = intensityFor(rng.next());
+    match.pitchState = pitchStateFor(match.weather, match.pitchCondition, match.weatherIntensity);
+  }
   const captainId = [...(selectedSide(setup) === 0 ? home : away).starterIds].sort(
     (a, b) =>
       setup.players[b]!.attributes.leadership - setup.players[a]!.attributes.leadership ||
@@ -1176,6 +1190,8 @@ function contextFor(
     tactics: s.match.tactics,
     weather: s.match.weather,
     pitchCondition: s.match.pitchCondition,
+    ...(s.match.weatherIntensity ? { weatherIntensity: s.match.weatherIntensity } : {}),
+    ...(s.match.pitchState ? { pitchState: s.match.pitchState } : {}),
     strengthGap: round6(s.strength[side]! - s.strength[1 - side]!),
     opponents: {
       keeper: pickAbility(['GK'], 'keeper'),
