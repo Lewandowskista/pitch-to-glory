@@ -569,7 +569,8 @@ function NextMatch({
         )}
         {fixture && !complete && <StakeLine world={world} fixture={fixture} />}
         {fixture && !complete && !awaitingRecovery && (
-          <ManagerPlan world={world} fixture={fixture} />
+          // Phones keep the action in the first view: the plan follows it there.
+          <ManagerPlan world={world} fixture={fixture} className="max-sm:order-1" />
         )}
         {pending && !session && (
           <p className="max-w-prose text-sm text-hero-muted max-sm:order-1">{c.hub.matchdayBody}</p>
