@@ -105,7 +105,7 @@ export function MomentCard({
       >
         <ClipPitch
           clip={clip}
-          progress={playback.progress}
+          playback={playback}
           home={moment.home.color}
           away={moment.away.color}
           scorer={moment.scorerName}

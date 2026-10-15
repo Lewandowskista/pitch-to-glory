@@ -53,6 +53,7 @@ import { reportCopy } from './headlines';
 import { validateSetup, validateTactics, validateCommand, validateJson } from './validation';
 import { SITUATION_BY_ID, type ChoiceTemplate, type Situation } from './situations';
 import { halftimeRole, roleEffect, shiftMentality } from './roles';
+import { cutHighlight } from './highlight';
 import {
   buildChoices,
   clamp,
@@ -599,7 +600,11 @@ function applyPassage(
         ...s.highlights,
         {
           eventId: goal.eventId,
-          frames: [...lead, ...passage.frames.slice(0, goal.frame + 1)].slice(-12),
+          frames: cutHighlight(
+            [...lead, ...passage.frames.slice(0, goal.frame + 1)],
+            goal.playerId,
+            new Set(session.setup.home.playerIds),
+          ),
         },
       ];
 }
