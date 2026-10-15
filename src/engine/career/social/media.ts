@@ -12,7 +12,7 @@ import { fixtureKind } from '../fixtures';
 import { adjustRelationship, nextId, postMessage } from '../market/records';
 import { addWeeks, compareDates, today } from '../market/rules';
 import { adjustCliques, adjustMood } from './dressing';
-import { adjustIntensity, rivalOf, rivalryOf, seasonLines } from './rival';
+import { addTimeline, adjustIntensity, rivalOf, rivalryOf, seasonLines } from './rival';
 import { careerClub, careerPlayer, S } from './rules';
 
 const MD = S.media;
@@ -254,6 +254,14 @@ export function answerPress(world: World, mediaId: string, choiceId: string): vo
       answer: null,
       expires: null,
     });
+    // The exchange goes into the rivalry's story (phase 7, C6).
+    if (rivalry)
+      addTimeline(world, rivalry, 'media', {
+        rival: rival.name,
+        player: careerPlayer(world).name,
+        answer: choice.labelKey,
+        reply: 'rival.reply',
+      });
   }
 }
 

@@ -486,4 +486,9 @@ export const honoursText = {
       body: 'Next season you reach the age at which every career ends. Think about your legacy.',
     },
   } as Record<string, { subject: string; body: string }>,
+  /** Phase 7 (C3): the live Hall of Fame rank mid-career, and the name below a legacy. */
+  hallOfFameLive: {
+    line: 'Hall of Fame #{rank} of {of}',
+    ahead: 'Ahead of {name}, #{rank}',
+  },
 };

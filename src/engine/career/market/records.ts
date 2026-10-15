@@ -1,4 +1,11 @@
-import type { CareerMarket, CareerMove, InboxMessage, World } from '../../../model/domain';
+import type {
+  CareerMarket,
+  CareerMove,
+  GameDate,
+  InboxMessage,
+  InboxSender,
+  World,
+} from '../../../model/domain';
 import { M, today } from './rules';
 
 /** A new id for a market record. Ids never repeat within a career. */
@@ -71,6 +78,94 @@ export type InboxKind =
   | 'testimonial'
   | 'legacy-project';
 
+/** Messages written by a club, naming it in a parameter (your club, or the one you left). */
+const FROM_CLUB: Partial<Record<InboxKind, string>> = {
+  'offer-terms': 'parent',
+  'offer-rejected': 'parent',
+  'renewal-offer': 'club',
+  'renewal-improved': 'club',
+  'renewal-refused': 'club',
+  'contract-extended': 'club',
+  'transfer-request': 'club',
+  'transfer-request-withdrawn': 'club',
+  'loan-request': 'club',
+  'promise-broken': 'club',
+  'new-manager': 'club',
+};
+const FROM_AGENT = new Set<InboxKind>([
+  'agent-hired',
+  'agent-pitch',
+  'agent-push',
+  'agent-renewal',
+]);
+const FROM_MANAGER = new Set<InboxKind>([
+  'dropped',
+  'promise-offer',
+  'promise-achieved',
+  'promise-missed',
+  'promise-cancelled',
+]);
+
+/** Who wrote a message, as things stand when it is posted (phase 7, C5). */
+function senderOf(
+  world: World,
+  kind: InboxKind,
+  params: InboxMessage['params'],
+  actionId: string | null,
+): InboxSender | undefined {
+  const clubParam = FROM_CLUB[kind];
+  if (clubParam && typeof params[clubParam] === 'string') {
+    const name = params[clubParam];
+    const own = world.clubs[world.players[world.career?.playerId ?? '']?.clubId ?? ''];
+    const club =
+      own?.name === name ? own : Object.values(world.clubs).find((entry) => entry.name === name);
+    return { kind: 'club', ...(club ? { id: club.id } : {}), name };
+  }
+  if (FROM_AGENT.has(kind) && typeof params.agent === 'string') {
+    const name = params.agent;
+    const agent = Object.values(world.agents).find((entry) => entry.name === name);
+    return { kind: 'agent', ...(agent ? { id: agent.id } : {}), name };
+  }
+  if (kind === 'press-request' && typeof params.outlet === 'string')
+    return { kind: 'press', name: params.outlet };
+  if (FROM_MANAGER.has(kind)) {
+    const promise = actionId
+      ? world.career?.social?.promises?.find((entry) => entry.id === actionId)
+      : undefined;
+    const clubId = world.players[world.career?.playerId ?? '']?.clubId;
+    const managerId = promise?.managerId ?? (clubId ? world.clubs[clubId]?.managerId : undefined);
+    const manager = managerId ? world.managers[managerId] : undefined;
+    if (manager) return { kind: 'manager', id: manager.id, name: manager.name };
+  }
+  return undefined;
+}
+
+/**
+ * The last day to answer the item a message is about, while it waits for the player: an
+ * offer's terms, a press question, the manager's challenge, a story or a sponsor's offer. The
+ * same dates the hub's deadlines read.
+ */
+function deadlineOf(world: World, actionId: string | null): GameDate | undefined {
+  if (!actionId) return undefined;
+  const offer = world.offers.find((entry) => entry.id === actionId);
+  if (offer) return offer.status === 'terms' ? { ...offer.expires } : undefined;
+  const press = world.media.find((entry) => entry.id === actionId);
+  if (press)
+    return press.choices.length && press.answer === null && press.expires
+      ? { ...press.expires }
+      : undefined;
+  const promise = world.career?.social?.promises?.find((entry) => entry.id === actionId);
+  if (promise)
+    return promise.status === 'offered'
+      ? { season: promise.season, week: promise.respondBy, day: 7 }
+      : undefined;
+  const story = world.career?.stories?.find((entry) => entry.id === actionId);
+  if (story) return story.status === 'offered' ? { ...story.respondBy } : undefined;
+  const deal = world.sponsorships.find((entry) => entry.id === actionId);
+  if (deal) return deal.status === 'offered' ? { ...deal.expires } : undefined;
+  return undefined;
+}
+
 /** Post an inbox message; old read messages are dropped beyond the limit. */
 export function postMessage(
   world: World,
@@ -78,6 +173,8 @@ export function postMessage(
   params: InboxMessage['params'] = {},
   actionId: string | null = null,
 ): void {
+  const sender = senderOf(world, kind, params, actionId);
+  const deadline = deadlineOf(world, actionId);
   world.inbox.push({
     id: nextId(world, 'inbox'),
     date: today(world),
@@ -86,6 +183,8 @@ export function postMessage(
     params,
     read: false,
     actionId,
+    ...(sender ? { sender } : {}),
+    ...(deadline ? { deadline } : {}),
   });
   while (world.inbox.length > M.inboxLimit) {
     const index = world.inbox.findIndex((message) => message.read);

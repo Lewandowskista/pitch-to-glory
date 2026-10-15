@@ -21,6 +21,7 @@ import {
 import { CONFIG } from '../../engine/config';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import { StakeLine } from './stakesUi';
+import { ManagerPlan } from './briefUi';
 import { lazyPage } from '../../ui/lazyPage';
 import { chooseRecovery } from '../../engine/career/training';
 import { canAnnounceFarewell, retirementState } from '../../engine/career/honours/retirement';
@@ -62,7 +63,7 @@ import { challengeDone, fameProgress } from '../../engine/career/lifestyle';
 import { lifestyleText as l } from '../../i18n/lifestyle';
 import { honoursText as h } from '../../i18n/honours';
 import { fameName, useChallengeRefresh } from './lifestyleUi';
-import { HonoursSummary } from './honoursHub';
+import { HallOfFameRankLine, HonoursSummary } from './honoursHub';
 import { Glyph, ordinal, type GlyphName } from './honoursUi';
 import { Tutorial } from '../../ui/Tutorial';
 import { agendaText as a } from '../../i18n/agenda';
@@ -567,6 +568,10 @@ function NextMatch({
           </p>
         )}
         {fixture && !complete && <StakeLine world={world} fixture={fixture} />}
+        {fixture && !complete && !awaitingRecovery && (
+          // Phones keep the action in the first view: the plan follows it there.
+          <ManagerPlan world={world} fixture={fixture} className="max-sm:order-1" />
+        )}
         {pending && !session && (
           <p className="max-w-prose text-sm text-hero-muted max-sm:order-1">{c.hub.matchdayBody}</p>
         )}
@@ -1746,6 +1751,7 @@ function HonoursTile({ world }: { world: World }) {
           goals: plural(goals, h.hub.goal, h.hub.goals),
         })}
       </p>
+      <HallOfFameRankLine world={world} className="font-bold" />
     </Tile>
   );
 }

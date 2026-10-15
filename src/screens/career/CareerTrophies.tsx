@@ -15,6 +15,7 @@ import type {
 import { CONTINENTAL_IDS, groupTable } from '../../engine/world/continental';
 import { rivalOf } from '../../engine/career/social';
 import { trophyName } from '../../engine/career/honours/trophies';
+import { liveHallOfFameRank } from '../../engine/career/honours/retirement';
 import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
@@ -127,7 +128,10 @@ function honoursOf(world: World, player: Player) {
 /** Three counts beside the page title: club trophies, individual awards, international. */
 function Summary({ world, player }: { world: World; player: Player }) {
   const { trophies, awards, tournaments } = honoursOf(world, player);
-  if (!trophies.length && !awards.length && !tournaments.length) return null;
+  // Where the career stands in the Hall of Fame, scored as retirement will score it.
+  const standing = useMemo(() => liveHallOfFameRank(world), [world]);
+  const ranked = standing.score > 0;
+  if (!trophies.length && !awards.length && !tournaments.length && !ranked) return null;
   const items: [number, { one: string; many: string }][] = [
     [trophies.length, h.cabinet.counts.club],
     [awards.length, h.cabinet.counts.individual],
@@ -151,6 +155,18 @@ function Summary({ world, player }: { world: World; player: Player }) {
             </li>
           );
         })}
+      {ranked && (
+        <li
+          className="inline-flex min-h-10 items-center gap-2 rounded-full border border-gold bg-art-gold px-3.5 text-[0.8125rem] font-bold text-gold-ink"
+          data-testid="hall-of-fame-rank"
+        >
+          <StarMark className="h-4 w-4" />
+          {format(h.hallOfFameLive.line, {
+            rank: standing.rank,
+            of: standing.of.toLocaleString('en'),
+          })}
+        </li>
+      )}
     </ul>
   );
 }

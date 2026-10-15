@@ -396,4 +396,9 @@ export const lifestyleText = {
       body: 'Your name is spreading. New looks, sponsors and purchases may be within reach.',
     },
   } as Record<string, { subject: string; body: string }>,
+  /** Phase 7 (C10): big-match uses of each celebration, on its Wardrobe tile. */
+  celebrationUses: {
+    one: '1 big-match use',
+    many: '{count} big-match uses',
+  },
 };

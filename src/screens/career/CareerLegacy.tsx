@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import type { Legacy, World } from '../../model/domain';
 import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { trophyName } from '../../engine/career/honours/trophies';
+import { legacyNeighbour } from '../../engine/career/honours/retirement';
 import { useAppStore } from '../../store';
 import { Page } from '../../ui/Page';
 import { Artwork } from '../../ui/Artwork';
@@ -220,6 +221,8 @@ function LegacyDetail({
   const awards = world.awards.filter((award) => legacy.awardIds.includes(award.id));
   const child = legacy.childPlayerId ? world.players[legacy.childPlayerId] : undefined;
   const ended = !world.career;
+  // The next name down the Hall of Fame, while the world's table still matches the legacy.
+  const neighbour = useMemo(() => legacyNeighbour(world, legacy), [world, legacy]);
   const stats: [string, number][] = [
     [h.legacy.apps, legacy.stats.appearances],
     [h.legacy.goals, legacy.stats.goals],
@@ -318,6 +321,14 @@ function LegacyDetail({
             <span className="text-[0.8125rem]">
               {format(h.legacy.hallRank, { of: integer.format(legacy.hallOfFame.of) })}
             </span>
+            {neighbour && (
+              <span
+                className="text-[0.8125rem] font-bold text-accent"
+                data-testid="legacy-ahead-of"
+              >
+                {format(h.hallOfFameLive.ahead, { name: neighbour.name, rank: neighbour.rank })}
+              </span>
+            )}
           </div>
         </div>
       </HeroPanel>

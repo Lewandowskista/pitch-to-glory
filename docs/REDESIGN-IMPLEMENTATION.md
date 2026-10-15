@@ -180,6 +180,30 @@ unknown keys.
 | C10 | Per-celebration "big-match uses" (only if wanted)                              | Optional `CareerStyle.signatureUsesBy`; today there is one global counter                                                                                                                                                                                                                                                                                                                                                                | `domain.ts`, `lifestyle/week.ts:43`, `lifestyleValidation.ts`             |
 | C11 | Backup reminders switch                                                        | `settings.backupReminder` exists and is validated; add the switch in `Settings.tsx`. It is read only by the World season-end banner today                                                                                                                                                                                                                                                                                                | `screens/Settings.tsx`                                                    |
 
+**Status (phase 7):** C2, C3, C5, C6, C7 and C10 are done, with optional fields only and no
+schema bump.
+
+- **C2 done:** `matchPlan(world, fixture)` in `src/engine/career/brief.ts` (no random draws:
+  selection slot, formation, playing style, culture, the opponent's eleven), copy in
+  `i18n/brief.ts`, constants in `career.brief`; the "Manager's plan" line with the manager's
+  portrait on the hub's next-match hero (`briefUi.tsx`).
+- **C3 done:** the ranking is one sorted `hallOfFameTable`; retirement and the invariants rank
+  afresh (results identical, tested against the old loop), screens use `liveHallOfFameRank`
+  from a table memoised per world state. "Hall of Fame #N of M" on the hub honours card and
+  tile, the Trophies summary and ambitions; "Ahead of Kai Mercer, #9" on the Legacy page while
+  the table still agrees with the stored rank.
+- **C5 done:** optional `InboxMessage.sender` (`{ kind: club | agent | press | manager, id?,
+name }`) and `deadline` (a `GameDate`, so a deadline in another season still reads right),
+  set in `postMessage` and validated as optional. The Inbox prefers them (managers now sign
+  dropped and challenge messages, with their portrait) and falls back for older messages.
+- **C6 done:** `answerPress` writes a `'media'` timeline entry when the rival hits back; the
+  Rival timeline quotes the exchange.
+- **C7 done:** `debut` and `first-goal` (career matches), `injury` (two weeks or more) and
+  `rivalry` (when it starts) events, accepted by both world validators and worded with icons
+  in the World feed (`t.world.careerEvents`).
+- **C10 done:** optional `CareerStyle.signatureUsesBy`, validated (real celebrations, never more
+  than the total); each Wardrobe celebration tile shows its big-match uses.
+
 Already supported, with no data work needed: rival comparison, hidden-attribute reveal, skill
 prerequisites (per-tier cost and minimum level), morale and form history (160 weeks stored), morale
 and culture-fit parts, cliques and leaders, selection reasons, the manager's challenge, all transfer
@@ -233,7 +257,8 @@ These need code, but no engine or data work:
 - **Two "overall" calculations disagree.** The club inspector and culture fit use an unweighted mean;
   the rival screen uses position-weighted `playerAbility`. C1 fixes this.
 - **Unused types and copy:** `SlotSummary` (`domain.ts:1437`) is dead. The rival `'media'` timeline
-  kind and the debut / first-goal / injury / rivalry feed kinds are never produced (C6, C7).
+  kind and the debut / first-goal / injury / rivalry feed kinds are never produced (C6, C7;
+  fixed in phase 7).
 
 ## 6. Decisions (agreed 2026-10-14)
 
@@ -275,7 +300,7 @@ figure, crests, kits, lettering, illustrations and the poster); phase 3 done (UI
 career screen); phase 4 done (World, saved games, settings, edit mode, gallery; switch,
 slider and radio-tile kit components). Phase 5 done (engine `match-14`: outcome hashes unchanged; M0 harness, M1 beats, M2 patterns, M3
 narration, M6 stats, M9 clips v2, M10 maps, and the redesigned match screens with the tactical
-camera). Next: phases 6 and 7 in parallel.
+camera). Phase 7 done (C2, C3, C5, C6, C7, C10; optional fields only). Next: phase 6.
 
 | Phase                                     | Contents                                                                                                                                                                                                                                                                                                                 | Outcome-changing?                 | Save impact                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------- |

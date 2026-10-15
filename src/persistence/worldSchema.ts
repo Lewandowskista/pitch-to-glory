@@ -358,6 +358,11 @@ export function validateWorld(value: unknown): World {
       'signing',
       'loan',
       'contract',
+      // Phase 7 (C7): a career's debut, first goal, injuries and rivalry.
+      'debut',
+      'first-goal',
+      'injury',
+      'rivalry',
     ]);
     ids(event.entityIds, 10);
     const params = object(event.params);

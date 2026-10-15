@@ -471,4 +471,8 @@ export const marketText = {
       body: '{club} have appointed {manager}. You will have to earn their trust.',
     },
   } as Record<string, { subject: string; body: string }>,
+  /** Phase 7 (C5): the sender stored with a message, when it is the manager. */
+  inboxMeta: {
+    manager: '{name} · Manager',
+  },
 };

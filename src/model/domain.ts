@@ -643,6 +643,11 @@ export interface CareerStyle {
   fameLevel: number;
   /** Goals celebrated with the signature celebration in big matches. */
   signatureUses: number;
+  /**
+   * The same, by celebration (phase 7, C10). Counted from when it arrived, so older saves
+   * start without it and the parts may add up to less than `signatureUses`.
+   */
+  signatureUsesBy?: Record<Id, number>;
   assets: LifestyleAsset[];
   /** When each experience was last taken, by catalogue item; absent in older saves. */
   experiences?: Record<Id, GameDate>;
@@ -963,6 +968,19 @@ export interface InboxMessage {
   params: Record<string, string | number>;
   read: boolean;
   actionId: Id | null;
+  /**
+   * Who wrote it, as it stood when it arrived (phase 7, C5): a later manager change or move
+   * never rewrites the sender. Absent for kinds with no sender and in older saves.
+   */
+  sender?: InboxSender;
+  /** The last day to answer, for a message that asks for one. Absent otherwise. */
+  deadline?: GameDate;
+}
+export interface InboxSender {
+  kind: 'club' | 'agent' | 'press' | 'manager';
+  /** The club, agent or manager; absent for a press outlet. */
+  id?: Id;
+  name: string;
 }
 export type SponsorCategory = 'boots' | 'apparel' | 'drinks' | 'watches' | 'cars' | 'tech';
 export interface SponsorObligation {
