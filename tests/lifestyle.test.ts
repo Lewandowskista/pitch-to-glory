@@ -85,6 +85,34 @@ describe('fame', () => {
     world.career!.style.equipped.celebration = null;
     expect(celebrationFame(world, 1, 1.5)).toBe(0);
   });
+  it('counts big-match uses by celebration (phase 7, C10)', () => {
+    const world = clone(career);
+    const style = world.career!.style;
+    const [first, second] = Object.values(COSMETIC_BY_ID)
+      .filter((item) => item.kind === 'celebration')
+      .map((item) => item.id);
+    // A save from before keeps its total and starts counting each celebration from now.
+    delete style.signatureUsesBy;
+    style.signatureUses = 3;
+    style.equipped.celebration = first!;
+    celebrationFame(world, 2, L.bigMatchImportance);
+    celebrationFame(world, 1, 1);
+    style.equipped.celebration = second!;
+    celebrationFame(world, 1, L.bigMatchImportance);
+    expect(style.signatureUses).toBe(6);
+    expect(style.signatureUsesBy).toEqual({ [first!]: 2, [second!]: 1 });
+    expect(() => validateWorld(clone(world))).not.toThrow();
+    // Validated as optional, never more than the total, and only for real celebrations.
+    const older = clone(world);
+    delete older.career!.style.signatureUsesBy;
+    expect(() => validateWorld(older)).not.toThrow();
+    const inflated = clone(world);
+    inflated.career!.style.signatureUsesBy = { [first!]: 7 };
+    expect(() => validateWorld(inflated)).toThrow();
+    const unknown = clone(world);
+    unknown.career!.style.signatureUsesBy = { 'boots:classic': 1 };
+    expect(() => validateWorld(unknown)).toThrow();
+  });
 });
 
 describe('wardrobe', () => {

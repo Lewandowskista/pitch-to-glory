@@ -44,6 +44,17 @@ export function validateLifestyle(w: Record<string, unknown>): void {
   if (equipped.celebration !== null) cosmetic(equipped.celebration, 'celebration');
   number(style.fameLevel, 1, 10, true);
   number(style.signatureUses, 0, 1e6, true);
+  // Phase 7 (C10): optional, by celebration; never more than the total.
+  if (style.signatureUsesBy !== undefined) {
+    const uses = object(style.signatureUsesBy);
+    let total = 0;
+    for (const [celebration, count] of Object.entries(uses)) {
+      cosmetic(celebration, 'celebration');
+      number(count, 1, 1e6, true);
+      total += Number(count);
+    }
+    requireValue(total <= Number(style.signatureUses));
+  }
   const assetIds = new Set<string>();
   for (const value of array(style.assets, 50)) {
     const asset = object(value);

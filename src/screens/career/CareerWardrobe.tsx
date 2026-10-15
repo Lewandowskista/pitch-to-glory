@@ -621,6 +621,8 @@ function Celebrations({
         {COSMETICS.filter((item) => item.kind === 'celebration').map((item) => {
           const name = C.names[item.id] ?? item.id;
           const selected = career.style.equipped.celebration === item.id;
+          const count = career.style.signatureUsesBy?.[item.id] ?? 0;
+          const uses = count ? plural(count, l.celebrationUses.one, l.celebrationUses.many) : null;
           return (
             <Tile
               key={item.id}
@@ -629,7 +631,7 @@ function Celebrations({
               selected={selected}
               selectedLabel={C.signature}
               signature
-              label={name}
+              label={uses ? `${name} · ${uses}` : name}
               action={action}
               size="celebration"
               onSelect={() =>
@@ -648,6 +650,15 @@ function Celebrations({
               </span>
               <span className="text-sm leading-tight font-bold">{name}</span>
               <span className="text-xs leading-snug text-muted">{C.descriptions[item.id]}</span>
+              {uses && (
+                <span
+                  className="inline-flex items-center gap-1 text-[0.6875rem] font-extrabold text-ink"
+                  data-testid="celebration-uses"
+                >
+                  <LifeIcon name="star" filled className="h-3 w-3 text-meter-gold" />
+                  {uses}
+                </span>
+              )}
             </Tile>
           );
         })}

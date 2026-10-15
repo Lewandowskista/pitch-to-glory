@@ -643,6 +643,11 @@ export interface CareerStyle {
   fameLevel: number;
   /** Goals celebrated with the signature celebration in big matches. */
   signatureUses: number;
+  /**
+   * The same, by celebration (phase 7, C10). Counted from when it arrived, so older saves
+   * start without it and the parts may add up to less than `signatureUses`.
+   */
+  signatureUsesBy?: Record<Id, number>;
   assets: LifestyleAsset[];
   /** When each experience was last taken, by catalogue item; absent in older saves. */
   experiences?: Record<Id, GameDate>;
