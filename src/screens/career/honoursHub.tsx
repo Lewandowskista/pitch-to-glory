@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { World } from '../../model/domain';
 import { CONFIG } from '../../engine/config';
 import {
@@ -9,16 +9,19 @@ import {
 import { Dialog } from '../../ui/Dialog';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
-import { plural, ui } from './shared';
-import { useHonoursAction } from './honoursUi';
+import { careerText as c } from '../../i18n/career';
+import { Button, ButtonLink, CardTitle, Panel, cx } from '../../ui/kit';
+import { plural } from './shared';
+import { Glyph, useHonoursAction } from './honoursUi';
 import { useUrlDialog } from './useUrlDialog';
+import { withSave } from './agenda';
 
 const R = CONFIG.career.honours.retirement;
 
 /** Hub card: caps, honours and, late in a career, the choice to retire. */
 export function HonoursSummary({
   world,
-  className = 'lg:col-span-6',
+  className = '',
 }: {
   world: World;
   /** Placement in the surrounding grid. */
@@ -26,6 +29,7 @@ export function HonoursSummary({
 }) {
   const career = world.career!;
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const dialog = useUrlDialog('retire');
   const farewellDialog = useUrlDialog('farewell');
   const { run, error, block } = useHonoursAction();
@@ -54,63 +58,78 @@ export function HonoursSummary({
           : state === 'forced'
             ? format(h.retirement.forced, { age })
             : format(h.retirement.available, { age: R.forcedAge });
+  // The final season: the choice is coming, but only once the season is complete.
+  const locked = state === 'forced' && !canRetire;
   return (
-    <section
+    <Panel
       aria-labelledby="honours-summary-heading"
-      className={`${ui.panel} flex flex-col gap-4 ${className}`}
+      className={cx('flex flex-col gap-4', className)}
     >
       <div className="flex flex-wrap items-start gap-4">
         <span
           aria-hidden="true"
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gold font-display text-3xl text-[#1d3127]"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gold text-on-gold"
         >
-          ★
+          <Glyph name="star" className="h-7 w-7 fill-current" />
         </span>
         <div className="min-w-0 flex-1 basis-48">
-          <h2 id="honours-summary-heading" className={ui.heading}>
-            {h.hub.honours}
-          </h2>
-          <p className="text-sm text-muted">
+          <CardTitle id="honours-summary-heading">{h.hub.honours}</CardTitle>
+          <p className="mt-0.5 text-[0.8125rem] text-muted">
             {plural(trophies, h.legacy.trophy, h.legacy.trophies)} ·{' '}
             {plural(awards, h.legacy.award, h.legacy.awards)}
           </p>
-          <p className="text-sm">
+          <p className="text-[0.8125rem]">
             {plural(caps, h.hub.cap, h.hub.caps)} · {plural(goals, h.hub.goal, h.hub.goals)}
           </p>
         </div>
-        <Link className="button secondary" to="/career/trophies">
+        <ButtonLink variant="secondary" to={withSave('/career/trophies', params.get('save'))}>
           {h.hub.open}
-        </Link>
+        </ButtonLink>
       </div>
       {(state !== 'young' || farewell || announced) && (
         <div
-          className={`flex flex-wrap items-center gap-3 rounded-control border p-4 ${
-            state === 'forced' ? 'border-gold bg-art-gold' : 'border-line bg-surface-soft'
-          }`}
+          className={cx(
+            'flex flex-wrap items-center gap-3 rounded-control border p-4',
+            state === 'forced' ? 'border-gold bg-art-gold' : 'border-line bg-surface-soft',
+          )}
         >
-          <div className="min-w-0 flex-1 basis-48">
-            <strong className="block text-sm">{h.retirement.title}</strong>
-            <p className="text-sm text-muted">{message}</p>
+          <div className="min-w-0 flex-1 basis-56">
+            <strong className="block text-sm">
+              {state === 'forced'
+                ? format(c.hub.retirement.finalSeason, { title: h.retirement.title })
+                : h.retirement.title}
+            </strong>
+            <p
+              className={cx(
+                'mt-0.5 text-[0.8125rem]',
+                state === 'forced' ? 'text-gold-ink' : 'text-muted',
+              )}
+            >
+              {message}
+            </p>
           </div>
           {farewell && (
-            <button
-              className="button secondary"
+            <Button
+              variant="secondary"
               disabled={Boolean(block)}
               title={block ?? undefined}
               onClick={() => farewellDialog.open()}
             >
               {h.retirement.farewell}
-            </button>
+            </Button>
           )}
           {canRetire && (
-            <button
-              className="button secondary"
+            <Button
+              variant="secondary"
               disabled={Boolean(block)}
               title={block ?? undefined}
               onClick={() => dialog.open()}
             >
               {h.retirement.retire}
-            </button>
+            </Button>
+          )}
+          {locked && (
+            <span className="text-xs font-bold text-gold-ink">{c.hub.retirement.locked}</span>
           )}
         </div>
       )}
@@ -144,6 +163,6 @@ export function HonoursSummary({
           }}
         />
       )}
-    </section>
+    </Panel>
   );
 }

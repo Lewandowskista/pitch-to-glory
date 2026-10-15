@@ -1,19 +1,36 @@
-import { Suspense, useEffect, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, type ReactNode } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { Icon } from '../../ui/Icon';
-import { HeadToHead } from '../../ui/HeadToHead';
+import { Artwork } from '../../ui/Artwork';
 import { Dialog } from '../../ui/Dialog';
+import {
+  Button,
+  ButtonLink,
+  CardTitle,
+  Chip,
+  FormGuide,
+  HeroPanel,
+  KeyHint,
+  OverallBadge,
+  Panel,
+  StatTile,
+  cx,
+  type MatchResult,
+} from '../../ui/kit';
 import { CONFIG } from '../../engine/config';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import { StakeLine } from './stakesUi';
 import { lazyPage } from '../../ui/lazyPage';
 import { chooseRecovery } from '../../engine/career/training';
 import { canAnnounceFarewell, retirementState } from '../../engine/career/honours/retirement';
-import type { Career, CareerMatchRecord, Club, Player, World } from '../../model/domain';
+import { attributeSummary } from '../../engine/strength';
+import { clubDress, renderAvatar } from '../../engine/assets/avatar';
+import { recentResults } from '../../engine/career/social/dressing';
+import type { Career, Club, Injury, Player, World } from '../../model/domain';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
-import { calendarDate } from '../../engine/world/calendar';
+import { calendarDate, getSeasonWeeks } from '../../engine/world/calendar';
 import { formatGameDate } from '../../i18n/calendar';
 import {
   CareerPage,
@@ -46,12 +63,14 @@ import { lifestyleText as l } from '../../i18n/lifestyle';
 import { honoursText as h } from '../../i18n/honours';
 import { fameName, useChallengeRefresh } from './lifestyleUi';
 import { HonoursSummary } from './honoursHub';
+import { Glyph, ordinal, type GlyphName } from './honoursUi';
 import { Tutorial } from '../../ui/Tutorial';
 import { agendaText as a } from '../../i18n/agenda';
 import {
   advancePreview,
   hubPriorities,
   sinceValue,
+  withSave,
   type AdvancePreview,
   type SessionState,
 } from './agenda';
@@ -61,22 +80,35 @@ import { tutorialText as tt } from '../../i18n/tutorial';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
+const RESULT_LETTER: Record<'win' | 'draw' | 'loss', MatchResult> = {
+  win: 'W',
+  draw: 'D',
+  loss: 'L',
+};
+/** A true minus for negative goal differences. */
+const signed = (value: number) => (value > 0 ? `+${value}` : value < 0 ? `−${-value}` : '0');
 
-/** Large hub cards: a column so the footer link always sits at the bottom. */
-const card = `${ui.panel} flex flex-col`;
-/** The hub's two column stacks on wide screens: main content and its supporting cards. */
-const mainStack = 'grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:col-span-8';
-const sideStack = 'grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:col-span-4';
-/** Small summary tiles in the strip under the main cards. */
-const tile =
-  'ui-card flex min-w-0 flex-col rounded-panel border border-line bg-surface p-4 shadow-surface sm:p-5';
-const tileHeading = 'text-base font-bold leading-tight';
+/** Rows of cards: each wraps under its neighbour when the screen is too narrow for both. */
+const row = 'flex flex-wrap gap-5';
+/** Small summary tiles: two across on phones, a wrapping strip on wider screens. */
+const tileClass = (hot = false) =>
+  cx(
+    'ui-card flex min-w-0 flex-col gap-1 rounded-panel border p-4 shadow-surface sm:flex-[1_1_12.5rem] sm:p-[1.125rem]',
+    hot ? 'border-gold bg-art-gold' : 'border-line bg-surface',
+  );
 
 /** The one card action style on the hub: a footer link to the card's single destination. */
-function CardLink({ to, children }: { to: string; children: ReactNode }) {
+function CardLink({ to, children, small }: { to: string; children: ReactNode; small?: boolean }) {
+  const [params] = useSearchParams();
   return (
-    <div className="mt-auto pt-3">
-      <Link className="text-button -ml-3 inline-flex items-center gap-1" to={to}>
+    <div className="mt-auto pt-2">
+      <Link
+        className={cx(
+          'text-button -ml-3 inline-flex items-center gap-1',
+          small && 'text-[0.8125rem]',
+        )}
+        to={withSave(to, params.get('save'))}
+      >
         {children}
       </Link>
     </div>
@@ -97,10 +129,29 @@ const SeasonReviewPanel = lazyPage(() =>
   import('./reviewUi').then((module) => ({ default: module.SeasonReviewPanel })),
 );
 
+/** "Season 2026 · Week 15 of 34", plus what to do first while a recovery choice waits. */
+function hubDescription(world: World | null): string | undefined {
+  const career = world?.career;
+  if (!world || !career) return undefined;
+  const weeks = getSeasonWeeks(world);
+  const line =
+    world.phase === 'complete'
+      ? format(c.hub.seasonDone, { season: world.date.season })
+      : format(c.hub.seasonWeek, {
+          season: world.date.season,
+          week: Math.min(world.date.week, weeks),
+          weeks,
+        });
+  return career.injury?.recovery === null && world.phase === 'active'
+    ? `${line}. ${c.hub.recoveryFirst}`
+    : line;
+}
+
 export default function CareerHub() {
   useChallengeRefresh();
+  const description = useAppStore((s) => hubDescription(s.world));
   return (
-    <CareerPage title={c.titles.hub}>
+    <CareerPage title={c.titles.hub} description={description}>
       {({ world, career, player, club, age }) => (
         <HubContent world={world} career={career} player={player} club={club} age={age} />
       )}
@@ -142,6 +193,29 @@ function HubContent({
       .querySelector<HTMLElement>('button:not(:disabled), a[href]')
       ?.focus({ preventScroll: true });
   }, [hash]);
+  // Enter, with nothing focused and no dialog open, takes the hero's action.
+  useEffect(() => {
+    const press = (event: KeyboardEvent) => {
+      if (
+        event.key !== 'Enter' ||
+        event.repeat ||
+        event.defaultPrevented ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.target !== document.body ||
+        document.querySelector('[role="dialog"], [aria-modal="true"], dialog[open]')
+      )
+        return;
+      const action = document.querySelector<HTMLElement>('[data-hub-action]');
+      if (!action || action.matches(':disabled, [aria-disabled="true"]')) return;
+      event.preventDefault();
+      action.click();
+    };
+    window.addEventListener('keydown', press);
+    return () => window.removeEventListener('keydown', press);
+  }, []);
   // Late in a career the honours card carries the retirement decision, so it stays full size.
   const retirement =
     retirementState(world) !== 'young' ||
@@ -156,74 +230,92 @@ function HubContent({
   const marketActive =
     full || world.offers.some((offer) => offer.status === 'terms' || offer.status === 'agreed');
   const inboxActive = full || world.inbox.some((message) => !message.read);
-  const active = [inboxActive, pressActive, marketActive].filter(Boolean).length;
-  const span = active === 1 ? 'lg:col-span-12' : active === 2 ? 'lg:col-span-6' : 'lg:col-span-4';
-  // Quiet tiles fill whole rows where they can: four across for 4, 7 or 8, three for 5 or 6.
-  const tiles =
-    3 - active + 3 + (retirement ? 0 : 1) + (rivalOf(world) && seasonLines(world) ? 1 : 0);
-  const tileColumns = tiles % 4 === 0 || tiles === 7 ? 'lg:grid-cols-4' : 'lg:grid-cols-3';
+  const league = club ? world.leagues[club.leagueId] : undefined;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
+    <div className="flex flex-col gap-5">
       {error && (
-        <div role="alert" className="inline-error lg:col-span-12">
+        <div role="alert" className="inline-error">
           {errorText(error)}
         </div>
       )}
-      <p
-        role="status"
-        className="min-h-0 text-sm font-semibold text-accent empty:hidden lg:col-span-12"
-      >
+      <p role="status" className="min-h-0 text-sm font-semibold text-accent empty:hidden">
         {notice && notice !== 'generated' ? t.world.notices[notice] : ''}
       </p>
-      {/* Unequal cards sit in independent column stacks, so none stretches to its neighbour
-          and no row leaves a hole under a short card. The side stack spans both rows of the
-          main column, whose second row takes any spare height. Phones read in order: the
-          match, what needs you, you and your club, then the season. */}
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 lg:col-span-12 lg:grid-cols-12 lg:grid-rows-[auto_1fr]">
-        <div className={mainStack}>
-          <NextMatch world={world} career={career} player={player} club={club} preview={preview} />
-          {/* The week's story follows the match, so the next action stays in the first view. */}
-          {career.stories?.some((story) => story.status !== 'resolved') && (
-            <Suspense fallback={null}>
-              <StoryCard world={world} />
-            </Suspense>
-          )}
-          <AdvanceDigest world={world} />
-          <Condition career={career} player={player} />
-        </div>
-        <div className={`${sideStack} lg:row-span-2`}>
-          <HubPriorities world={world} items={priorities} />
-          <PlayerCard career={career} player={player} club={club} age={age} />
+      {/* Phones read in order: the match, what needs you, you, your last game, then the rest. */}
+      <div className={row}>
+        <NextMatch
+          world={world}
+          career={career}
+          player={player}
+          club={club}
+          preview={preview}
+          className="flex-[2_1_35rem]"
+        />
+        <HubPriorities world={world} items={priorities} className="flex-[1_1_18.75rem]" />
+      </div>
+      {/* The week's story follows the match, so the next action stays in the first view. */}
+      {career.stories?.some((story) => story.status !== 'resolved') && (
+        <Suspense fallback={null}>
+          <StoryCard world={world} />
+        </Suspense>
+      )}
+      <AdvanceDigest world={world} />
+      <div className={row}>
+        <PlayerCard
+          world={world}
+          career={career}
+          player={player}
+          club={club}
+          age={age}
+          className="flex-[1.25_1_21.25rem]"
+        />
+        <LastResult world={world} career={career} club={club} className="flex-[1_1_17.5rem]" />
+        <SeasonStats
+          world={world}
+          career={career}
+          player={player}
+          className="flex-[1_1_16.25rem] max-sm:hidden"
+        />
+      </div>
+      {/* Two independent stacks, so a tall card never leaves a hole beside a short one: your
+          condition, the table and your ambitions; then your club and the rivalry. */}
+      <div className={cx(row, 'items-start')}>
+        <div className="flex min-w-0 flex-[2_1_35rem] flex-col gap-5">
+          <Condition world={world} career={career} player={player} />
+          {club && league && <LeagueTable world={world} club={club} />}
           <Suspense fallback={<div aria-hidden="true" className={`${ui.panel} min-h-[16rem]`} />}>
             <AmbitionsCard world={world} />
           </Suspense>
-          <ClubStanding world={world} club={club} />
         </div>
-        <div className={mainStack}>
-          <SeasonStats world={world} career={career} player={player} />
-          <LastResult world={world} career={career} />
+        <div className="flex min-w-0 flex-[1_1_17.5rem] flex-col gap-5">
+          <ClubStanding world={world} club={club} />
+          <RivalCard world={world} player={player} club={club} age={age} />
         </div>
       </div>
       {world.phase === 'complete' && (
         <Suspense fallback={null}>
-          <SeasonReviewPanel world={world} className="lg:col-span-12" />
+          <SeasonReviewPanel world={world} />
         </Suspense>
       )}
-      {retirement && <HonoursSummary world={world} className="lg:col-span-12" />}
-      {inboxActive && <InboxPreview world={world} span={span} />}
-      {pressActive && <PressRoom world={world} span={span} />}
-      {marketActive && <MarketSummary world={world} span={span} />}
-      <div
-        className={`grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 lg:col-span-12 ${tileColumns}`}
-      >
-        {!inboxActive && <InboxTile world={world} />}
-        {!pressActive && <PressTile world={world} />}
-        {!marketActive && <MarketTile world={world} />}
-        <TrainingSummary career={career} />
-        <CoachTile world={world} className={tile} />
-        <FameSummary world={world} />
-        {!retirement && <HonoursTile world={world} />}
-        <RivalWatch world={world} />
+      {retirement && <HonoursSummary world={world} className="" />}
+      {(inboxActive || pressActive || marketActive) && (
+        <div className={row}>
+          {inboxActive && <InboxPreview world={world} />}
+          {pressActive && <PressRoom world={world} />}
+          {marketActive && <MarketSummary world={world} />}
+        </div>
+      )}
+      <div className="flex flex-col gap-2.5">
+        <h2 className="font-display text-[1.75rem] leading-none sm:sr-only">{c.hub.tiles}</h2>
+        <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-4">
+          {!inboxActive && <InboxTile world={world} />}
+          {!pressActive && <PressTile world={world} />}
+          {!marketActive && <MarketTile world={world} />}
+          <TrainingSummary career={career} />
+          <CoachTile world={world} className={tileClass()} />
+          <FameSummary world={world} />
+          {!retirement && <HonoursTile world={world} />}
+        </div>
       </div>
       <SummariesToggle full={full} />
       <Tutorial
@@ -245,18 +337,67 @@ function HubContent({
   );
 }
 
+/** One side of the next fixture: crest, name, venue and place, and the last five results. */
+function FixtureSide({
+  world,
+  side,
+  own,
+  venue,
+}: {
+  world: World;
+  side: Club;
+  own: boolean;
+  venue: string | null;
+}) {
+  const standing = leaguePosition(world, side.id);
+  const form = recentResults(world, side.id, 5).map((result) => RESULT_LETTER[result]);
+  const facts = [
+    own ? null : venue,
+    standing
+      ? format(c.hub.standing, { rank: ordinal(standing.rank), points: standing.points })
+      : null,
+  ].filter(Boolean);
+  return (
+    <div className="flex min-w-0 flex-col items-center gap-2 text-center sm:gap-2.5">
+      <CrestImage crest={side.crest} alt="" className="h-[3.94rem] w-14 sm:h-[7.875rem] sm:w-28" />
+      <p className="font-display text-[1.375rem] leading-none break-words sm:text-4xl">
+        {side.name}
+      </p>
+      <p className="text-xs text-hero-muted sm:text-[0.8125rem]">
+        {own && (
+          <span className="text-[0.6875rem] font-extrabold tracking-[0.08em] text-gold uppercase">
+            {c.hub.club}
+          </span>
+        )}
+        {own && facts.length > 0 && ' · '}
+        {facts.join(' · ')}
+      </p>
+      {form.length > 0 && (
+        <FormGuide
+          results={form}
+          label={format(c.hub.formOf, { club: side.name })}
+          onHero
+          className="max-sm:hidden"
+        />
+      )}
+    </div>
+  );
+}
+
 function NextMatch({
   world,
   career,
   player,
   club,
   preview,
+  className,
 }: {
   world: World;
   career: Career;
   player: Player;
   club: Club | undefined;
   preview: AdvancePreview;
+  className?: string;
 }) {
   const job = useAppStore((s) => s.worldJob);
   const session = useAppStore((s) => s.matchSession);
@@ -278,125 +419,203 @@ function NextMatch({
   const opponent = opponentId ? world.clubs[opponentId] : undefined;
   const home = fixture?.homeId === club?.id;
   const kind = fixture ? fixtureKind(world, fixture) : null;
-  const awaitingRecovery = Boolean(career.injury && career.injury.recovery === null);
+  const injury = career.injury;
+  const awaitingRecovery = Boolean(injury && injury.recovery === null);
   const complete = world.phase === 'complete';
   const busy = Boolean(job);
+  const save = params.get('save');
   const action = session ? (
-    <Link className="button play min-w-48" to="/match">
+    <ButtonLink
+      variant="play"
+      size="lg"
+      className="max-sm:w-full"
+      to="/match"
+      iconEnd="arrow"
+      data-hub-action=""
+    >
       {session.state.match.status === 'finished' ? c.hub.record : c.hub.resume}
-      <Icon name="arrow" />
-    </Link>
+    </ButtonLink>
   ) : complete ? (
-    <button className="button play min-w-48" disabled={busy} onClick={startNextCareerSeason}>
+    <Button
+      variant="play"
+      size="lg"
+      className="max-sm:w-full"
+      iconEnd="arrow"
+      disabled={busy}
+      onClick={startNextCareerSeason}
+      data-hub-action=""
+    >
       {c.hub.nextSeason}
-      <Icon name="arrow" />
-    </button>
+    </Button>
   ) : pending ? (
-    <Link className="button play min-w-48" to="/match" data-tour="continue">
-      {c.hub.play}
-      <Icon name="ball" />
-    </Link>
-  ) : awaitingRecovery ? (
-    <Link
-      className="button play min-w-48"
-      to={{ search: params.get('save') ? `?save=${params.get('save')}` : '', hash: '#recovery' }}
+    <ButtonLink
+      variant="play"
+      size="lg"
+      className="max-sm:w-full"
+      to="/match"
+      iconEnd="ball"
       data-tour="continue"
+      data-hub-action=""
+    >
+      {c.hub.play}
+    </ButtonLink>
+  ) : awaitingRecovery ? (
+    <ButtonLink
+      variant="play"
+      size="lg"
+      className="max-sm:w-full"
+      to={{ search: save ? `?save=${save}` : '', hash: '#recovery' }}
+      iconEnd="arrow"
+      data-tour="continue"
+      data-hub-action=""
     >
       {a.priorities.kinds.recovery}
-      <Icon name="arrow" />
-    </Link>
+    </ButtonLink>
   ) : (
-    <button
-      className="button play min-w-48"
+    <Button
+      variant="play"
+      size="lg"
+      className="max-sm:w-full"
+      iconEnd="arrow"
       disabled={busy}
       data-tour="continue"
+      data-hub-action=""
       onClick={() => advance(continueToMatchday)}
     >
       {fixture ? c.hub.continue : c.hub.continueSeason}
-      <Icon name="arrow" />
-    </button>
+    </Button>
   );
+  // The eyebrow says what the card is about now; its heading always names the card.
+  const eyebrow = complete ? c.hub.seasonComplete : pending ? c.hub.matchday : null;
+  const eyebrowClass = 'text-xs font-extrabold tracking-[0.14em] text-gold uppercase';
+  const homeSide = fixture ? world.clubs[fixture.homeId] : undefined;
+  const awaySide = fixture ? world.clubs[fixture.awayId] : undefined;
+  const venueName = fixture?.neutral ? null : homeSide?.stadium?.name;
+  const enter = c.hub.enterHint.split('{key}');
   return (
-    <section
+    <HeroPanel
+      markings
       aria-labelledby="next-match-heading"
       data-tour="next-match"
-      className="hub-match-card relative overflow-hidden rounded-panel bg-field-stripes p-5 text-white shadow-surface sm:p-6"
+      className={cx('shadow-surface', className)}
     >
-      <div className="relative flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold uppercase tracking-[0.16em] text-gold">
-            {complete ? c.hub.seasonComplete : pending ? c.hub.matchday : c.hub.nextMatch}
-          </span>
-          {kind && !complete && (
-            <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
-              {c.hub.importance[kind]}
-            </span>
+      <div className="flex flex-col gap-3.5 sm:gap-5">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h2 id="next-match-heading" className={eyebrow ? 'sr-only' : eyebrowClass}>
+              {c.hub.nextMatch}
+            </h2>
+            {eyebrow && <p className={eyebrowClass}>{eyebrow}</p>}
+            {kind && !complete && (
+              <span className="rounded-full bg-[rgb(255_247_228/0.14)] px-2.5 py-0.5 text-xs font-semibold">
+                {c.hub.importance[kind]}
+              </span>
+            )}
+          </div>
+          {fixture && !complete && (
+            <p className="text-[0.8125rem] text-hero-muted">
+              {[
+                formatGameDate(
+                  calendarDate(fixture.date.season, fixture.date.week, fixture.date.day),
+                ),
+                venueName,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
           )}
         </div>
-        <h2 id="next-match-heading" className="sr-only">
-          {c.hub.nextMatch}
-        </h2>
         {complete ? (
           <div>
             <p className="font-display text-[2.6rem] leading-none">{c.hub.seasonComplete}</p>
-            <p className="mt-2 max-w-prose text-sm text-white/85">{c.hub.seasonCompleteBody}</p>
+            <p className="mt-2 max-w-prose text-sm text-hero-muted">{c.hub.seasonCompleteBody}</p>
           </div>
-        ) : fixture && opponent && club ? (
-          <HeadToHead
-            inward
-            versus={c.common.vs}
-            versusClass="text-white/70"
-            sides={[home ? club : opponent, home ? opponent : club].map((side) => ({
-              id: side.id,
-              name: side.name,
-              artwork: (
-                <CrestImage
-                  crest={side.crest}
-                  alt={side.name}
-                  className="h-14 w-14 sm:h-20 sm:w-20"
-                />
-              ),
-              label: side.id === club.id && (
-                <span className="block text-xs font-bold uppercase tracking-wider text-gold">
-                  {c.hub.club}
-                </span>
-              ),
-            }))}
-          />
+        ) : fixture && homeSide && awaySide && club ? (
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 sm:gap-7">
+            <FixtureSide
+              world={world}
+              side={homeSide}
+              own={homeSide.id === club.id}
+              venue={fixture.neutral ? null : c.hub.sideHome}
+            />
+            <span
+              aria-hidden="true"
+              className="self-center pb-6 font-display text-[2.75rem] leading-[0.8] text-gold sm:pb-9 sm:text-[4rem]"
+            >
+              {c.common.vs.toUpperCase()}
+            </span>
+            <FixtureSide
+              world={world}
+              side={awaySide}
+              own={awaySide.id === club.id}
+              venue={fixture.neutral ? null : c.hub.sideAway}
+            />
+          </div>
         ) : (
           <div>
             <p className="font-display text-[2.2rem] leading-none">{c.hub.noFixture}</p>
-            <p className="mt-2 max-w-prose text-sm text-white/85">{c.hub.noFixtureBody}</p>
+            <p className="mt-2 max-w-prose text-sm text-hero-muted">{c.hub.noFixtureBody}</p>
           </div>
         )}
-        {fixture && !complete && <StakeLine world={world} fixture={fixture} />}
-        {fixture && !complete && (
-          <p className="text-sm text-white/85">
-            {format(c.hub.fixtureDate, {
-              date: formatGameDate(
-                calendarDate(fixture.date.season, fixture.date.week, fixture.date.day),
-              ),
+        {fixture && !complete && opponent && (
+          <p className="text-sm text-hero-muted">
+            {format(c.hub.fixtureMeta, {
               week: fixture.date.week,
               competition: competitionName(world, fixture.competitionId),
-            })}{' '}
-            · {fixture.neutral ? c.common.neutral : home ? c.common.home : c.common.away}
+              venue: fixture.neutral ? c.common.neutral : home ? c.common.home : c.common.away,
+            })}
           </p>
         )}
+        {fixture && !complete && <StakeLine world={world} fixture={fixture} />}
         {pending && !session && (
-          <p className="max-w-prose text-sm text-white/85">{c.hub.matchdayBody}</p>
+          <p className="max-w-prose text-sm text-hero-muted max-sm:order-1">{c.hub.matchdayBody}</p>
         )}
-        {!session && <AdvancePreviewText world={world} preview={preview} />}
+        {awaitingRecovery && injury && !session && (
+          <div className="flex items-start gap-3 rounded-control bg-black/25 px-4 py-3.5 max-sm:order-1">
+            <span
+              aria-hidden="true"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-control bg-danger text-on-danger"
+            >
+              <Glyph name="injury" />
+            </span>
+            <div className="min-w-0">
+              <p className="font-bold">
+                {format(injury.weeksRemaining === 1 ? c.hub.injuredHeroOne : c.hub.injuredHero, {
+                  weeks: injury.weeksRemaining,
+                  injury: c.injuries[injury.kind as keyof typeof c.injuries] ?? injury.kind,
+                })}
+              </p>
+              <p className="text-[0.8125rem] text-hero-muted">{a.preview.recovery}</p>
+            </div>
+          </div>
+        )}
+        {!session && (
+          <div className="max-sm:order-1">
+            <AdvancePreviewText world={world} preview={preview} />
+          </div>
+        )}
         <HeroCondition career={career} player={player} />
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           {action}
           {!complete && !session && !awaitingRecovery && (
             <button
-              className="inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-white underline underline-offset-4 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:text-white/60 disabled:no-underline"
+              type="button"
+              className="inline-flex min-h-11 items-center rounded-control px-2 text-sm font-semibold text-hero-ink underline underline-offset-4 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 disabled:no-underline"
               disabled={busy}
               onClick={() => dialog.open('autoplay')}
             >
               {c.hub.simulateSeason}
             </button>
+          )}
+          {awaitingRecovery && !session && (
+            <span className="text-xs text-hero-muted">{c.hub.recoveryPaused}</span>
+          )}
+          {!busy && (
+            <span className="ml-auto text-xs text-hero-muted max-sm:hidden">
+              {enter[0]}
+              <KeyHint keys={c.hub.enterKey} onHero />
+              {enter[1]}
+            </span>
           )}
         </div>
         <div className="text-ink">
@@ -415,7 +634,7 @@ function NextMatch({
           }}
         />
       )}
-    </section>
+    </HeroPanel>
   );
 }
 
@@ -431,7 +650,7 @@ function HeroCondition({ career, player }: { career: Career; player: Player }) {
     [c.common.meters.morale, player.morale, false],
   ];
   return (
-    <div className="rounded-control bg-black/20 px-3 py-2.5 sm:hidden">
+    <div className="rounded-control bg-black/25 px-3 py-2.5 sm:hidden">
       <p className="text-xs font-bold text-gold">
         {format(c.common.level, { level: career.level })}
         {career.injury && ` · ${c.hub.injury}`}
@@ -439,8 +658,8 @@ function HeroCondition({ career, player }: { career: Career; player: Player }) {
       <dl className="mt-1.5 grid grid-cols-4 gap-2">
         {values.map(([label, value, warn]) => (
           <div key={label} className="min-w-0">
-            <dt className="truncate text-xs text-white/75">{label}</dt>
-            <dd className={`font-display text-xl leading-none ${warn ? 'text-gold' : ''}`}>
+            <dt className="truncate text-xs text-hero-muted">{label}</dt>
+            <dd className={cx('font-display text-xl leading-none', warn && 'text-gold')}>
               {Math.round(value)}
             </dd>
           </div>
@@ -462,14 +681,16 @@ function PointsLink({
   label: string;
   action: string;
 }) {
+  const [params] = useSearchParams();
   return (
     <Link
-      to={to}
-      className={`flex min-h-11 items-center justify-between gap-3 rounded-control px-4 text-sm font-bold transition-colors ${
+      to={withSave(to, params.get('save'))}
+      className={cx(
+        'flex min-h-11 items-center justify-between gap-3 rounded-control px-4 text-sm font-bold transition-colors',
         count
           ? 'border-2 border-gold bg-art-gold text-ink hover:bg-gold hover:text-on-gold'
-          : 'border border-line bg-surface-soft font-semibold text-muted hover:text-ink'
-      }`}
+          : 'border border-line bg-surface-soft font-semibold text-muted hover:text-ink',
+      )}
     >
       <span className="min-w-0">
         {label}
@@ -486,47 +707,100 @@ function PointsLink({
 }
 
 function PlayerCard({
+  world,
   career,
   player,
   club,
   age,
+  className,
 }: {
+  world: World;
   career: Career;
   player: Player;
   club: Club | undefined;
   age: number;
+  className?: string;
 }) {
+  const axes = useMemo(() => attributeSummary(player), [player]);
+  const line = seasonLine(career, world.date.season);
+  const keeper = player.primaryPosition === 'GK';
+  const short = c.profile.axesShort as Record<string, string>;
+  const long = c.profile.axes as Record<string, string>;
+  const season: [string, string | number][] = [
+    [c.hub.seasonShort.apps, line.apps],
+    [c.hub.seasonShort.goals, line.goals],
+    keeper
+      ? [c.hub.seasonShort.cleanSheets, line.cleanSheets]
+      : [c.hub.seasonShort.assists, line.assists],
+    [c.hub.seasonShort.rating, line.apps ? line.rating.toFixed(1) : '–'],
+  ];
   return (
-    <section aria-labelledby="player-card-heading" data-tour="player-card" className={card}>
-      <div className="flex flex-wrap items-center gap-4">
+    <Panel
+      aria-labelledby="player-card-heading"
+      data-tour="player-card"
+      className={cx('@container flex flex-col gap-4', className)}
+    >
+      <div className="flex items-center gap-3.5 sm:gap-4">
         <PlayerPortrait
           player={player}
           age={age}
           club={club}
-          className="h-20 w-20 shrink-0 sm:h-24 sm:w-24"
+          className="h-16 w-16 shrink-0 sm:h-[7.5rem] sm:w-[7.5rem]"
         />
-        <div className="min-w-0 flex-1 basis-40">
+        <div className="min-w-0 flex-1">
           <h2
             id="player-card-heading"
-            className="font-display text-[2rem] leading-none break-words"
+            className="font-display text-[1.75rem] leading-[0.95] break-words sm:text-[2.375rem]"
           >
             {player.name}
           </h2>
-          <p className="mt-1 text-sm text-muted">
-            {c.positions[player.primaryPosition]} · {format(c.common.age, { age })}
+          <p className="mt-1 text-[0.8125rem] text-muted">
+            {format(c.hub.playerLine, {
+              position: c.positions[player.primaryPosition] ?? player.primaryPosition,
+              age,
+              foot: c.feet[player.foot],
+            })}
           </p>
           {club && (
-            <p className="mt-2 flex items-center gap-2 text-sm font-semibold">
-              <CrestImage crest={club.crest} alt="" className="h-6 w-6 shrink-0" />
+            <p className="mt-2 flex items-center gap-2 text-[0.8125rem] font-semibold">
+              <CrestImage crest={club.crest} alt="" className="h-[1.4rem] w-5 shrink-0" />
               <span className="min-w-0 break-words">{club.name}</span>
             </p>
           )}
         </div>
+        <OverallBadge
+          player={player}
+          size="md"
+          className="max-sm:h-14 max-sm:w-[3.125rem] max-sm:text-[1.75rem]"
+        />
       </div>
-      <div className="mt-5">
-        <XpBar career={career} />
+      <XpBar career={career} />
+      <div
+        role="group"
+        aria-label={c.hub.axesLabel}
+        className="grid grid-cols-3 gap-2 max-sm:hidden @min-[24rem]:grid-cols-6"
+      >
+        {axes.map((axis) => (
+          <StatTile
+            key={axis.axis}
+            size="sm"
+            valueFirst
+            label={
+              <>
+                <span aria-hidden="true">{short[axis.axis]}</span>
+                <span className="sr-only">{long[axis.axis]}</span>
+              </>
+            }
+            value={axis.value}
+          />
+        ))}
       </div>
-      <div className="mt-5 grid gap-2">
+      <div className="grid grid-cols-4 gap-1.5 sm:hidden">
+        {season.map(([label, value]) => (
+          <StatTile key={label} size="sm" valueFirst label={label} value={value} />
+        ))}
+      </div>
+      <div className="grid gap-2">
         <PointsLink
           to="/career/profile"
           count={career.attributePoints}
@@ -540,135 +814,166 @@ function PlayerCard({
           action={c.hub.unlock}
         />
       </div>
-    </section>
+    </Panel>
   );
 }
 
-function ResultChip({ record }: { record: CareerMatchRecord }) {
-  const tone =
-    record.result === 'win'
-      ? 'bg-accent text-on-accent'
-      : record.result === 'loss'
-        ? 'bg-danger-soft text-danger'
-        : 'bg-surface-soft text-ink';
-  return (
-    <span
-      className={`grid h-9 w-9 place-items-center rounded-full font-display text-lg ${tone}`}
-      title={c.hub.resultNames[record.result]}
-    >
-      {c.hub.results[record.result]}
-    </span>
-  );
-}
-
-function LastResult({ world, career }: { world: World; career: Career }) {
+function LastResult({
+  world,
+  career,
+  club,
+  className,
+}: {
+  world: World;
+  career: Career;
+  club: Club | undefined;
+  className?: string;
+}) {
   const last = career.matches.at(-1);
-  const form = recentForm(career);
+  const form = recentForm(career).map((record) => RESULT_LETTER[record.result]);
   const opponent = last ? world.clubs[last.opponentId] : undefined;
+  const ownClub = last ? (clubAt(world, career, last.fixtureId) ?? club) : undefined;
+  const headline = last
+    ? world.media
+        .filter(
+          (item) =>
+            item.kind === 'headline' &&
+            item.date.season === last.season &&
+            item.date.week === last.week,
+        )
+        .at(-1)
+    : undefined;
+  const own = { club: ownClub, goals: last?.score[0] ?? 0 };
+  const their = { club: opponent, goals: last?.score[1] ?? 0 };
+  const [left, right] = last?.home === false ? [their, own] : [own, their];
   return (
-    <section aria-labelledby="last-result-heading" className={card}>
-      <h2 id="last-result-heading" className={ui.heading}>
-        {c.hub.lastResult}
-      </h2>
+    <Panel aria-labelledby="last-result-heading" className={cx('flex flex-col gap-3.5', className)}>
+      <div className="flex items-baseline justify-between gap-3">
+        <CardTitle id="last-result-heading">{c.hub.lastResult}</CardTitle>
+        {last && (
+          <span className="shrink-0 text-xs font-semibold text-muted">
+            {format(c.hub.lastMeta, {
+              week: last.week,
+              venue: last.home ? c.common.home : c.common.away,
+            })}
+          </span>
+        )}
+      </div>
       {last ? (
         <>
-          <div className="mt-4 flex items-center gap-3">
-            <span
-              aria-hidden="true"
-              className={`grid h-12 w-12 shrink-0 place-items-center rounded-control font-display text-3xl ${
-                last.result === 'win'
-                  ? 'bg-accent text-on-accent'
-                  : last.result === 'loss'
-                    ? 'bg-danger-soft text-danger'
-                    : 'bg-surface-soft text-ink'
-              }`}
-            >
-              {c.hub.results[last.result]}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-2xl leading-tight break-words">
-                {format(c.hub.resultLine[last.result], {
-                  score: `${last.score[0]}–${last.score[1]}`,
-                  opponent: opponent?.name ?? last.opponentId,
-                })}
-                {last.decided && (
-                  <span className="ml-1 font-sans text-sm text-muted">
-                    {c.profile.decided[last.decided]}
-                  </span>
-                )}
+          <p className="sr-only">
+            {format(c.hub.resultLine[last.result], {
+              score: `${last.score[0]}–${last.score[1]}`,
+              opponent: opponent?.name ?? last.opponentId,
+            })}
+            {last.decided ? ` (${c.hub.decidedLong[last.decided]})` : ''} ·{' '}
+            {competitionName(world, last.competitionId)}
+          </p>
+          <div
+            aria-hidden="true"
+            className="flex items-center justify-between gap-2 rounded-control bg-surface-soft px-3 py-3.5"
+          >
+            <ResultSide club={left.club} />
+            <div className="text-center">
+              <p className="font-display text-5xl leading-[0.9] tabular-nums">
+                {left.goals} – {right.goals}
               </p>
-              <p className="text-xs text-muted">
-                {format(c.hub.resultMeta, {
-                  venue: last.home ? c.common.home : c.common.away,
-                  competition: competitionName(world, last.competitionId),
-                  week: last.week,
-                })}
+              <p className="text-[0.6875rem] font-extrabold tracking-[0.1em] text-muted uppercase">
+                {last.decided ? c.hub.decidedLong[last.decided] : c.hub.fullTime}
               </p>
             </div>
-            {opponent && (
-              <CrestImage crest={opponent.crest} alt="" className="h-10 w-10 shrink-0" />
+            <ResultSide club={right.club} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Chip tone="accent">
+              {format(c.hub.yourRating, { rating: last.rating.toFixed(1) })}
+            </Chip>
+            {last.goals > 0 && (
+              <Chip tone="gold-soft">{plural(last.goals, c.hub.goal, c.hub.goals)}</Chip>
             )}
+            {last.assists > 0 && (
+              <Chip tone="gold-soft">{plural(last.assists, c.hub.assist, c.hub.assists)}</Chip>
+            )}
+            {last.cleanSheet && <Chip tone="accent">{c.hub.cleanSheet}</Chip>}
+            <Chip tone="neutral">{format(c.hub.xpChip, { xp: last.xp })}</Chip>
           </div>
-          <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
-            {[
-              [c.profile.columns.rating, last.rating.toFixed(1)],
-              [c.profile.columns.ga, `${last.goals}/${last.assists}`],
-              [c.profile.columns.xp, `+${last.xp}`],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-control bg-surface-soft p-2">
-                <dt className="text-xs font-semibold text-muted">{label}</dt>
-                <dd className="font-display text-2xl leading-tight">{value}</dd>
-              </div>
-            ))}
-          </dl>
-          <h3 className="mt-5 text-sm font-semibold text-muted">{c.hub.form}</h3>
-          <div
-            className="mt-2 flex gap-2"
-            role="img"
-            aria-label={format(c.hub.formLabel, {
-              count: form.length,
-              results: form.map((record) => c.hub.resultNames[record.result]).join(', '),
-            })}
-          >
-            {form.map((record) => (
-              <ResultChip key={record.fixtureId} record={record} />
-            ))}
-          </div>
+          {headline && (
+            <blockquote className="text-sm text-muted">
+              <p>“{mediaText(headline)}”</p>
+              <footer className="mt-0.5 text-xs font-semibold">
+                {format(c.hub.headlineBy, { outlet: headline.authorName })}
+              </footer>
+            </blockquote>
+          )}
+          {form.length > 1 && (
+            <div className="mt-auto flex flex-wrap items-center gap-3 pt-1">
+              <h3 className="text-[0.8125rem] font-semibold text-muted">{c.hub.form}</h3>
+              <FormGuide results={form} label={c.hub.form} size="md" />
+            </div>
+          )}
         </>
       ) : (
-        <p className={`${ui.muted} mt-4`}>{c.hub.noMatches}</p>
+        <p className={ui.muted}>{c.hub.noMatches}</p>
       )}
-    </section>
+    </Panel>
   );
 }
 
-function SeasonStats({ world, career, player }: { world: World; career: Career; player: Player }) {
+/** The club the player represented in a fixture (a move since then keeps the old badge). */
+function clubAt(world: World, career: Career, fixtureId: string): Club | undefined {
+  const fixture = world.fixtures[fixtureId];
+  const record = career.matches.find((match) => match.fixtureId === fixtureId);
+  if (!fixture || !record) return undefined;
+  return world.clubs[record.home ? fixture.homeId : fixture.awayId];
+}
+
+function ResultSide({ club }: { club: Club | undefined }) {
+  return (
+    <div className="flex w-20 min-w-0 flex-col items-center gap-1.5 text-center">
+      {club && <CrestImage crest={club.crest} alt="" className="h-[3.1rem] w-11" />}
+      <span className="w-full truncate text-xs font-semibold">{club?.name ?? ''}</span>
+    </div>
+  );
+}
+
+function SeasonStats({
+  world,
+  career,
+  player,
+  className,
+}: {
+  world: World;
+  career: Career;
+  player: Player;
+  className?: string;
+}) {
   const line = seasonLine(career, world.date.season);
   const league = leagueSeasonLine(world, career, world.date.season);
   const keeper = player.primaryPosition === 'GK';
   const stats: [string, string | number][] = [
     [c.hub.stats.apps, line.apps],
     [c.hub.stats.goals, line.goals],
-    [c.hub.stats.assists, line.assists],
-    [c.hub.stats.rating, line.apps ? line.rating.toFixed(2) : '–'],
-    keeper ? [c.hub.stats.cleanSheets, line.cleanSheets] : [c.hub.stats.xp, line.xp],
+    keeper ? [c.hub.stats.cleanSheets, line.cleanSheets] : [c.hub.stats.assists, line.assists],
+    [c.hub.stats.rating, line.apps ? line.rating.toFixed(1) : '–'],
   ];
   return (
-    <section aria-labelledby="season-stats-heading" className={card}>
-      <h2 id="season-stats-heading" className={ui.heading}>
-        {format(c.hub.season, { season: world.date.season })}
-      </h2>
-      <p className="mt-1 text-xs text-muted">{c.hub.scope}</p>
-      <dl className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
+    <Panel
+      aria-labelledby="season-stats-heading"
+      className={cx('flex flex-col gap-3.5', className)}
+    >
+      <div>
+        <CardTitle id="season-stats-heading">
+          {format(c.hub.season, { season: world.date.season })}
+        </CardTitle>
+        <p className="text-xs text-muted">{c.hub.scope}</p>
+      </div>
+      <div className="grid flex-1 grid-cols-2 gap-2.5">
         {stats.map(([label, value]) => (
-          <div key={label} className="rounded-control bg-surface-soft p-2.5 sm:p-3">
-            <dt className="text-xs font-semibold text-muted">{label}</dt>
-            <dd className="font-display text-2xl leading-tight sm:text-3xl">{value}</dd>
-          </div>
+          <StatTile key={label} label={label} value={value} />
         ))}
-      </dl>
+      </div>
       {league.apps > 0 && (
-        <p className="mt-3 text-sm text-muted">
+        <p className="text-[0.8125rem] text-muted">
           {format(c.hub.leagueLine, {
             goals: plural(league.goals, c.hub.goal, c.hub.goals),
             assists: plural(league.assists, c.hub.assist, c.hub.assists),
@@ -676,182 +981,498 @@ function SeasonStats({ world, career, player }: { world: World; career: Career; 
           })}
         </p>
       )}
-    </section>
+    </Panel>
   );
 }
 
-function ClubStanding({ world, club }: { world: World; club: Club | undefined }) {
+const tableLink = (club: Club, tier: number, leagueId: string) =>
+  `/world?country=${encodeURIComponent(club.countryId)}&tier=${tier}&group=${encodeURIComponent(leagueId)}&club=${encodeURIComponent(club.id)}`;
+
+function ClubStanding({
+  world,
+  club,
+  className,
+}: {
+  world: World;
+  club: Club | undefined;
+  className?: string;
+}) {
   const standing = club ? leaguePosition(world, club.id) : null;
   const league = club ? world.leagues[club.leagueId] : undefined;
   return (
-    <section aria-labelledby="club-heading" className={card}>
-      <h2 id="club-heading" className={ui.heading}>
-        {c.hub.club}
-      </h2>
+    <Panel aria-labelledby="club-heading" className={cx('flex flex-col gap-4', className)}>
+      <CardTitle id="club-heading">{c.hub.club}</CardTitle>
       {club ? (
         <>
-          <div className="mt-4 flex items-center gap-3">
-            <CrestImage crest={club.crest} alt="" className="h-14 w-14 shrink-0" />
+          <div className="flex items-center gap-3.5">
+            <CrestImage crest={club.crest} alt="" className="h-[3.9rem] w-14 shrink-0" />
             <div className="min-w-0">
-              <p className="break-words font-semibold">{club.name}</p>
-              <p className="break-words text-xs text-muted">{league?.name}</p>
+              <p className="font-bold break-words">{club.name}</p>
+              <p className="text-xs break-words text-muted">{league?.name}</p>
             </div>
           </div>
           {standing ? (
-            <div className="mt-4 rounded-control bg-surface-soft p-4">
+            <div className="rounded-control bg-surface-soft p-4">
               <p className="text-xs font-semibold text-muted">{c.hub.position}</p>
-              <p className="font-display text-4xl leading-tight">
+              <p className="font-display text-[2.75rem] leading-none">
                 {format(c.hub.positionValue, { rank: standing.rank, total: standing.total })}
               </p>
-              <p className="text-sm text-muted">
+              <p className="text-[0.8125rem] text-muted">
                 {format(c.hub.points_, { points: standing.points, played: standing.played })}
               </p>
             </div>
           ) : (
-            <p className={`${ui.muted} mt-4`}>{c.hub.noLeague}</p>
+            <p className={ui.muted}>{c.hub.noLeague}</p>
           )}
           {league && (
-            <CardLink
-              to={`/world?country=${encodeURIComponent(club.countryId)}&tier=${league.tier}&group=${encodeURIComponent(league.id)}&club=${encodeURIComponent(club.id)}`}
-            >
-              {c.hub.viewTable}
-            </CardLink>
+            <CardLink to={tableLink(club, league.tier, league.id)}>{c.hub.viewTable}</CardLink>
           )}
         </>
       ) : (
-        <p className={`${ui.muted} mt-4`}>{c.common.unknownClub}</p>
+        <p className={ui.muted}>{c.common.unknownClub}</p>
       )}
-    </section>
+    </Panel>
   );
 }
 
-function Condition({ career, player }: { career: Career; player: Player }) {
-  const block = useEditBlock();
-  const injury = career.injury;
-  const I = CONFIG.career.injuries;
-  const rushWeeks = injury
-    ? Math.max(1, Math.ceil(injury.weeksRemaining * I.rush.durationFactor))
-    : 0;
-  const risk = injury ? Math.round(I.rush.reinjuryPerSeverity * injury.severity * 100) : 0;
-  const choose = (recovery: 'rehab' | 'rush') => {
-    const current = useAppStore.getState().world;
-    if (!current || block) return;
-    useAppStore.getState().setWorld(chooseRecovery(current, recovery));
-  };
+/** The club's place in its table with two neighbours either side. */
+function LeagueTable({ world, club, className }: { world: World; club: Club; className?: string }) {
+  const [params] = useSearchParams();
+  const league = world.leagues[club.leagueId]!;
+  const rows = league.standings;
+  const index = rows.findIndex((entry) => entry.clubId === club.id);
+  if (index < 0 || rows.length === 0) return null;
+  const start = Math.max(0, Math.min(index - 2, rows.length - 5));
+  const shown = rows.slice(start, start + 5);
+  const T = c.hub.table;
+  const head = (key: keyof typeof T.names, wide = true) => (
+    <th scope="col" className={cx('px-2 py-2 text-right font-semibold', !wide && 'max-sm:hidden')}>
+      <abbr title={T.names[key]} className="no-underline">
+        {T.columns[key]}
+      </abbr>
+    </th>
+  );
   return (
-    <section
+    <Panel aria-labelledby="league-table-heading" className={cx('flex flex-col gap-3', className)}>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <CardTitle id="league-table-heading">{league.name}</CardTitle>
+        <Link
+          className="text-button -mr-3"
+          to={withSave(tableLink(club, league.tier, league.id), params.get('save'))}
+        >
+          {T.fullTable}
+        </Link>
+      </div>
+      <table className="w-full border-collapse text-sm tabular-nums">
+        <caption className="sr-only">{format(T.caption, { league: league.name })}</caption>
+        <thead>
+          <tr className="text-left text-xs text-muted">
+            <th scope="col" className="px-2 py-2 font-semibold">
+              <abbr title={T.names.pos} className="no-underline">
+                {T.columns.pos}
+              </abbr>
+            </th>
+            <th scope="col" className="px-2 py-2 font-semibold">
+              {T.columns.club}
+            </th>
+            {head('p')}
+            {head('w', false)}
+            {head('d', false)}
+            {head('l', false)}
+            {head('gd')}
+            {head('pts')}
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((entry, offset) => {
+            const you = entry.clubId === club.id;
+            const side = world.clubs[entry.clubId];
+            const cell = 'px-2 py-2.5 text-right';
+            return (
+              <tr
+                key={entry.clubId}
+                className={you ? 'bg-accent-soft text-accent' : 'border-b border-line/60'}
+              >
+                <td className={cx('rounded-l-control px-2 py-2.5 font-bold')}>
+                  {start + offset + 1}
+                </td>
+                <th scope="row" className="px-2 py-1.5 text-left font-semibold">
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    {side && (
+                      <CrestImage crest={side.crest} alt="" className="h-[1.7rem] w-6 shrink-0" />
+                    )}
+                    <span className="min-w-0 break-words">{side?.name ?? entry.clubId}</span>
+                    {you && (
+                      <span className="shrink-0 rounded-full bg-accent px-2 text-[0.6875rem] font-extrabold text-on-accent">
+                        {T.you}
+                      </span>
+                    )}
+                  </span>
+                </th>
+                <td className={cell}>{entry.played}</td>
+                <td className={cx(cell, 'max-sm:hidden')}>{entry.won}</td>
+                <td className={cx(cell, 'max-sm:hidden')}>{entry.drawn}</td>
+                <td className={cx(cell, 'max-sm:hidden')}>{entry.lost}</td>
+                <td className={cell}>{signed(entry.goalsFor - entry.goalsAgainst)}</td>
+                <td className={cx(cell, 'rounded-r-control font-extrabold')}>{entry.points}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </Panel>
+  );
+}
+
+/** A small decorative bust (the name is written beside it). */
+function Bust({ player, club, age }: { player: Player; club?: Club | null; age: number }) {
+  const svg = useMemo(
+    () => renderAvatar(player.avatar, age, clubDress(club)),
+    [player.avatar, age, club],
+  );
+  return <Artwork svg={svg} alt="" className="h-16 w-16" />;
+}
+
+/** This season, side by side with the rival: goals, assists and the average rating. */
+function RivalCard({
+  world,
+  player,
+  club,
+  age,
+}: {
+  world: World;
+  player: Player;
+  club: Club | undefined;
+  age: number;
+}) {
+  const rival = rivalOf(world);
+  const lines = seasonLines(world);
+  if (!rival || !lines) return null;
+  const rivalClub = rival.clubId ? world.clubs[rival.clubId] : undefined;
+  const surname = (name: string) => name.split(' ').slice(-1)[0] ?? name;
+  const R = c.hub.rival;
+  const rows: [string, number, number, string, string][] = [
+    [
+      R.goals,
+      lines.career.goals,
+      lines.rival.goals,
+      String(lines.career.goals),
+      String(lines.rival.goals),
+    ],
+    [
+      R.assists,
+      lines.career.assists,
+      lines.rival.assists,
+      String(lines.career.assists),
+      String(lines.rival.assists),
+    ],
+    [
+      R.rating,
+      lines.career.rating,
+      lines.rival.rating,
+      lines.career.appearances ? lines.career.rating.toFixed(1) : '–',
+      lines.rival.appearances ? lines.rival.rating.toFixed(1) : '–',
+    ],
+  ];
+  return (
+    <Panel aria-labelledby="rival-card-heading" className="flex flex-col gap-3.5">
+      <CardTitle id="rival-card-heading">{R.title}</CardTitle>
+      <div aria-hidden="true" className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col items-center gap-1.5">
+          <Bust player={player} club={club} age={age} />
+          <span className="max-w-full truncate text-[0.8125rem] font-bold">
+            {surname(player.name)}
+          </span>
+        </div>
+        <span className="font-display text-[1.75rem] text-muted">{c.common.vs.toUpperCase()}</span>
+        <div className="flex min-w-0 flex-col items-center gap-1.5">
+          <Bust player={rival} club={rivalClub} age={world.date.season - rival.birthSeason} />
+          <span className="max-w-full truncate text-[0.8125rem] font-bold">
+            {surname(rival.name)}
+          </span>
+        </div>
+      </div>
+      <ul className="flex flex-col gap-3">
+        {rows.map(([label, you, theirs, youText, theirText]) => {
+          const total = you + theirs;
+          const share = total > 0 ? Math.round((you / total) * 100) : 50;
+          return (
+            <li key={label} className="flex flex-col gap-1">
+              <span className="sr-only">
+                {format(R.spoken, { label, you: youText, rival: rival.name, theirs: theirText })}
+              </span>
+              <span aria-hidden="true" className="flex justify-between text-[0.8125rem]">
+                <span className="font-extrabold">{youText}</span>
+                <span className="text-muted">{label}</span>
+                <span className="font-extrabold">{theirText}</span>
+              </span>
+              <span aria-hidden="true" className="flex h-2 gap-[3px]">
+                <span className="rounded-full bg-accent" style={{ flex: `${share} 1 0` }} />
+                <span className="rounded-full bg-info" style={{ flex: `${100 - share} 1 0` }} />
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {rivalClub && (
+        <p className="flex items-center gap-2 text-xs text-muted">
+          <CrestImage crest={rivalClub.crest} alt="" className="h-5 w-[1.1rem] shrink-0" />
+          {format(s.hub.rivalLine, { rival: rival.name, club: rivalClub.name })}
+        </p>
+      )}
+      <CardLink to="/career/rival">{s.hub.seeRival}</CardLink>
+    </Panel>
+  );
+}
+
+/** A weekly change in form or morale, from the stored history. */
+function trendNote(world: World, key: 'form' | 'morale', current: number): string | null {
+  const history = world.career!.social.history;
+  const { season, week } = world.date;
+  const previous = [...history]
+    .reverse()
+    .find((point) => point.season < season || (point.season === season && point.week < week));
+  if (!previous) return null;
+  const change = Math.round(current - previous[key]);
+  return change > 0
+    ? format(c.hub.conditionNote.up, { value: change })
+    : change < 0
+      ? format(c.hub.conditionNote.down, { value: -change })
+      : c.hub.conditionNote.steady;
+}
+
+function Condition({
+  world,
+  career,
+  player,
+  className,
+}: {
+  world: World;
+  career: Career;
+  player: Player;
+  className?: string;
+}) {
+  const injury = career.injury;
+  const meters: [string, number, 'accent' | 'gold' | 'danger', string | null][] = [
+    [c.common.meters.form, player.form, 'accent', trendNote(world, 'form', player.form)],
+    [c.common.meters.morale, player.morale, 'accent', trendNote(world, 'morale', player.morale)],
+    [c.common.meters.fitness, player.fitness, player.fitness < 70 ? 'danger' : 'accent', null],
+    [
+      c.common.meters.fatigue,
+      player.fatigue,
+      player.fatigue > 60 ? 'danger' : 'gold',
+      format(c.hub.conditionNote.fatigue, { value: 60 }),
+    ],
+  ];
+  return (
+    <Panel
       aria-labelledby="condition-heading"
       // Phones carry the four values in the match card; the card returns for an injury.
-      className={`${card} ${injury || career.reinjury ? '' : 'max-sm:hidden'}`}
-    >
-      <h2 id="condition-heading" className={ui.heading}>
-        {c.hub.condition}
-      </h2>
-      <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4">
-        <Meter label={c.common.meters.form} value={player.form} />
-        <Meter label={c.common.meters.morale} value={player.morale} />
-        <Meter label={c.common.meters.fitness} value={player.fitness} />
-        <Meter
-          label={c.common.meters.fatigue}
-          value={player.fatigue}
-          tone={player.fatigue > 60 ? 'danger' : 'gold'}
-        />
-      </div>
-      {injury && (
-        <div className="mt-5 rounded-control border border-danger/40 bg-danger-soft p-4">
-          <p className="text-sm font-bold text-danger">{c.hub.injury}</p>
-          <p className="mt-1 font-display text-2xl leading-tight">
-            {c.injuries[injury.kind] ?? injury.kind}
-          </p>
-          <p className="text-sm">
-            {injury.weeksRemaining === 1
-              ? c.hub.injuryOutOne
-              : format(c.hub.injuryOut, { weeks: injury.weeksRemaining })}{' '}
-            · {c.injuryCause[injury.cause]}
-          </p>
-          {injury.careerThreatening && (
-            <p className="mt-2 text-sm font-semibold text-danger">{c.hub.injuryThreatening}</p>
-          )}
-          {injury.recovery === null ? (
-            <fieldset id="recovery" className="mt-4 scroll-mt-24">
-              <legend className="text-sm font-bold">{c.hub.recoveryTitle}</legend>
-              {block && <p className="mt-1 text-xs text-muted">{block}</p>}
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <button
-                  className="flex min-h-11 flex-col items-start gap-1 rounded-control border border-line bg-surface p-3 text-left transition hover:border-accent disabled:opacity-50"
-                  disabled={Boolean(block)}
-                  onClick={() => choose('rehab')}
-                >
-                  <strong className="text-sm">{c.hub.rehab}</strong>
-                  <span className="text-xs text-muted">
-                    {format(c.hub.rehabBody, { weeks: injury.weeksRemaining })}
-                  </span>
-                </button>
-                <button
-                  className="flex min-h-11 flex-col items-start gap-1 rounded-control border border-line bg-surface p-3 text-left transition hover:border-accent disabled:opacity-50"
-                  disabled={Boolean(block)}
-                  onClick={() => choose('rush')}
-                >
-                  <strong className="text-sm">{c.hub.rush}</strong>
-                  <span className="text-xs text-muted">
-                    {format(c.hub.rushBody, { weeks: rushWeeks, risk })}
-                  </span>
-                </button>
-              </div>
-            </fieldset>
-          ) : (
-            <p className="mt-2 text-sm font-semibold">
-              {format(c.hub.recoveryChosen[injury.recovery], {
-                risk: Math.round(injury.reinjuryRisk * 100),
-              })}
-            </p>
-          )}
-        </div>
+      className={cx(
+        'flex flex-col gap-4',
+        !injury && !career.reinjury && 'max-sm:hidden',
+        className,
       )}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <CardTitle id="condition-heading">{c.hub.condition}</CardTitle>
+        {injury && <Chip tone="danger">{c.hub.injuredStatus}</Chip>}
+      </div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13.75rem),1fr))] gap-x-7 gap-y-3.5">
+        {meters.map(([label, value, tone, note]) => (
+          <div key={label}>
+            <Meter label={label} value={value} tone={tone} />
+            {note && <p className="mt-1 text-xs text-muted">{note}</p>}
+          </div>
+        ))}
+      </div>
+      {injury && <InjuryBox world={world} injury={injury} />}
       {!injury && career.reinjury && (
-        <p className="mt-4 text-sm font-semibold text-danger">
+        <p className="flex items-center gap-2 text-sm font-semibold text-danger">
+          <Icon name="warning" className="h-4 w-4 shrink-0" />
           {format(c.hub.reinjury, {
             risk: Math.round(career.reinjury.risk * 100),
             weeks: career.reinjury.weeks,
           })}
         </p>
       )}
-    </section>
+    </Panel>
   );
 }
 
-function InboxPreview({ world, span }: { world: World; span: string }) {
+/** Club fixtures still to play before a given week. */
+function matchesBefore(world: World, week: number): number {
+  const clubId = world.players[world.career!.playerId]?.clubId;
+  return Object.values(world.fixtures).filter(
+    (fixture) =>
+      (fixture.homeId === clubId || fixture.awayId === clubId) &&
+      fixture.date.season === world.date.season &&
+      fixture.date.week >= world.date.week &&
+      fixture.date.week < week &&
+      !world.results[fixture.id],
+  ).length;
+}
+
+function InjuryBox({ world, injury }: { world: World; injury: Injury }) {
+  const block = useEditBlock();
+  const I = CONFIG.career.injuries;
+  const rushWeeks = Math.max(1, Math.ceil(injury.weeksRemaining * I.rush.durationFactor));
+  const risk = Math.round(I.rush.reinjuryPerSeverity * injury.severity * 100);
+  const back = world.date.week + injury.weeksRemaining;
+  const choose = (recovery: 'rehab' | 'rush') => {
+    const current = useAppStore.getState().world;
+    if (!current || block) return;
+    useAppStore.getState().setWorld(chooseRecovery(current, recovery));
+  };
+  const misses = (week: number) => {
+    const count = matchesBefore(world, week);
+    return count === 0
+      ? c.hub.missesNone
+      : count === 1
+        ? c.hub.missesOne
+        : format(c.hub.misses, { count });
+  };
+  const fact = 'rounded-full bg-surface-soft px-2.5 py-0.5';
+  const choice =
+    'flex min-h-11 flex-col items-start gap-2 rounded-control bg-surface p-4 text-left transition-colors hover:border-accent disabled:cursor-not-allowed disabled:opacity-60';
+  return (
+    <div className="flex flex-col gap-1 rounded-control border border-danger/40 bg-danger-soft p-4 sm:p-[1.125rem]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[0.8125rem] font-extrabold text-danger">{c.hub.injury}</p>
+          <p className="mt-0.5 font-display text-[2rem] leading-none">
+            {c.injuries[injury.kind as keyof typeof c.injuries] ?? injury.kind}
+          </p>
+          <p className="mt-1 text-sm">
+            {injury.weeksRemaining === 1
+              ? c.hub.injuryOutOne
+              : format(c.hub.injuryOut, { weeks: injury.weeksRemaining })}{' '}
+            · {c.injuryCause[injury.cause]}
+          </p>
+        </div>
+        {world.phase === 'active' && (
+          <span className="rounded-full border border-danger/40 bg-surface px-3 py-1 text-xs font-extrabold text-danger">
+            {format(c.hub.backInWeek, { week: back })}
+          </span>
+        )}
+      </div>
+      {injury.careerThreatening && (
+        <p className="mt-2 text-sm font-semibold text-danger">{c.hub.injuryThreatening}</p>
+      )}
+      {injury.recovery === null ? (
+        <fieldset id="recovery" className="mt-3.5 min-w-0 scroll-mt-24">
+          <legend className="text-sm font-extrabold">{c.hub.recoveryTitle}</legend>
+          {block && <p className="mt-1 text-xs text-muted">{block}</p>}
+          <div className="mt-2.5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-2.5">
+            <button
+              type="button"
+              className={cx(choice, 'border-2 border-accent')}
+              disabled={Boolean(block)}
+              onClick={() => choose('rehab')}
+            >
+              <span className="flex w-full items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-accent"
+                >
+                  <Icon name="club" className="h-4 w-4" />
+                </span>
+                <strong className="text-[0.9375rem]">{c.hub.rehab}</strong>
+                <span className="ml-auto rounded-full bg-accent-soft px-2 text-[0.6875rem] font-extrabold text-accent">
+                  {c.hub.safer}
+                </span>
+              </span>
+              <span className="text-[0.8125rem] text-muted">
+                {format(c.hub.rehabBody, { weeks: injury.weeksRemaining })}
+              </span>
+              <span className="flex flex-wrap gap-1.5 text-xs font-bold">
+                <span className={fact}>{format(c.hub.backChip, { week: back })}</span>
+                <span className={fact}>{misses(back)}</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              className={cx(choice, 'border border-line')}
+              disabled={Boolean(block)}
+              onClick={() => choose('rush')}
+            >
+              <span className="flex w-full items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-art-gold text-gold-ink"
+                >
+                  <Glyph name="rival" className="h-4 w-4" />
+                </span>
+                <strong className="text-[0.9375rem]">{c.hub.rush}</strong>
+                <span className="ml-auto rounded-full bg-art-gold px-2 text-[0.6875rem] font-extrabold text-gold-ink">
+                  {c.hub.faster}
+                </span>
+              </span>
+              <span className="text-[0.8125rem] text-muted">
+                {format(c.hub.rushBody, { weeks: rushWeeks, risk })}
+              </span>
+              <span className="flex flex-wrap gap-1.5 text-xs font-bold">
+                <span className={fact}>
+                  {format(c.hub.backChip, { week: world.date.week + rushWeeks })}
+                </span>
+                <span className={fact}>{misses(world.date.week + rushWeeks)}</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-xs font-bold text-danger">
+                <Icon name="warning" className="h-3.5 w-3.5 shrink-0" />
+                {format(c.hub.riskLine, { risk })}
+              </span>
+            </button>
+          </div>
+        </fieldset>
+      ) : (
+        <p className="mt-2 text-[0.8125rem] font-bold">
+          {format(c.hub.recoveryChosen[injury.recovery], {
+            risk: Math.round(injury.reinjuryRisk * 100),
+          })}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const fullCard = 'flex flex-[1_1_18.75rem] flex-col gap-3';
+
+function InboxPreview({ world }: { world: World }) {
+  const [params] = useSearchParams();
   const latest = [...world.inbox].reverse().slice(0, 4);
   return (
-    <section
-      aria-labelledby="inbox-preview-heading"
-      data-tour="inbox"
-      className={`${card} ${span}`}
-    >
-      <h2 id="inbox-preview-heading" className={ui.heading}>
-        {m.hub.inbox}
-      </h2>
+    <Panel aria-labelledby="inbox-preview-heading" data-tour="inbox" className={fullCard}>
+      <CardTitle id="inbox-preview-heading">{m.hub.inbox}</CardTitle>
       {latest.length ? (
-        <ul className="-mx-3 mt-3 grid grid-cols-[minmax(0,1fr)] gap-1">
+        <ul className="-mx-3 grid grid-cols-[minmax(0,1fr)] gap-0.5">
           {latest.map((message) => (
             <li key={message.id}>
               <Link
-                to={`/career/inbox?message=${encodeURIComponent(message.id)}`}
-                className="flex min-h-11 items-start gap-3 rounded-control px-3 py-2 transition hover:bg-surface-soft"
+                to={withSave(
+                  `/career/inbox?message=${encodeURIComponent(message.id)}`,
+                  params.get('save'),
+                )}
+                className="flex min-h-11 items-start gap-3 rounded-control px-3 py-2 transition-colors hover:bg-surface-soft"
               >
                 <span
                   aria-hidden="true"
-                  className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${message.read ? 'bg-line' : 'bg-accent'}`}
+                  className={cx(
+                    'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full',
+                    message.read ? 'bg-line' : 'bg-accent',
+                  )}
                 />
                 <span
-                  className={`min-w-0 flex-1 text-sm line-clamp-2 ${message.read ? '' : 'font-bold'}`}
+                  className={cx(
+                    'min-w-0 flex-1 text-sm line-clamp-2',
+                    message.read ? 'font-medium' : 'font-extrabold',
+                  )}
                 >
                   {messageText(message).subject}
                   {!message.read && (
                     <span className="sr-only"> · {format(m.inbox.unread, { count: 1 })}</span>
                   )}
                 </span>
-                <span className="mt-0.5 shrink-0 text-xs text-muted">
+                <span className="mt-px shrink-0 text-xs text-muted">
                   {format(c.common.week, { week: message.date.week })}
                 </span>
               </Link>
@@ -859,85 +1480,84 @@ function InboxPreview({ world, span }: { world: World; span: string }) {
           ))}
         </ul>
       ) : (
-        <p className={`${ui.muted} mt-4`}>{m.inbox.empty}</p>
+        <p className={ui.muted}>{m.inbox.empty}</p>
       )}
       <CardLink to="/career/inbox">{m.hub.seeAll}</CardLink>
-    </section>
+    </Panel>
   );
 }
 
-function PressRoom({ world, span }: { world: World; span: string }) {
+function PressRoom({ world }: { world: World }) {
+  const [params] = useSearchParams();
   const pending = world.media.find((item) => item.choices.length > 0 && item.answer === null);
   const headline = [...world.media].reverse().find((item) => item.kind === 'headline');
   return (
-    <section
+    <Panel
       aria-labelledby="press-room-heading"
-      className={`${card} ${span} ${pending ? 'border-gold' : ''}`}
+      className={cx(fullCard, pending && 'border-2 border-gold')}
     >
-      <h2 id="press-room-heading" className={ui.heading}>
-        {s.hub.press}
-      </h2>
+      <CardTitle id="press-room-heading">{s.hub.press}</CardTitle>
       {pending ? (
-        <div className="mt-4 grid gap-3">
-          <p className="text-sm font-semibold text-accent">
+        <>
+          <p className="text-[0.8125rem] font-bold text-accent">
             {format(s.hub.pressWaiting, { outlet: pending.authorName })}
           </p>
-          <p className="font-display text-2xl leading-tight">{mediaText(pending)}</p>
+          <p className="font-display text-[1.625rem] leading-[1.05]">{mediaText(pending)}</p>
           <div>
-            <Link className="button" to="/career/media">
+            <ButtonLink to={withSave('/career/media', params.get('save'))} iconEnd="arrow">
               {s.hub.pressOpen}
-              <Icon name="arrow" />
-            </Link>
+            </ButtonLink>
           </div>
-        </div>
+        </>
       ) : (
-        <p className={`${ui.muted} mt-4`}>{s.hub.pressNone}</p>
+        <p className={ui.muted}>{s.hub.pressNone}</p>
       )}
       {headline && (
-        <div className="mt-4 border-t border-line pt-4">
-          <p className="text-sm font-semibold text-muted">{s.hub.latest}</p>
-          <p className="mt-1 font-display text-xl leading-tight">{mediaText(headline)}</p>
+        <div className="mt-auto border-t border-line pt-3.5">
+          <p className="text-[0.8125rem] font-semibold text-muted">{s.hub.latest}</p>
+          <p className="mt-1 font-display text-[1.375rem] leading-[1.05]">{mediaText(headline)}</p>
         </div>
       )}
       {!pending && <CardLink to="/career/media">{s.hub.seeMedia}</CardLink>}
-    </section>
+    </Panel>
   );
 }
 
-function MarketSummary({ world, span }: { world: World; span: string }) {
+function windowLine(world: World): string {
+  const state = windowState(world);
+  return world.phase === 'complete'
+    ? m.window.between
+    : state.open
+      ? format(m.window.open, { week: state.closes! })
+      : state.opens
+        ? format(m.window.opens, { week: state.opens })
+        : m.window.closed;
+}
+
+function MarketSummary({ world }: { world: World }) {
   const contract = careerContract(world);
   const waiting = world.offers.filter((offer) => offer.status === 'terms').length;
   const following = world.scouting.length;
-  const state = windowState(world);
-  const open = state.open && world.phase !== 'complete';
-  const windowText =
-    world.phase === 'complete'
-      ? m.window.between
-      : state.open
-        ? format(m.window.open, { week: state.closes! })
-        : state.opens
-          ? format(m.window.opens, { week: state.opens })
-          : m.window.closed;
+  const open = windowState(world).open && world.phase !== 'complete';
   return (
-    <section aria-labelledby="market-summary-heading" className={`${card} ${span}`}>
-      <h2 id="market-summary-heading" className={ui.heading}>
-        {m.hub.market}
-      </h2>
+    <Panel aria-labelledby="market-summary-heading" className={fullCard}>
+      <CardTitle id="market-summary-heading">{m.hub.market}</CardTitle>
       <p
-        className={`mt-4 flex items-start gap-2 rounded-control px-4 py-2.5 text-sm font-semibold text-balance ${
-          open ? 'bg-accent text-on-accent' : 'border border-line bg-surface-soft text-muted'
-        }`}
+        className={cx(
+          'flex items-start gap-2.5 rounded-control px-3.5 py-2.5 text-[0.8125rem] font-semibold text-balance',
+          open ? 'bg-accent text-on-accent' : 'border border-line bg-surface-soft text-muted',
+        )}
       >
         <span
           aria-hidden="true"
-          className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${open ? 'bg-gold' : 'bg-muted'}`}
+          className={cx('mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full', open ? 'bg-gold' : 'bg-muted')}
         />
-        <span className="min-w-0">{windowText}</span>
+        <span className="min-w-0">{windowLine(world)}</span>
       </p>
-      <p className={`mt-3 text-sm font-semibold ${waiting && open ? 'text-accent' : ''}`}>
+      <p className={cx('text-sm font-bold', waiting > 0 && open && 'text-accent')}>
         {format(m.hub.marketBody, { interest: following, offers: waiting })}
       </p>
-      <dl className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2">
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(6rem,1fr))] gap-2">
         {[
           [m.contract.wage, weekly(contract.weeklyWage)],
           [m.contract.role, roleName(contract.role)],
@@ -945,24 +1565,75 @@ function MarketSummary({ world, span }: { world: World; span: string }) {
         ].map(([label, value]) => (
           <div key={label} className="rounded-control bg-surface-soft p-2.5">
             <dt className="text-xs font-semibold text-muted">{label}</dt>
-            <dd className="font-display text-xl leading-tight">{value}</dd>
+            <dd className="font-display text-[1.375rem] leading-tight">{value}</dd>
           </div>
         ))}
       </dl>
       <CardLink to="/career/transfers">{m.hub.seeMarket}</CardLink>
+    </Panel>
+  );
+}
+
+/** A quiet summary: title and icon, a big value, one or two lines, and where to go. */
+function Tile({
+  id,
+  title,
+  glyph,
+  value,
+  to,
+  link,
+  hot,
+  tour,
+  children,
+}: {
+  id: string;
+  title: string;
+  glyph: GlyphName;
+  value?: string;
+  to: string;
+  link: string;
+  hot?: boolean;
+  tour?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <section aria-labelledby={id} data-tour={tour} className={tileClass(hot)}>
+      <div className="flex items-start justify-between gap-2">
+        <h2 id={id} className="text-[0.9375rem] leading-tight font-extrabold sm:text-base">
+          {title}
+        </h2>
+        <span className="text-accent">
+          <Glyph name={glyph} className="h-[1.125rem] w-[1.125rem]" />
+        </span>
+      </div>
+      {value && <p className="font-display text-[1.875rem] leading-[0.95]">{value}</p>}
+      <div className="grid gap-0.5 text-[0.8125rem] break-words">{children}</div>
+      <CardLink to={to} small>
+        {link}
+      </CardLink>
     </section>
   );
 }
 
 function TrainingSummary({ career }: { career: Career }) {
   const report = career.lastTraining;
+  const sessions = career.training.sessions.length;
   return (
-    <section aria-labelledby="training-summary-heading" data-tour="training" className={tile}>
-      <h2 id="training-summary-heading" className={tileHeading}>
-        {c.hub.training}
-      </h2>
+    <Tile
+      id="training-summary-heading"
+      title={c.hub.training}
+      glyph="boot"
+      tour="training"
+      value={
+        sessions === 1
+          ? c.hub.tileValues.trainingOne
+          : format(c.hub.tileValues.training, { count: sessions })
+      }
+      to="/career/training"
+      link={c.hub.editTraining}
+    >
       {report ? (
-        <div className="mt-1 grid gap-1 text-sm">
+        <>
           <p className="text-xs text-muted">
             {format(c.common.seasonWeek, { season: report.season, week: report.week })} ·{' '}
             {format(c.hub.trainingFatigue, {
@@ -970,14 +1641,14 @@ function TrainingSummary({ career }: { career: Career }) {
             })}
           </p>
           {report.improved.length > 0 && (
-            <p className="font-semibold text-accent">
+            <p className="font-bold text-accent">
               {format(c.hub.trainingImprovedList, {
                 attributes: report.improved.map(attributeName).join(', '),
               })}
             </p>
           )}
           {report.declined.length > 0 && (
-            <p className="font-semibold text-danger">
+            <p className="font-bold text-danger">
               {format(c.hub.trainingDeclinedList, {
                 attributes: report.declined.map(attributeName).join(', '),
               })}
@@ -994,13 +1665,12 @@ function TrainingSummary({ career }: { career: Career }) {
               })}
             </p>
           )}
-          {report.injuryId && <p className="font-semibold text-danger">{c.hub.trainingInjury}</p>}
-        </div>
+          {report.injuryId && <p className="font-bold text-danger">{c.hub.trainingInjury}</p>}
+        </>
       ) : (
-        <p className={`${ui.muted} mt-1`}>{c.hub.trainingEmpty}</p>
+        <p className="text-muted">{c.hub.trainingEmpty}</p>
       )}
-      <CardLink to="/career/training">{c.hub.editTraining}</CardLink>
-    </section>
+    </Tile>
   );
 }
 
@@ -1011,24 +1681,18 @@ function FameSummary({ world }: { world: World }) {
     (challenge) => challenge.claimed || challengeDone(world, challenge),
   ).length;
   return (
-    <section aria-labelledby="fame-summary-heading" className={tile}>
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gold font-display text-2xl text-on-gold"
-        >
-          {progress.level}
-        </span>
-        <div className="min-w-0">
-          <h2 id="fame-summary-heading" className={tileHeading}>
-            {l.hub.title}
-          </h2>
-          <p className="text-sm text-muted">
-            {format(c.hub.fameLine, { level: progress.level, name: fameName(progress.level) })}
-          </p>
-        </div>
-      </div>
-      <p className="mt-2 text-sm">
+    <Tile
+      id="fame-summary-heading"
+      title={l.hub.title}
+      glyph="star"
+      value={fameName(progress.level)}
+      to="/career/wardrobe"
+      link={l.hub.open}
+    >
+      <p className="text-muted">
+        {format(c.hub.fameLine, { level: progress.level, name: fameName(progress.level) })}
+      </p>
+      <p>
         {progress.needed
           ? format(l.fame.progressTowards, {
               into: progress.into,
@@ -1037,12 +1701,11 @@ function FameSummary({ world }: { world: World }) {
             })
           : l.fame.max}
       </p>
-      <p className="text-sm">
+      <p>
         {format(l.hub.challenges, { done: ready, total: world.challenges.length })} ·{' '}
         {format(l.wardrobe.tokens, { count: career.style.tokens })}
       </p>
-      <CardLink to="/career/wardrobe">{l.hub.open}</CardLink>
-    </section>
+    </Tile>
   );
 }
 
@@ -1059,62 +1722,31 @@ function HonoursTile({ world }: { world: World }) {
   ).length;
   const awards = world.awards.filter((award) => award.winnerIds.includes(career.playerId)).length;
   return (
-    <section aria-labelledby="honours-summary-heading" className={tile}>
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gold text-xl text-on-gold"
-        >
-          ★
-        </span>
-        <div className="min-w-0">
-          <h2 id="honours-summary-heading" className={tileHeading}>
-            {h.hub.honours}
-          </h2>
-          <p className="text-sm text-muted">
-            {format(c.hub.honoursLine, {
-              trophies: plural(trophies, h.legacy.trophy, h.legacy.trophies),
-              awards: plural(awards, h.legacy.award, h.legacy.awards),
-            })}
-          </p>
-        </div>
-      </div>
-      <p className="mt-2 text-sm">
+    <Tile
+      id="honours-summary-heading"
+      title={h.hub.honours}
+      glyph="trophy"
+      value={
+        trophies === 1
+          ? c.hub.tileValues.honoursOne
+          : format(c.hub.tileValues.honours, { count: trophies })
+      }
+      to="/career/trophies"
+      link={h.hub.open}
+    >
+      <p className="text-muted">
+        {format(c.hub.honoursLine, {
+          trophies: plural(trophies, h.legacy.trophy, h.legacy.trophies),
+          awards: plural(awards, h.legacy.award, h.legacy.awards),
+        })}
+      </p>
+      <p>
         {format(c.hub.capsLine, {
           caps: plural(caps, h.hub.cap, h.hub.caps),
           goals: plural(goals, h.hub.goal, h.hub.goals),
         })}
       </p>
-      <CardLink to="/career/trophies">{h.hub.open}</CardLink>
-    </section>
-  );
-}
-
-function RivalWatch({ world }: { world: World }) {
-  const rival = rivalOf(world);
-  const lines = seasonLines(world);
-  if (!rival || !lines) return null;
-  const club = world.clubs[rival.clubId!]!;
-  return (
-    <section aria-labelledby="rival-watch-heading" className={tile}>
-      <h2 id="rival-watch-heading" className={tileHeading}>
-        {s.hub.rival}
-      </h2>
-      <p className="mt-2 flex items-center gap-2 text-sm font-semibold">
-        <CrestImage crest={club.crest} alt="" className="h-7 w-7 shrink-0" />
-        <span className="min-w-0 break-words">
-          {format(s.hub.rivalLine, { rival: rival.name, club: club.name })}
-        </span>
-      </p>
-      <p className="mt-1 text-sm text-muted">
-        {format(s.hub.rivalSeason, {
-          goals: lines.career.goals,
-          rival: rival.name,
-          rivalGoals: lines.rival.goals,
-        })}
-      </p>
-      <CardLink to="/career/rival">{s.hub.seeRival}</CardLink>
-    </section>
+    </Tile>
   );
 }
 
@@ -1122,15 +1754,17 @@ function RivalWatch({ world }: { world: World }) {
 function InboxTile({ world }: { world: World }) {
   const latest = world.inbox.at(-1);
   return (
-    <section aria-labelledby="inbox-tile-heading" data-tour="inbox" className={tile}>
-      <h2 id="inbox-tile-heading" className={tileHeading}>
-        {m.hub.inbox}
-      </h2>
-      <p className="mt-1 text-sm text-muted">
-        {latest ? messageText(latest).subject : m.inbox.empty}
-      </p>
-      <CardLink to="/career/inbox">{m.hub.seeAll}</CardLink>
-    </section>
+    <Tile
+      id="inbox-tile-heading"
+      title={m.hub.inbox}
+      glyph="contract"
+      tour="inbox"
+      value={c.hub.tileValues.inboxRead}
+      to="/career/inbox"
+      link={m.hub.seeAll}
+    >
+      <p className="text-muted">{latest ? messageText(latest).subject : m.inbox.empty}</p>
+    </Tile>
   );
 }
 
@@ -1138,38 +1772,38 @@ function InboxTile({ world }: { world: World }) {
 function PressTile({ world }: { world: World }) {
   const headline = [...world.media].reverse().find((item) => item.kind === 'headline');
   return (
-    <section aria-labelledby="press-tile-heading" className={tile}>
-      <h2 id="press-tile-heading" className={tileHeading}>
-        {s.hub.press}
-      </h2>
-      <p className="mt-1 text-sm text-muted">{headline ? mediaText(headline) : s.hub.pressNone}</p>
-      <CardLink to="/career/media">{s.hub.seeMedia}</CardLink>
-    </section>
+    <Tile
+      id="press-tile-heading"
+      title={s.hub.press}
+      glyph="fame"
+      value={c.hub.tileValues.pressQuiet}
+      to="/career/media"
+      link={s.hub.seeMedia}
+    >
+      <p className="text-muted">{headline ? mediaText(headline) : s.hub.pressNone}</p>
+    </Tile>
   );
 }
 
 /** The market in brief, when no offer is open. */
 function MarketTile({ world }: { world: World }) {
-  const state = windowState(world);
-  const text =
-    world.phase === 'complete'
-      ? m.window.between
-      : state.open
-        ? format(m.window.open, { week: state.closes! })
-        : state.opens
-          ? format(m.window.opens, { week: state.opens })
-          : m.window.closed;
+  const following = world.scouting.length;
   return (
-    <section aria-labelledby="market-tile-heading" className={tile}>
-      <h2 id="market-tile-heading" className={tileHeading}>
-        {m.hub.market}
-      </h2>
-      <p className="mt-1 text-sm text-muted">{text}</p>
-      <p className="text-sm">
-        {format(m.hub.marketBody, { interest: world.scouting.length, offers: 0 })}
-      </p>
-      <CardLink to="/career/transfers">{m.hub.seeMarket}</CardLink>
-    </section>
+    <Tile
+      id="market-tile-heading"
+      title={m.hub.market}
+      glyph="transfer"
+      value={
+        following === 1
+          ? c.hub.tileValues.marketOne
+          : format(c.hub.tileValues.market, { count: following })
+      }
+      to="/career/transfers"
+      link={m.hub.seeMarket}
+    >
+      <p className="text-muted">{windowLine(world)}</p>
+      <p>{format(m.hub.marketBody, { interest: following, offers: 0 })}</p>
+    </Tile>
   );
 }
 
@@ -1177,10 +1811,10 @@ function MarketTile({ world }: { world: World }) {
 function SummariesToggle({ full }: { full: boolean }) {
   const [params, setParams] = useSearchParams();
   return (
-    <div className="lg:col-span-12">
+    <div className="max-sm:self-center">
       <button
         type="button"
-        className="text-button -ml-3"
+        className="text-button sm:-ml-3"
         aria-pressed={full}
         onClick={() => {
           const next = new URLSearchParams(params);
