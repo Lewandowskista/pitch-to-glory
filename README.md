@@ -158,7 +158,7 @@ xychart-beta
 ```mermaid
 flowchart LR
   Push["Push to main"] --> Build["build (Linux)<br/>typecheck · build · bundle budget"]
-  Push --> Checks["checks (Linux)<br/>Prettier · ESLint · one-season soak"]
+  Push --> Checks["checks (Linux)<br/>Prettier · ESLint · release notes · one-season soak"]
   Push --> Unit["unit tests<br/>(3 Linux machines)"]
   Build --> C["Chromium journeys<br/>(2 Windows machines)"]
   Build --> F["Firefox journeys<br/>(2 Windows machines)"]
@@ -249,7 +249,7 @@ After the web release, a [high-value improvements plan](docs/superpowers/plans/2
 
 ## Documentation
 
-[Architecture](docs/ARCHITECTURE.md) · [Decisions](docs/DECISIONS.md) · [Balancing](docs/BALANCING.md) · [Match balancing](docs/MATCH-BALANCING.md) · [National rules and sources](docs/REALISM.md) · [Verification](docs/VERIFICATION.md) · [Deploying](docs/DEPLOY.md) · [Asset provenance](ASSETS.md) · [Implementation handoff](docs/HANDOFF.md)
+[Architecture](docs/ARCHITECTURE.md) · [Decisions](docs/DECISIONS.md) · [Balancing](docs/BALANCING.md) · [Match balancing](docs/MATCH-BALANCING.md) · [National rules and sources](docs/REALISM.md) · [Verification](docs/VERIFICATION.md) · [Deploying](docs/DEPLOY.md) · [Releasing and patch notes](docs/RELEASING.md) · [Changelog](CHANGELOG.md) · [Asset provenance](ASSETS.md) · [Implementation handoff](docs/HANDOFF.md)
 
 Milestone write-ups: [match](docs/MILESTONE-3.md) · [career player](docs/MILESTONE-4.md) · [contracts and transfers](docs/MILESTONE-5.md) · [relationships and media](docs/MILESTONE-6.md) · [fame and lifestyle](docs/MILESTONE-7.md) · [honours and legacy](docs/MILESTONE-8.md) · [edit mode, accessibility, tutorial and audio](docs/MILESTONE-9.md) · [web release](docs/MILESTONE-10.md)
 
