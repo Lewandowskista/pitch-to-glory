@@ -143,6 +143,24 @@ export const en = {
     ],
     promise:
       'Free in your browser. No account and no ads. Your saves stay on your device, and the game plays offline after your first visit.',
+    /** Under the first call to action on the landing hero. */
+    startHint: 'About two minutes to build your footballer',
+    /** One line per pillar, for the compact list a returning player sees. */
+    pillarsShort: [
+      'Every key moment shows the odds and the reasons.',
+      'Train, level up and climb the pyramid.',
+      'The press, your manager and a rival.',
+      'Retire into the Hall of Fame, play on as your child.',
+    ],
+    /** The illustrated key moment beside the first pillar (decorative, not game data). */
+    sampleMoment: 'Key moment',
+    sampleMinute: '88′',
+    sampleChoices: [
+      { label: 'Shoot far post', odds: 64 },
+      { label: 'Square it across the box', odds: 71 },
+      { label: 'Take on the centre-back', odds: 38 },
+    ],
+    clubArtLabel: 'An illustrated football stadium in the colours of {club}',
   },
   gallery: {
     title: 'Gallery',
