@@ -36,7 +36,9 @@ import { accrueMatchBonuses } from './market/moves';
 import { socialMatch } from './social/week';
 import { celebrationFame } from './lifestyle/week';
 import { honoursMatch } from './honours/week';
+import { careerMatchSeed } from './objectives';
 export * from './fixtures';
+export { careerMatchSeed, previewObjectives } from './objectives';
 
 const C = CONFIG.career;
 
@@ -47,7 +49,7 @@ export function careerMatchSetup(world: World, fixture: Fixture): MatchSetup {
     fixture.homeId,
     fixture.awayId,
     world.career!.playerId,
-    `${world.seed}:career:${fixture.id}`,
+    careerMatchSeed(world, fixture),
     {
       neutral: Boolean(fixture.neutral),
       fixture: {

@@ -36,18 +36,20 @@ import type { Position } from '../src/model/domain';
  * - M5 Track the runner: a fourth choice when defending an attack, so the policies that pick
  *   by index (and the headless player, who now weighs it) choose differently for players who
  *   defend (CB, LB, DM, and CM and AM in midfield slots); GK, RW and ST are unchanged.
+ * - Objectives stream (decision 3): objectives leave the preview stream for their own, so the
+ *   preview stream's later draws (the consistency shift and the weather) move for every match.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: 'd4ba7406a1202a740abe8ce6', goals: 63, moments: 214 },
-  CB: { hash: 'fb5801028ed4b3f6e90a931e', goals: 61, moments: 231 },
-  LB: { hash: 'e6056602f22882abe72879ec', goals: 52, moments: 241 },
-  DM: { hash: '13f361d6cf55571de3815154', goals: 58, moments: 207 },
-  CM: { hash: '8ef42bc7b012b2acb627081a', goals: 77, moments: 243 },
-  AM: { hash: '1290933aa54df2c22934b261', goals: 71, moments: 277 },
-  RW: { hash: '9c27b2b7b703e5395df4578c', goals: 55, moments: 296 },
-  ST: { hash: 'ddc93956cfc458ea17493eeb', goals: 70, moments: 302 },
+  GK: { hash: 'd857f828bb07439805ff9d51', goals: 63, moments: 214 },
+  CB: { hash: '94f666a92d93090ea38555df', goals: 61, moments: 231 },
+  LB: { hash: 'b5d36afe4e61f11ae07bfd2b', goals: 51, moments: 238 },
+  DM: { hash: 'f835d0afa1f466508d3e1d70', goals: 58, moments: 207 },
+  CM: { hash: '80bde140d6771fc89cccf7a4', goals: 76, moments: 242 },
+  AM: { hash: '2039d7302bd0605dbf5b2f49', goals: 74, moments: 276 },
+  RW: { hash: '92f73a179a4125f9d2c0ec62', goals: 53, moments: 296 },
+  ST: { hash: 'a1c9195220686f3c0731c89e', goals: 71, moments: 301 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });

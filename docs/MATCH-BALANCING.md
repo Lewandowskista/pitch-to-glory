@@ -376,6 +376,7 @@ Distribution of the 10,000-match gate after each step (`goalsPerMatch` / `homeWi
 | `match-14` baseline | 2.6594 | 0.423    | 0.2602 | 0.224       | 0.087      |
 | M4 cast and targets | 2.6507 | 0.4195   | 0.264  | 0.232       | 0.086      |
 | M5 Track the runner | 2.6507 | 0.4195   | 0.264  | 0.232       | 0.086      |
+| Objectives stream   | 2.652  | 0.4202   | 0.2632 | 0.229       | 0.083      |
 
 ### M4: the cast and each choice's target
 
@@ -394,3 +395,11 @@ Distribution of the 10,000-match gate after each step (`goalsPerMatch` / `homeWi
 `defend-attack` gains a fourth choice, appended after the catalogue's others: **Track the runner** (`track-runner`; work rate 0.4, pace 0.3, positioning 0.3; base 0.7; a `tackle` event credited as a tackle, against the attacker; Man Marker is its skill, and Engine, Sprinter and Defensive Wall also help it through the template's own `boostedBy`, so the offside trap's choice of the same name is untouched). Like every choice it is anchored to the moment budget, so at the reference player it concedes the same as intercepting, tackling or jockeying (`decision fairness` asserts it within ±15 % and below the background expectation). It is `latest`: offered only on `match-15`, and only while the moment has fewer than four choices, so a Last-Ditch defender keeps the sliding block in fourth place and keys 1–4 still cover every option. Its target is the runner the cast names; the outcome plays the carrier's ball into the run, cut out by the defender who went with it (an `intercept` beat) or played past one a step behind.
 
 Policy goals [for, against] with every footballer rated 60, 250 matches per index: CB index 3 (now Track the runner rather than a repeat of the jockey) 1.38 / 1.276; the four indices stay within ±12 % of their mean. The 10,000-match gate fields a striker, so it is unchanged. Splitting `cross-switch` into a cross and a switch was optional and is left for later.
+
+### Objectives on their own stream (decision 3)
+
+A match's objectives (the rating target and one drawn for the position, as in Balance pass B) are drawn on `${seed}:objectives:${position}` (`engine/match/objectives.ts`, `objectivesFor`): keyed only by the match seed, which for a career fixture names the fixture (`careerMatchSeed`, `${world.seed}:career:${fixture.id}`), and the player's primary position, never by the preview stream. `previewObjectives(world, fixture)` (`engine/career/objectives.ts`) makes the same draw, so what the hub shows before matchday is exactly what kickoff sets (tested for every position over each upcoming fixture). The passing target still follows the player's passing attribute, so training between the preview and the match can move it by a point. Worlds on the earlier selection rules (no formations) keep the old draw and preview nothing.
+
+Taking that draw off the preview stream moves its later draws (the consistency shift and the weather) for every match, which is why this step changes outcomes; the number of moments and their minutes come before it and are unchanged.
+
+**Hub.** The next-match hero lists the objectives under the fixture ("Your objectives") when the player is expected to start (selection chance of 50 % or more), and "Your objectives, if you are picked" otherwise; nothing for an injured player (`screens/career/objectivesUi.tsx`).

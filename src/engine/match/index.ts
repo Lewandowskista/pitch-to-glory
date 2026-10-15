@@ -1,5 +1,4 @@
 import type {
-  Objective,
   Club,
   World,
   Player,
@@ -62,6 +61,7 @@ import { validateSetup, validateTactics, validateCommand, validateJson } from '.
 import { SITUATION_BY_ID, type ChoiceTemplate, type Situation } from './situations';
 import { halftimeRole, roleEffect, shiftMentality } from './roles';
 import { cutHighlight } from './highlight';
+import { matchObjectives, objectivesFor } from './objectives';
 import {
   buildChoices,
   clamp,
@@ -323,61 +323,6 @@ function rates(setup: MatchSetup, strength: [number, number], tactics: Tactics):
   factors[1 - own] = mentality[1] * role[1];
   return [round6(home * risk * factors[0]!), round6(away * risk * factors[1]!)];
 }
-/** The match's personal objectives: a rating target and one drawn for the position. */
-function matchObjectives(selected: Player, rng: Rng): MatchState['match']['objectives'] {
-  const O = C.objectives;
-  const position = selected.primaryPosition;
-  const P = C.routinePass;
-  const passing = clamp(
-    Math.round((P.base + selected.attributes.passing * P.passing) * 100) + O.passingMargin,
-    O.passingRange[0],
-    O.passingRange[1],
-  );
-  const pool: { kind: Objective['kind']; target: number }[] =
-    position === 'GK'
-      ? [
-          { kind: 'clean-sheet', target: 1 },
-          { kind: 'saves', target: O.saves },
-        ]
-      : ['CB', 'LB', 'RB'].includes(position)
-        ? [
-            { kind: 'clean-sheet', target: 1 },
-            { kind: 'tackles', target: O.tackles.defender },
-            { kind: 'passing', target: passing },
-          ]
-        : position === 'DM'
-          ? [
-              { kind: 'passing', target: passing },
-              { kind: 'tackles', target: O.tackles.midfield },
-              { kind: 'clean-sheet', target: 1 },
-            ]
-          : position === 'CM'
-            ? [
-                { kind: 'passing', target: passing },
-                { kind: 'assists', target: 1 },
-              ]
-            : position === 'AM'
-              ? [
-                  { kind: 'passing', target: passing },
-                  { kind: 'assists', target: 1 },
-                  { kind: 'shots', target: O.shots.other },
-                ]
-              : position === 'ST'
-                ? [
-                    { kind: 'goals', target: 1 },
-                    { kind: 'shots', target: O.shots.striker },
-                  ]
-                : [
-                    { kind: 'goals', target: 1 },
-                    { kind: 'shots', target: O.shots.other },
-                    { kind: 'assists', target: 1 },
-                  ];
-  const drawn = rng.pick(pool);
-  return [
-    { id: 'rating', kind: 'rating', target: O.rating, progress: 0 },
-    { id: drawn.kind, kind: drawn.kind, target: drawn.target, progress: 0 },
-  ];
-}
 function shares(position: Position, role: string, drama = false): MatchState['shares'] {
   const [attack, defence] = C.shares[position];
   const weights = situationWeights(position, role);
@@ -480,7 +425,11 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
           Math.round(6 + (i * 78) / (count - 1)) + rng.int(-2, 2),
         ),
       );
-  const objectives = matchObjectives(selected, rng);
+  // Objectives have their own stream on the current engine (match-15, decision 3), so the hub
+  // can show them before matchday; earlier engines draw them here from the preview stream.
+  const objectives = latest(setup)
+    ? objectivesFor(setup.seed, selected)
+    : matchObjectives(selected, rng);
   const consistencyShift = Math.round(
     (rng.next() * 2 - 1) * (1 - selected.hidden.consistency / 100) * C.decision.consistencySpread,
   );
