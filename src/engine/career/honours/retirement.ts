@@ -131,32 +131,23 @@ export interface HallOfFameStanding {
   /** The lowest score above this one: the next name to pass. */
   next: { id: string; name: string; score: number } | null;
 }
+/** One person in the Hall of Fame table: who, and what their record is worth. */
+interface HallOfFameEntry {
+  id: string;
+  score: number;
+}
 /**
- * Rank a score among every player the world remembers, active, retired or archived, each
- * once. A former career is compared by its saved honour-inclusive legacy score, the same
- * criteria the new score uses, never by its club numbers alone.
+ * Every player the world remembers, active, retired or archived, each once, sorted by score
+ * and then id (ascending). A former career is listed with its saved honour-inclusive legacy
+ * score, the same criteria a new score uses, never with its club numbers alone; other players
+ * count their awards too (their trophies are not recorded).
  */
-export function hallOfFameStanding(
-  world: World,
-  score: number,
-  excludeId: string,
-): HallOfFameStanding {
-  let better = 0;
-  let of = 1;
-  let next: HallOfFameStanding['next'] = null;
-  const counted = new Set<string>([excludeId]);
-  const compare = (id: string, value: number, name: () => string) => {
-    if (counted.has(id)) return;
-    counted.add(id);
-    of++;
-    if (value <= score) return;
-    better++;
-    if (!next || value < next.score || (value === next.score && id < next.id))
-      next = { id, name: name(), score: value };
+export function hallOfFameTable(world: World): readonly HallOfFameEntry[] {
+  const scores = new Map<string, number>();
+  const add = (id: string, value: number) => {
+    if (!scores.has(id)) scores.set(id, value);
   };
-  for (const legacy of world.legacies)
-    compare(legacy.playerId, legacy.hallOfFame.score, () => legacy.name);
-  // Other players count their awards too (their trophies are not recorded).
+  for (const legacy of world.legacies) add(legacy.playerId, legacy.hallOfFame.score);
   const awards = new Map<string, number>();
   for (const award of world.awards)
     for (const id of award.winnerIds)
@@ -168,7 +159,7 @@ export function hallOfFameStanding(
             : awardWeight(award.kind) / H.hallOfFame.award),
       );
   for (const player of Object.values(world.players))
-    compare(
+    add(
       player.id,
       hallOfFameScore(player.stats, {
         caps: 0,
@@ -176,11 +167,72 @@ export function hallOfFameStanding(
         awards: awards.get(player.id) ?? 0,
         goldenBalls: 0,
       }),
-      () => player.name,
     );
   for (const [id, record] of Object.entries(world.archive?.players ?? {}))
-    compare(id, hallOfFameScore(record.stats), () => record.name);
+    add(id, hallOfFameScore(record.stats));
+  return [...scores]
+    .map(([id, score]) => ({ id, score }))
+    .sort((a, b) => a.score - b.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+/** The name the world remembers someone by: a legacy, a current player or the archive. */
+function rememberedName(world: World, id: string): string {
+  return (
+    world.legacies.find((legacy) => legacy.playerId === id)?.name ??
+    world.players[id]?.name ??
+    world.archive?.players[id]?.name ??
+    id
+  );
+}
+/** The first index in the sorted table whose score passes the test (scores ascend). */
+function firstWhere(table: readonly HallOfFameEntry[], test: (value: number) => boolean): number {
+  let low = 0;
+  let high = table.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (test(table[middle]!.score)) high = middle;
+    else low = middle + 1;
+  }
+  return low;
+}
+const firstAbove = (table: readonly HallOfFameEntry[], score: number) =>
+  firstWhere(table, (value) => value > score);
+const firstAtLeast = (table: readonly HallOfFameEntry[], score: number) =>
+  firstWhere(table, (value) => value >= score);
+/** Rank a score within a table, leaving out one person (the score's own owner). */
+function standingIn(
+  world: World,
+  table: readonly HallOfFameEntry[],
+  score: number,
+  excludeId: string,
+): HallOfFameStanding {
+  const above = firstAbove(table, score);
+  let better = table.length - above;
+  let of = table.length + 1;
+  let next: HallOfFameStanding['next'] = null;
+  for (let index = above; index < table.length; index++) {
+    const entry = table[index]!;
+    if (entry.id === excludeId) continue;
+    next = { id: entry.id, name: rememberedName(world, entry.id), score: entry.score };
+    break;
+  }
+  if (table.some((entry) => entry.id === excludeId)) {
+    of--;
+    const own = table.find((entry) => entry.id === excludeId)!;
+    if (own.score > score) better--;
+  }
   return { rank: better + 1, of, next };
+}
+/**
+ * Rank a score among every player the world remembers, active, retired or archived, each
+ * once (`hallOfFameTable`), leaving out `excludeId`. Always worked out afresh: retirement and
+ * the invariants use it. Screens use the memoised `liveHallOfFame` instead.
+ */
+export function hallOfFameStanding(
+  world: World,
+  score: number,
+  excludeId: string,
+): HallOfFameStanding {
+  return standingIn(world, hallOfFameTable(world), score, excludeId);
 }
 export function hallOfFameRank(
   world: World,
@@ -189,6 +241,63 @@ export function hallOfFameRank(
 ): { rank: number; of: number } {
   const { rank, of } = hallOfFameStanding(world, score, excludeId);
   return { rank, of };
+}
+
+/**
+ * The table changes only when matches are played, awards are given or careers end: the
+ * memoised copy is kept per world state (`world.id`, the date and phase, and those counts),
+ * so the hub, the Trophies page and the Legacy page share one pass over every player a week.
+ */
+let cachedTable: { key: string; table: readonly HallOfFameEntry[] } | null = null;
+function tableKey(world: World): string {
+  const { season, week, day } = world.date;
+  return [
+    world.id,
+    season,
+    week,
+    day,
+    world.phase,
+    world.career?.matches.length ?? -1,
+    Object.keys(world.results).length,
+    world.awards.length,
+    world.legacies.length,
+    world.legacies.reduce((sum, legacy) => sum + legacy.hallOfFame.score, 0),
+    Object.keys(world.archive?.players ?? {}).length,
+  ].join('|');
+}
+/** The Hall of Fame table for a world state, worked out once per week (see `tableKey`). */
+export function memoisedHallOfFameTable(world: World): readonly HallOfFameEntry[] {
+  const key = tableKey(world);
+  if (cachedTable?.key !== key) cachedTable = { key, table: hallOfFameTable(world) };
+  return cachedTable.table;
+}
+/**
+ * The person just below a score, with the rank they hold: "ahead of Kai Mercer, #9". The
+ * table may include `excludeId` (the score's owner), who is skipped. Null at the bottom.
+ */
+export function hallOfFameBelow(
+  world: World,
+  score: number,
+  excludeId: string,
+): { id: string; name: string; score: number; rank: number } | null {
+  const table = memoisedHallOfFameTable(world);
+  // The highest score below this one; among equal scores the lowest id, as `next` does.
+  let index = firstAtLeast(table, score) - 1;
+  while (index >= 0 && table[index]!.id === excludeId) index--;
+  if (index < 0) return null;
+  let first = firstAtLeast(table, table[index]!.score);
+  while (table[first]!.id === excludeId) first++;
+  const entry = table[first]!;
+  // Their rank: everyone else above them, plus the score's owner.
+  const owner = table.find((other) => other.id === excludeId);
+  const above =
+    table.length - firstAbove(table, entry.score) - (owner && owner.score > entry.score ? 1 : 0);
+  return {
+    id: entry.id,
+    name: rememberedName(world, entry.id),
+    score: entry.score,
+    rank: above + 2,
+  };
 }
 /** The career player's Hall of Fame score as it stands, honours included, as retirement adds it. */
 export function careerHallOfFameScore(world: World): number {
@@ -210,10 +319,41 @@ export function careerHallOfFameScore(world: World): number {
     goldenBalls,
   });
 }
-/** The career's place in the Hall of Fame right now, for the hub and ambitions. */
+/**
+ * The career's place in the Hall of Fame right now, for ambitions. Worked out afresh, so the
+ * engine never depends on what a screen happened to cache.
+ */
 export function liveHallOfFame(world: World): HallOfFameStanding & { score: number } {
   const score = careerHallOfFameScore(world);
   return { score, ...hallOfFameStanding(world, score, world.career!.playerId) };
+}
+/**
+ * The same standing for screens ("#4 of 3,812" on the hub, the Trophies page and ambitions),
+ * from the memoised table: the career's own score is always current, everyone else's is the
+ * week's. Identical to `liveHallOfFame` for the same world state.
+ */
+export function liveHallOfFameRank(world: World): HallOfFameStanding & { score: number } {
+  const score = careerHallOfFameScore(world);
+  return {
+    score,
+    ...standingIn(world, memoisedHallOfFameTable(world), score, world.career!.playerId),
+  };
+}
+/**
+ * Who a retired career is just ahead of in the Hall of Fame, for the Legacy page. The legacy
+ * keeps the rank it retired with; while the world's table still agrees with it, the next name
+ * down is shown. Once others have moved past (the world plays on), there is no line rather
+ * than one that mixes two moments.
+ */
+export function legacyNeighbour(
+  world: World,
+  legacy: Pick<Legacy, 'playerId' | 'hallOfFame'>,
+): { name: string; rank: number } | null {
+  const { score, rank } = legacy.hallOfFame;
+  if (standingIn(world, memoisedHallOfFameTable(world), score, legacy.playerId).rank !== rank)
+    return null;
+  const below = hallOfFameBelow(world, score, legacy.playerId);
+  return below ? { name: below.name, rank: below.rank } : null;
 }
 
 /**

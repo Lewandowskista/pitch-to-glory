@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { World } from '../../model/domain';
 import { CONFIG } from '../../engine/config';
 import {
   canAnnounceFarewell,
+  liveHallOfFameRank,
   retirementAge,
   retirementState,
 } from '../../engine/career/honours/retirement';
@@ -17,6 +19,25 @@ import { useUrlDialog } from './useUrlDialog';
 import { withSave } from './agenda';
 
 const R = CONFIG.career.honours.retirement;
+const integer = new Intl.NumberFormat('en');
+
+/**
+ * "Hall of Fame #4 of 3,812": where the career stands right now, scored as retirement will
+ * score it. Nothing until the career has a score (a tie at nothing is not a rank).
+ */
+export function HallOfFameRankLine({ world, className }: { world: World; className?: string }) {
+  // The table reads every player the world remembers; it is memoised per world state.
+  const standing = useMemo(() => liveHallOfFameRank(world), [world]);
+  if (standing.score <= 0) return null;
+  return (
+    <p className={className} data-testid="hall-of-fame-rank">
+      {format(h.hallOfFameLive.line, {
+        rank: standing.rank,
+        of: integer.format(standing.of),
+      })}
+    </p>
+  );
+}
 
 /** Hub card: caps, honours and, late in a career, the choice to retire. */
 export function HonoursSummary({
@@ -81,6 +102,7 @@ export function HonoursSummary({
           <p className="text-[0.8125rem]">
             {plural(caps, h.hub.cap, h.hub.caps)} · {plural(goals, h.hub.goal, h.hub.goals)}
           </p>
+          <HallOfFameRankLine world={world} className="text-[0.8125rem] font-bold" />
         </div>
         <ButtonLink variant="secondary" to={withSave('/career/trophies', params.get('save'))}>
           {h.hub.open}

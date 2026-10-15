@@ -62,7 +62,7 @@ import { challengeDone, fameProgress } from '../../engine/career/lifestyle';
 import { lifestyleText as l } from '../../i18n/lifestyle';
 import { honoursText as h } from '../../i18n/honours';
 import { fameName, useChallengeRefresh } from './lifestyleUi';
-import { HonoursSummary } from './honoursHub';
+import { HallOfFameRankLine, HonoursSummary } from './honoursHub';
 import { Glyph, ordinal, type GlyphName } from './honoursUi';
 import { Tutorial } from '../../ui/Tutorial';
 import { agendaText as a } from '../../i18n/agenda';
@@ -1746,6 +1746,7 @@ function HonoursTile({ world }: { world: World }) {
           goals: plural(goals, h.hub.goal, h.hub.goals),
         })}
       </p>
+      <HallOfFameRankLine world={world} className="font-bold" />
     </Tile>
   );
 }
