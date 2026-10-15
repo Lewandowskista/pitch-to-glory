@@ -21,6 +21,7 @@ import {
 import { CONFIG } from '../../engine/config';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import { StakeLine } from './stakesUi';
+import { ManagerPlan } from './briefUi';
 import { lazyPage } from '../../ui/lazyPage';
 import { chooseRecovery } from '../../engine/career/training';
 import { canAnnounceFarewell, retirementState } from '../../engine/career/honours/retirement';
@@ -567,6 +568,9 @@ function NextMatch({
           </p>
         )}
         {fixture && !complete && <StakeLine world={world} fixture={fixture} />}
+        {fixture && !complete && !awaitingRecovery && (
+          <ManagerPlan world={world} fixture={fixture} />
+        )}
         {pending && !session && (
           <p className="max-w-prose text-sm text-hero-muted max-sm:order-1">{c.hub.matchdayBody}</p>
         )}

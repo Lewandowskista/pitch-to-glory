@@ -184,6 +184,14 @@ export const CONFIG = {
   /** Career player progression (milestone 4). See docs/BALANCING.md. */
   career: {
     /**
+     * The manager's pre-match plan on the hub (`career/brief.ts`, phase 7 C2). The player
+     * "starts" when picked, or for a later fixture when the selection chance is at least
+     * `startChance`. The outlook compares the two sides' expected goals: favourites at
+     * `outlookGoals` or more ahead, underdogs as far behind. A culture value of `trait` or more
+     * colours the plan's closing line, the youth line for players up to `youthAge`.
+     */
+    brief: { startChance: 0.5, outlookGoals: 0.35, trait: 65, youthAge: 21 },
+    /**
      * End-of-season review grade (0–100): playing time (share of the club's matches), the
      * average rating from `ratingFloor` over `ratingSpan`, goal involvements (or clean sheets) a
      * match against the position's reference, a trophy, up to two season awards, and the club's
