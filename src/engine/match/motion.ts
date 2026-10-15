@@ -1425,9 +1425,30 @@ function director(
   );
 }
 const lastFrame = (session: MatchSession) => session.state.frames[session.state.frames.length - 1]!;
+/**
+ * Cost probe for `npm run profile:match`: with a clock set, every passage adds its duration.
+ * Unset in the game, so it costs nothing and never touches replayed state.
+ */
+export const motionProbe: { clock: (() => number) | null; ms: number; passages: number } = {
+  clock: null,
+  ms: 0,
+  passages: 0,
+};
+function timed<T>(work: () => T): T {
+  const clock = motionProbe.clock;
+  if (!clock) return work();
+  const start = clock();
+  const result = work();
+  motionProbe.ms += clock() - start;
+  motionProbe.passages++;
+  return result;
+}
 
 /** The opening kickoff: both teams in their halves, the home side on the ball. */
 export function openingKickoff(session: MatchSession): { frame: ReplayFrame; play: PlayState } {
+  return timed(() => kickoffScene(session));
+}
+function kickoffScene(session: MatchSession): { frame: ReplayFrame; play: PlayState } {
   const scene = director(session, null, 0, 'kickoff');
   scene.placeKickoff(0, true);
   const frame = { ...scene.frames[scene.frames.length - 1]!, timeMs: 0 };
@@ -1435,6 +1456,9 @@ export function openingKickoff(session: MatchSession): { frame: ReplayFrame; pla
 }
 /** A simulated minute: its events plus enough ordinary possession to fill it. */
 export function minutePassage(session: MatchSession, events: MatchEvent[]): Passage {
+  return timed(() => minuteScene(session, events));
+}
+function minuteScene(session: MatchSession, events: MatchEvent[]): Passage {
   const minute = session.state.match.minute;
   const scene = director(session, lastFrame(session), (minute - 1) * 60000, 'minute');
   scene.run(events, null);
@@ -1443,6 +1467,14 @@ export function minutePassage(session: MatchSession, events: MatchEvent[]): Pass
 }
 /** The build-up to a key moment, ending with the scene the decision is drawn on. */
 export function momentPassage(
+  session: MatchSession,
+  situation: Situation,
+  spot: Point,
+  opponents: { defender?: string; attacker?: string },
+): Passage {
+  return timed(() => momentScene(session, situation, spot, opponents));
+}
+function momentScene(
   session: MatchSession,
   situation: Situation,
   spot: Point,
@@ -1460,6 +1492,9 @@ export function outcomePassage(
   events: MatchEvent[],
   situationId: string,
 ): Passage {
+  return timed(() => outcomeScene(session, events, situationId));
+}
+function outcomeScene(session: MatchSession, events: MatchEvent[], situationId: string): Passage {
   const minute = session.state.match.minute;
   const scene = director(session, lastFrame(session), minute * 60000 - 20000, 'outcome');
   scene.run(events, SITUATION_BY_ID[situationId] ?? null);
