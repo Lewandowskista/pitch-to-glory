@@ -364,3 +364,26 @@ Crosses are lofted 60 % of the time; a lofted cross met first time is a header, 
 - The UI calls `narrationFeed(session, shown?)` for display lines in order (names as surnames, flank words translated); lines of the passage now playing appear once playback reaches their keyframe (`shown`).
 
 **Cost.** Narration is timed inside the motion probe. Motion plus narration costs about 5.4–6 ms a match in Node (narration about 0.55 ms of it; before the patterns, motion was about 4.4–5.3 ms on the same machine), within the 10 ms gate. Patterns add about 10 % more keyframes a match.
+
+## Decisions on the pitch (engine `match-15`)
+
+Redesign phase 6 (steps M4, M5, M7 and M8 and decision 3 in [REDESIGN-IMPLEMENTATION.md](REDESIGN-IMPLEMENTATION.md)) changes outcomes by design, one step at a time, each re-gated against the 10,000-match test, the fairness tests and `npm run profile:match`. The rules apply to the current engine path (setups with `occasions`); the earlier paths (`match-10-lines` to `match-13`) keep theirs, checked byte-identical against `match-14` after every step. `MATCH_ENGINE_VERSION` is `match-15`: a session saved by `match-14` fails validation with `OutdatedMatchSessionError`, and the save keeps the world and restarts the fixture from its seed.
+
+Distribution of the 10,000-match gate after each step (`goalsPerMatch` / `homeWin` / `draw` / `closeUpset` / `wideUpset`):
+
+| Step                | Goals  | Home win | Draw   | Close upset | Wide upset |
+| ------------------- | ------ | -------- | ------ | ----------- | ---------- |
+| `match-14` baseline | 2.6594 | 0.423    | 0.2602 | 0.224       | 0.087      |
+| M4 cast and targets | 2.6507 | 0.4195   | 0.264  | 0.232       | 0.086      |
+
+### M4: the cast and each choice's target
+
+**Cast.** Every key moment carries `KeyMoment.zone` (`def`, `mid`, `final`: the third of the situation's spot) and `KeyMoment.cast` (`MomentCast`): `selected`; `presser` (attacking: the opponent set goal-side of you, drawn for the odds by `contextFor`; defending: the attacker on the ball); `cover` (attacking: the next one or two opponents nearest the ball; defending: the one or two teammates nearest it); `keeper` (theirs when the spot is in the final third, yours in your own third, none when you are the keeper); `free` (the teammates the moment's passes go to); `runner` (attacking: the receiver of a ball in behind; defending: their attacker nearest you, off the ball); `crosser` (the teammate crossing an aerial chance, or their winger on a cross into your box). `scene()` names them after the build-up and moves them towards their marks in the scene's last keyframe, as far as a sprint takes them in its time (covering opponents goal-side of the spot, the runner on the offside line, free teammates a step into space, covering teammates goal-side of the ball; set pieces keep their set-up). Every cast id is on the pitch in the moment's frame.
+
+**Receivers before the choice.** Each pass-type choice (a `pass` event whose chance falls to a teammate) has its receiver drawn on `${seed}:receiver:${minute}` (`:chain` or `:shootout` for a follow-up moment) when the moment opens, like a finisher (strikers 4, other attackers 3, central midfielders 2, others 1; never the keeper or the player), one draw per pass-type choice in catalogue order, locked choices included so the stream never shifts. `resolveChoice` gives a successful pass's chance to that teammate instead of drawing a finisher on the decision stream, so the arrow drawn before the choice points at the player who receives the ball (motion plays the pass to them whatever the move) and takes the chance. Failed shots' rebounds and conceded chances still draw their players on the decision stream.
+
+**The spot's width.** The situation's spot is on the side of the selected player's formation post (`in` width when attacking, `out` when defending) instead of a random mirror, pulled 30 % of the way towards the post in open play (box chance, build-up, edge of the area, aerial chance, defending an attack, building out), plus a jitter of ±4 drawn last on the situation stream, so the situation, the opponents and their abilities are drawn exactly as before.
+
+**Targets.** `DecisionChoice.target` (`ChoiceTarget`): shots at a post (`near-post` the post on the shooter's side, `far-post`, `curler` and the placed penalty the other; everything else where the catalogue aims it, `centre`), and the strike goes there; passes to the named teammate (`teammate`, their point in the frame); carries along their lane (`lane`, the carry the outcome plays); challenges on the attacker on the ball (tackles, blocks, rushing out) or the runner (`runner`); and the space an interception, a jockey, a step up or a drop off, a goal-line clearance or a claimed cross goes to (`lane`).
+
+**Camera.** `src/screens/match/cam.ts` uses the engine's cast (labels: pressing, on the ball, covering, free, runner, crossing) and draws one arrow for every targeted choice (shots to a marked near or far post, passes to the named teammate, dotted lanes, solid challenges); the frame-based derivation stays for sessions from earlier engines.

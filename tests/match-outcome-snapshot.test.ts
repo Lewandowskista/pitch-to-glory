@@ -27,18 +27,24 @@ import type { Position } from '../src/model/domain';
  * Narrative-only engine steps must keep these hashes byte-identical. A step that is meant to
  * change outcomes (a re-gate step) updates them deliberately, together with the 10,000-match
  * gate. Run with `SNAPSHOT_PRINT=1` to print the current values.
+ *
+ * Re-gated in redesign phase 6 (engine match-15), one step at a time; the earlier engine
+ * paths (variants 0 and 1) were checked byte-identical against match-14 at every step:
+ * - M4 cast and targets: a pass reaches the teammate named before the choice (the receiver is
+ *   drawn on its own stream instead of the decision stream), so every later roll in a decision
+ *   shifts.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '1f56879c0b29369ffec1b611', goals: 63, moments: 214 },
-  CB: { hash: 'f27f6446d2e6f177cc252e1a', goals: 64, moments: 228 },
-  LB: { hash: 'a315c70a04b760ca1c4a9bc6', goals: 52, moments: 241 },
-  DM: { hash: 'ae7d47f60e1513ec154e8cba', goals: 57, moments: 209 },
-  CM: { hash: '27d3b1c656b604f9a0430abd', goals: 73, moments: 242 },
-  AM: { hash: '22acb2d29c359ab1eb0c4e0b', goals: 71, moments: 277 },
-  RW: { hash: '340a7c0a8fb140504b7d008e', goals: 55, moments: 296 },
-  ST: { hash: '9353f3a431d709a98fc680e4', goals: 70, moments: 302 },
+  GK: { hash: 'd4ba7406a1202a740abe8ce6', goals: 63, moments: 214 },
+  CB: { hash: '6a91fbb8db11115ea8039516', goals: 64, moments: 228 },
+  LB: { hash: 'fa3d61ef176b39d6ba846e53', goals: 52, moments: 241 },
+  DM: { hash: '539bdd1d2333a33b5b6d87f0', goals: 58, moments: 208 },
+  CM: { hash: 'a9baaf4ef0a556972b65190d', goals: 74, moments: 244 },
+  AM: { hash: 'd83caa6eef01092f0ca19a48', goals: 71, moments: 277 },
+  RW: { hash: '9c27b2b7b703e5395df4578c', goals: 55, moments: 296 },
+  ST: { hash: 'ddc93956cfc458ea17493eeb', goals: 70, moments: 302 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });

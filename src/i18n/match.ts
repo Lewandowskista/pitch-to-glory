@@ -265,6 +265,21 @@ export const matchText = {
     camFree: '{name} (free)',
     camPress: '{name}, pressing you',
     camKeeper: '{name}, keeper',
+    /** Visible role labels on the engine's cast (match-15). */
+    camRoles: {
+      press: '{name} (pressing)',
+      carrier: '{name} (on the ball)',
+      cover: '{name} (covering)',
+      runner: '{name} (runner)',
+      crosser: '{name} (crossing)',
+    },
+    /** Spoken role descriptions for the camera's label. */
+    camSpoken: {
+      carrier: '{name}, on the ball',
+      cover: '{name}, covering',
+      runner: '{name}, making a run',
+      crosser: '{name}, crossing',
+    },
     camPosts: { near: 'Near post', far: 'Far post' },
     outcomeChose: 'Key moment · {minute}′ · you chose {choice}',
     successZone: 'Success zone 0–{chance}',

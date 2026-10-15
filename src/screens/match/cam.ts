@@ -4,12 +4,28 @@ import { attacksRightAt, SITUATION_BY_ID, type MatchSetup } from '../../engine/m
 /**
  * The tactical camera's geometry (redesign phase 5b). A key moment is drawn on a vertical
  * pitch with the selected player's team attacking north, framed on the third where the play
- * is and showing only the players involved. Until the engine names the cast (phase 6, M4),
- * the cast is derived here from the moment's frame. Everything is in metres: `x` across the
- * pitch (0–68, the attacking team's left to right) and `y` from the goal it attacks (0–105).
+ * is and showing only the players involved. From engine match-15 (phase 6, M4) the engine
+ * names the cast and each choice's target; sessions from earlier engines derive the cast here
+ * from the moment's frame. Everything is in metres: `x` across the pitch (0–68, the attacking
+ * team's left to right) and `y` from the goal it attacks (0–105).
  */
 export type CamZone = 'final' | 'middle' | 'defensive';
-export type CastRole = 'you' | 'press' | 'free' | 'keeper' | 'opponent' | 'teammate';
+/**
+ * `press`: the opponent closing you down; `carrier`: the attacker on the ball when you defend;
+ * `cover`: players covering (opponents when you attack, teammates when you defend); `runner`:
+ * your runner in behind, or theirs to track; `crosser`: who delivers an aerial ball.
+ */
+export type CastRole =
+  | 'you'
+  | 'press'
+  | 'carrier'
+  | 'cover'
+  | 'free'
+  | 'runner'
+  | 'crosser'
+  | 'keeper'
+  | 'opponent'
+  | 'teammate';
 export interface CastMember {
   id: string;
   role: CastRole;
@@ -30,6 +46,8 @@ export interface CamArrow {
   to: Point;
   /** "Near post" / "Far post" when the target is a named post. */
   post?: 'near' | 'far';
+  /** What the arrow shows: a shot, a pass to a teammate, a carry or step, or a challenge. */
+  kind?: 'shot' | 'pass' | 'lane' | 'player';
 }
 
 export const PITCH_WIDTH_M = 68;
@@ -236,6 +254,93 @@ export function lastPass(frames: readonly ReplayFrame[], upTo: number) {
 }
 export const isPassBeat = (kind: string | undefined) => Boolean(kind && PASS_BEATS.has(kind));
 
+/**
+ * The cast the engine named (match-15), in the camera's roles: you first, then the opponent
+ * closing you down (or the attacker on the ball when you defend), the runner, the crosser,
+ * those covering, teammates in space and the keeper that matters. Null for earlier engines.
+ */
+export function engineCast(
+  moment: KeyMoment,
+  setup: Pick<MatchSetup, 'home' | 'away' | 'selectedPlayerId'>,
+  attacking: boolean,
+): CastMember[] | null {
+  const cast = moment.cast;
+  if (!cast) return null;
+  const own = new Set(
+    (setup.home.playerIds.includes(setup.selectedPlayerId) ? setup.home : setup.away).playerIds,
+  );
+  const members: CastMember[] = [{ id: cast.selected, role: 'you', own: true }];
+  const add = (id: string | undefined, role: CastRole) => {
+    if (id && !members.some((member) => member.id === id))
+      members.push({ id, role, own: own.has(id) });
+  };
+  add(cast.presser, attacking ? 'press' : 'carrier');
+  add(cast.runner, 'runner');
+  add(cast.crosser, 'crosser');
+  for (const id of cast.cover) add(id, 'cover');
+  for (const id of cast.free) add(id, 'free');
+  add(cast.keeper, 'keeper');
+  return members;
+}
+
+const CAM_ZONES: Record<NonNullable<KeyMoment['zone']>, CamZone> = {
+  def: 'defensive',
+  mid: 'middle',
+  final: 'final',
+};
+/** Pulls an arrow's head back from a player's token so it stays visible. */
+function short(from: Point, to: Point, metres: number): Point {
+  const length = distance(from, to);
+  if (length <= metres * 2) return to;
+  return {
+    x: to.x - ((to.x - from.x) * metres) / length,
+    y: to.y - ((to.y - from.y) * metres) / length,
+  };
+}
+/**
+ * Arrows from the engine's choice targets (match-15): a shot to the near or far post (marked)
+ * or where it is aimed, a pass to the named teammate, a carry's lane or the space a defender
+ * steps into, and a challenge on the attacker or the runner to track. Null for earlier engines.
+ */
+export function targetArrows(
+  moment: KeyMoment,
+  you: Point,
+  attacksRight: boolean,
+): CamArrow[] | null {
+  if (!moment.choices.some((choice) => choice.target)) return moment.cast ? [] : null;
+  const at = (id: string) => {
+    const point = moment.frame.players.find((p) => p.id === id)?.point;
+    return point ? toCam(point, attacksRight) : undefined;
+  };
+  const arrows: CamArrow[] = [];
+  moment.choices.forEach((choice, index) => {
+    const target = choice.target;
+    if (!target) return;
+    const number = index + 1;
+    if (target.kind === 'goal') {
+      arrows.push({
+        number,
+        from: you,
+        to: toCam(target.point, attacksRight),
+        kind: 'shot',
+        ...(target.post !== 'centre' ? { post: target.post } : {}),
+      });
+    } else if (target.kind === 'lane') {
+      arrows.push({ number, from: you, to: toCam(target.point, attacksRight), kind: 'lane' });
+    } else {
+      const to = at(target.playerId);
+      if (to)
+        arrows.push({
+          number,
+          from: you,
+          to: short(you, to, 2.2),
+          kind: target.kind === 'teammate' ? 'pass' : 'player',
+        });
+    }
+  });
+  return arrows;
+}
+
 /** Everything the camera needs for a key moment, at an aspect ratio (phones crop wider). */
 export function momentCamera(
   setup: Pick<MatchSetup, 'home' | 'away' | 'players' | 'selectedPlayerId'>,
@@ -247,15 +352,14 @@ export function momentCamera(
   const ball = toCam(moment.frame.ball, attacksRight);
   const youPoint = moment.frame.players.find((p) => p.id === setup.selectedPlayerId)?.point;
   const you = youPoint ? toCam(youPoint, attacksRight) : undefined;
-  const window = camWindow(zoneOf(ball, you), aspect);
-  const cast = deriveCast(
-    moment.frame,
-    setup,
-    attacksRight,
-    window,
-    attackingMoment(moment, side, setup.home),
-  );
-  return { attacksRight, window, cast, arrows: you ? choiceArrows(moment, you) : [] };
+  const window = camWindow(moment.zone ? CAM_ZONES[moment.zone] : zoneOf(ball, you), aspect);
+  const attacking = attackingMoment(moment, side, setup.home);
+  // The engine's cast and targets (match-15); the derivation stays for earlier sessions.
+  const cast =
+    engineCast(moment, setup, attacking) ??
+    deriveCast(moment.frame, setup, attacksRight, window, attacking);
+  const arrows = you ? (targetArrows(moment, you, attacksRight) ?? choiceArrows(moment, you)) : [];
+  return { attacksRight, window, cast, arrows };
 }
 /** The phones' camera crop: a little wider than the desktop frame, to save height. */
 export const COMPACT_ASPECT = 1.9;

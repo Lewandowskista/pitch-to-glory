@@ -14,11 +14,14 @@ export type { Tactics } from '../../model/domain';
 
 /**
  * Bumped whenever replayed state changes; saved sessions from another engine are discarded.
- * `match-14` annotates the choreography (beats, a focus range) and keeps bookkeeping stats
- * (xG, shots on target, key passes, distance, touches, a rating line and a heat grid) without
- * changing any outcome of `match-13`.
+ * `match-14` annotated the choreography (beats, a focus range) and kept bookkeeping stats
+ * without changing any outcome of `match-13`. `match-15` (redesign phase 6) changes outcomes
+ * by design: key moments name their cast and each choice's target (a pass reaches the teammate
+ * named before the choice), "Track the runner" when defending, objectives on their own stream,
+ * cosmetic yellow cards, AI substitutions with a bench of seven, and weather intensity with a
+ * pitch state as separate odds factors.
  */
-export const MATCH_ENGINE_VERSION = 'match-14';
+export const MATCH_ENGINE_VERSION = 'match-15';
 /**
  * The engine before big occasions (a shootout kick, chained moments, final and derby
  * headlines). A setup with `dramaMoments` but without `occasions` still replays as it was.
