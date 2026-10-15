@@ -74,15 +74,6 @@ select {
 .swatches span {
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
 }
-.slot-art {
-  border-block: 1px solid var(--line);
-}
-.slot-copy h2 {
-  letter-spacing: -0.02em;
-}
-.storage-panel {
-  border: 1px solid var(--line);
-}
 /* Competition / squad rows: enough breathing room for crests and numeric columns. */
 :is(.standings-table, .squad-table) {
   font-variant-numeric: tabular-nums;
@@ -97,16 +88,6 @@ select {
 }
 .club-kits {
   border: 1px solid var(--line);
-}
-.setting-section {
-  padding-block: 1.25rem;
-}
-.theme-selector label {
-  padding: 1rem;
-}
-.sound-previews .button {
-  min-height: 44px;
-  padding: 0.55rem 0.8rem;
 }
 .skill-sheet {
   border: 1px solid var(--line);

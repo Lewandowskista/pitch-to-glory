@@ -15,30 +15,6 @@
   .crest-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .slot-grid {
-    gap: 0.8rem;
-  }
-  .slot-header,
-  .slot-copy,
-  .slot-actions {
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-  .slot-art {
-    height: 130px;
-  }
-  .settings-layout {
-    gap: 2rem;
-  }
-  .storage-panel {
-    flex-wrap: wrap;
-  }
-  .storage-panel > div {
-    flex: 1;
-  }
-  .storage-panel .button {
-    margin-left: 2rem;
-  }
 }
 @media (max-width: 900px) {
   .career-tabs ul {
@@ -95,30 +71,8 @@
     padding: 0.5rem;
     gap: 0.5rem;
   }
-  .slot-grid {
-    grid-template-columns: 1fr;
-  }
-  .slot-art {
-    height: 140px;
-  }
-  .slot-art img {
-    width: 80px;
-  }
-  .slot-art img:nth-child(2) {
-    width: 100px;
-  }
-  .slot-tools {
-    gap: 1.25rem;
-  }
-  .slot-tools button,
-  .file-button {
-    font-size: 0.75rem;
-  }
   .kit-grid,
   .avatar-grid {
-    grid-template-columns: 1fr;
-  }
-  .settings-layout {
     grid-template-columns: 1fr;
   }
 }
@@ -338,26 +292,6 @@
   }
   .kit-trio p {
     font-size: 0.75rem;
-  }
-  .storage-panel {
-    padding: 1.2rem;
-    margin-top: 1.75rem;
-  }
-  .storage-panel .button {
-    margin-left: 0;
-    width: 100%;
-  }
-  .storage-panel > svg {
-    display: none;
-  }
-  .theme-selector {
-    gap: 0.6rem;
-  }
-  .theme-selector label {
-    padding: 1rem 0.5rem;
-  }
-  .motion-setting {
-    gap: 1rem;
   }
   .page-footer {
     font-size: 0.75rem;
