@@ -434,4 +434,8 @@ export const socialText = {
       body: 'Your rival has joined {club} for {fee}.',
     },
   } as Record<string, { subject: string; body: string }>,
+  /** Phase 7 (C6): a press exchange with the rival, on the rivalry timeline. */
+  rivalPress: {
+    entry: 'You said: "{answer}" {rival} hit back: "{reply}"',
+  },
 };

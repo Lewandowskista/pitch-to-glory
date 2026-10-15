@@ -528,6 +528,12 @@ function RivalContent({
                 s.rival.outcomes[String(params.outcome) as keyof typeof s.rival.outcomes];
             if (entry.kind === 'season')
               params.verdict = params.ahead ? s.rival.verdicts.ahead : s.rival.verdicts.behind;
+            if (entry.kind === 'media')
+              params.text = format(s.rivalPress.entry, {
+                rival: String(params.rival ?? ''),
+                answer: s.answers[String(params.answer)] ?? '',
+                reply: format(s.posts[String(params.reply)] ?? '', params),
+              });
             const look = ENTRY[entry.kind];
             return (
               <li
