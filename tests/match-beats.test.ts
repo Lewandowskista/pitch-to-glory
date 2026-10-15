@@ -329,7 +329,11 @@ describe('match bookkeeping stats', { timeout: 120000 }, () => {
   it('treats sessions saved before the annotations as outdated', () => {
     const { session } = matches[0]!;
     expect(session.engine).toBe(MATCH_ENGINE_VERSION);
-    expect(MATCH_ENGINE_VERSION).toBe('match-14');
+    expect(MATCH_ENGINE_VERSION).toBe('match-15');
+    // A session saved by match-14 is outdated on match-15 and restarts from its seed.
+    const previous = JSON.parse(JSON.stringify(session));
+    previous.engine = 'match-14';
+    expect(() => validateMatchSession(previous)).toThrow(OutdatedMatchSessionError);
     const legacy = matches.find((m) => !m.session.setup.formations)!.session;
     for (const saved of [session, legacy]) {
       const before = JSON.parse(JSON.stringify(saved));

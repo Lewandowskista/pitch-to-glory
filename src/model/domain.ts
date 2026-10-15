@@ -1301,6 +1301,32 @@ export interface ProbabilityFactor {
   source: 'attribute' | 'trait' | 'defender' | 'fatigue';
   contribution: number;
 }
+/**
+ * Who a key moment involves (engine match-15, redesign step M4), named by the engine so the
+ * camera can label them: the opponent closing you down (or, when you defend, the one on the
+ * ball), the players covering (opponents when you attack, teammates when you defend), the
+ * keeper that matters, teammates in space, a runner (yours in behind, or theirs to track) and
+ * the crosser of an aerial ball. Every id is on the pitch in the moment's frame.
+ */
+export interface MomentCast {
+  selected: Id;
+  presser?: Id;
+  cover: Id[];
+  keeper?: Id;
+  free: Id[];
+  runner?: Id;
+  crosser?: Id;
+}
+/**
+ * Where a choice goes (engine match-15): a post of the goal attacked, a named teammate (the one
+ * a pass actually reaches), a lane to carry or step into, or a runner to track or challenge.
+ * Points are pitch coordinates of the moment's frame.
+ */
+export type ChoiceTarget =
+  | { kind: 'goal'; post: 'near' | 'far' | 'centre'; point: Point }
+  | { kind: 'teammate'; playerId: Id; point: Point }
+  | { kind: 'lane'; point: Point }
+  | { kind: 'runner'; playerId: Id };
 export interface DecisionChoice {
   id: Id;
   labelKey: string;
@@ -1319,6 +1345,8 @@ export interface DecisionChoice {
     failureGoal: number;
     failureConcede: number;
   };
+  /** Where the choice goes (engine match-15); absent on earlier engines. */
+  target?: ChoiceTarget;
 }
 export interface KeyMoment {
   id: Id;
@@ -1332,6 +1360,10 @@ export interface KeyMoment {
   /** A follow-up moment (match-13): the shot after a beaten defender, or the shootout kick. */
   follows?: 'chain' | 'shootout';
   frame: ReplayFrame;
+  /** The third the moment happens in, from the selected team's goal (engine match-15). */
+  zone?: PitchZone;
+  /** Who the moment involves (engine match-15); absent on earlier engines. */
+  cast?: MomentCast;
   /** Expected goals this moment replaces for the selected team and against it. */
   budget: { for: number; against: number };
   choices: DecisionChoice[];
@@ -1370,6 +1402,8 @@ export interface MatchEvent {
   zone?: PitchZone;
   /** On shots: the chance of a goal from this shot (engine match-14). */
   xg?: number;
+  /** On cards: the colour shown (engine match-15 books cosmetic yellows only). */
+  card?: 'yellow';
 }
 export interface MatchReport {
   playerId: Id;
@@ -1393,7 +1427,11 @@ export interface Match {
   home: Lineup;
   away: Lineup;
   weather: 'clear' | 'rain' | 'snow' | 'wind';
+  /** How hard it rains, blows or snows (engine match-15; absent on earlier engines). */
+  weatherIntensity?: 'light' | 'steady' | 'heavy';
   pitchCondition: number;
+  /** The pitch's state from the weather and its quality (engine match-15). */
+  pitchState?: 'firm' | 'good' | 'heavy' | 'frozen';
   instructionsKey: string;
   tactics: Tactics;
   objectives: Objective[];

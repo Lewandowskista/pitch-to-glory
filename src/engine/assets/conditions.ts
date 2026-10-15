@@ -1,5 +1,4 @@
 import type { Match } from '../../model/domain';
-import { CONFIG } from '../config';
 import { svg } from './shared';
 import { shapes, TONE, type Shape } from './illustration';
 
@@ -136,12 +135,7 @@ export function renderPitch(state: PitchState): string {
 }
 
 /**
- * The pitch's state from the weather and its quality (0–100): snow freezes it, rain or a
- * pitch below `pitchGood` (the quality at which close control starts to suffer) makes it
- * heavy, and a good pitch under clear skies is firm.
+ * The pitch's state from the weather, its intensity and the pitch's quality: the engine's own
+ * rule (engine/match/conditions.ts), so the icon always matches the factor in the choices.
  */
-export function pitchStateFor(weather: Weather, pitchCondition: number): PitchState {
-  if (weather === 'snow') return 'frozen';
-  if (weather === 'rain' || pitchCondition < CONFIG.match.conditions.pitchGood) return 'heavy';
-  return weather === 'clear' ? 'firm' : 'good';
-}
+export { pitchStateFor } from '../match/conditions';

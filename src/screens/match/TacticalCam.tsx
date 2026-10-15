@@ -23,14 +23,18 @@ const REPLAY_MAX_MS = 4200;
 
 export type CamView = 'final' | 'middle' | 'defensive' | 'replay';
 
-/** A cast member's label: the surname, with "(You)", "(free)" where it matters. */
+/**
+ * A cast member's label: the surname, with "(You)", "(free)" and, on the engine's cast, the
+ * role it plays ("(pressing)", "(covering)", "(runner)") where it matters.
+ */
 function labelOf(name: string, role: CastRole) {
   const short = surname(name);
-  return role === 'you'
-    ? matchFormat(u.camYou, { name: short })
-    : role === 'free'
-      ? matchFormat(u.camFree, { name: short })
-      : short;
+  if (role === 'you') return matchFormat(u.camYou, { name: short });
+  if (role === 'free') return matchFormat(u.camFree, { name: short });
+  if (role === 'press' || role === 'carrier' || role === 'cover' || role === 'runner')
+    return matchFormat(u.camRoles[role], { name: short });
+  if (role === 'crosser') return matchFormat(u.camRoles.crosser, { name: short });
+  return short;
 }
 /** The spoken form, which also names the presser and the keeper. */
 function spokenOf(name: string, role: CastRole) {
@@ -39,7 +43,9 @@ function spokenOf(name: string, role: CastRole) {
     ? matchFormat(u.camPress, { name: short })
     : role === 'keeper'
       ? matchFormat(u.camKeeper, { name: short })
-      : labelOf(name, role);
+      : role === 'carrier' || role === 'cover' || role === 'runner' || role === 'crosser'
+        ? matchFormat(u.camSpoken[role], { name: short })
+        : labelOf(name, role);
 }
 
 /** Token and label size in the drawing: larger on narrow screens so names stay readable. */
@@ -245,7 +251,10 @@ export function TacticalCam({
                   fill="none"
                   stroke={colour}
                   strokeWidth={4}
-                  strokeDasharray="12 9"
+                  // A carry or a step is dotted, a challenge on a player solid, a ball dashed.
+                  strokeDasharray={
+                    arrow.kind === 'lane' ? '3 8' : arrow.kind === 'player' ? undefined : '12 9'
+                  }
                   strokeLinecap="round"
                 />
                 <path d={head} fill={colour} />
@@ -309,7 +318,7 @@ export function TacticalCam({
               {you && (
                 <circle cx={x} cy={y} r={27 * scale} fill={pitchArt.gold} fillOpacity="0.32" />
               )}
-              {member.role === 'press' && (
+              {(member.role === 'press' || member.role === 'carrier') && (
                 <circle
                   cx={x}
                   cy={y}
@@ -357,7 +366,11 @@ export function TacticalCam({
                 height={19 * labelScale}
                 rx={9.5 * labelScale}
                 fill={
-                  you ? pitchArt.night : member.role === 'press' ? '#a72d30' : 'rgba(20,37,30,0.86)'
+                  you
+                    ? pitchArt.night
+                    : member.role === 'press' || member.role === 'carrier'
+                      ? '#a72d30'
+                      : 'rgba(20,37,30,0.86)'
                 }
                 stroke={you ? pitchArt.gold : 'none'}
                 strokeWidth="1.5"

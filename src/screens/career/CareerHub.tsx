@@ -22,6 +22,7 @@ import { CONFIG } from '../../engine/config';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import { StakeLine } from './stakesUi';
 import { ManagerPlan } from './briefUi';
+import { ObjectivesLine } from './objectivesUi';
 import { lazyPage } from '../../ui/lazyPage';
 import { chooseRecovery } from '../../engine/career/training';
 import { canAnnounceFarewell, retirementState } from '../../engine/career/honours/retirement';
@@ -571,6 +572,10 @@ function NextMatch({
         {fixture && !complete && !awaitingRecovery && (
           // Phones keep the action in the first view: the plan follows it there.
           <ManagerPlan world={world} fixture={fixture} className="max-sm:order-1" />
+        )}
+        {fixture && !complete && (
+          // On phones the objectives follow the action too, after the plan.
+          <ObjectivesLine world={world} fixture={fixture} className="max-sm:order-1" />
         )}
         {pending && !session && (
           <p className="max-w-prose text-sm text-hero-muted max-sm:order-1">{c.hub.matchdayBody}</p>

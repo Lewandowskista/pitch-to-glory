@@ -2,7 +2,9 @@ import type {
   BallMotion,
   Beat,
   BeatKind,
+  ChoiceTarget,
   MatchEvent,
+  MomentCast,
   PatternId,
   Point,
   ReplayFrame,
@@ -115,6 +117,8 @@ export interface Passage {
   onTarget: [number, number];
   /** The keyframes of the decision and what it led to (outcome passages). */
   focus?: { start: number; end: number };
+  /** Who a key moment involves, as placed in its scene (moment passages, match-15). */
+  cast?: MomentCast;
 }
 
 /** One width unit is 0.65 length units (68 m across, 105 m along). */
@@ -178,6 +182,8 @@ const CHALLENGES: Record<string, BeatKind> = {
 };
 /** Carries: depth gained and width moved towards the centre. */
 const CARRIES: Record<string, Spot> = {
+  /** Any other dribble. */
+  generic: { d: 9, w: 2 },
   'take-on': { d: 7, w: 3 },
   'drive-inside': { d: 6, w: 10 },
   'carry-forward': { d: 12, w: 0 },
@@ -186,6 +192,26 @@ const CARRIES: Record<string, Spot> = {
   'control-shoot': { d: 1.5, w: 0 },
 };
 
+/**
+ * Where a carrying choice takes the ball, in the carrier's attack frame: forward by the
+ * choice's depth and in from the touchline by up to its width. Null for other choices.
+ */
+export function carryLane(choiceId: string, from: Spot): Spot | null {
+  const style = CARRIES[choiceId];
+  if (!style) return null;
+  const toward = from.w < 50 ? 1 : -1;
+  return {
+    d: clamp(from.d + style.d, 2, 95),
+    w: clamp(from.w + toward * Math.min(style.w, Math.abs(50 - from.w)), 3, 97),
+  };
+}
+/** Who the engine has picked for a key moment before its scene is set (match-15). */
+export interface CastPlan {
+  /** Teammates the moment's passes go to, in choice order. */
+  receivers: string[];
+  /** The receiver of a ball in behind, who makes the run. */
+  runner?: string;
+}
 const tenth = (value: number) => Math.round(value * 10) / 10;
 const lerp = (a: Point, b: Point, t: number): Point => ({
   x: a.x + (b.x - a.x) * t,
@@ -242,6 +268,11 @@ class Director {
   pattern: PatternId | null = null;
   readonly onTarget: [number, number] = [0, 0];
   focus: { start: number; end: number } | undefined;
+  /** A key moment's cast once its scene is set (match-15). */
+  cast: MomentCast | undefined;
+  /** The opponent a scene sets goal-side of the selected player, and an aerial ball's crosser. */
+  private direct: string | undefined;
+  private crosser: string | undefined;
   /** How the ball reached the passage's first frame. */
   private readonly arrived: BallMotion | undefined;
   private time = 0;
@@ -1357,6 +1388,13 @@ class Director {
         this.focus = { start: this.focus?.start ?? start, end: this.frames.length - 1 };
     });
   }
+  /** The target the engine set for the choice an event plays (match-15), if any. */
+  private targetOf(event: MatchEvent): ChoiceTarget | undefined {
+    const moment = this.session.state.currentMoment;
+    const input = event.outcome?.input;
+    if (!moment || !input || input.momentId !== moment.id) return undefined;
+    return moment.choices.find((choice) => choice.id === input.choiceId)?.target;
+  }
   private mark(event: MatchEvent, point: Point, end: Point) {
     event.point = { x: tenth(point.x), y: tenth(point.y) };
     event.endPoint = { x: tenth(end.x), y: tenth(end.y) };
@@ -1391,7 +1429,12 @@ class Director {
     if (save) done.add(save);
     if (scored) done.add(scored);
     const template = situation?.choices.find((c) => c.id === event.outcome?.input.choiceId);
-    const aim = template?.target ?? 45.5 + this.rng.next() * 9;
+    // A shot at a named post (match-15) goes where the arrow pointed.
+    const aimed = this.targetOf(event);
+    const aim =
+      aimed?.kind === 'goal'
+        ? this.toSpot(side, aimed.point).w
+        : (template?.target ?? 45.5 + this.rng.next() * 9);
     let visual: ShotVisual;
     if (scored) visual = 'goal';
     else if (block) visual = 'block';
@@ -1536,10 +1579,16 @@ class Director {
     let pattern: PatternId | null = null;
     let then: ((holder: Actor) => void) | null = null;
     let exact = false;
+    // The teammate the engine named before the choice (match-15): the pass goes to them.
+    const named = this.targetOf(event);
+    const planned =
+      named?.kind === 'teammate'
+        ? team.find((actor) => actor.id === named.playerId && !actor.keeper)
+        : undefined;
     if (style === 'cross' && ((from.d > 66 && Math.abs(from.w - 50) > 17) || from.d > 80)) {
       // A cross into the box: wing play to a run at the near or far post.
       pattern = 'wing-play';
-      receiver = follower ?? byRole(team, 'striker', 'second-striker', 'attacking-mid');
+      receiver = planned ?? follower ?? byRole(team, 'striker', 'second-striker', 'attacking-mid');
       target = pitch(crossFinish(wing, this.rng.next() < 0.5 ? 'near' : 'far', this.rng));
     } else if (style === 'cross') {
       // Switch play: a long diagonal to the far flank, then the attack goes down that side.
@@ -1574,7 +1623,8 @@ class Director {
       // A ball in behind for a runner.
       pattern = 'through-ball';
       const runners = forwards(false);
-      receiver = follower ?? runners[Math.floor(this.rng.next() * Math.min(2, runners.length))];
+      receiver =
+        planned ?? follower ?? runners[Math.floor(this.rng.next() * Math.min(2, runners.length))];
       if (receiver) {
         target = inBehind(receiver, 5 + this.rng.next() * 6);
         exact = span(this.at(receiver.id), target) < 40;
@@ -1583,7 +1633,7 @@ class Director {
     } else if (style === 'long' && choice === 'quick-release') {
       // The keeper sets a counter going: one ball to a runner.
       pattern = 'counter';
-      receiver = follower ?? forwards(true)[0];
+      receiver = planned ?? follower ?? forwards(true)[0];
       if (receiver) {
         target = inBehind(receiver, 3 + this.rng.next() * 5);
         exact = span(this.at(receiver.id), target) < 40;
@@ -1592,7 +1642,7 @@ class Director {
     } else if (style === 'long') {
       // Long to the target man, who knocks it down.
       pattern = 'long-ball';
-      receiver = byRole(team, 'striker', 'second-striker') ?? forwards(true)[0];
+      receiver = planned ?? byRole(team, 'striker', 'second-striker') ?? forwards(true)[0];
       if (follower && receiver?.id === follower.id) receiver = follower;
       const knock = { d: 62 + this.rng.next() * 10, w: 40 + this.rng.next() * 20 };
       if (receiver) target = pitch(knock);
@@ -1621,6 +1671,21 @@ class Director {
             ? this.toPitch(side, { d: clamp(from.d + 4, 76, 92), w: 44 + this.rng.next() * 12 })
             : this.shootingSpot(follower);
     } else if (RECYCLES.includes(choice)) pattern = 'recycle';
+    if (planned && receiver?.id !== planned.id) {
+      // A move that would go to someone else goes straight to the named teammate instead.
+      receiver = planned;
+      target = undefined;
+      exact = false;
+      then = follower ? (holder) => this.carry(holder, this.shootingSpot(holder)) : null;
+    }
+    if (planned && !target) {
+      const spot = this.toSpot(side, this.at(planned.id));
+      target = this.reachable(
+        planned.id,
+        this.onside(side, pitch({ d: Math.max(spot.d + 3, from.d - 8), w: spot.w })),
+        2500,
+      );
+    }
     if (!receiver || !target) {
       const option = this.pickReceiver(side, 92);
       if (!option) return;
@@ -1662,12 +1727,10 @@ class Director {
     const choice = event.outcome?.input.choiceId ?? '';
     const kind = CARRY_ONLY.includes(choice) ? 'carry' : 'dribble';
     if (event.outcome?.success ?? true) {
-      const style = CARRIES[choice] ?? { d: 9, w: 2 };
-      const toward = from.w < 50 ? 1 : -1;
-      const destination = this.toPitch(side, {
-        d: clamp(from.d + style.d, 2, 95),
-        w: clamp(from.w + toward * Math.min(style.w, Math.abs(50 - from.w)), 3, 97),
-      });
+      const destination = this.toPitch(
+        side,
+        carryLane(choice, from) ?? carryLane('generic', from) ?? from,
+      );
       // The beaten defender lunges at where the ball was.
       this.carry(runner, destination, new Map([[defender.id, origin]]), kind, event.id);
     } else this.tackle(defender, event.id);
@@ -1687,6 +1750,35 @@ class Director {
     const origin = { ...this.ball };
     const side = attacker.side;
     const from = this.toSpot(side, origin);
+    // Tracking the runner (match-15): the carrier looks for the run the cast named.
+    const tracked = this.targetOf(event);
+    const runner =
+      choice === 'track-runner' && tracked?.kind === 'runner'
+        ? this.actor(tracked.playerId)
+        : undefined;
+    if (runner && runner.side === side && runner.id !== attacker.id) {
+      const run = this.toSpot(side, this.at(runner.id));
+      const lane = this.toPitch(side, { d: clamp(Math.max(run.d, from.d) + 8, 2, 94), w: run.w });
+      if (event.outcome?.success ?? true) {
+        // The defender goes with the run and cuts out the ball played into it.
+        const cut = lerp(origin, lane, 0.7);
+        this.emit({
+          dt: 700 + span(origin, cut) * 60,
+          ball: cut,
+          motion: 'ground',
+          carrier: defender.id,
+          fixed: new Map([[runner.id, this.reachable(runner.id, lane, 1500)]]),
+          beat: { kind: 'intercept', actor: defender, eventId: event.id, won: true },
+        });
+      } else
+        // The runner is away from the defender, who is a step behind.
+        this.passTo(runner, lane, false, new Map([[defender.id, lerp(start, lane, 0.6)]]), false, {
+          eventId: event.id,
+        });
+      this.mark(event, start, this.ball);
+      this.note(event, 'intercept', defender);
+      return;
+    }
     if (event.outcome?.success ?? true) {
       if (choice === 'intercept') {
         const option = this.pickReceiver(side, 95);
@@ -1758,13 +1850,27 @@ class Director {
       goals: this.goals,
       onTarget: this.onTarget,
       ...(this.focus ? { focus: this.focus } : {}),
+      ...(this.cast ? { cast: this.cast } : {}),
     };
   }
 
   // ── Key-moment scenes ──────────────────────────────────────────────────────
 
-  /** Bring play to a key moment and set the scene around the selected player. */
+  /**
+   * Bring play to a key moment and set the scene around the selected player. Given the
+   * engine's plan (match-15), the moment's cast is then named and placed.
+   */
   scene(
+    situation: Situation,
+    selected: Actor,
+    spot: Point,
+    opponents: { defender?: string; attacker?: string },
+    plan?: CastPlan,
+  ): void {
+    this.stage(situation, selected, spot, opponents);
+    if (plan) this.castScene(situation, selected, spot, plan);
+  }
+  private stage(
     situation: Situation,
     selected: Actor,
     spot: Point,
@@ -1790,11 +1896,13 @@ class Director {
         );
         const crosser = byRole(wide, at.w <= 50 ? 'wide-right' : 'wide-left') ?? wide[0]!;
         const crossFrom = ownFrame(85, hasRole(crosser, ['wide-right', 'right-back']) ? 90 : 10);
+        this.crosser = crosser.id;
         // Wing play: down the crosser's wing, then the cross to the selected player's run.
         this.bringBall({ side: own, target: crosser }, crossFrom, {
           move: { purpose: 'scene', situationId: situation.id },
         });
         const marker = outfield(opponents.defender, spot);
+        this.direct = marker.id;
         this.pattern = 'wing-play';
         this.passTo(
           selected,
@@ -1965,6 +2073,7 @@ class Director {
         });
         const presser = situation.id === 'build-out';
         const opponent = outfield(presser ? opponents.attacker : opponents.defender, spot);
+        this.direct = opponent.id;
         marks.set(
           opponent.id,
           ownFrame(at.d + (presser ? 4.5 : 3), at.w + (this.rng.next() - 0.5) * 3),
@@ -1980,6 +2089,138 @@ class Director {
         });
       }
     }
+  }
+  /**
+   * Name everyone a key moment involves and put them where the moment needs them (engine
+   * match-15, redesign step M4). Attacking: the opponent closing you down, the next ones
+   * covering, their keeper in the final third, the crosser of an aerial ball, the runner a ball
+   * in behind is for and the teammates the passes go to, in space. Defending: the attacker on
+   * the ball (or crossing it), the runner to track, the teammates covering and your keeper in
+   * your third. Everyone else holds still while the cast take their marks, so the scene keeps
+   * its shape.
+   */
+  private castScene(situation: Situation, selected: Actor, spot: Point, plan: CastPlan): void {
+    const own = selected.side,
+      opposition = (1 - own) as Side;
+    const at = this.toSpot(own, spot);
+    const ball = this.toSpot(own, this.ball);
+    const ownFrame = (d: number, w: number) =>
+      this.toPitch(own, { d: clamp(d, 1, 99), w: clamp(w, 3, 97) });
+    const near = (id: string, point: Point) => this.reachable(id, point, 1500);
+    const cast: MomentCast = { selected: selected.id, cover: [], free: [] };
+    const taken = new Set<string>([selected.id]);
+    const marks = new Map<string, Point>();
+    const outfield = (id: string | undefined, side: Side) => {
+      const actor = this.actor(id);
+      return actor && !actor.keeper && actor.side === side && !taken.has(actor.id)
+        ? actor
+        : undefined;
+    };
+    // Set pieces keep their set-up: the cast is named, not moved.
+    const setPiece = ['penalty', 'free-kick', 'corner-kick', 'penalty-save'].includes(situation.id);
+    if (situation.phase === 'defence') {
+      const carrier = this.carrier();
+      const onBall =
+        carrier && carrier.side === opposition && !carrier.keeper ? carrier : undefined;
+      if (onBall) {
+        if (situation.id === 'cross-ball') cast.crosser = onBall.id;
+        else cast.presser = onBall.id;
+        taken.add(onBall.id);
+      }
+      // Their attacker nearest you, off the ball: the run to track.
+      const runner = this.nearest(opposition, this.at(selected.id)).find(
+        (actor) => !taken.has(actor.id) && actor.post.line !== 'defence',
+      );
+      if (runner) {
+        cast.runner = runner.id;
+        taken.add(runner.id);
+        if (situation.id === 'defend-attack' || situation.id === 'offside-line')
+          marks.set(runner.id, near(runner.id, ownFrame(at.d + 1, at.w + (at.w < 50 ? 12 : -12))));
+      }
+      // Teammates covering, goal-side of the ball.
+      const mates = this.nearest(own, this.ball).filter((actor) => !taken.has(actor.id));
+      for (const [index, mate] of mates.slice(0, selected.keeper ? 1 : 2).entries()) {
+        cast.cover.push(mate.id);
+        taken.add(mate.id);
+        if (!selected.keeper && !setPiece)
+          marks.set(
+            mate.id,
+            near(
+              mate.id,
+              ownFrame(Math.min(ball.d, at.d) - 5 - index * 3, ball.w + (index ? 9 : -9)),
+            ),
+          );
+      }
+      if (!selected.keeper && at.d < 100 / 3) cast.keeper = this.keeperOf(own).id;
+    } else {
+      const presser = outfield(this.direct, opposition);
+      if (presser) {
+        cast.presser = presser.id;
+        taken.add(presser.id);
+      }
+      // The next opponents cover, goal-side of the ball.
+      if (situation.id !== 'penalty') {
+        const others = this.nearest(opposition, this.ball).filter((actor) => !taken.has(actor.id));
+        for (const [index, actor] of others.slice(0, presser ? 1 : 2).entries()) {
+          cast.cover.push(actor.id);
+          taken.add(actor.id);
+          if (!setPiece)
+            marks.set(
+              actor.id,
+              near(
+                actor.id,
+                ownFrame(at.d + 7 + index * 3, at.w + (50 - at.w) * 0.4 + (index ? 6 : -6)),
+              ),
+            );
+        }
+      }
+      if (at.d >= 200 / 3) cast.keeper = this.keeperOf(opposition).id;
+      const crosser = outfield(this.crosser, own);
+      if (crosser) {
+        cast.crosser = crosser.id;
+        taken.add(crosser.id);
+      }
+      // The runner times the run on the line; the others find space ahead of the ball.
+      const runner = outfield(plan.runner, own);
+      if (runner) {
+        cast.runner = runner.id;
+        taken.add(runner.id);
+        const from = this.toSpot(own, this.at(runner.id));
+        if (!setPiece)
+          marks.set(
+            runner.id,
+            near(runner.id, this.onside(own, ownFrame(Math.max(from.d, at.d + 6), from.w))),
+          );
+      }
+      for (const id of plan.receivers) {
+        const mate = outfield(id, own);
+        if (!mate) continue;
+        cast.free.push(mate.id);
+        taken.add(mate.id);
+        if (setPiece) continue;
+        const from = this.toSpot(own, this.at(mate.id));
+        marks.set(
+          mate.id,
+          near(mate.id, this.onside(own, ownFrame(from.d + 3, from.w + (from.w < 50 ? -3 : 3)))),
+        );
+      }
+    }
+    // The cast run towards their marks in the scene's last keyframe, as far as a sprint takes
+    // them in its time; everyone else stays where the scene put them.
+    const last = this.frames[this.frames.length - 1]!;
+    const before = this.frames[this.frames.length - 2];
+    const limit = 1 + (before ? last.timeMs - before.timeMs : 0) * RUN;
+    for (const [id, mark] of marks) {
+      const actor = this.lookup.get(id)!;
+      if (actor.id === this.play.carrierId) continue;
+      const from = before?.players[actor.index]?.point ?? this.pos[actor.index]!;
+      const length = span(from, mark);
+      const reach = length <= limit ? mark : lerp(from, mark, limit / length);
+      const point = { x: tenth(clamp(reach.x, 0.8, 99.2)), y: tenth(clamp(reach.y, 1, 99)) };
+      this.pos[actor.index] = point;
+      last.players[actor.index]!.point = { ...point };
+    }
+    this.cast = cast;
   }
 }
 
@@ -2064,19 +2305,21 @@ export function momentPassage(
   situation: Situation,
   spot: Point,
   opponents: { defender?: string; attacker?: string },
+  plan?: CastPlan,
 ): Passage {
-  return timed(() => momentScene(session, situation, spot, opponents));
+  return timed(() => momentScene(session, situation, spot, opponents, plan));
 }
 function momentScene(
   session: MatchSession,
   situation: Situation,
   spot: Point,
   opponents: { defender?: string; attacker?: string },
+  plan?: CastPlan,
 ): Passage {
   const minute = session.state.match.minute;
   const scene = director(session, lastFrame(session), (minute - 1) * 60000, 'moment');
   const selected = scene.actor(session.setup.selectedPlayerId)!;
-  scene.scene(situation, selected, spot, opponents);
+  scene.scene(situation, selected, spot, opponents, plan);
   return scene.finish();
 }
 /** A resolved decision and the rest of its minute, starting from the moment's scene. */

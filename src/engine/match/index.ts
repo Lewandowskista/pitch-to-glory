@@ -1,5 +1,4 @@
 import type {
-  Objective,
   Club,
   World,
   Player,
@@ -11,7 +10,11 @@ import type {
   MatchReport,
   DecisionOutcome,
   DecisionChoice,
+  ChoiceTarget,
   KeyMoment,
+  MomentCast,
+  PitchZone,
+  Point,
   Position,
 } from '../../model/domain';
 import { createRng, type Rng } from '../rng';
@@ -40,12 +43,14 @@ import {
 import {
   METRES_PER_UNIT,
   attacksRightAt,
+  carryLane,
   followPlayer,
   minutePassage,
   momentPassage,
   openingKickoff,
   outcomePassage,
   timedNarration,
+  type CastPlan,
   type Passage,
 } from './motion';
 import { narrate } from './narration';
@@ -56,6 +61,9 @@ import { validateSetup, validateTactics, validateCommand, validateJson } from '.
 import { SITUATION_BY_ID, type ChoiceTemplate, type Situation } from './situations';
 import { halftimeRole, roleEffect, shiftMentality } from './roles';
 import { cutHighlight } from './highlight';
+import { matchObjectives, objectivesFor } from './objectives';
+import { bookings, substitutionOff, substitutionPlan } from './discipline';
+import { intensityFor, pitchStateFor } from './conditions';
 import {
   buildChoices,
   clamp,
@@ -91,6 +99,13 @@ export {
   conditionsEffect,
   type DecisionContext,
 } from './decisions';
+export {
+  pitchEffect,
+  pitchStateFor,
+  weatherEffect,
+  type Intensity,
+  type PitchState,
+} from './conditions';
 
 /** Thrown before replay when a saved session was produced by a different match engine. */
 export class OutdatedMatchSessionError extends Error {
@@ -146,6 +161,8 @@ function formationLineup(
   players: Record<string, Player>,
   formation: Formation,
   selected: string,
+  /** A matchday bench of seven (match-15); earlier engines name every other available player. */
+  capBench = false,
 ): Lineup {
   const ready = club.playerIds.filter((id) => available(players[id]));
   if (ready.length < 11) throw new Error('A match requires eleven available players per team');
@@ -157,9 +174,35 @@ function formationLineup(
     teamId: club.id,
     formation,
     starterIds: choice.starterIds,
-    benchIds: choice.benchIds,
+    benchIds: capBench ? matchdayBench(choice.benchIds, players) : choice.benchIds,
   };
 }
+/**
+ * The seven on the bench (match-15): the best reserve keeper, then the best of each line
+ * (centre-back, full-back, central midfield, wide or attacking midfield, striker), then the
+ * best of the rest by ability, so a like-for-like change is usually there.
+ */
+function matchdayBench(ids: readonly string[], players: Record<string, Player>): string[] {
+  const pool = [...ids].sort(byAbility(players));
+  const bench: string[] = [];
+  for (const line of BENCH_LINES) {
+    const id = pool.find(
+      (candidate) =>
+        !bench.includes(candidate) && line.includes(players[candidate]!.primaryPosition),
+    );
+    if (id && bench.length < C.benchSize) bench.push(id);
+  }
+  for (const id of pool) if (bench.length < C.benchSize && !bench.includes(id)) bench.push(id);
+  return bench;
+}
+const BENCH_LINES: readonly (readonly Position[])[] = [
+  ['GK'],
+  ['CB'],
+  ['LB', 'RB'],
+  ['DM', 'CM'],
+  ['AM', 'LW', 'RW'],
+  ['ST'],
+];
 function byAbility(players: Record<string, Player>) {
   return (a: string, b: string) =>
     playerAbility(players[b]!) - playerAbility(players[a]!) || (a < b ? -1 : 1);
@@ -265,6 +308,12 @@ export function createMatchSetup(
 }
 const selectedSide = (setup: MatchSetup) =>
   setup.players[setup.selectedPlayerId]!.clubId === setup.home.id ? 0 : 1;
+/**
+ * The current engine path (`match-15`, redesign phase 6): key moments name their cast and
+ * each choice's target, a pass reaches the teammate named before the choice, and the rules of
+ * the later steps apply. Earlier paths (setups without `occasions`) keep their rules.
+ */
+const latest = (setup: Pick<MatchSetup, 'occasions'>) => Boolean(setup.occasions);
 
 /**
  * Where the selected player plays: the formation slot they fill in a slot-aware match, with
@@ -311,61 +360,6 @@ function rates(setup: MatchSetup, strength: [number, number], tactics: Tactics):
   factors[1 - own] = mentality[1] * role[1];
   return [round6(home * risk * factors[0]!), round6(away * risk * factors[1]!)];
 }
-/** The match's personal objectives: a rating target and one drawn for the position. */
-function matchObjectives(selected: Player, rng: Rng): MatchState['match']['objectives'] {
-  const O = C.objectives;
-  const position = selected.primaryPosition;
-  const P = C.routinePass;
-  const passing = clamp(
-    Math.round((P.base + selected.attributes.passing * P.passing) * 100) + O.passingMargin,
-    O.passingRange[0],
-    O.passingRange[1],
-  );
-  const pool: { kind: Objective['kind']; target: number }[] =
-    position === 'GK'
-      ? [
-          { kind: 'clean-sheet', target: 1 },
-          { kind: 'saves', target: O.saves },
-        ]
-      : ['CB', 'LB', 'RB'].includes(position)
-        ? [
-            { kind: 'clean-sheet', target: 1 },
-            { kind: 'tackles', target: O.tackles.defender },
-            { kind: 'passing', target: passing },
-          ]
-        : position === 'DM'
-          ? [
-              { kind: 'passing', target: passing },
-              { kind: 'tackles', target: O.tackles.midfield },
-              { kind: 'clean-sheet', target: 1 },
-            ]
-          : position === 'CM'
-            ? [
-                { kind: 'passing', target: passing },
-                { kind: 'assists', target: 1 },
-              ]
-            : position === 'AM'
-              ? [
-                  { kind: 'passing', target: passing },
-                  { kind: 'assists', target: 1 },
-                  { kind: 'shots', target: O.shots.other },
-                ]
-              : position === 'ST'
-                ? [
-                    { kind: 'goals', target: 1 },
-                    { kind: 'shots', target: O.shots.striker },
-                  ]
-                : [
-                    { kind: 'goals', target: 1 },
-                    { kind: 'shots', target: O.shots.other },
-                    { kind: 'assists', target: 1 },
-                  ];
-  const drawn = rng.pick(pool);
-  return [
-    { id: 'rating', kind: 'rating', target: O.rating, progress: 0 },
-    { id: drawn.kind, kind: drawn.kind, target: drawn.target, progress: 0 },
-  ];
-}
 function shares(position: Position, role: string, drama = false): MatchState['shares'] {
   const [attack, defence] = C.shares[position];
   const weights = situationWeights(position, role);
@@ -405,11 +399,12 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   const selected = setup.players[setup.selectedPlayerId]!;
   validateTactics(tactics, selected.primaryPosition);
   const formations = setup.formations;
+  const bench = latest(setup);
   const home = formations
-      ? formationLineup(setup.home, setup.players, formations[0], setup.selectedPlayerId)
+      ? formationLineup(setup.home, setup.players, formations[0], setup.selectedPlayerId, bench)
       : lineup(setup.home, setup.players, setup.selectedPlayerId),
     away = formations
-      ? formationLineup(setup.away, setup.players, formations[1], setup.selectedPlayerId)
+      ? formationLineup(setup.away, setup.players, formations[1], setup.selectedPlayerId, bench)
       : lineup(setup.away, setup.players, setup.selectedPlayerId);
   const starters = (team: Lineup) => team.starterIds.map((id) => setup.players[id]!);
   // With formations each starter is valued in their slot, as background results are.
@@ -468,7 +463,11 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
           Math.round(6 + (i * 78) / (count - 1)) + rng.int(-2, 2),
         ),
       );
-  const objectives = matchObjectives(selected, rng);
+  // Objectives have their own stream on the current engine (match-15, decision 3), so the hub
+  // can show them before matchday; earlier engines draw them here from the preview stream.
+  const objectives = latest(setup)
+    ? objectivesFor(setup.seed, selected)
+    : matchObjectives(selected, rng);
   const consistencyShift = Math.round(
     (rng.next() * 2 - 1) * (1 - selected.hidden.consistency / 100) * C.decision.consistencySpread,
   );
@@ -492,6 +491,12 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
     keyMoments: [],
     reports: [],
   };
+  if (latest(setup)) {
+    // How hard it rains, blows or snows (match-15), drawn after the weather so every earlier
+    // draw is unchanged, and the pitch's state, derived without a draw.
+    match.weatherIntensity = intensityFor(rng.next());
+    match.pitchState = pitchStateFor(match.weather, match.pitchCondition, match.weatherIntensity);
+  }
   const captainId = [...(selectedSide(setup) === 0 ? home : away).starterIds].sort(
     (a, b) =>
       setup.players[b]!.attributes.leadership - setup.players[a]!.attributes.leadership ||
@@ -830,6 +835,79 @@ function simulateMinuteGoals(session: MatchSession): void {
     );
   }
   s.match.rng = rng.snapshot();
+  if (latest(session.setup)) discipline(session);
+}
+/**
+ * Cosmetic yellow cards (match-15, decision 5): drawn on `${seed}:discipline:${minute}`,
+ * weighted by aggression and tackling, logged as `card` events with commentary. They never
+ * move an outcome roll, change nobody's strength and send nobody off.
+ */
+function discipline(session: MatchSession): void {
+  const m = session.state.match,
+    setup = session.setup;
+  const booked = new Set(m.events.filter((e) => e.kind === 'card').map((e) => e.playerId ?? ''));
+  for (const card of bookings(setup.seed, m.minute, [m.home, m.away], setup.players, booked)) {
+    const booking = event(
+      session,
+      'card',
+      sideTeam(session, card.side),
+      card.playerId,
+      line(session, 'match.commentary.card'),
+    );
+    booking.card = 'yellow';
+  }
+}
+/**
+ * The managers' substitutions (match-15): each side's plan from `${seed}:ai-subs` (60–80′, at
+ * most the limit, one fewer on the career player's side so their own change always fits); who
+ * comes off is drawn at the minute among outfielders who started (never the career player),
+ * the tired, unfit and out of form most likely, and the best bench replacement comes on.
+ */
+function managerSubstitutions(session: MatchSession): void {
+  const m = session.state.match,
+    setup = session.setup,
+    S = C.aiSubstitutions;
+  if (m.minute < S.from || m.minute > S.to) return;
+  const own = selectedSide(setup);
+  const plan = substitutionPlan(
+    setup.seed,
+    own === 0 ? [S.limit - 1, S.limit] : [S.limit, S.limit - 1],
+  );
+  for (const side of [0, 1] as const) {
+    const due = plan[side]!.filter((minute) => minute === m.minute).length;
+    for (let change = 0; change < due; change++) {
+      const key = side === 0 ? 'home' : 'away';
+      const team = m[key];
+      const made = m.events.filter((e) => e.kind === 'substitution' && e.teamId === team.teamId);
+      if (made.length >= S.limit) break;
+      const cameOn = new Set(made.map((e) => e.receiverId));
+      const candidates = team.starterIds.filter(
+        (id, slot) =>
+          slot > 0 &&
+          id !== setup.selectedPlayerId &&
+          !cameOn.has(id) &&
+          setup.players[id]!.primaryPosition !== 'GK',
+      );
+      const rng = createRng(`${setup.seed}:ai-subs:${m.minute}:${side}:${change}`);
+      const off = substitutionOff(rng, candidates, setup.players);
+      const on = off ? replacement(session, team.benchIds, setup.players[off]!) : undefined;
+      if (!off || !on) continue;
+      m[key] = {
+        ...team,
+        starterIds: team.starterIds.map((id) => (id === off ? on : id)),
+        benchIds: team.benchIds.filter((id) => id !== on),
+      };
+      const sub = event(
+        session,
+        'substitution',
+        team.teamId,
+        off,
+        line(session, 'match.commentary.change'),
+      );
+      sub.receiverId = on;
+      sub.commentaryParams = { ...sub.commentaryParams, receiver: setup.players[on]!.name };
+    }
+  }
 }
 /** Momentum decays towards even and reacts to this minute's shots, goals and decisions. */
 function updateMomentum(session: MatchSession): void {
@@ -1112,6 +1190,8 @@ function contextFor(
     tactics: s.match.tactics,
     weather: s.match.weather,
     pitchCondition: s.match.pitchCondition,
+    ...(s.match.weatherIntensity ? { weatherIntensity: s.match.weatherIntensity } : {}),
+    ...(s.match.pitchState ? { pitchState: s.match.pitchState } : {}),
     strengthGap: round6(s.strength[side]! - s.strength[1 - side]!),
     opponents: {
       keeper: pickAbility(['GK'], 'keeper'),
@@ -1126,6 +1206,7 @@ function contextFor(
     consistencyShift: s.consistencyShift,
     chemistry: setup.chemistry ?? 60,
     positionPenalty: round6((100 - slot.familiarity) * C.decision.positionPenalty),
+    ...(latest(setup) ? { latest: true } : {}),
   };
 }
 /**
@@ -1188,6 +1269,156 @@ function placeLateMoment(session: MatchSession): void {
   const rng = createRng(`${session.setup.seed}:late`);
   s.momentMinutes = [...s.momentMinutes.slice(0, -1), rng.int(D.lateMinutes[0], D.lateMinutes[1])];
 }
+/** The third of the pitch at a depth from the selected team's goal. */
+const zoneAt = (depth: number): PitchZone =>
+  depth < 100 / 3 ? 'def' : depth < 200 / 3 ? 'mid' : 'final';
+/** Open-play situations whose spot follows the player's formation post across the pitch. */
+const POST_WIDTH = new Set([
+  'box-chance',
+  'build-up',
+  'edge-of-area',
+  'aerial-chance',
+  'defend-attack',
+  'build-out',
+]);
+/**
+ * Where across the pitch a moment happens (match-15, in the selected team's attack frame): on
+ * the side of the player's formation post, drawn a little towards it in open play, with a
+ * small jitter drawn last on the situation stream, so the draws before it are unchanged.
+ */
+function spotWidth(session: MatchSession, situation: Situation, rng: Rng): number {
+  const setup = session.setup;
+  const own = selectedSide(setup) === 0 ? session.state.match.home : session.state.match.away;
+  const formation = own.formation as Formation | undefined;
+  const post = formation
+    ? FORMATION_SLOTS[formation]?.[own.starterIds.indexOf(setup.selectedPlayerId)]
+    : undefined;
+  const lateral = post ? (situation.phase === 'defence' ? post.out[1] : post.in[1]) : 50;
+  const base = lateral <= 50 ? situation.spot.width : 100 - situation.spot.width;
+  const pull = POST_WIDTH.has(situation.id) ? (lateral - base) * 0.3 : 0;
+  return clamp(base + pull + rng.int(-4, 4), 2, 98);
+}
+/** Pass-type choices: their success makes a chance for a teammate, named in advance. */
+const passesTo = (template: ChoiceTemplate) =>
+  template.event === 'pass' && template.scorer === 'teammate' && !template.direct;
+/**
+ * The teammate each pass-type choice of a moment goes to (match-15), picked like a finisher
+ * (forwards most often, never the keeper or the player) on `${seed}:receiver:${minute}`, in the
+ * catalogue's order, before the choice is made.
+ */
+function pickReceivers(
+  session: MatchSession,
+  situation: Situation,
+  forced?: ForcedMoment,
+): Map<string, string> {
+  const setup = session.setup;
+  const rng = createRng(
+    `${setup.seed}:receiver:${session.state.match.minute}${forced ? `:${forced.kind}` : ''}`,
+  );
+  const player = setup.players[setup.selectedPlayerId]!;
+  const receivers = new Map<string, string>();
+  for (const template of situation.choices) {
+    if (!passesTo(template)) continue;
+    const id = finisher(session, selectedSide(setup), rng, player.id);
+    if (!template.requiredTraitId || player.traits.includes(template.requiredTraitId))
+      receivers.set(template.id, id);
+  }
+  return receivers;
+}
+/** Shots at a named post; the rest (a penalty into the corner too) go where the catalogue aims. */
+const POSTS: Record<string, 'near' | 'far'> = {
+  'near-post': 'near',
+  'far-post': 'far',
+  curler: 'far',
+};
+/** Defending choices that go at a player: the one on the ball, or the runner to track. */
+const AT_PLAYER: Record<string, 'presser' | 'runner'> = {
+  tackle: 'presser',
+  'slide-block': 'presser',
+  'body-block': 'presser',
+  'stretch-tackle': 'presser',
+  rush: 'presser',
+  smother: 'presser',
+  'track-runner': 'runner',
+};
+/**
+ * Where a choice goes (match-15), from the moment's frame and cast: a shot at the near or far
+ * post (near is the post on the shooter's side) or where the catalogue aims it; a pass to the
+ * named teammate; a carry's lane; a challenge on the player on the ball or the runner; the
+ * space a defender steps into or drops off to; the landing spot a keeper attacks.
+ */
+function choiceTarget(
+  session: MatchSession,
+  situation: Situation,
+  choiceId: string,
+  frame: ReplayFrame,
+  cast: MomentCast,
+  receivers: ReadonlyMap<string, string>,
+): ChoiceTarget | undefined {
+  const template = situation.choices.find((c) => c.id === choiceId);
+  if (!template) return undefined;
+  const setup = session.setup;
+  const right = attacksRight(
+    session,
+    setup.players[setup.selectedPlayerId]!.clubId!,
+    session.state.match.minute,
+  );
+  const toSpot = (point: Point) =>
+    right ? { d: point.x, w: point.y } : { d: 100 - point.x, w: 100 - point.y };
+  const toPitch = (spot: { d: number; w: number }): Point => {
+    const d = clamp(spot.d, 0, 100),
+      w = clamp(spot.w, 0, 100);
+    return {
+      x: Math.round((right ? d : 100 - d) * 10) / 10,
+      y: Math.round((right ? w : 100 - w) * 10) / 10,
+    };
+  };
+  const at = (id: string | undefined) => frame.players.find((p) => p.id === id)?.point;
+  const you = toSpot(at(cast.selected) ?? frame.ball);
+  if (template.direct === 'for') {
+    const post = POSTS[choiceId] ?? 'centre';
+    const left = you.w <= 50;
+    const w =
+      post === 'near'
+        ? left
+          ? 47
+          : 53
+        : post === 'far'
+          ? left
+            ? 53
+            : 47
+          : (template.target ?? 50);
+    return { kind: 'goal', post, point: toPitch({ d: 100, w }) };
+  }
+  if (passesTo(template)) {
+    const id = receivers.get(choiceId);
+    const point = at(id);
+    return id && point ? { kind: 'teammate', playerId: id, point: { ...point } } : undefined;
+  }
+  const lane = carryLane(choiceId, you);
+  if (lane && template.event === 'dribble') return { kind: 'lane', point: toPitch(lane) };
+  const player = AT_PLAYER[choiceId];
+  const ball = toSpot(frame.ball);
+  if (player) {
+    const id = player === 'runner' ? cast.runner : (cast.presser ?? frame.carrierId ?? undefined);
+    return id && at(id) ? { kind: 'runner', playerId: id } : undefined;
+  }
+  const runner = toSpot(at(cast.runner) ?? frame.ball);
+  const lanes: Record<string, { d: number; w: number }> = {
+    intercept: { d: (ball.d + runner.d) / 2, w: (ball.w + runner.w) / 2 },
+    jockey: {
+      d: ball.d - 3,
+      w: ball.w < 50 ? Math.max(4, ball.w - 12) : Math.min(96, ball.w + 12),
+    },
+    'step-up': { d: you.d + 6, w: you.w },
+    'drop-off': { d: you.d - 6, w: you.w },
+    'goal-line-clear': { d: 1, w: ball.w },
+    claim: { d: 8, w: 50 },
+    punch: { d: 8, w: 50 },
+  };
+  const spot = lanes[choiceId];
+  return spot ? { kind: 'lane', point: toPitch(spot) } : undefined;
+}
 /**
  * A moment that follows from another (engine match-13): the shootout kick at full time, or the
  * shot after a beaten defender, which carries the chance the dribble made.
@@ -1230,20 +1461,36 @@ function openMoment(next: MatchSession, forced?: ForcedMoment): void {
   const context = contextFor(next, situation, rng, opponents, weights);
   // A chained shot is worth what the dribble opened up; the rest of the match is unchanged.
   if (forced?.kind === 'chain') context.budget = { for: forced.goal ?? 0, against: 0 };
-  // Place the selected player where the situation happens, attacking the correct end.
+  // Place the selected player where the situation happens, attacking the correct end: on the
+  // side of their formation post (match-15), or on a random side before.
   const right = attacksRight(next, player.clubId!, m.minute);
-  const width = clamp(
-    (rng.next() < 0.5 ? situation.spot.width : 100 - situation.spot.width) + rng.int(-4, 4),
-    2,
-    98,
-  );
+  const width = latest(setup)
+    ? spotWidth(next, situation, rng)
+    : clamp(
+        (rng.next() < 0.5 ? situation.spot.width : 100 - situation.spot.width) + rng.int(-4, 4),
+        2,
+        98,
+      );
   const spot = {
     x: right ? situation.spot.depth : 100 - situation.spot.depth,
-    y: width,
+    y: latest(setup) && !right ? 100 - width : width,
   };
+  // The teammates the moment's passes go to are picked before the choice (match-15), on their
+  // own stream, so the camera can name them and the pass reaches the one it names.
+  const receivers = latest(setup) ? pickReceivers(next, situation, forced) : null;
+  const plan: CastPlan | undefined = receivers
+    ? {
+        receivers: [...new Set(receivers.values())],
+        ...((receivers.get('through-ball') ?? receivers.get('disguised-pass'))
+          ? { runner: receivers.get('through-ball') ?? receivers.get('disguised-pass') }
+          : {}),
+      }
+    : undefined;
   // A follow-up moment continues its minute: it replaces the minute's snapshot.
-  applyPassage(next, 'moment', momentPassage(next, situation, spot, opponents), [], !!forced);
+  const passage = momentPassage(next, situation, spot, opponents, plan);
+  applyPassage(next, 'moment', passage, [], !!forced);
   const momentFrame = s.frames[s.frames.length - 1]!;
+  const choices = buildChoices(context);
   const moment: KeyMoment = {
     id: forced
       ? `${m.id}:moment:${m.minute}:${forced.kind}:${m.keyMoments.length}`
@@ -1253,8 +1500,17 @@ function openMoment(next: MatchSession, forced?: ForcedMoment): void {
     situationKey: `match.situation.${situation.id}`,
     frame: momentFrame,
     budget: context.budget,
-    choices: buildChoices(context),
+    choices,
   };
+  if (receivers && passage.cast) {
+    const cast = passage.cast;
+    moment.zone = zoneAt(situation.spot.depth);
+    moment.cast = cast;
+    moment.choices = choices.map((choice) => {
+      const target = choiceTarget(next, situation, choice.id, momentFrame, cast, receivers);
+      return target ? { ...choice, target } : choice;
+    });
+  }
   if (setup.dramaMoments) Object.assign(moment, framing(next, situation, opponents, margin));
   if (forced) moment.follows = forced.kind;
   if (forced?.kind === 'shootout')
@@ -1352,7 +1608,13 @@ function resolveChoice(next: MatchSession, choiceId: string): void {
       : stakes.failureGoal;
   if (goalProbability > 0) {
     const self = success && template.scorer === 'self';
-    const scorer = self ? p.id : finisher(next, side, rng, p.id);
+    // A completed pass reaches the teammate named before the choice (match-15), who takes the
+    // chance it makes; earlier engines drew the finisher here.
+    const named =
+      success && template.event === 'pass' && choice.target?.kind === 'teammate'
+        ? choice.target.playerId
+        : undefined;
+    const scorer = self ? p.id : (named ?? finisher(next, side, rng, p.id));
     const shotsBefore = side === 0 ? s.stats.homeShots : s.stats.awayShots;
     const scored = chance(
       next,
@@ -1482,10 +1744,19 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
             starterIds: current.starterIds.map((id) => (id === player.id ? incoming : id)),
             benchIds: current.benchIds.filter((id) => id !== incoming),
           };
-          event(next, 'substitution', player.clubId!, player.id, 'match.commentary.substitution');
+          const sub = event(
+            next,
+            'substitution',
+            player.clubId!,
+            player.id,
+            'match.commentary.substitution',
+          );
+          // Who comes on (match-15), for the substitution board and minutes.
+          if (latest(setup)) sub.receiverId = incoming;
         }
       }
     }
+    if (latest(setup)) managerSubstitutions(next);
     if (setup.dramaMoments && m.minute === C.drama.lateDecisionMinute) placeLateMoment(next);
     if (!state.substituted && state.momentMinutes.includes(m.minute)) openMoment(next);
     else {

@@ -364,3 +364,77 @@ Crosses are lofted 60 % of the time; a lofted cross met first time is a header, 
 - The UI calls `narrationFeed(session, shown?)` for display lines in order (names as surnames, flank words translated); lines of the passage now playing appear once playback reaches their keyframe (`shown`).
 
 **Cost.** Narration is timed inside the motion probe. Motion plus narration costs about 5.4–6 ms a match in Node (narration about 0.55 ms of it; before the patterns, motion was about 4.4–5.3 ms on the same machine), within the 10 ms gate. Patterns add about 10 % more keyframes a match.
+
+## Decisions on the pitch (engine `match-15`)
+
+Redesign phase 6 (steps M4, M5, M7 and M8 and decision 3 in [REDESIGN-IMPLEMENTATION.md](REDESIGN-IMPLEMENTATION.md)) changes outcomes by design, one step at a time, each re-gated against the 10,000-match test, the fairness tests and `npm run profile:match`. The rules apply to the current engine path (setups with `occasions`); the earlier paths (`match-10-lines` to `match-13`) keep theirs, checked byte-identical against `match-14` after every step. `MATCH_ENGINE_VERSION` is `match-15`: a session saved by `match-14` fails validation with `OutdatedMatchSessionError`, and the save keeps the world and restarts the fixture from its seed.
+
+Distribution of the 10,000-match gate after each step (`goalsPerMatch` / `homeWin` / `draw` / `closeUpset` / `wideUpset`):
+
+| Step                | Goals  | Home win | Draw   | Close upset | Wide upset |
+| ------------------- | ------ | -------- | ------ | ----------- | ---------- |
+| `match-14` baseline | 2.6594 | 0.423    | 0.2602 | 0.224       | 0.087      |
+| M4 cast and targets | 2.6507 | 0.4195   | 0.264  | 0.232       | 0.086      |
+| M5 Track the runner | 2.6507 | 0.4195   | 0.264  | 0.232       | 0.086      |
+| Objectives stream   | 2.652  | 0.4202   | 0.2632 | 0.229       | 0.083      |
+| M7 cards and subs   | 2.6527 | 0.4205   | 0.2628 | 0.229       | 0.083      |
+| M8 weather, pitch   | 2.6542 | 0.4218   | 0.2625 | 0.2285      | 0.082      |
+
+On `match-15` the equal-team cohort scores 1.450 home and 1.225 away goals (home wins 42.2 %, away wins 31.6 %). Policy fairness (every footballer rated 60, 250 matches per "always choose index k", team goals [for, against]):
+
+| Selected | Index 0      | Index 1      | Index 2      | Index 3      |
+| -------- | ------------ | ------------ | ------------ | ------------ |
+| ST       | 1.440, 1.296 | 1.468, 1.292 | 1.468, 1.280 | 1.384, 1.280 |
+| CB       | 1.400, 1.304 | 1.388, 1.308 | 1.376, 1.272 | 1.376, 1.288 |
+| GK       | 1.344, 1.068 | 1.316, 1.144 | 1.316, 1.160 | 1.316, 1.160 |
+
+Every column stays within ±12 % of its mean; CB index 3 is now Track the runner. The analytic fairness tests (each choice within ±15 % of the moment budget, no defensive choice above the background expectation) include Track the runner and the split conditions.
+
+**Profile** (`npm run profile:match`, 300 matches a position): striker 0.49 goals a match, keeper p90 8.6, every position reaching 9, outfield substitutions 6–9 %, attacker involvement best/worst ×1.4–1.8, stated odds honest, and choreography 5.1–5.6 ms a match (motion and narration; 7.6–8.3 ms a whole match), inside the 10 ms budget. The objectives gate reads 76 % for the striker's and the attacking midfielder's shots objective against a 75 % ceiling: moving the objectives to their own stream changed which of the 300 matches are offered it. Over all 1,200 matches of a longer run, a striker reaches four shots in 73.8 % of matches (72.9 % on `match-14`) and an attacking midfielder two in 72.3 % (71.7 %), so the population rate is unchanged and sits just under the ceiling; at 300 matches the measured subset (about 150 matches) varies by ±4 points either way (`match-14`'s subset read 69 %).
+
+### M4: the cast and each choice's target
+
+**Cast.** Every key moment carries `KeyMoment.zone` (`def`, `mid`, `final`: the third of the situation's spot) and `KeyMoment.cast` (`MomentCast`): `selected`; `presser` (attacking: the opponent set goal-side of you, drawn for the odds by `contextFor`; defending: the attacker on the ball); `cover` (attacking: the next one or two opponents nearest the ball; defending: the one or two teammates nearest it); `keeper` (theirs when the spot is in the final third, yours in your own third, none when you are the keeper); `free` (the teammates the moment's passes go to); `runner` (attacking: the receiver of a ball in behind; defending: their attacker nearest you, off the ball); `crosser` (the teammate crossing an aerial chance, or their winger on a cross into your box). `scene()` names them after the build-up and moves them towards their marks in the scene's last keyframe, as far as a sprint takes them in its time (covering opponents goal-side of the spot, the runner on the offside line, free teammates a step into space, covering teammates goal-side of the ball; set pieces keep their set-up). Every cast id is on the pitch in the moment's frame.
+
+**Receivers before the choice.** Each pass-type choice (a `pass` event whose chance falls to a teammate) has its receiver drawn on `${seed}:receiver:${minute}` (`:chain` or `:shootout` for a follow-up moment) when the moment opens, like a finisher (strikers 4, other attackers 3, central midfielders 2, others 1; never the keeper or the player), one draw per pass-type choice in catalogue order, locked choices included so the stream never shifts. `resolveChoice` gives a successful pass's chance to that teammate instead of drawing a finisher on the decision stream, so the arrow drawn before the choice points at the player who receives the ball (motion plays the pass to them whatever the move) and takes the chance. Failed shots' rebounds and conceded chances still draw their players on the decision stream.
+
+**The spot's width.** The situation's spot is on the side of the selected player's formation post (`in` width when attacking, `out` when defending) instead of a random mirror, pulled 30 % of the way towards the post in open play (box chance, build-up, edge of the area, aerial chance, defending an attack, building out), plus a jitter of ±4 drawn last on the situation stream, so the situation, the opponents and their abilities are drawn exactly as before.
+
+**Targets.** `DecisionChoice.target` (`ChoiceTarget`): shots at a post (`near-post` the post on the shooter's side, `far-post` and `curler` the other; everything else where the catalogue aims it, `centre`), and the strike goes there; passes to the named teammate (`teammate`, their point in the frame); carries along their lane (`lane`, the carry the outcome plays); challenges on the attacker on the ball (tackles, blocks, rushing out) or the runner (`runner`); and the space an interception, a jockey, a step up or a drop off, a goal-line clearance or a claimed cross goes to (`lane`).
+
+**Camera.** `src/screens/match/cam.ts` uses the engine's cast (labels: pressing, on the ball, covering, free, runner, crossing) and draws one arrow for every targeted choice (shots to a marked near or far post, passes to the named teammate, dotted lanes, solid challenges); the frame-based derivation stays for sessions from earlier engines.
+
+### M5: Track the runner
+
+`defend-attack` gains a fourth choice, appended after the catalogue's others: **Track the runner** (`track-runner`; work rate 0.4, pace 0.3, positioning 0.3; base 0.7; a `tackle` event credited as a tackle, against the attacker; Man Marker is its skill, and Engine, Sprinter and Defensive Wall also help it through the template's own `boostedBy`, so the offside trap's choice of the same name is untouched). Like every choice it is anchored to the moment budget, so at the reference player it concedes the same as intercepting, tackling or jockeying (`decision fairness` asserts it within ±15 % and below the background expectation). It is `latest`: offered only on `match-15`, and only while the moment has fewer than four choices, so a Last-Ditch defender keeps the sliding block in fourth place and keys 1–4 still cover every option. Its target is the runner the cast names; the outcome plays the carrier's ball into the run, cut out by the defender who went with it (an `intercept` beat) or played past one a step behind.
+
+Policy goals [for, against] with every footballer rated 60, 250 matches per index: CB index 3 (now Track the runner rather than a repeat of the jockey) 1.38 / 1.276; the four indices stay within ±12 % of their mean. The 10,000-match gate fields a striker, so it is unchanged. Splitting `cross-switch` into a cross and a switch was optional and is left for later.
+
+### Objectives on their own stream (decision 3)
+
+A match's objectives (the rating target and one drawn for the position, as in Balance pass B) are drawn on `${seed}:objectives:${position}` (`engine/match/objectives.ts`, `objectivesFor`): keyed only by the match seed, which for a career fixture names the fixture (`careerMatchSeed`, `${world.seed}:career:${fixture.id}`), and the player's primary position, never by the preview stream. `previewObjectives(world, fixture)` (`engine/career/objectives.ts`) makes the same draw, so what the hub shows before matchday is exactly what kickoff sets (tested for every position over each upcoming fixture). The passing target still follows the player's passing attribute, so training between the preview and the match can move it by a point. Worlds on the earlier selection rules (no formations) keep the old draw and preview nothing.
+
+Taking that draw off the preview stream moves its later draws (the consistency shift and the weather) for every match, which is why this step changes outcomes; the number of moments and their minutes come before it and are unchanged.
+
+**Hub.** The next-match hero lists the objectives under the fixture ("Your objectives") when the player is expected to start (selection chance of 50 % or more), and "Your objectives, if you are picked" otherwise; nothing for an injured player (`screens/career/objectivesUi.tsx`).
+
+### M7: cosmetic yellow cards, the managers' substitutions and a bench of seven
+
+**Cards** (decision 5, first step; `engine/match/discipline.ts`). At the end of every played minute each side is booked with probability `discipline.perTeamPerMinute` 0.02 (about 3.6 cards a match), drawn on `${seed}:discipline:${minute}` with two draws a side every minute so the stream never shifts. The player is drawn among the side's outfielders on the pitch not yet booked, weighted `20 + aggression + 0.5 × tackling`. A booking is a `card` event (`card: 'yellow'`, commentary `match.commentary.card.*`) and nothing else: no second yellows, no reds, no change of strength, odds or rating. Because events are numbered and commentary variants are salted by the event count, later event ids and commentary wording move, but no roll does: a test plays the same matches with bookings switched off and gets the same scores, shots, decision rolls and probabilities, ratings and line-ups.
+
+**Bench.** On `match-15` a matchday bench is seven (`benchSize`): the best reserve keeper, then the best of each line (centre-back, full-back, central midfield, wide or attacking midfield, striker), then the best of the rest by ability. The career player's replacement and the managers' changes come from it. Earlier engines keep every other available player on the bench.
+
+**The managers' substitutions.** Each side's plan is drawn on `${seed}:ai-subs`: how many changes (1 to 5 with weights 0.10 / 0.25 / 0.40 / 0.20 / 0.05, at most `aiSubstitutions.limit` 5, one fewer on the career player's side so their own substitution always fits) and their minutes, 60′–80′ (five minute draws a side whatever the count). At a planned minute the manager takes off an outfielder who started (never the keeper, the career player or someone who came on), weighted `1 + 0.05 × fatigue + 0.06 × (70 − stamina)⁺ + 0.05 × (55 − form)⁺`, drawn on `${seed}:ai-subs:${minute}:${side}:${change}`; the best bench replacement comes on (same position, then a compatible one, then any outfielder), the line-up's starter and bench ids are updated, and a `substitution` event names the player off (`playerId`) and on (`receiverId`, commentary `match.commentary.change.*`). The career player's own substitution now names who comes on too. Choreography already puts a substitute in the slot of the player who left. Changes alter who can score and who the drawn opponents are, so they change outcomes.
+
+**Minutes.** `commitCareerMatch` credits minutes from the substitution events: a starter plays until taken off, a substitute from the minute they came on (`90 − minute`, at least 1), the career player the session's own count; players taken off keep their appearance. Each side's minutes therefore add up to 990 in regulation (`match-accounting.test.ts`). Sessions from earlier engines, whose only change was the career player's, are credited as before.
+
+### M8: weather intensity and the pitch's state
+
+**Intensity.** After the weather is picked, one more draw on the preview stream (the last it makes, so every earlier draw is unchanged) sets `Match.weatherIntensity`: light, steady or heavy with weights 0.3 / 0.4 / 0.3 (`conditions.intensityWeights`, a mean scale of exactly 1). **Pitch state** (`Match.pitchState`) is derived without a draw (`engine/match/conditions.ts`, `pitchStateFor`, also used by the preview's pitch icon): snow freezes the pitch (light snow only makes it heavy), rain makes it heavy unless it is light rain on a good surface, a surface below `pitchGood` (70) is heavy whatever the sky, and a good surface is firm under clear skies, otherwise good.
+
+**Two factors.** The combined conditions factor is split into two shown factors, each an odds multiplier `1 + effect` in the usual order, so the factors still sum exactly to the probability:
+
+- **Weather** (`match.factor.weather.<intensity>.<weather>`, "Light rain", "Strong wind"): the weather's own effect × the intensity's scale (light 0.5, steady 1, heavy 1.5). Technical choices: rain −0.03, snow −0.05; direct choices (crosses, long balls, long shots, headers, claims, punches): rain −0.02, wind −0.08, snow −0.05.
+- **Pitch** (`match.factor.pitch.<state>`, "Heavy pitch"): technical choices only, the larger of the loss from a surface the rain or snow made heavy or frozen (−0.05) and the loss from a poor surface (`pitchSlope` 0.004 a point below 70, as before).
+
+Averaged over intensities, direct choices lose exactly what they did, and close control on a good surface within a point of the combined factor (rain −0.065 against −0.06, snow −0.10 as before). Earlier engines keep the single "Weather and pitch" factor. The briefing names the weather with its intensity and draws its icon ("Light rain"), the pitch tile reads "Heavy pitch · 62% quality", the live chip "Light rain · Heavy pitch", and a choice's reason can cite "Heavy pitch −1.2%" (the factor's contribution to the chance).

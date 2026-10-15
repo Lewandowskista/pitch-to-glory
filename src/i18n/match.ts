@@ -1,5 +1,25 @@
+/** The weather as the match reports it, with its intensity (engine match-15). */
+const weatherNames = {
+  light: { clear: 'Sunny spells', rain: 'Light rain', snow: 'Light snow', wind: 'A breeze' },
+  steady: { clear: 'Clear skies', rain: 'Rain', snow: 'Snow', wind: 'Wind' },
+  heavy: { clear: 'Bright sunshine', rain: 'Heavy rain', snow: 'Heavy snow', wind: 'Strong wind' },
+} as const;
+/** The pitch's state in a few words (engine match-15). */
+const pitchNames = {
+  firm: 'Firm pitch',
+  good: 'Good pitch',
+  heavy: 'Heavy pitch',
+  frozen: 'Frozen pitch',
+} as const;
+
 export const matchText = {
   saveHint: 'Save your world to keep this match after refreshing or closing the browser.',
+  weatherNames,
+  pitchNames,
+  /** "Light rain · Heavy pitch". */
+  conditionsLine: '{weather} · {pitch}',
+  /** "Heavy pitch · 62% quality". */
+  pitchLine: '{state} · {value}% quality',
   saveLink: 'Choose a save slot',
   acceptSubstitution: 'Accept the change',
   encourageSubstitution: 'Encourage your teammates',
@@ -216,7 +236,7 @@ export const matchText = {
     timeline: 'Match timeline',
     timelineMoment: '{minute}′ key moment',
     timelineGoal: '{minute}′ goal, {team}',
-    timelineCard: '{minute}′ booking, {team}',
+    timelineCard: '{minute}′ booking, {name}, {team}',
     timelineHalf: 'Half-time',
     timelineNow: 'Now: {minute}′',
     ratingTitle: 'Your rating · {name}',
@@ -265,6 +285,21 @@ export const matchText = {
     camFree: '{name} (free)',
     camPress: '{name}, pressing you',
     camKeeper: '{name}, keeper',
+    /** Visible role labels on the engine's cast (match-15). */
+    camRoles: {
+      press: '{name} (pressing)',
+      carrier: '{name} (on the ball)',
+      cover: '{name} (covering)',
+      runner: '{name} (runner)',
+      crosser: '{name} (crossing)',
+    },
+    /** Spoken role descriptions for the camera's label. */
+    camSpoken: {
+      carrier: '{name}, on the ball',
+      cover: '{name}, covering',
+      runner: '{name}, making a run',
+      crosser: '{name}, crossing',
+    },
     camPosts: { near: 'Near post', far: 'Far post' },
     outcomeChose: 'Key moment · {minute}′ · you chose {choice}',
     successZone: 'Success zone 0–{chance}',
@@ -283,7 +318,10 @@ export const matchText = {
     captainNote: 'Play and “Next key moment” resume after your call.',
     substitutionMeta: '{minute}′ · {name} off',
     substitutionBoard: 'Substitution board: number {number} off',
+    substitutionBoardOn: 'Substitution board: number {number} off, number {incoming} on',
+    substitutionMetaOn: '{minute}′ · {name} off, {incoming} on',
     off: 'Off',
+    on: 'On',
     substitutionNote: 'After you answer, play continues to full-time.',
     fixture: 'Your fixture',
     yourClub: 'Your club',
@@ -774,6 +812,26 @@ const commentary: Record<string, [string, string, string]> = {
     '{player} backs off and invites the shot.',
     '{player} is turned and the attacker is away.',
   ],
+  card: [
+    'Yellow card. {player} goes into the book.',
+    '{player} is booked for a late challenge.',
+    'The referee shows {player} a yellow card.',
+  ],
+  change: [
+    'Substitution: {receiver} comes on for {player}.',
+    'A change: {player} makes way for {receiver}.',
+    '{player} is replaced by {receiver}.',
+  ],
+  'track.success': [
+    '{player} spots the run, goes with it and cuts out the pass.',
+    '{player} tracks the runner all the way and nicks the ball away.',
+    'Great awareness from {player}, who reads the run and steps in front.',
+  ],
+  'track.failure': [
+    '{player} is a yard behind the runner, and the ball is played through.',
+    'The runner loses {player} with a clever change of pace.',
+    '{player} follows the wrong man and the runner is free.',
+  ],
   'recycle.success': [
     '{player} plays it short and keeps possession.',
     'Calm on the ball from {player} under pressure.',
@@ -1048,6 +1106,18 @@ const engineText: Record<string, string> = {
   'match.factor.role': 'Personal role',
   'match.factor.risk': 'Risk level',
   'match.factor.conditions': 'Weather and pitch',
+  // Engine match-15: the weather (with its intensity) and the pitch are separate factors.
+  ...Object.fromEntries(
+    Object.entries(weatherNames).flatMap(([intensity, names]) =>
+      Object.entries(names).map(([weather, name]) => [
+        `match.factor.weather.${intensity}.${weather}`,
+        name,
+      ]),
+    ),
+  ),
+  ...Object.fromEntries(
+    Object.entries(pitchNames).map(([state, name]) => [`match.factor.pitch.${state}`, name]),
+  ),
   'match.factor.limit': 'Probability limit',
   'match.commentary.halftime': 'The whistle brings the first half to a close.',
   'match.commentary.substitution': 'The manager makes a change. Your shift is over.',

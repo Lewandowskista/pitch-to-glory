@@ -1,7 +1,9 @@
 import {
   conditionsEffect,
+  pitchEffect,
   positionFamily,
   rolesForPosition,
+  weatherEffect,
   type MatchSession,
   type Tactics,
 } from '../../engine/match';
@@ -202,10 +204,23 @@ export function Preview({
           : 'attack';
   const signed = (value: number) =>
     `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(Math.round(value * 100))}%`;
-  const technical = conditionsEffect('technical', state.match.weather, state.match.pitchCondition);
-  const direct = conditionsEffect('direct', state.match.weather, state.match.pitchCondition);
-  const pitch = pitchStateFor(state.match.weather, state.match.pitchCondition);
-  const weatherIcon = useMemo(() => renderWeather(state.match.weather), [state.match.weather]);
+  // Engine match-15 reports how hard it rains, blows or snows and the pitch's state, and the
+  // two are separate factors; earlier sessions have one combined conditions effect.
+  const intensity = state.match.weatherIntensity;
+  const pitch =
+    state.match.pitchState ??
+    pitchStateFor(state.match.weather, state.match.pitchCondition, intensity);
+  const effect = (sensitivity: 'technical' | 'direct') =>
+    intensity
+      ? weatherEffect(sensitivity, state.match.weather, intensity) +
+        pitchEffect(sensitivity, state.match.weather, pitch, state.match.pitchCondition)
+      : conditionsEffect(sensitivity, state.match.weather, state.match.pitchCondition);
+  const technical = effect('technical');
+  const direct = effect('direct');
+  const weatherIcon = useMemo(
+    () => renderWeather(state.match.weather, intensity ?? 'steady'),
+    [state.match.weather, intensity],
+  );
   const pitchIcon = useMemo(() => renderPitch(pitch), [pitch]);
   const kits = kitAppearance(setup.home, setup.away);
   const age = setup.season - player.birthSeason;
@@ -262,14 +277,25 @@ export function Preview({
               <Artwork svg={weatherIcon} alt="" className="h-9 w-9 shrink-0" />
               <div>
                 <span>{m.weather}</span>
-                <strong>{m[state.match.weather]}</strong>
+                <strong>
+                  {intensity
+                    ? m.weatherNames[intensity][state.match.weather]
+                    : m[state.match.weather]}
+                </strong>
               </div>
             </div>
             <div className="is-pitch">
               <Artwork svg={pitchIcon} alt={m.pitchStates[pitch]} className="h-9 w-9 shrink-0" />
               <div>
                 <span>{m.pitch}</span>
-                <strong>{matchFormat(m.pitchValue, { value: state.match.pitchCondition })}</strong>
+                <strong>
+                  {intensity
+                    ? matchFormat(m.pitchLine, {
+                        state: m.pitchNames[pitch],
+                        value: state.match.pitchCondition,
+                      })
+                    : matchFormat(m.pitchValue, { value: state.match.pitchCondition })}
+                </strong>
               </div>
             </div>
             <div className="is-effect">

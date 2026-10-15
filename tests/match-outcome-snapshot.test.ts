@@ -27,18 +27,33 @@ import type { Position } from '../src/model/domain';
  * Narrative-only engine steps must keep these hashes byte-identical. A step that is meant to
  * change outcomes (a re-gate step) updates them deliberately, together with the 10,000-match
  * gate. Run with `SNAPSHOT_PRINT=1` to print the current values.
+ *
+ * Re-gated in redesign phase 6 (engine match-15), one step at a time; the earlier engine
+ * paths (variants 0 and 1) were checked byte-identical against match-14 at every step:
+ * - M4 cast and targets: a pass reaches the teammate named before the choice (the receiver is
+ *   drawn on its own stream instead of the decision stream), so every later roll in a decision
+ *   shifts.
+ * - M5 Track the runner: a fourth choice when defending an attack, so the policies that pick
+ *   by index (and the headless player, who now weighs it) choose differently for players who
+ *   defend (CB, LB, DM, and CM and AM in midfield slots); GK, RW and ST are unchanged.
+ * - Objectives stream (decision 3): objectives leave the preview stream for their own, so the
+ *   preview stream's later draws (the consistency shift and the weather) move for every match.
+ * - M7 cards and substitutions: bookings add events (ids and commentary variants move, no roll
+ *   does) and the managers' changes and the bench of seven change line-ups and who scores.
+ * - M8 weather and pitch: the combined conditions factor splits into a weather factor (scaled
+ *   by the new intensity) and a pitch factor, so choice factors and probabilities change.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '1f56879c0b29369ffec1b611', goals: 63, moments: 214 },
-  CB: { hash: 'f27f6446d2e6f177cc252e1a', goals: 64, moments: 228 },
-  LB: { hash: 'a315c70a04b760ca1c4a9bc6', goals: 52, moments: 241 },
-  DM: { hash: 'ae7d47f60e1513ec154e8cba', goals: 57, moments: 209 },
-  CM: { hash: '27d3b1c656b604f9a0430abd', goals: 73, moments: 242 },
-  AM: { hash: '22acb2d29c359ab1eb0c4e0b', goals: 71, moments: 277 },
-  RW: { hash: '340a7c0a8fb140504b7d008e', goals: 55, moments: 296 },
-  ST: { hash: '9353f3a431d709a98fc680e4', goals: 70, moments: 302 },
+  GK: { hash: '004f2120207ee97fc7dadc43', goals: 63, moments: 214 },
+  CB: { hash: 'f598c70b8e585f4c3df20aa8', goals: 62, moments: 231 },
+  LB: { hash: 'c79dbf303b9cce13a59fd9f2', goals: 51, moments: 238 },
+  DM: { hash: '38a1e53575534e61081111c5', goals: 58, moments: 207 },
+  CM: { hash: '1965a808123a8e4e960ea515', goals: 76, moments: 242 },
+  AM: { hash: '2af6bae95678fcada54a5778', goals: 74, moments: 277 },
+  RW: { hash: 'b7c2bbb0e2030480943ec02e', goals: 53, moments: 294 },
+  ST: { hash: 'a8635930b0733947545159a8', goals: 71, moments: 301 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });

@@ -126,6 +126,8 @@ function contexts(position: Position, value = 60): DecisionContext[] {
     teammateFinishing: 60,
     consistencyShift: 0,
     chemistry: 60,
+    // The current engine's appended choices (Track the runner, match-15) are judged too.
+    latest: true,
   }));
 }
 const sideOf = (s: MatchSetup) => (s.players[s.selectedPlayerId]!.clubId === s.home.id ? 0 : 1);
@@ -214,7 +216,10 @@ describe('match engine', () => {
     const chosen = structuredClone(setup);
     chosen.players[chosen.selectedPlayerId]!.fatigue = 95;
     const s = finish(createMatchSession(chosen, tactics)).state;
-    const substitution = s.match.events.find((e) => e.kind === 'substitution')!;
+    // Managers also make their own changes (match-15): find the selected player's.
+    const substitution = s.match.events.find(
+      (e) => e.kind === 'substitution' && e.playerId === chosen.selectedPlayerId,
+    )!;
     expect(substitution).toBeDefined();
     expect(s.selectedPlayerMinutes).toBe(65);
     expect(
@@ -227,10 +232,20 @@ describe('match engine', () => {
         (e) => e.minute > substitution.minute && e.playerId === chosen.selectedPlayerId,
       ),
     ).toHaveLength(0);
-    // The replacement plays the same position when the bench has one.
-    const initial = createMatchSession(chosen, tactics).state.match.home.starterIds;
-    const incoming = s.match.home.starterIds.find((id) => !initial.includes(id))!;
-    expect(chosen.players[incoming]!.primaryPosition).toBe('ST');
+    // The replacement, named on the event, plays the same position when the bench still has
+    // one (the manager's earlier changes may have used it), otherwise a neighbouring one.
+    const incoming = substitution.receiverId!;
+    expect(s.match.home.starterIds).toContain(incoming);
+    const used = s.match.events
+      .filter((e) => e.kind === 'substitution' && e.minute < substitution.minute)
+      .map((e) => e.receiverId);
+    const bench = createMatchSession(chosen, tactics).state.match.home.benchIds.filter(
+      (id) => !used.includes(id),
+    );
+    const striker = bench.some((id) => chosen.players[id]!.primaryPosition === 'ST');
+    expect(striker ? ['ST'] : ['ST', 'LW', 'RW', 'AM']).toContain(
+      chosen.players[incoming]!.primaryPosition,
+    );
   });
   it('offers goalkeeper situations and preserves positional lineups', () => {
     const chosen = {
@@ -357,6 +372,51 @@ describe('decision fairness', () => {
           for (const impact of impacts) expect(impact.against).toBeLessThan(context.budget.against);
       }
   });
+  it('appends Track the runner to defending an attack on match-15, as fair as the others', () => {
+    for (const position of ['CB', 'LB', 'DM'] as const) {
+      const context = contexts(position).find((c) => c.situation.id === 'defend-attack')!;
+      const choices = buildChoices(context);
+      // Appended, never inserted, so choice indices keep their meaning; earlier engines never
+      // offer it.
+      expect(choices.map((c) => c.id)).toEqual(['intercept', 'tackle', 'jockey', 'track-runner']);
+      expect(buildChoices({ ...context, latest: false }).map((c) => c.id)).not.toContain(
+        'track-runner',
+      );
+      const impacts = choices.map(expectedImpact);
+      const mean = impacts.reduce((n, i) => n + i.net, 0) / impacts.length;
+      const track = expectedImpact(choices.at(-1)!);
+      expect(Math.abs(track.net - mean)).toBeLessThanOrEqual(0.15 * context.budget.against);
+      expect(track.against).toBeLessThan(context.budget.against);
+      expect(choices.at(-1)!.attributes[0]).toBe('workRate');
+      expect(choices.at(-1)!.stakes.successConcede).toBeGreaterThanOrEqual(0);
+      // Man Marker, Engine and Sprinter help it; Engine does not touch the offside trap's
+      // choice of the same name.
+      for (const skill of ['man-marker', 'engine', 'sprinter']) {
+        const skilled = buildChoices({
+          ...context,
+          player: { ...context.player, traits: [skill] },
+        }).at(-1)!;
+        expect(skilled.probability, skill).toBeGreaterThan(choices.at(-1)!.probability);
+      }
+      // With Last-Ditch the sliding block keeps the fourth place: never more than four choices.
+      const ditch = buildChoices({
+        ...context,
+        player: { ...context.player, traits: ['last-ditch'] },
+      }).map((c) => c.id);
+      expect(ditch).toEqual(['intercept', 'tackle', 'jockey', 'slide-block']);
+    }
+    const offside = SITUATIONS.find((s) => s.id === 'offside-line')!;
+    const trap = contexts('CB').find((c) => c.situation.id === 'defend-attack')!;
+    const plain = buildChoices({ ...trap, situation: offside }).find(
+      (c) => c.id === 'track-runner',
+    )!;
+    const engine = buildChoices({
+      ...trap,
+      situation: offside,
+      player: { ...trap.player, traits: ['engine'] },
+    }).find((c) => c.id === 'track-runner')!;
+    expect(engine.probability).toBe(plain.probability);
+  });
   it('shows football-plausible box-chance shot probabilities', () => {
     const at = (value: number) =>
       buildChoices(contexts('ST', value).find((c) => c.situation.id === 'box-chance')!).filter(
@@ -432,7 +492,13 @@ describe('match edge cases', () => {
     const final = applyMatchCommand(tired, { type: 'advance' });
     expect(final.state.match.status).toBe('finished');
     expect(final.state.substituted).toBe(false);
-    expect(final.state.match.events.some((e) => e.kind === 'substitution')).toBe(false);
+    // Managers' own changes come between 60′ and 80′ (match-15); nobody goes off at 90′.
+    expect(
+      final.state.match.events.some(
+        (e) =>
+          e.kind === 'substitution' && (e.playerId === setup.selectedPlayerId || e.minute >= 90),
+      ),
+    ).toBe(false);
     const forged = structuredClone(final);
     forged.state.substitutionDecisionPending = true;
     expect(() => applyMatchCommand(forged, { type: 'substitution', response: 'accept' })).toThrow();
@@ -553,9 +619,25 @@ describe('match edge cases', () => {
       (c) => c.id === 'take-on',
     )!;
     expect(poor.probability).toBeLessThan(good.probability);
+    // Engine match-15 splits the weather (with its intensity) from the pitch.
+    expect(poor.factors.some((f) => f.labelKey === 'match.factor.conditions')).toBe(false);
     expect(
-      poor.factors.find((f) => f.labelKey === 'match.factor.conditions')!.contribution,
+      poor.factors.find((f) => f.labelKey === 'match.factor.weather.steady.rain')!.contribution,
     ).toBeLessThan(0);
+    expect(
+      poor.factors.find((f) => f.labelKey === 'match.factor.pitch.heavy')!.contribution,
+    ).toBeLessThan(0);
+    // Earlier engines keep one combined factor.
+    const legacy = buildChoices({
+      ...context,
+      latest: false,
+      pitchCondition: 40,
+      weather: 'rain',
+    }).find((c) => c.id === 'take-on')!;
+    expect(
+      legacy.factors.find((f) => f.labelKey === 'match.factor.conditions')!.contribution,
+    ).toBeLessThan(0);
+    expect(legacy.factors.some((f) => f.labelKey.startsWith('match.factor.weather.'))).toBe(false);
   });
   it('has copy for every situation, choice, factor and commentary line the engine emits', () => {
     const keys = new Set<string>();

@@ -22,8 +22,10 @@ import {
 import { buildFeed } from '../src/screens/match/feed';
 
 /**
- * The tactical camera (redesign phase 5b) derives who it shows from a key moment's frame until
- * the engine names the cast (phase 6): these tests pin that derivation on real moments.
+ * The tactical camera (redesign phase 5b) derives who it shows from a key moment's frame for
+ * sessions from engines before match-15, which name no cast: these tests pin that fallback on
+ * real moments of the earlier engine path. The engine's own cast and targets (phase 6) are
+ * tested in match-cast.test.ts.
  */
 const world = generateWorld('match-cam', { format: 'legacy' });
 const clubs = Object.values(world.clubs).slice(0, 2);
@@ -35,10 +37,10 @@ function moments(position: Position, seed: string) {
   const id =
     home.playerIds.find((pid) => world.players[pid]!.primaryPosition === position) ??
     home.playerIds[0]!;
-  let session: MatchSession = createMatchSession(
-    createMatchSetup(world, home.id, away.id, id, seed),
-    tactics,
-  );
+  const setup = createMatchSetup(world, home.id, away.id, id, seed);
+  // The engine before the cast (match-13 rules): the camera falls back to its derivation.
+  delete setup.occasions;
+  let session: MatchSession = createMatchSession(setup, tactics);
   const found: { session: MatchSession; moment: KeyMoment }[] = [];
   for (let turn = 0; turn < 400 && session.state.match.status !== 'finished'; turn++) {
     if (session.state.currentMoment) found.push({ session, moment: session.state.currentMoment });
