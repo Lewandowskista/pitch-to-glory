@@ -1,67 +1,113 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Clip } from '../../engine/career/honours/clip';
-import type { Hex } from '../../model/domain';
+import type { Hex, Point } from '../../model/domain';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
 import { cx } from '../../ui/kit';
 import { useReducedMotionSetting } from './honoursUi';
+import type { Playback } from '../match/playback';
+import { kitNumberColor } from '../match/pitchArt';
+import {
+  clipName,
+  clipStory,
+  isAway,
+  PASS_BEATS,
+  prepareClip,
+  RUN_BEATS,
+  sampleClip,
+  STRIKE_BEATS,
+} from './clipReplay';
 
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-/** Each keyframe of a clip plays for this long. */
-const FRAME_MS = 900;
 /** Pitch metres per clip unit along the length and across the width. */
 const LENGTH = 1.05;
 const WIDTH = 0.68;
 /** Drawing units per metre: the 68 m width is 340 units wide. */
 const SCALE = 5;
+/** How far a lofted ball rises on the drawing at the top of its arc. */
+const LIFT = 16;
 
 export interface ClipPlayback {
-  /** Position in keyframes, 0 to frames − 1. */
-  progress: number;
+  /** Milliseconds into the replay, 0 to `duration`. */
+  elapsed: number;
+  duration: number;
   playing: boolean;
   toggle: () => void;
-  frames: number;
+  playback: Playback;
+  /** Keyframes marked on the progress track, as fractions of the replay. */
+  ticks: number[];
+}
+
+/** Distinct keyframe times, for stepping one keyframe at a time. */
+function nextStop(times: readonly number[], elapsed: number, duration: number): number {
+  if (elapsed >= duration - 0.5) return 0;
+  return times.find((time) => time > elapsed + 0.5) ?? duration;
 }
 
 /**
- * Replays a clip's keyframes over about a second each. With reduced motion the clip rests on
- * its final frame, and each press steps one keyframe on (wrapping to the start).
+ * Replays a clip through the match replay's interpolation. With reduced motion the clip rests
+ * on its final frame, and each press steps one keyframe on (wrapping to the start).
  */
 export function useClipPlayback(clip: Clip): ClipPlayback {
   const reduced = useReducedMotionSetting();
-  const frames = clip.frames.length;
-  const [progress, setProgress] = useState(frames - 1);
+  const playback = useMemo(() => prepareClip(clip), [clip]);
+  // An annotated clip rests on the ball in the net, before the celebration run.
+  const strike = useMemo(() => clipStory(clip).strike, [clip]);
+  const { times } = playback;
+  const duration = strike === null ? playback.duration : times[strike]!;
+  const [elapsed, setElapsed] = useState(duration);
   const [playing, setPlaying] = useState(false);
   const frame = useRef(0);
   useEffect(() => {
     if (!playing) return;
     if (reduced) {
-      setProgress((value) => (value >= frames - 1 ? 0 : Math.floor(value) + 1));
+      setElapsed((value) => nextStop(times, value, duration));
       setPlaying(false);
       return;
     }
     const start = performance.now();
-    const duration = FRAME_MS * (frames - 1);
     const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      setProgress(t * (frames - 1));
-      if (t < 1) frame.current = requestAnimationFrame(tick);
+      const at = Math.min(duration, now - start);
+      setElapsed(at);
+      if (at < duration) frame.current = requestAnimationFrame(tick);
       else setPlaying(false);
     };
     frame.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame.current);
-  }, [playing, reduced, frames]);
-  return { progress, playing, toggle: () => setPlaying((value) => !value), frames };
+  }, [playing, reduced, duration, times]);
+  const ticks = useMemo(() => {
+    const last = strike ?? clip.frames.length - 1;
+    return clip.frames
+      .map((f, index) => ({ f, index }))
+      .filter(
+        ({ f, index }) =>
+          index > 0 && index < last && (strike === null || (f.beat && PASS_BEATS.has(f.beat.kind))),
+      )
+      .map(({ index }) => (duration > 0 ? times[index]! / duration : 0));
+  }, [clip, strike, duration, times]);
+  return {
+    elapsed,
+    duration,
+    playing,
+    toggle: () => setPlaying((value) => !value),
+    playback,
+    ticks,
+  };
 }
 
+type Px = { x: number; y: number };
+const segment = (a: Px, b: Px) =>
+  `M${a.x.toFixed(1)} ${a.y.toFixed(1)}L${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+
 /**
- * The clip drawn on the attacking third, goal at the top: the ball's path (build-up in mint,
- * the finish in gold), both teams as tokens in their colours and the scorer ringed in gold
- * with their name. The view deepens towards halfway when the move starts further out.
+ * The clip drawn on the attacking third, goal at the top: the move's trail (passes and
+ * crosses in mint, runs with the ball dotted, the finish in gold), both teams as numbered
+ * tokens in their kit colours, the scorer ringed in gold with their name, the player who set
+ * it up labelled where they played the ball, and the ball arcing when lofted and ending in
+ * the net. The view deepens towards halfway when the move starts further out.
  */
 export function ClipPitch({
   clip,
-  progress,
+  playback,
   home,
   away,
   label,
@@ -69,7 +115,7 @@ export function ClipPitch({
   className,
 }: {
   clip: Clip;
-  progress: number;
+  playback: ClipPlayback;
   home: Hex;
   away: Hex;
   label: string;
@@ -88,37 +134,79 @@ export function ClipPitch({
     return {
       height: metres * SCALE,
       halfway: metres >= 52.5,
-      px: (x: number, y: number) => ({
-        x: (right ? y : 100 - y) * WIDTH * SCALE,
-        y: depth(x) * SCALE,
+      px: (point: Point): Px => ({
+        x: (right ? point.y : 100 - point.y) * WIDTH * SCALE,
+        y: depth(point.x) * SCALE,
       }),
     };
   }, [clip]);
+  const story = useMemo(() => clipStory(clip), [clip]);
+  const annotated = story.strike !== null;
+  const sample = sampleClip(clip, playback.playback, playback.elapsed);
   const count = clip.frames.length;
-  const index = Math.max(0, Math.min(count - 2, Math.floor(progress)));
-  const t = count > 1 ? Math.min(1, progress - index) : 0;
-  const a = clip.frames[index]!;
-  const b = clip.frames[Math.min(count - 1, index + 1)]!;
-  const ball = view.px(lerp(a.ball.x, b.ball.x, t), lerp(a.ball.y, b.ball.y, t));
-  // The ball's path so far: keyframes reached, then the moving ball.
-  const trail = clip.frames.slice(0, index + 1).map((f) => view.px(f.ball.x, f.ball.y));
-  const lead = [
-    ...trail.slice(0, Math.min(trail.length, count - 1)),
-    ...(index < count - 2 ? [ball] : []),
-  ];
-  const shot = index >= count - 2 && count > 1 ? [trail.at(-1)!, ball] : [];
-  const path = (points: { x: number; y: number }[]) =>
-    points.length > 1
-      ? points.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join('')
-      : '';
+  const done = sample.progress >= 1;
+  const ball = view.px(sample.ball);
+  const at = (index: number) => view.px(clip.frames[index]!.ball);
+  // The trail so far: every step reached, then the step in play up to the ball.
+  let lead = '',
+    runs = '',
+    shot = '';
+  for (let k = 1; k <= sample.index && k < count; k++) {
+    const to = k < sample.index || done ? at(k) : ball;
+    const d = segment(at(k - 1), to);
+    if (!annotated) {
+      if (k < count - 1) lead += d;
+      else shot += d;
+      continue;
+    }
+    const frame = clip.frames[k]!;
+    const kind = frame.beat?.kind;
+    if (kind && STRIKE_BEATS.has(kind)) shot += d;
+    else if (kind && PASS_BEATS.has(kind)) lead += d;
+    // Runs with the ball, and moves without an action (a scene set for a decision), dotted.
+    else if (!kind || RUN_BEATS.has(kind)) runs += d;
+  }
   const H = view.height;
   const stripes = useMemo(() => {
     let d = '';
     for (let y = -22; y < H; y += 40) d += `M-14 ${y}H354V${y + 20}H-14Z`;
     return d;
   }, [H]);
-  const name = scorer?.split(' ').at(-1) ?? '';
+  const name = clipName(clip, clip.selected, scorer) ?? '';
   const tag = Math.max(34, name.length * 5.6 + 14);
+  const trim = clip.trim;
+  const kit = (player: number) => {
+    const awaySide = isAway(clip, player);
+    const fill = awaySide ? away : home;
+    return {
+      fill,
+      ink: kitNumberColor(fill),
+      stroke: trim?.[awaySide ? 1 : 0],
+      awaySide,
+    };
+  };
+  // The player who set the goal up, labelled where they played the ball once they have.
+  const assist =
+    story.assist && sample.index >= story.assist.frame
+      ? (() => {
+          const assister = clipName(clip, story.assist.actor);
+          if (!assister) return null;
+          const text = format(h.moments.assistTag[story.assist.kind], { name: assister });
+          const width = text.length * 5.4 + 14;
+          const from = at(story.assist.frame - 1);
+          return {
+            text,
+            width,
+            x: Math.max(width / 2 - 10, Math.min(350 - width / 2, from.x)),
+            y: Math.min(H - 4, from.y + 12),
+          };
+        })()
+      : null;
+  const inNet = ball.y < 0 && ball.x > 151.7 && ball.x < 188.3;
+  const order = clip.frames[0]!.players.map((_, player) => player).sort(
+    (a, b) => Number(a === clip.selected) - Number(b === clip.selected),
+  );
+  const lift = sample.height * LIFT;
   return (
     <svg
       viewBox={`-14 -22 368 ${H + 36}`}
@@ -146,12 +234,21 @@ export function ClipPitch({
         y="-11"
         width="36.6"
         height="11"
-        className="fill-white stroke-white"
-        fillOpacity="0.16"
+        className={cx(inNet ? 'fill-gold stroke-gold' : 'fill-white stroke-white')}
+        fillOpacity={inNet ? 0.38 : 0.16}
         strokeWidth="2"
       />
       <path
-        d={path(lead)}
+        d={runs}
+        fill="none"
+        className="stroke-mint"
+        strokeOpacity="0.75"
+        strokeWidth="2"
+        strokeDasharray="1.5 5"
+        strokeLinecap="round"
+      />
+      <path
+        d={lead}
         fill="none"
         className="stroke-mint"
         strokeWidth="2.5"
@@ -159,27 +256,49 @@ export function ClipPitch({
         strokeLinecap="round"
       />
       <path
-        d={path(shot)}
+        d={shot}
         fill="none"
         className="stroke-gold"
         strokeWidth="3"
         strokeDasharray="9 6"
         strokeLinecap="round"
       />
-      {a.players.map((point, player) => {
-        const to = b.players[player] ?? point;
-        const p = view.px(lerp(point.x, to.x, t), lerp(point.y, to.y, t));
+      {order.map((player) => {
+        const p = view.px(sample.players[player]!);
         if (p.y > H + 12) return null;
         const selected = player === clip.selected;
+        const { fill, ink, stroke, awaySide } = kit(player);
+        const number = clip.players?.[player]?.number;
         return (
           <g key={player} transform={`translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`}>
             {selected && <circle r="14" className="fill-gold" fillOpacity="0.35" />}
             <circle
               r="8"
-              fill={player < 11 ? home : away}
-              className={selected ? 'stroke-gold' : player < 11 ? 'stroke-night' : 'stroke-white'}
+              fill={fill}
+              stroke={selected ? undefined : stroke}
+              className={
+                selected
+                  ? 'stroke-gold'
+                  : stroke
+                    ? undefined
+                    : awaySide
+                      ? 'stroke-white'
+                      : 'stroke-night'
+              }
               strokeWidth={selected ? 3 : 1.6}
             />
+            {number && (
+              <text
+                y="3"
+                textAnchor="middle"
+                fontSize="8"
+                fontWeight="800"
+                fill={ink}
+                className="font-sans"
+              >
+                {number}
+              </text>
+            )}
             {selected && name && (
               <g>
                 <rect
@@ -205,40 +324,84 @@ export function ClipPitch({
           </g>
         );
       })}
-      <circle cx={ball.x} cy={ball.y} r="4" className="fill-white stroke-night" strokeWidth="1.5" />
+      {assist && (
+        <g transform={`translate(${assist.x.toFixed(1)} ${assist.y.toFixed(1)})`}>
+          <rect
+            x={-assist.width / 2}
+            y="0"
+            width={assist.width}
+            height="14"
+            rx="7"
+            className="fill-night"
+            fillOpacity="0.85"
+          />
+          <text
+            y="10"
+            textAnchor="middle"
+            fontSize="9"
+            fontWeight="700"
+            className="fill-hero-ink font-sans"
+          >
+            {assist.text}
+          </text>
+        </g>
+      )}
+      {lift > 0.5 && (
+        <ellipse
+          cx={ball.x}
+          cy={ball.y + 1.5}
+          rx="4"
+          ry="2.2"
+          className="fill-night"
+          fillOpacity="0.35"
+        />
+      )}
+      <circle
+        cx={ball.x}
+        cy={ball.y - lift}
+        r={4 + sample.height * 1.6}
+        className="fill-white stroke-night"
+        strokeWidth="1.5"
+      />
     </svg>
   );
 }
 
-/** The replay's progress: a track with a tick per keyframe, and the time. */
-export function ClipProgress({ playback }: { playback: ClipPlayback }) {
-  const { progress, playing, frames } = playback;
-  const span = Math.max(1, frames - 1);
-  const total = ((FRAME_MS * span) / 1000).toFixed(1);
-  const now = ((FRAME_MS * progress) / 1000).toFixed(1);
-  const atEnd = !playing && progress >= frames - 1;
+/** The replay's progress: a track with a tick per pass and shot, and the time. */
+export function ClipProgress({
+  playback,
+  as: Tag = 'figcaption',
+}: {
+  playback: ClipPlayback;
+  as?: 'figcaption' | 'div';
+}) {
+  const { elapsed, duration, playing, ticks } = playback;
+  const total = (duration / 1000).toFixed(1);
+  const now = (elapsed / 1000).toFixed(1);
+  const atEnd = !playing && elapsed >= duration;
+  const share = duration > 0 ? Math.min(1, elapsed / duration) : 1;
   return (
-    <figcaption className="flex items-center gap-2.5">
+    <Tag className="flex items-center gap-2.5">
       <span aria-hidden="true" className="relative h-1.5 flex-1 rounded-full bg-track">
         <span
           className={cx(
             'absolute inset-y-0 left-0 rounded-full',
             playing ? 'bg-accent' : 'bg-muted',
           )}
-          style={{ width: `${(progress / span) * 100}%` }}
+          style={{ width: `${share * 100}%` }}
         />
-        {Array.from({ length: Math.max(0, frames - 2) }, (_, tick) => (
+        {ticks.map((tick, index) => (
           <span
-            key={tick}
+            key={index}
             className="absolute -top-0.5 h-2.5 w-0.5 rounded-full bg-muted"
-            style={{ left: `${((tick + 1) / span) * 100}%` }}
+            style={{ left: `${tick * 100}%` }}
           />
         ))}
       </span>
       <span className="text-xs whitespace-nowrap text-muted tabular-nums">
         {atEnd ? format(h.moments.timeEnd, { total }) : format(h.moments.time, { now, total })}
       </span>
-    </figcaption>
+    </Tag>
   );
 }
 
@@ -262,34 +425,44 @@ export function ReplayButton({ playback }: { playback: ClipPlayback }) {
   );
 }
 
-/** A clip with its progress and replay button, for the shared replay page. */
+/**
+ * A clip with its progress, replay button and, when the clip tells how the goal was made, a
+ * caption beside the button, for the shared replay page.
+ */
 export function MomentPitch({
   clip,
   home,
   away,
   label,
   scorer,
+  caption,
 }: {
   clip: Clip;
   home: Hex;
   away: Hex;
   label: string;
   scorer?: string;
+  caption?: string | null;
 }) {
   const playback = useClipPlayback(clip);
   return (
     <figure className="flex flex-col gap-2">
       <ClipPitch
         clip={clip}
-        progress={playback.progress}
+        playback={playback}
         home={home}
         away={away}
         label={label}
         scorer={scorer}
       />
-      <ClipProgress playback={playback} />
-      <div>
+      <ClipProgress playback={playback} as={caption ? 'div' : 'figcaption'} />
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
         <ReplayButton playback={playback} />
+        {caption && (
+          <figcaption className="min-w-0 flex-[1_1_16rem] text-[0.8125rem] text-muted">
+            {caption}
+          </figcaption>
+        )}
       </div>
     </figure>
   );

@@ -286,7 +286,7 @@ describe('match motion', { timeout: 60000 }, () => {
     )!;
     expect(validateMatchSession(JSON.parse(JSON.stringify(session)))).toBeDefined();
     const highlight = session.state.highlights[0]!;
-    expect(highlight.frames.length).toBeLessThanOrEqual(12);
+    expect(highlight.frames.length).toBeLessThanOrEqual(24);
     const scorer = session.setup.selectedPlayerId;
     // The highlight shows the selected player striking the ball.
     expect(highlight.frames.some((frame) => frame.carrierId === scorer)).toBe(true);

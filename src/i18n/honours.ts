@@ -335,6 +335,45 @@ export const honoursText = {
     ctaBody:
       'Six countries. Hundreds of clubs. A football world that grows with every season. Free in your browser, no account needed.',
     score: '{home} {homeGoals}–{awayGoals} {away}',
+    /** The label beside the player who set the goal up, on the replay pitch. */
+    assistTag: {
+      pass: '{name} pass',
+      cross: '{name} cross',
+      switch: '{name} switch',
+      through: '{name} through ball',
+      long: '{name} long ball',
+      cutback: '{name} cut-back',
+    },
+    /** How the goal was made, read from the clip. */
+    caption: {
+      assist: {
+        pass: '{name}’s pass',
+        cross: '{name}’s cross from the {flank}',
+        switch: '{name}’s switch of play',
+        through: '{name}’s ball in behind',
+        long: '{name}’s long ball',
+        cutback: '{name}’s cut-back from the {flank}',
+      },
+      flank: { left: 'left', right: 'right', centre: 'middle' },
+      finish: {
+        shot: '{scorer} finishes',
+        header: '{scorer} heads it in',
+      },
+      joined: '{assist}, and {finish}.',
+      solo: '{scorer} carries it forward and finishes.',
+      alone: '{finish}.',
+      pattern: '{pattern}: {caption}',
+      patterns: {
+        'wing-play': 'Down the wing',
+        overlap: 'An overlap',
+        switch: 'A switch of play',
+        'through-ball': 'Through the lines',
+        counter: 'On the counter',
+        'cut-back': 'From the byline',
+        'long-ball': 'Route one',
+        recycle: 'Patient build-up',
+      },
+    },
   },
   retirement: {
     title: 'Retirement',

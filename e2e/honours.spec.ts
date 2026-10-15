@@ -5,7 +5,7 @@ import { mkdir } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
-import { chronicle, encodeClip, momentLink } from '../src/engine/career/honours';
+import { chronicle, encodeClip, momentLink, type ClipFrame } from '../src/engine/career/honours';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { Moment, World } from '../src/model/domain';
 
@@ -80,6 +80,57 @@ const MOMENT_CLIP = encodeClip({
       y: ((index * 17 + frame * 4) % 90) + 5,
     })),
   })),
+});
+
+/** A v2 clip (redesign M9): a cross from the right headed in, with names and numbers. */
+function crossFrame(step: number, frame: Omit<ClipFrame, 'players'>): ClipFrame {
+  return {
+    ...frame,
+    players: Array.from({ length: 22 }, (_, index) =>
+      index === 9 && step > 0
+        ? { x: 93, y: 52 }
+        : { x: index < 11 ? 40 + index * 4 : 50 + (index - 11) * 4, y: ((index * 17) % 90) + 5 },
+    ),
+  };
+}
+const CROSS_LINK = momentLink({
+  id: 'moment:cross',
+  playerId: 'player:cross',
+  date: { season: 2030, week: 12, day: 6 },
+  kind: 'winner',
+  minute: 88,
+  scorerName: 'Robin Vale',
+  home: { name: 'Elmfield', color: '#e0802c' },
+  away: { name: 'Birchfield', color: '#1d2f5c' },
+  score: [2, 1],
+  seed: 'honours-browser:cross',
+  clip: encodeClip({
+    selected: 9,
+    trim: ['#2a2320', '#ffffff'],
+    players: Array.from({ length: 22 }, (_, index) => ({
+      away: index >= 11,
+      number: (index % 11) + 1,
+      ...(index === 9 ? { name: 'Vale' } : index === 7 ? { name: 'Okafor' } : {}),
+    })),
+    frames: [
+      crossFrame(0, { ball: { x: 80, y: 85 }, carrier: 7, motion: 'carry', ms: 0 }),
+      crossFrame(1, {
+        ball: { x: 93, y: 52 },
+        carrier: 9,
+        motion: 'air',
+        apex: 1,
+        ms: 1500,
+        beat: { kind: 'cross', actor: 7 },
+      }),
+      crossFrame(2, {
+        ball: { x: 101.5, y: 50 },
+        carrier: null,
+        motion: 'shot',
+        ms: 560,
+        beat: { kind: 'header', actor: 9 },
+      }),
+    ],
+  }),
 });
 
 /**
@@ -209,6 +260,12 @@ test('celebrates a career, shares a moment, retires and starts the next generati
   await viewer.goto(`/moment#${link}`);
   await expect(viewer.getByRole('heading', { name: 'Late winner · Robin Vale' })).toBeVisible();
   await expect(viewer.getByRole('img', { name: /Replay of Robin Vale’s goal/ })).toBeVisible();
+  // A v2 clip labels the replay and says how the goal was made.
+  await viewer.goto(`/moment#${CROSS_LINK}`);
+  await expect(viewer.getByRole('heading', { name: 'Late winner · Robin Vale' })).toBeVisible();
+  await expect(
+    viewer.getByText('Okafor’s cross from the right, and Vale heads it in.'),
+  ).toBeVisible();
   await viewer.goto(`/moment#${link.slice(0, 40)}`);
   await expect(viewer.getByRole('alert')).toHaveText('This replay link is incomplete or damaged.');
   await viewer.close();
