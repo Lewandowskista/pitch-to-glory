@@ -5,152 +5,168 @@ import { format, t } from '../i18n';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
 import { Dialog } from '../ui/Dialog';
+import { Button, CardTitle, PageHeader, Panel, Spinner, StatusLine, cx } from '../ui/kit';
+import { SwitchRow } from '../ui/kit/ToggleSwitch';
+import { RangeSlider } from '../ui/kit/RangeSlider';
+import { RadioTile } from '../ui/kit/RadioTile';
 import { audio, type SoundName } from '../audio';
-import type { AudioSettings } from '../model/domain';
+import type { AudioSettings, Settings as Preferences } from '../model/domain';
 import { useUrlDialog } from './career/useUrlDialog';
+
+type Theme = Preferences['theme'];
+const THEMES: { theme: Theme; icon: 'settings' | 'sun' | 'moon' }[] = [
+  { theme: 'system', icon: 'settings' },
+  { theme: 'light', icon: 'sun' },
+  { theme: 'dark', icon: 'moon' },
+];
+const FONT_TICKS = [85, 100, 115, 130].map((percent) => format(t.settings.fontValue, { percent }));
+const cardBody = 'mt-1 text-muted';
+
 export default function Settings() {
   const settings = useAppStore((s) => s.settings);
   const update = useAppStore((s) => s.updateSettings);
   const stored = useAppStore((s) => s.preferencesStored);
-  const [notice, setNotice] = useState('');
+  const [restored, setRestored] = useState(false);
+  const [tutorialQueued, setTutorialQueued] = useState(false);
   // Restoring defaults asks first; the question lives in the URL, so Back closes it.
   const reset = useUrlDialog('reset');
+  const fontPercent = Math.round(settings.fontScale * 100);
+  const fontText = format(t.settings.fontValue, { percent: fontPercent });
+  const tourWaiting = !settings.tutorial.week && !settings.tutorial.match;
   return (
     <Page>
-      <div className="page-heading">
-        <h1>{t.settings.title}</h1>
-        <p>{t.settings.description}</p>
-      </div>
-      <div className="settings-layout">
-        {/* Two topic columns on wide screens (look, reading and play; sound), each at a
-            comfortable reading width; one column below that. */}
-        <div className="settings-controls">
-          <div className="settings-column">
-            <section className="setting-section">
-              <h2>{t.settings.appearance}</h2>
-              <p>{t.settings.appearanceBody}</p>
-              <fieldset className="theme-selector">
+      <PageHeader title={t.settings.title} description={t.settings.description} />
+      <div className="flex max-w-[77.5rem] flex-col gap-5">
+        {/* Two topic columns on wide screens (look, reading and play; sound and the tour), one
+            below that, each card at a comfortable reading width. */}
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col gap-5">
+            <Panel aria-labelledby="settings-appearance" className="flex flex-col gap-4">
+              <div>
+                <CardTitle id="settings-appearance">{t.settings.appearance}</CardTitle>
+                <p className={cardBody}>{t.settings.appearanceBody}</p>
+              </div>
+              <fieldset className="m-0 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(8.75rem,1fr))] gap-3 border-0 p-0">
                 <legend className="sr-only">{t.settings.theme}</legend>
-                {(['system', 'light', 'dark'] as const).map((theme) => (
-                  <label key={theme} className={settings.theme === theme ? 'selected' : ''}>
-                    <input
-                      type="radio"
-                      name="theme"
-                      value={theme}
-                      checked={settings.theme === theme}
-                      onChange={() => update({ theme })}
-                    />
-                    <Icon
-                      name={theme === 'dark' ? 'moon' : theme === 'light' ? 'sun' : 'settings'}
-                    />
-                    <span>{t.settings[theme]}</span>
-                  </label>
+                {THEMES.map(({ theme, icon }) => (
+                  <RadioTile
+                    key={theme}
+                    name="theme"
+                    value={theme}
+                    checked={settings.theme === theme}
+                    onChange={() => update({ theme })}
+                    label={t.settings[theme]}
+                    icon={icon}
+                  >
+                    <ThemePreview theme={theme} />
+                  </RadioTile>
                 ))}
               </fieldset>
-            </section>
-            <section className="setting-section">
-              <h2>{t.settings.reading}</h2>
-              <p>{t.settings.readingBody}</p>
-              <div className="range-label">
-                <label htmlFor="font-scale">{t.settings.fontScale}</label>
-                <output htmlFor="font-scale">
-                  {format(t.settings.fontValue, { percent: Math.round(settings.fontScale * 100) })}
-                </output>
+            </Panel>
+            <Panel aria-labelledby="settings-reading" className="flex flex-col gap-4">
+              <div>
+                <CardTitle id="settings-reading">{t.settings.reading}</CardTitle>
+                <p className={cardBody}>{t.settings.readingBody}</p>
               </div>
-              <input
+              <RangeSlider
                 id="font-scale"
-                type="range"
-                min="85"
-                max="130"
-                step="5"
-                value={Math.round(settings.fontScale * 100)}
-                aria-valuetext={format(t.settings.fontValue, {
-                  percent: Math.round(settings.fontScale * 100),
-                })}
-                onChange={(event) => update({ fontScale: Number(event.target.value) / 100 })}
+                label={t.settings.fontScale}
+                size="lg"
+                min={85}
+                max={130}
+                step={5}
+                value={fontPercent}
+                valueText={fontText}
+                ticks={FONT_TICKS}
+                onChange={(percent) => update({ fontScale: percent / 100 })}
               />
-            </section>
-            <section className="setting-section motion-setting">
-              <div>
-                <h2>
-                  <label htmlFor="reduced-motion">{t.settings.motion}</label>
-                </h2>
-                <p>{t.settings.motionBody}</p>
-              </div>
-              <input
+              {/* Rem-based, so it grows with the setting it previews. */}
+              <figure className="m-0 flex flex-col gap-1.5 rounded-control bg-surface-soft px-4.5 py-4">
+                <span className="text-[0.6875rem] font-extrabold tracking-[0.12em] text-muted uppercase">
+                  {t.settings.sample}
+                </span>
+                <blockquote className="m-0 text-[1.0625rem] leading-[1.45] font-semibold">
+                  {t.settings.sampleQuote}
+                </blockquote>
+                <figcaption className="text-sm text-muted">{t.settings.sampleSource}</figcaption>
+              </figure>
+            </Panel>
+            <Panel aria-label={t.settings.preferences} className="flex flex-col gap-4">
+              <SwitchRow
                 id="reduced-motion"
-                className="switch"
-                type="checkbox"
-                role="switch"
+                headingLevel="h2"
+                title={t.settings.motion}
+                description={t.settings.motionBody}
                 checked={settings.reducedMotion}
-                onChange={(event) => update({ reducedMotion: event.target.checked })}
+                onChange={(reducedMotion) => update({ reducedMotion })}
               />
-            </section>
-            <section className="setting-section motion-setting">
-              <div>
-                <h2>
-                  <label htmlFor="simulation-only">{t.settings.simulation}</label>
-                </h2>
-                <p>{t.settings.simulationBody}</p>
-              </div>
-              <input
+              <SwitchRow
                 id="simulation-only"
-                className="switch"
-                type="checkbox"
-                role="switch"
+                headingLevel="h2"
+                divided
+                title={t.settings.simulation}
+                description={t.settings.simulationBody}
                 checked={settings.simulationOnly}
-                onChange={(event) => update({ simulationOnly: event.target.checked })}
+                onChange={(simulationOnly) => update({ simulationOnly })}
               />
-            </section>
-            <section className="setting-section motion-setting">
-              <div>
-                <h2>
-                  <label htmlFor="backup-reminder">{t.settings.backups}</label>
-                </h2>
-                <p>{t.settings.backupsBody}</p>
-              </div>
-              <input
+              <SwitchRow
                 id="backup-reminder"
-                className="switch"
-                type="checkbox"
-                role="switch"
+                headingLevel="h2"
+                divided
+                title={t.settings.backups}
+                description={t.settings.backupsBody}
                 checked={settings.backupReminder}
-                onChange={(event) => update({ backupReminder: event.target.checked })}
+                onChange={(backupReminder) => update({ backupReminder })}
               />
-            </section>
-            <section className="setting-section">
-              <h2>{t.settings.tutorial}</h2>
-              <p>{t.settings.tutorialBody}</p>
-              <button
-                className="button secondary setting-action"
-                disabled={!settings.tutorial.week && !settings.tutorial.match}
+            </Panel>
+          </div>
+          <div className="flex min-w-0 flex-col gap-5">
+            <SoundSettings />
+            <Panel aria-labelledby="settings-tutorial" className="flex flex-col gap-4">
+              <div>
+                <CardTitle id="settings-tutorial">{t.settings.tutorial}</CardTitle>
+                <p className={cardBody}>{t.settings.tutorialBody}</p>
+              </div>
+              <Button
+                variant="secondary"
+                icon="play"
+                className="self-start"
+                disabled={tourWaiting}
+                aria-describedby={tourWaiting && !tutorialQueued ? 'tutorial-queued' : undefined}
                 onClick={() => {
                   update({ tutorial: { week: false, match: false, replay: true } });
-                  setNotice(t.settings.tutorialDone);
+                  setTutorialQueued(true);
                 }}
               >
                 {t.settings.tutorialReset}
-              </button>
-            </section>
+              </Button>
+              {tourWaiting && !tutorialQueued && (
+                <p id="tutorial-queued" className="-mt-2 text-xs text-muted">
+                  {t.settings.tutorialQueued}
+                </p>
+              )}
+              <StatusLine tone="success" className="self-start">
+                {tutorialQueued ? t.settings.tutorialDone : ''}
+              </StatusLine>
+            </Panel>
           </div>
-          <div className="settings-column">
-            <SoundSettings />
-          </div>
-          <div className="settings-footer">
-            <button className="button secondary" onClick={() => reset.open()}>
-              <Icon name="refresh" />
-              {t.settings.reset}
-            </button>
-            <p className="settings-status" role="status">
-              {notice || t.settings.saved}
-            </p>
-          </div>
-          {!stored && (
-            <p role="alert" className="inline-error">
-              {t.app.preferencesError}
-            </p>
-          )}
         </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-4.5">
+          <Button variant="secondary" icon="refresh" onClick={() => reset.open()}>
+            {t.settings.reset}
+          </Button>
+          <p
+            role="status"
+            className={cx(
+              'flex items-center gap-1.5 text-[0.8125rem]',
+              restored ? 'font-semibold text-accent' : 'text-muted',
+            )}
+          >
+            <Icon name="check" className="h-3.5 w-3.5 shrink-0 text-accent" />
+            {restored ? t.settings.resetDone : t.settings.saved}
+          </p>
+        </div>
+        {!stored && <StatusLine tone="error">{t.app.preferencesError}</StatusLine>}
       </div>
       {reset.value === '1' && (
         <Dialog
@@ -161,12 +177,51 @@ export default function Settings() {
           onClose={reset.close}
           onConfirm={() => {
             update({ ...DEFAULT_SETTINGS });
-            setNotice(t.settings.resetDone);
+            setRestored(true);
+            setTutorialQueued(false);
             reset.close();
           }}
         />
       )}
     </Page>
+  );
+}
+
+/**
+ * A miniature of the clubhouse in a theme: sidebar, a heading bar, a card and the gold call to
+ * action. The colours are fixed (light chrome, night chrome), so each card always shows its own
+ * theme whatever the current one is; "System" shows both halves.
+ */
+function ThemePreview({ theme }: { theme: Theme }) {
+  return (
+    <span className="flex h-[5.375rem] overflow-hidden rounded-chip border border-line">
+      {theme !== 'dark' && <PreviewHalf dark={false} sidebar />}
+      {theme !== 'light' && <PreviewHalf dark sidebar={theme === 'dark'} />}
+    </span>
+  );
+}
+function PreviewHalf({ dark, sidebar }: { dark: boolean; sidebar: boolean }) {
+  return (
+    <span className={cx('flex flex-1', dark ? 'bg-night' : 'bg-hero-muted')}>
+      {sidebar && (
+        <span
+          className={cx(
+            'w-[1.125rem] border-r',
+            dark ? 'border-night-line bg-night-soft' : 'border-hero-muted bg-white',
+          )}
+        />
+      )}
+      <span className="flex flex-1 flex-col gap-[5px] px-1.5 py-2">
+        <span className={cx('h-1.5 w-3/5 rounded-full', dark ? 'bg-mint' : 'bg-field')} />
+        <span
+          className={cx(
+            'flex-1 rounded-chip border',
+            dark ? 'border-night-line bg-night-raised' : 'border-hero-muted bg-white',
+          )}
+        />
+        <span className="h-2 w-[1.625rem] rounded-full bg-gold" />
+      </span>
+    </span>
   );
 }
 
@@ -187,21 +242,23 @@ const PREVIEWS: { sound: SoundName | 'crowd'; label: string }[] = [
   { sound: 'ooh', label: t.settings.previews.ooh },
   { sound: 'crowd', label: t.settings.previews.crowd },
 ];
-/** A small play triangle: each chip plays a sample of that sound. */
+/** A small filled play triangle in a mint disc: each chip plays a sample of that sound. */
 function PlayGlyph() {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinejoin="round"
+    <span
       aria-hidden="true"
+      className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent-soft text-accent"
     >
-      <path d="M8 5.5V18.5L18.5 12Z" />
-    </svg>
+      <svg viewBox="0 0 24 24" width="12" height="12">
+        <path
+          d="M8 5.5V18.5L18.5 12Z"
+          fill="currentColor"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
   );
 }
 function SoundSettings() {
@@ -210,7 +267,7 @@ function SoundSettings() {
   const crowdPreview = useRef<ReturnType<typeof setTimeout>>();
   const mounted = useRef(false);
   const previewVersion = useRef(0);
-  const [previewing, setPreviewing] = useState(false);
+  const [previewing, setPreviewing] = useState<SoundName | 'crowd' | null>(null);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -236,118 +293,111 @@ function SoundSettings() {
     ['crowd', t.settings.crowd],
     ['music', t.settings.musicVolume],
   ] as const;
+  const preview = async (name: SoundName | 'crowd') => {
+    if (previewing) return;
+    const version = ++previewVersion.current;
+    setPreviewing(name);
+    try {
+      await audio.unlock();
+      await audio.prepare([name]);
+      if (!mounted.current || version !== previewVersion.current) return;
+      clearTimeout(crowdPreview.current);
+      if (crowdPreview.current !== undefined) audio.crowd(null);
+      crowdPreview.current = undefined;
+      if (name !== 'crowd') {
+        audio.play(name);
+        return;
+      }
+      audio.crowd(0.5);
+      crowdPreview.current = setTimeout(() => {
+        audio.crowd(null);
+        crowdPreview.current = undefined;
+      }, 4000);
+    } finally {
+      if (mounted.current) setPreviewing(null);
+    }
+  };
   return (
-    <>
-      <section className="setting-section motion-setting">
-        <div>
-          <h2>
-            <label htmlFor="mute">{t.settings.mute}</label>
-          </h2>
-          <p>{t.settings.muteBody}</p>
-        </div>
-        <input
-          id="mute"
-          className="switch"
-          type="checkbox"
-          role="switch"
-          checked={sound.muted}
-          onChange={(event) => set({ muted: event.target.checked })}
-        />
-      </section>
-      <section className="setting-section motion-setting">
-        <div>
-          <h2>
-            <label htmlFor="background-music">{t.settings.music}</label>
-          </h2>
-          <p>{t.settings.musicBody}</p>
-        </div>
-        <input
-          id="background-music"
-          className="switch"
-          type="checkbox"
-          role="switch"
-          checked={sound.musicEnabled}
-          disabled={sound.muted}
-          onChange={(event) => set({ musicEnabled: event.target.checked })}
-        />
-      </section>
-      <section className="setting-section">
-        <h2>{t.settings.sound}</h2>
-        <p>{t.settings.soundBody}</p>
+    <Panel aria-labelledby="settings-sound" className="flex flex-col gap-4">
+      <div>
+        <CardTitle id="settings-sound">{t.settings.sound}</CardTitle>
+        <p className={cardBody}>{t.settings.soundBody}</p>
+      </div>
+      <SwitchRow
+        id="mute"
+        divided
+        title={t.settings.mute}
+        description={t.settings.muteBody}
+        checked={sound.muted}
+        onChange={(muted) => set({ muted })}
+      />
+      <SwitchRow
+        id="background-music"
+        divided
+        title={t.settings.music}
+        description={t.settings.musicBody}
+        checked={sound.musicEnabled}
+        disabled={sound.muted}
+        onChange={(musicEnabled) => set({ musicEnabled })}
+      />
+      <div className="flex flex-col gap-1">
         {volumes.map(([key, label]) => {
           const percent = Math.round(sound[key] * 100);
           return (
-            <div key={key} className="volume-setting">
-              <div className="range-label">
-                <label htmlFor={`volume-${key}`}>{label}</label>
-                <output htmlFor={`volume-${key}`}>
-                  {format(t.settings.volumeValue, { percent })}
-                </output>
-              </div>
-              <input
-                id={`volume-${key}`}
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={percent}
-                disabled={sound.muted || (key === 'music' && !sound.musicEnabled)}
-                aria-valuetext={format(t.settings.volumeValue, { percent })}
-                onChange={(event) => set({ [key]: Number(event.target.value) / 100 })}
-              />
-            </div>
+            <RangeSlider
+              key={key}
+              id={`volume-${key}`}
+              label={label}
+              min={0}
+              max={100}
+              step={5}
+              value={percent}
+              valueText={format(t.settings.volumeValue, { percent })}
+              disabled={sound.muted || (key === 'music' && !sound.musicEnabled)}
+              onChange={(value) => set({ [key]: value / 100 })}
+            />
           );
         })}
-        <p id="sound-previews-label" className="sound-previews-label">
+      </div>
+      <div className="flex flex-col gap-2.5">
+        <p id="sound-previews-label" className="text-[0.8125rem] font-extrabold">
           {t.settings.previewSounds}
         </p>
-        <div className="sound-previews" role="group" aria-labelledby="sound-previews-label">
-          {PREVIEWS.map(({ sound: name, label }) => (
-            <button
-              key={name}
-              className="button secondary"
-              data-sound="none"
-              disabled={
-                sound.muted ||
-                previewing ||
-                sound.master === 0 ||
-                (name === 'crowd' || name === 'roar' || name === 'ooh'
-                  ? sound.crowd === 0
-                  : sound.effects === 0)
-              }
-              onClick={async () => {
-                const version = ++previewVersion.current;
-                setPreviewing(true);
-                try {
-                  await audio.unlock();
-                  await audio.prepare([name]);
-                  if (!mounted.current || version !== previewVersion.current) return;
-                  clearTimeout(crowdPreview.current);
-                  if (crowdPreview.current !== undefined) audio.crowd(null);
-                  crowdPreview.current = undefined;
-                  if (name !== 'crowd') {
-                    audio.play(name);
-                    return;
-                  }
-                  audio.crowd(0.5);
-                  crowdPreview.current = setTimeout(() => {
-                    audio.crowd(null);
-                    crowdPreview.current = undefined;
-                  }, 4000);
-                } finally {
-                  if (mounted.current) setPreviewing(false);
-                }
-              }}
-            >
-              <PlayGlyph />
-              {label}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2" role="group" aria-labelledby="sound-previews-label">
+          {PREVIEWS.map(({ sound: name, label }) => {
+            const busy = previewing === name;
+            const off =
+              sound.muted ||
+              sound.master === 0 ||
+              (name === 'crowd' || name === 'roar' || name === 'ooh'
+                ? sound.crowd === 0
+                : sound.effects === 0);
+            return (
+              <button
+                key={name}
+                type="button"
+                data-sound="none"
+                disabled={off || (previewing !== null && !busy)}
+                aria-busy={busy || undefined}
+                aria-disabled={busy || undefined}
+                onClick={() => void preview(name)}
+                className={cx(
+                  'inline-flex min-h-11 items-center gap-1.5 rounded-full border pr-3 pl-2.5 text-[0.8125rem] transition-colors',
+                  busy
+                    ? 'border-accent bg-accent-soft font-bold text-accent shadow-[inset_0_0_0_1px_var(--accent)]'
+                    : 'cursor-pointer border-line bg-surface font-semibold text-ink hover:bg-surface-soft disabled:cursor-not-allowed disabled:bg-surface-soft disabled:text-muted',
+                )}
+              >
+                {busy ? <Spinner className="h-[1.125rem] w-[1.125rem]" /> : <PlayGlyph />}
+                {label}
+              </button>
+            );
+          })}
         </div>
-        <p className="settings-status" role="status">
+        <p role="status" className="min-h-5 text-[0.8125rem] font-semibold text-accent">
           {previewing ? t.settings.previewLoading : ''}
         </p>
-      </section>
-    </>
+      </div>
+    </Panel>
   );
 }

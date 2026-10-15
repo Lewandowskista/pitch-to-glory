@@ -270,6 +270,13 @@ export const en = {
       'This slot could not be read. Your other slots are unaffected. Import a backup or replace it with your current session.',
     futureBody:
       'This slot was saved by a newer version of Pitch to Glory. Update the game to open it.',
+    slotState: '{slot}, {state}',
+    activeState: 'active save',
+    emptyState: 'empty',
+    loadingState: 'loading',
+    damagedState: 'unreadable',
+    futureState: 'needs an update',
+    careerTag: 'Career',
   },
   settings: {
     title: 'Settings',
@@ -334,6 +341,11 @@ export const en = {
       'A short guided tour runs during your first week and your first match. Show it again on your next career week and match.',
     tutorialReset: 'Show the tutorial again',
     tutorialDone: 'The tutorial will show again.',
+    tutorialQueued: 'The tour will run on your next career week and match.',
+    preferences: 'Play preferences',
+    sample: 'Live sample',
+    sampleQuote: '“A far-post finish that showed composure beyond his years.”',
+    sampleSource: 'Matchday report',
   },
   errors: {
     invalid: 'This backup is incomplete or invalid. Choose a valid Pitch to Glory file.',
