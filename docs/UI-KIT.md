@@ -238,3 +238,24 @@ Not in the barrel: import it from `src/ui/kit/ValueMeter`.
 - Fixed bottom bars on phones (the Profile points bar, the Training action bar) sit at
   `calc(var(--tabbar) + 0.75rem)`; a bar inside a page that animates in must be `sticky` or
   portalled to `body`, because the page transition's transform traps `position: fixed`.
+
+## Added in phase 4 (Saved games and Settings)
+
+Imported directly (`src/ui/kit/ToggleSwitch`, `RangeSlider`, `RadioTile`), not through the
+barrel. They replace the "Switch" and "radio cards" rows of the artboard map above for new code.
+
+- **`ToggleSwitch`** (`ToggleSwitch.tsx`): `id`, `checked`, `onChange(checked)`, `disabled`,
+  `labelledBy`, `describedBy`. The shared `.switch` checkbox (`role="switch"`) inside a
+  60 × 44 label, so the touch target is 44px although the track is 52 × 30.
+- **`SwitchRow`** (same file): `id`, `title`, `description`, `checked`, `onChange`,
+  `disabled`, `headingLevel` (`h3` default; `h2` in a card without a visible title; `p`),
+  `badge`, `divided` (hairline above, for every row after the first). The title is the
+  switch's label (`aria-labelledby`), the description its `aria-describedby`.
+- **`RangeSlider`** (`RangeSlider.tsx`): `id`, `label`, `value`, `valueText` (shown in an
+  `<output for>` and used as `aria-valuetext`), `min`, `max`, `step`, `onChange(value)`,
+  `disabled` (dims and stops input), `ticks` (evenly spaced labels under the track), `size`
+  (`sm` volumes, `lg` a Bebas value such as text size).
+- **`RadioTile`** (`RadioTile.tsx`): `name`, `value`, `checked`, `onChange`, `label`, `icon`,
+  `children` (the option's picture, hidden from assistive technology). A card-sized label with
+  a visible native radio, the accent outline and tint when chosen. Group in a `<fieldset>`
+  with a `<legend>`.
