@@ -68,13 +68,13 @@ export default function Gallery() {
             <label htmlFor="seed" className="mb-1.5 block text-[0.8125rem] font-bold">
               {t.gallery.seed}
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <input
                 id="seed"
                 value={draft}
                 maxLength={120}
                 required
-                className="min-w-0 flex-1 bg-surface-soft"
+                className="min-w-0 flex-[1_1_10rem] bg-surface-soft"
                 onChange={(event) => setDraft(event.target.value)}
                 aria-describedby="seed-hint"
               />
