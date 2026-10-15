@@ -109,6 +109,7 @@ portraits, club crests and kits drawn as layered flat shapes with subtle tonal s
 photographs, no gradients-on-everything, no glassmorphism, no neon.
 
 Design principles:
+
 1. **One obvious next action.** Every screen leads with what the player should do now.
 2. **Stable navigation.** Persistent left sidebar on desktop, bottom tab bar on mobile.
 3. **Show the football.** Pitch, score, crests and opponents stay in view; numbers explain the game.

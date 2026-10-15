@@ -466,9 +466,9 @@ A card is a `card` event with `card: 'yellow' | 'second-yellow' | 'red'` and com
 
 **10,000-match gate** (the striker's benchmark, which now includes dismissals): goals 2.6661 a match (home 1.454, away 1.229), home wins 42.2%, draws 26.3%, close-gap upsets 23.2%, wide-gap upsets 8.6%: within a few hundredths of `match-15` (2.6542 / 42.2% / 26.3% / 22.9% / 8.2%).
 
-| Step                | Goals  | Home win | Draw   | Close upset | Wide upset |
-| ------------------- | ------ | -------- | ------ | ----------- | ---------- |
-| `match-15` (M8)     | 2.6542 | 0.4218   | 0.2625 | 0.2285      | 0.082      |
-| `match-16` cards    | 2.6661 | 0.4223   | 0.2632 | 0.2315      | 0.0855     |
+| Step             | Goals  | Home win | Draw   | Close upset | Wide upset |
+| ---------------- | ------ | -------- | ------ | ----------- | ---------- |
+| `match-15` (M8)  | 2.6542 | 0.4218   | 0.2625 | 0.2285      | 0.082      |
+| `match-16` cards | 2.6661 | 0.4223   | 0.2632 | 0.2315      | 0.0855     |
 
 The profile's other gates hold: a striker scores 0.50 a match, every position reaches 9, objectives complete 10–75% of the time, outfield substitutions 6–9%, attacker involvement best/worst ×1.4–1.8, stated odds honest, and choreography 5.3–5.9 ms a match (8.0–9.2 ms a whole match).
