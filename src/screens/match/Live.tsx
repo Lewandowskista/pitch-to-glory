@@ -86,10 +86,25 @@ export function Scoreboard({
   const team = (index: 0 | 1) => {
     const club = index === 0 ? setup.home : setup.away;
     const finalLine = status === 'finished' ? scorers(club.id) : '';
+    // Players sent off (match-16): a red card for each beside the name.
+    const reds = (index === 0 ? state.match.home : state.match.away).sentOffIds?.length ?? 0;
     return (
       <div className={cx('match-team', index === 0 ? 'is-home' : 'is-away')}>
         <span className="match-team-text">
-          <strong>{club.name}</strong>
+          <strong>
+            {club.name}
+            {reds > 0 && (
+              <span
+                className="match-red-cards"
+                role="img"
+                aria-label={matchFormat(u.redCards, { count: reds })}
+              >
+                {Array.from({ length: reds }, (_, card) => (
+                  <span key={card} />
+                ))}
+              </span>
+            )}
+          </strong>
           <span className="match-team-mark" aria-hidden="true">
             {mark(club.name)}
           </span>
@@ -276,6 +291,8 @@ export function Timeline({ session }: { session: MatchSession }) {
     key: string;
     minute: number;
     kind: 'moment' | 'goal' | 'half' | 'card';
+    /** A dismissal (match-16): the card is red. */
+    red?: boolean;
     colour?: string;
     text: string;
   };
@@ -297,12 +314,20 @@ export function Timeline({ session }: { session: MatchSession }) {
         key: event.id,
         minute: event.minute,
         kind: event.kind === 'goal' ? ('goal' as const) : ('card' as const),
+        red: event.kind === 'card' && !!event.card && event.card !== 'yellow',
         colour: event.teamId === setup.home.id ? kits.home : kits.away,
-        text: matchFormat(event.kind === 'goal' ? u.timelineGoal : u.timelineCard, {
-          minute: event.minute,
-          team: teamName(event.teamId),
-          name: event.playerId ? surname(setup.players[event.playerId]?.name ?? '') : '',
-        }),
+        text: matchFormat(
+          event.kind === 'goal'
+            ? u.timelineGoal
+            : event.card && event.card !== 'yellow'
+              ? u.timelineRed
+              : u.timelineCard,
+          {
+            minute: event.minute,
+            team: teamName(event.teamId),
+            name: event.playerId ? surname(setup.players[event.playerId]?.name ?? '') : '',
+          },
+        ),
       })),
   ].sort((a, b) => a.minute - b.minute);
   const at = (value: number) => `${(Math.min(90, Math.max(0, value)) / 90) * 100}%`;
@@ -314,7 +339,7 @@ export function Timeline({ session }: { session: MatchSession }) {
         {marks.map((entry) => (
           <span
             key={entry.key}
-            className={cx('match-timeline-mark', `is-${entry.kind}`)}
+            className={cx('match-timeline-mark', `is-${entry.kind}`, entry.red && 'is-red')}
             style={{
               left: at(entry.minute),
               ...(entry.colour ? { background: entry.colour } : {}),
@@ -583,7 +608,13 @@ export function CommentaryCard({
       {/* Scrolls within its bounded height, so the keyboard can reach and scroll it too. */}
       <ol id={`${id}-list`} tabIndex={0} aria-labelledby={`${id}-feed`}>
         {rows.map((row) => (
-          <li key={row.id} className={`is-${row.kind}`}>
+          <li
+            key={row.id}
+            className={cx(
+              `is-${row.kind}`,
+              row.event?.card && row.event.card !== 'yellow' && 'is-red',
+            )}
+          >
             <time>{matchFormat(m.minute, { minute: row.minute })}</time>
             <span className="match-feed-icon" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 24 24">
@@ -871,6 +902,38 @@ export function SubstitutionPanel({
 }
 
 /**
+ * The career player is sent off (match-16): the card, the minute and why, and what happens
+ * now. Nothing to answer: the match plays on to full time without them.
+ */
+export function SentOffPanel({ session }: { session: MatchSession }) {
+  const { setup, state } = session;
+  const id = useId();
+  const sentOff = state.sentOff!;
+  const player = setup.players[setup.selectedPlayerId]!;
+  return (
+    <section className="match-panel match-interrupt" role="status" aria-labelledby={`${id}-off`}>
+      <div className="match-interrupt-head">
+        <span className="match-card-chip is-red is-large" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="match-interrupt-meta">
+            {surname(player.name)} ·{' '}
+            {matchFormat(u.sentOffMeta, {
+              minute: sentOff.minute,
+              reason: u.sentOffReasons[sentOff.reason],
+            })}
+          </p>
+          <h2 id={`${id}-off`} className="match-interrupt-title">
+            {u.sentOff}
+          </h2>
+        </div>
+      </div>
+      <p>{u.sentOffBody}</p>
+      {setup.fixture && <p className="match-card-note">{u.sentOffBan}</p>}
+    </section>
+  );
+}
+
+/**
  * After a decision: success or not, the roll against the chance, every signed factor summing
  * to that chance, the biggest help or drag, and "Continue play" (nothing counts down).
  */
@@ -943,6 +1006,24 @@ export function OutcomePanel({
         <p className="match-card-note">{u.rollExplain}</p>
       </div>
       {verdict && <p className="match-verdict">{verdict}</p>}
+      {outcome.booking && (
+        // A failed defending choice's booking roll (match-16), on its own stream.
+        <p className="match-booking-roll">
+          <span
+            className={cx(
+              'match-card-chip',
+              !outcome.booking.card && 'is-none',
+              outcome.booking.card && outcome.booking.card !== 'yellow' && 'is-red',
+            )}
+            aria-hidden="true"
+          />
+          {matchFormat(u.bookingRoll, {
+            roll: (outcome.booking.roll * 100).toFixed(1),
+            chance: (outcome.booking.foul * 100).toFixed(1),
+            result: u.bookingResults[outcome.booking.card ?? 'none'],
+          })}
+        </p>
+      )}
       <div>
         <h3 className="match-factors-title">{m.factors}</h3>
         <Factors factors={outcome.factors} total={outcome.probability} />

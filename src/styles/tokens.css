@@ -81,6 +81,9 @@
   --color-gold-ink: var(--gold-ink);
   /* Text on a danger fill (the "danger" button). */
   --color-on-danger: var(--on-danger);
+  /* The referee's cards (bg-card-yellow, bg-card-red): yellows, reds and suspensions. */
+  --color-card-yellow: var(--card-yellow);
+  --color-card-red: var(--card-red);
   /* Meter and progress tracks: they read on white and on soft surfaces alike. */
   --color-track: var(--track);
   /* Modal backdrops (dialogs, the More sheet) and the tutorial's dimming. */
@@ -110,6 +113,11 @@
   --meter-gold: #9a7612;
   --gold-ink: #5c4708;
   --on-danger: #ffffff;
+  /* The referee's cards: the same physical colours in both themes. */
+  --card-yellow: #f2c94c;
+  --card-yellow-ink: #3b2f05;
+  --card-red: #d9342b;
+  --card-red-ink: #ffffff;
   --track: #e3e9df;
   --scrim: rgb(16 34 25 / 0.67);
   --spotlight: rgb(16 34 25 / 0.4);

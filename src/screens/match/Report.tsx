@@ -279,6 +279,21 @@ export function Report({
                   {player.primaryPosition} ·{' '}
                   {matchFormat(m.age, { age: setup.season - player.birthSeason })}
                 </p>
+                {/* Cards (match-16): a dismissal is said plainly, a booking noted. */}
+                {report.cards?.sentOff ? (
+                  <p className="match-report-cards is-red" data-testid="report-sent-off">
+                    <span className="match-card-chip is-red" aria-hidden="true" />
+                    {matchFormat(u.reportSentOff, {
+                      minute: report.cards.sentOff.minute,
+                      reason: u.sentOffReasons[report.cards.sentOff.reason],
+                    })}
+                  </p>
+                ) : report.cards?.yellow ? (
+                  <p className="match-report-cards">
+                    <span className="match-card-chip" aria-hidden="true" />
+                    {matchFormat(u.reportCards, { yellow: report.cards.yellow })}
+                  </p>
+                ) : null}
               </div>
             </div>
             <motion.div

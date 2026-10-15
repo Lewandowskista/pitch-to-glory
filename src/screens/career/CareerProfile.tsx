@@ -48,6 +48,8 @@ import {
 } from './selectors';
 import { SkillGlyph } from './skillGlyphs';
 import { usePhone } from './usePhone';
+import { CardMark } from './disciplineUi';
+import { cardsLine, disciplineText as d } from '../../i18n/discipline';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
@@ -708,6 +710,17 @@ function SeasonCard({ world, career, player }: { world: World; career: Career; p
         ))}
       </dl>
       {!line.apps && <p className="mt-2 text-xs text-night-muted">{c.profile.seasonEmpty}</p>}
+      {/* The disciplinary record (the discipline phase): this season and the career. */}
+      <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-night-muted">
+        <CardMark red={line.red > 0} />
+        <span className="font-bold text-night-ink">{d.record}</span>
+        <span>
+          {format(d.seasonCards, { cards: cardsLine(line.yellow, line.red) })} ·{' '}
+          {format(d.careerCards, {
+            cards: cardsLine(player.stats.yellowCards ?? 0, player.stats.redCards ?? 0),
+          })}
+        </span>
+      </p>
     </Panel>
   );
 }
@@ -862,6 +875,23 @@ function ResultScore({ match }: { match: CareerMatchRecord }) {
   );
 }
 
+/** A match's cards beside its rating (the discipline phase): a booking, or the dismissal. */
+function MatchCards({ match }: { match: CareerMatchRecord }) {
+  if (!match.sentOff && !match.yellowCards) return null;
+  const label = match.sentOff
+    ? format(d.sentOffMatch, {
+        minute: match.sentOff.minute,
+        reason: d.reasons[match.sentOff.reason],
+      })
+    : format(d.bookedMatch, { count: match.yellowCards ?? 0 });
+  return (
+    <span className="inline-flex shrink-0 items-center" title={label}>
+      <CardMark red={Boolean(match.sentOff)} />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 function AutoTag({ match }: { match: CareerMatchRecord }) {
   if (!match.auto) return null;
   return (
@@ -909,6 +939,18 @@ function History({ world, career }: { world: World; career: Career }) {
                   {label}
                 </th>
               ))}
+              {/* Cards (the discipline phase): short headers, named in full for readers. */}
+              {[
+                [d.yellowShort, d.yellow],
+                [d.redShort, d.red],
+              ].map(([short, full]) => (
+                <th key={short} scope="col" className={`${cell} align-bottom font-semibold`}>
+                  <abbr title={full} className="no-underline">
+                    <span aria-hidden="true">{short}</span>
+                    <span className="sr-only">{full}</span>
+                  </abbr>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -929,6 +971,8 @@ function History({ world, career }: { world: World; career: Career }) {
                 <td className={cell}>{line.rating.toFixed(2)}</td>
                 <td className={cell}>{line.cleanSheets}</td>
                 <td className={cell}>{line.xp}</td>
+                <td className={cell}>{line.yellow}</td>
+                <td className={cell}>{line.red}</td>
               </tr>
             ))}
           </tbody>
@@ -951,6 +995,7 @@ function History({ world, career }: { world: World; career: Career }) {
                     ({match.home ? c.common.home : c.common.away})
                   </span>
                 </span>
+                <MatchCards match={match} />
                 <span className="shrink-0 font-display text-xl leading-none">
                   <span className="sr-only">{cols.rating} </span>
                   {match.rating.toFixed(1)}
@@ -1019,7 +1064,9 @@ function History({ world, career }: { world: World; career: Career }) {
                   <td className="px-2 py-2 whitespace-nowrap">
                     <ResultScore match={match} />
                   </td>
-                  <td className="px-2 py-2 font-bold">{match.rating.toFixed(1)}</td>
+                  <td className="px-2 py-2 font-bold whitespace-nowrap">
+                    {match.rating.toFixed(1)} <MatchCards match={match} />
+                  </td>
                   <td className="px-2 py-2">
                     {match.goals}/{match.assists}
                   </td>

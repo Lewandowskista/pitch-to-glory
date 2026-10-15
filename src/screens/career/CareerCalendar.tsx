@@ -13,6 +13,8 @@ import { competitionName } from './selectors';
 import { seasonAgenda, withSave, type AgendaEntry, type AgendaWeek } from './agenda';
 import { priorityLabel } from './HubPriorities';
 import { focusLabel } from './trainingLabels';
+import { SuspendedBadge } from './disciplineUi';
+import { bannedFixtures } from '../../engine/world/discipline';
 
 type View = 'ahead' | 'all';
 const VIEWS: View[] = ['ahead', 'all'];
@@ -279,6 +281,7 @@ function Entry({ world, entry, showDay }: { world: World; entry: AgendaEntry; sh
   switch (entry.kind) {
     case 'fixture': {
       const { fixture, result } = entry;
+      const ban = result ? undefined : bannedFixtures(world, career.playerId).get(fixture.id);
       const home = fixture.homeId === clubId;
       const opponent = world.clubs[home ? fixture.awayId : fixture.homeId];
       const venue = fixture.neutral ? a.calendar.neutral : home ? a.calendar.home : a.calendar.away;
@@ -332,6 +335,10 @@ function Entry({ world, entry, showDay }: { world: World; entry: AgendaEntry; sh
                 .join(' · ')}
             </p>
           </div>
+          {!outcome && ban && (
+            // A ban rules the player out of this match (the discipline phase).
+            <SuspendedBadge matches={ban.of} match={ban.match} />
+          )}
           {outcome && (
             <span
               className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-extrabold tabular-nums ${

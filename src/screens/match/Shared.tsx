@@ -79,7 +79,16 @@ export function signedPercent(value: number, digits = 1) {
  * Every factor behind a chance, each with a bar from the centre line (right adds, left takes
  * away) and its signed value; the optional total is the chance they add up to.
  */
-export function Factors({ factors, total }: { factors: ProbabilityFactor[]; total?: number }) {
+export function Factors({
+  factors,
+  total,
+  totalLabel = m.ui.successChance,
+}: {
+  factors: ProbabilityFactor[];
+  total?: number;
+  /** What the factors add up to (a success chance unless named). */
+  totalLabel?: string;
+}) {
   return (
     <ul className="match-factors">
       {factors.map((factor, index) => {
@@ -106,7 +115,7 @@ export function Factors({ factors, total }: { factors: ProbabilityFactor[]; tota
       })}
       {total !== undefined && (
         <li className="match-factor-total">
-          <span>{m.ui.successChance}</span>
+          <span>{totalLabel}</span>
           <strong>{(total * 100).toFixed(1)}%</strong>
         </li>
       )}

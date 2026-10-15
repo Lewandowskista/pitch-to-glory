@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Clip } from '../../engine/career/honours/clip';
+import { isParked } from '../../engine/match/parked';
 import type { Hex, Point } from '../../model/domain';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
@@ -264,6 +265,8 @@ export function ClipPitch({
         strokeLinecap="round"
       />
       {order.map((player) => {
+        // A player sent off before the goal (match-16) is parked off the pitch: not drawn.
+        if (isParked(sample.players[player]!)) return null;
         const p = view.px(sample.players[player]!);
         if (p.y > H + 12) return null;
         const selected = player === clip.selected;

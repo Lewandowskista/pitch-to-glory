@@ -48,6 +48,7 @@ import {
   PitchOverlay,
   RatingCard,
   Scoreboard,
+  SentOffPanel,
   SimulationCard,
   StatsCard,
   SubstitutionPanel,
@@ -672,6 +673,7 @@ export default function MatchScreen() {
                     onResponse={(response) => command({ type: 'substitution', response })}
                   />
                 )}
+                {state!.sentOff && <SentOffPanel session={session} />}
                 {replaying && outcomeMoment && (
                   <DecisionReplay
                     session={session}
