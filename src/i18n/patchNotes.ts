@@ -27,7 +27,7 @@ export type ReleaseSection = (typeof RELEASE_SECTIONS)[number];
 export const PATCH_NOTES: readonly ReleaseNotes[] = [
   {
     version: '0.2.0',
-    date: '2026-10-15',
+    date: '2026-10-16',
     title: 'The redesign',
     summary:
       'A new look for every screen, new art for players and clubs, a richer live match that frames every key moment, and red cards with suspensions.',

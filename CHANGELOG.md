@@ -4,7 +4,7 @@ Player-facing notes for every release of Pitch to Glory, newest first. Generated
 
 ## 0.2.0 — The redesign
 
-_2026-10-15_
+_2026-10-16_
 
 A new look for every screen, new art for players and clubs, a richer live match that frames every key moment, and red cards with suspensions.
 
