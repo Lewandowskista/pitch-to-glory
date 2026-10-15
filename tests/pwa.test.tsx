@@ -16,6 +16,7 @@ vi.mock('virtual:pwa-register/react', () => ({
 }));
 vi.mock('react-router-dom', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a href="/saves">{children}</a>,
+  useLocation: () => ({ pathname: '/' }),
 }));
 vi.mock('../src/persistence/session', () => ({
   autosave: { flush: vi.fn().mockResolvedValue(undefined) },

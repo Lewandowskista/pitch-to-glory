@@ -257,7 +257,7 @@ test('production PWA precaches unvisited routes for offline use', async ({
       return { urls, shell };
     });
     expect(cached.shell).toBe(true);
-    for (const route of ['Gallery', 'Settings', 'Saves', 'Menu'])
+    for (const route of ['Gallery', 'Settings', 'Saves', 'Menu', 'WhatsNew'])
       expect(cached.urls.some((url) => url.includes(`/assets/${route}-`))).toBe(true);
     await context.setOffline(false);
     return;
@@ -266,6 +266,8 @@ test('production PWA precaches unvisited routes for offline use', async ({
   await expect(page.locator('.crest-card')).toHaveCount(15);
   await page.goto('/settings');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
+  await page.goto('/whats-new');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('What’s new');
   await context.setOffline(false);
 });
 

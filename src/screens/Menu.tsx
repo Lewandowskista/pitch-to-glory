@@ -11,6 +11,7 @@ import { Icon } from '../ui/Icon';
 import { Artwork } from '../ui/Artwork';
 import { kitArt } from '../ui/kitArt';
 import { Button, ButtonLink, StatusLine, cx } from '../ui/kit';
+import { APP_VERSION } from '../release/version';
 import { generateGallery } from '../engine/assets/gallery';
 import { renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
@@ -591,6 +592,16 @@ export default function Menu() {
             <Discoveries compact={false} />
           </>
         )}
+        <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+          <span>{format(t.app.release.version, { version: APP_VERSION })}</span>
+          <span aria-hidden="true">·</span>
+          <Link
+            to="/whats-new"
+            className="inline-flex min-h-11 items-center font-semibold text-accent underline underline-offset-4 hover:text-ink"
+          >
+            {t.app.release.link}
+          </Link>
+        </p>
       </div>
     </Page>
   );

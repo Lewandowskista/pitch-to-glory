@@ -32,6 +32,7 @@ export const en = {
       '/career/moments': 'Moments',
       '/career/legacy': 'Legacy',
       '/moment': 'Moment replay',
+      '/whats-new': 'What’s new',
     } as Record<string, string>,
     short: {
       '/': 'Club',
@@ -83,6 +84,13 @@ export const en = {
     updateAction: 'Save & update',
     updateSaveFirst: 'Save your world in a slot before installing this update.',
     later: 'Dismiss',
+    /** Versions and the "Updated" notice; the patch notes live in i18n/patchNotes.ts. */
+    release: {
+      updated: 'Updated to {version}',
+      whatsNew: 'See what’s new',
+      version: 'Version {version}',
+      link: 'What’s new',
+    },
     preferencesError: 'Preferences could not be stored. Export a save to keep a copy.',
     exportUnsaved: 'Export unsaved copy',
     dismiss: 'Dismiss',
@@ -346,6 +354,8 @@ export const en = {
     sample: 'Live sample',
     sampleQuote: '“A far-post finish that showed composure beyond his years.”',
     sampleSource: 'Matchday report',
+    about: 'About',
+    aboutBody: 'The version you are playing, and what changed in each update.',
   },
   errors: {
     invalid: 'This backup is incomplete or invalid. Choose a valid Pitch to Glory file.',

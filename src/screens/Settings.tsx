@@ -5,7 +5,17 @@ import { format, t } from '../i18n';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
 import { Dialog } from '../ui/Dialog';
-import { Button, CardTitle, PageHeader, Panel, Spinner, StatusLine, cx } from '../ui/kit';
+import {
+  Button,
+  ButtonLink,
+  CardTitle,
+  PageHeader,
+  Panel,
+  Spinner,
+  StatusLine,
+  cx,
+} from '../ui/kit';
+import { APP_VERSION } from '../release/version';
 import { SwitchRow } from '../ui/kit/ToggleSwitch';
 import { RangeSlider } from '../ui/kit/RangeSlider';
 import { RadioTile } from '../ui/kit/RadioTile';
@@ -148,6 +158,20 @@ export default function Settings() {
               <StatusLine tone="success" className="self-start">
                 {tutorialQueued ? t.settings.tutorialDone : ''}
               </StatusLine>
+            </Panel>
+            <Panel aria-labelledby="settings-about" className="flex flex-col gap-4">
+              <div>
+                <CardTitle id="settings-about">{t.settings.about}</CardTitle>
+                <p className={cardBody}>{t.settings.aboutBody}</p>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface-soft py-2 pr-2 pl-4">
+                <p className="font-bold">
+                  {format(t.app.release.version, { version: APP_VERSION })}
+                </p>
+                <ButtonLink to="/whats-new" variant="secondary" iconEnd="arrow">
+                  {t.app.release.link}
+                </ButtonLink>
+              </div>
             </Panel>
           </div>
         </div>
