@@ -148,18 +148,29 @@ export function commitCareerMatch(
   const playerId = career.playerId;
   const player = world.players[playerId]!;
   const ownHome = player.clubId === fixture.homeId;
-  // Minutes: initial starters play 90, except the career player if substituted and the
-  // teammate who replaced them.
-  const initial = new Set(state.frames[0]!.players.map((p) => p.id));
-  const minutes = (starterIds: string[]) => {
+  // Minutes from the substitutions (engine match-15 names who comes on, and both managers make
+  // changes): a starter plays until taken off, a substitute from the minute they came on. The
+  // career player's minutes are the session's own count. Earlier engines only ever replaced the
+  // career player, by the one starter who was not on the pitch at kickoff.
+  const initial = state.frames[0]!.players.map((p) => p.id);
+  const kickoff = new Set(initial);
+  const off = new Map<string, number>();
+  const on = new Map<string, number>();
+  for (const event of state.match.events)
+    if (event.kind === 'substitution' && event.playerId) {
+      off.set(
+        event.playerId,
+        event.playerId === playerId ? state.selectedPlayerMinutes : event.minute,
+      );
+      if (event.receiverId) on.set(event.receiverId, event.minute);
+    }
+  const minutes = (club: { playerIds: string[] }, starterIds: string[]) => {
+    const members = new Set(club.playerIds);
     const result: Record<string, number> = {};
+    for (const id of initial) if (members.has(id)) result[id] = off.get(id) ?? 90;
     for (const id of starterIds)
-      result[id] = initial.has(id) ? 90 : Math.max(1, 90 - state.selectedPlayerMinutes);
-    if (
-      state.substituted &&
-      starterIds === (ownHome ? state.match.home : state.match.away).starterIds
-    )
-      result[playerId] = state.selectedPlayerMinutes;
+      if (!kickoff.has(id))
+        result[id] = Math.max(1, 90 - (on.get(id) ?? state.selectedPlayerMinutes));
     return result;
   };
   const played: PlayedFixture = {
@@ -173,8 +184,8 @@ export function commitCareerMatch(
         ...(event.assistId ? { assistId: event.assistId } : {}),
       })),
     minutes: {
-      home: minutes(state.match.home.starterIds),
-      away: minutes(state.match.away.starterIds),
+      home: minutes(session.setup.home, state.match.home.starterIds),
+      away: minutes(session.setup.away, state.match.away.starterIds),
     },
     onPitch: {
       home: [...state.match.home.starterIds],

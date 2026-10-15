@@ -1384,6 +1384,8 @@ export interface MatchEvent {
   zone?: PitchZone;
   /** On shots: the chance of a goal from this shot (engine match-14). */
   xg?: number;
+  /** On cards: the colour shown (engine match-15 books cosmetic yellows only). */
+  card?: 'yellow';
 }
 export interface MatchReport {
   playerId: Id;

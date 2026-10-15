@@ -377,6 +377,7 @@ Distribution of the 10,000-match gate after each step (`goalsPerMatch` / `homeWi
 | M4 cast and targets | 2.6507 | 0.4195   | 0.264  | 0.232       | 0.086      |
 | M5 Track the runner | 2.6507 | 0.4195   | 0.264  | 0.232       | 0.086      |
 | Objectives stream   | 2.652  | 0.4202   | 0.2632 | 0.229       | 0.083      |
+| M7 cards and subs   | 2.6527 | 0.4205   | 0.2628 | 0.229       | 0.083      |
 
 ### M4: the cast and each choice's target
 
@@ -403,3 +404,13 @@ A match's objectives (the rating target and one drawn for the position, as in Ba
 Taking that draw off the preview stream moves its later draws (the consistency shift and the weather) for every match, which is why this step changes outcomes; the number of moments and their minutes come before it and are unchanged.
 
 **Hub.** The next-match hero lists the objectives under the fixture ("Your objectives") when the player is expected to start (selection chance of 50 % or more), and "Your objectives, if you are picked" otherwise; nothing for an injured player (`screens/career/objectivesUi.tsx`).
+
+### M7: cosmetic yellow cards, the managers' substitutions and a bench of seven
+
+**Cards** (decision 5, first step; `engine/match/discipline.ts`). At the end of every played minute each side is booked with probability `discipline.perTeamPerMinute` 0.02 (about 3.6 cards a match), drawn on `${seed}:discipline:${minute}` with two draws a side every minute so the stream never shifts. The player is drawn among the side's outfielders on the pitch not yet booked, weighted `20 + aggression + 0.5 × tackling`. A booking is a `card` event (`card: 'yellow'`, commentary `match.commentary.card.*`) and nothing else: no second yellows, no reds, no change of strength, odds or rating. Because events are numbered and commentary variants are salted by the event count, later event ids and commentary wording move, but no roll does: a test plays the same matches with bookings switched off and gets the same scores, shots, decision rolls and probabilities, ratings and line-ups.
+
+**Bench.** On `match-15` a matchday bench is seven (`benchSize`): the best reserve keeper, then the best of each line (centre-back, full-back, central midfield, wide or attacking midfield, striker), then the best of the rest by ability. The career player's replacement and the managers' changes come from it. Earlier engines keep every other available player on the bench.
+
+**The managers' substitutions.** Each side's plan is drawn on `${seed}:ai-subs`: how many changes (1 to 5 with weights 0.10 / 0.25 / 0.40 / 0.20 / 0.05, at most `aiSubstitutions.limit` 5, one fewer on the career player's side so their own substitution always fits) and their minutes, 60′–80′ (five minute draws a side whatever the count). At a planned minute the manager takes off an outfielder who started (never the keeper, the career player or someone who came on), weighted `1 + 0.05 × fatigue + 0.06 × (70 − stamina)⁺ + 0.05 × (55 − form)⁺`, drawn on `${seed}:ai-subs:${minute}:${side}:${change}`; the best bench replacement comes on (same position, then a compatible one, then any outfielder), the line-up's starter and bench ids are updated, and a `substitution` event names the player off (`playerId`) and on (`receiverId`, commentary `match.commentary.change.*`). The career player's own substitution now names who comes on too. Choreography already puts a substitute in the slot of the player who left. Changes alter who can score and who the drawn opponents are, so they change outcomes.
+
+**Minutes.** `commitCareerMatch` credits minutes from the substitution events: a starter plays until taken off, a substitute from the minute they came on (`90 − minute`, at least 1), the career player the session's own count; players taken off keep their appearance. Each side's minutes therefore add up to 990 in regulation (`match-accounting.test.ts`). Sessions from earlier engines, whose only change was the career player's, are credited as before.

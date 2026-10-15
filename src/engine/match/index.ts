@@ -62,6 +62,7 @@ import { SITUATION_BY_ID, type ChoiceTemplate, type Situation } from './situatio
 import { halftimeRole, roleEffect, shiftMentality } from './roles';
 import { cutHighlight } from './highlight';
 import { matchObjectives, objectivesFor } from './objectives';
+import { bookings, substitutionOff, substitutionPlan } from './discipline';
 import {
   buildChoices,
   clamp,
@@ -152,6 +153,8 @@ function formationLineup(
   players: Record<string, Player>,
   formation: Formation,
   selected: string,
+  /** A matchday bench of seven (match-15); earlier engines name every other available player. */
+  capBench = false,
 ): Lineup {
   const ready = club.playerIds.filter((id) => available(players[id]));
   if (ready.length < 11) throw new Error('A match requires eleven available players per team');
@@ -163,9 +166,35 @@ function formationLineup(
     teamId: club.id,
     formation,
     starterIds: choice.starterIds,
-    benchIds: choice.benchIds,
+    benchIds: capBench ? matchdayBench(choice.benchIds, players) : choice.benchIds,
   };
 }
+/**
+ * The seven on the bench (match-15): the best reserve keeper, then the best of each line
+ * (centre-back, full-back, central midfield, wide or attacking midfield, striker), then the
+ * best of the rest by ability, so a like-for-like change is usually there.
+ */
+function matchdayBench(ids: readonly string[], players: Record<string, Player>): string[] {
+  const pool = [...ids].sort(byAbility(players));
+  const bench: string[] = [];
+  for (const line of BENCH_LINES) {
+    const id = pool.find(
+      (candidate) =>
+        !bench.includes(candidate) && line.includes(players[candidate]!.primaryPosition),
+    );
+    if (id && bench.length < C.benchSize) bench.push(id);
+  }
+  for (const id of pool) if (bench.length < C.benchSize && !bench.includes(id)) bench.push(id);
+  return bench;
+}
+const BENCH_LINES: readonly (readonly Position[])[] = [
+  ['GK'],
+  ['CB'],
+  ['LB', 'RB'],
+  ['DM', 'CM'],
+  ['AM', 'LW', 'RW'],
+  ['ST'],
+];
 function byAbility(players: Record<string, Player>) {
   return (a: string, b: string) =>
     playerAbility(players[b]!) - playerAbility(players[a]!) || (a < b ? -1 : 1);
@@ -362,11 +391,12 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   const selected = setup.players[setup.selectedPlayerId]!;
   validateTactics(tactics, selected.primaryPosition);
   const formations = setup.formations;
+  const bench = latest(setup);
   const home = formations
-      ? formationLineup(setup.home, setup.players, formations[0], setup.selectedPlayerId)
+      ? formationLineup(setup.home, setup.players, formations[0], setup.selectedPlayerId, bench)
       : lineup(setup.home, setup.players, setup.selectedPlayerId),
     away = formations
-      ? formationLineup(setup.away, setup.players, formations[1], setup.selectedPlayerId)
+      ? formationLineup(setup.away, setup.players, formations[1], setup.selectedPlayerId, bench)
       : lineup(setup.away, setup.players, setup.selectedPlayerId);
   const starters = (team: Lineup) => team.starterIds.map((id) => setup.players[id]!);
   // With formations each starter is valued in their slot, as background results are.
@@ -791,6 +821,79 @@ function simulateMinuteGoals(session: MatchSession): void {
     );
   }
   s.match.rng = rng.snapshot();
+  if (latest(session.setup)) discipline(session);
+}
+/**
+ * Cosmetic yellow cards (match-15, decision 5): drawn on `${seed}:discipline:${minute}`,
+ * weighted by aggression and tackling, logged as `card` events with commentary. They never
+ * move an outcome roll, change nobody's strength and send nobody off.
+ */
+function discipline(session: MatchSession): void {
+  const m = session.state.match,
+    setup = session.setup;
+  const booked = new Set(m.events.filter((e) => e.kind === 'card').map((e) => e.playerId ?? ''));
+  for (const card of bookings(setup.seed, m.minute, [m.home, m.away], setup.players, booked)) {
+    const booking = event(
+      session,
+      'card',
+      sideTeam(session, card.side),
+      card.playerId,
+      line(session, 'match.commentary.card'),
+    );
+    booking.card = 'yellow';
+  }
+}
+/**
+ * The managers' substitutions (match-15): each side's plan from `${seed}:ai-subs` (60–80′, at
+ * most the limit, one fewer on the career player's side so their own change always fits); who
+ * comes off is drawn at the minute among outfielders who started (never the career player),
+ * the tired, unfit and out of form most likely, and the best bench replacement comes on.
+ */
+function managerSubstitutions(session: MatchSession): void {
+  const m = session.state.match,
+    setup = session.setup,
+    S = C.aiSubstitutions;
+  if (m.minute < S.from || m.minute > S.to) return;
+  const own = selectedSide(setup);
+  const plan = substitutionPlan(
+    setup.seed,
+    own === 0 ? [S.limit - 1, S.limit] : [S.limit, S.limit - 1],
+  );
+  for (const side of [0, 1] as const) {
+    const due = plan[side]!.filter((minute) => minute === m.minute).length;
+    for (let change = 0; change < due; change++) {
+      const key = side === 0 ? 'home' : 'away';
+      const team = m[key];
+      const made = m.events.filter((e) => e.kind === 'substitution' && e.teamId === team.teamId);
+      if (made.length >= S.limit) break;
+      const cameOn = new Set(made.map((e) => e.receiverId));
+      const candidates = team.starterIds.filter(
+        (id, slot) =>
+          slot > 0 &&
+          id !== setup.selectedPlayerId &&
+          !cameOn.has(id) &&
+          setup.players[id]!.primaryPosition !== 'GK',
+      );
+      const rng = createRng(`${setup.seed}:ai-subs:${m.minute}:${side}:${change}`);
+      const off = substitutionOff(rng, candidates, setup.players);
+      const on = off ? replacement(session, team.benchIds, setup.players[off]!) : undefined;
+      if (!off || !on) continue;
+      m[key] = {
+        ...team,
+        starterIds: team.starterIds.map((id) => (id === off ? on : id)),
+        benchIds: team.benchIds.filter((id) => id !== on),
+      };
+      const sub = event(
+        session,
+        'substitution',
+        team.teamId,
+        off,
+        line(session, 'match.commentary.change'),
+      );
+      sub.receiverId = on;
+      sub.commentaryParams = { ...sub.commentaryParams, receiver: setup.players[on]!.name };
+    }
+  }
 }
 /** Momentum decays towards even and reacts to this minute's shots, goals and decisions. */
 function updateMomentum(session: MatchSession): void {
@@ -1625,10 +1728,19 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
             starterIds: current.starterIds.map((id) => (id === player.id ? incoming : id)),
             benchIds: current.benchIds.filter((id) => id !== incoming),
           };
-          event(next, 'substitution', player.clubId!, player.id, 'match.commentary.substitution');
+          const sub = event(
+            next,
+            'substitution',
+            player.clubId!,
+            player.id,
+            'match.commentary.substitution',
+          );
+          // Who comes on (match-15), for the substitution board and minutes.
+          if (latest(setup)) sub.receiverId = incoming;
         }
       }
     }
+    if (latest(setup)) managerSubstitutions(next);
     if (setup.dramaMoments && m.minute === C.drama.lateDecisionMinute) placeLateMoment(next);
     if (!state.substituted && state.momentMinutes.includes(m.minute)) openMoment(next);
     else {

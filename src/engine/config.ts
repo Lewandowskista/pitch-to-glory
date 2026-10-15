@@ -19,6 +19,35 @@ export const CONFIG = {
     substitutionCutoffMinute: 90,
     /** A manager may also replace a poor or well-protected player at these minutes. */
     tacticalSubstitution: { minutes: [60, 70, 80], chance: 0.08, ratingBelow: 6, leadingBy: 2 },
+    /** Players named on a matchday bench (engine match-15). */
+    benchSize: 7,
+    /**
+     * The managers' own substitutions (engine match-15): how many each makes (count, weight),
+     * between minutes `from` and `to`, at most `limit` a side. Who comes off is weighted
+     * 1 + fatigue × fatigue + (staminaFrom − stamina)⁺ × stamina + (formFrom − form)⁺ × form.
+     */
+    aiSubstitutions: {
+      limit: 5,
+      from: 60,
+      to: 80,
+      counts: [
+        [1, 0.1],
+        [2, 0.25],
+        [3, 0.4],
+        [4, 0.2],
+        [5, 0.05],
+      ] as const,
+      fatigue: 0.05,
+      staminaFrom: 70,
+      stamina: 0.06,
+      formFrom: 55,
+      form: 0.05,
+    },
+    /**
+     * Cosmetic yellow cards (engine match-15): each side is booked in a minute with this
+     * chance (about 3.6 a match), the player weighted base + aggression × a + tackling × t.
+     */
+    discipline: { perTeamPerMinute: 0.02, base: 20, aggression: 1, tackling: 0.5 },
     /** Background shot → goal conversion, and created-chance goal probability per recorded shot. */
     shotConversion: 0.12,
     chanceConversion: 0.3,

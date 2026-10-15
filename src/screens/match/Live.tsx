@@ -296,6 +296,7 @@ export function Timeline({ session }: { session: MatchSession }) {
         text: matchFormat(event.kind === 'goal' ? u.timelineGoal : u.timelineCard, {
           minute: event.minute,
           team: teamName(event.teamId),
+          name: event.playerId ? surname(setup.players[event.playerId]?.name ?? '') : '',
         }),
       })),
   ].sort((a, b) => a.minute - b.minute);
@@ -801,24 +802,43 @@ export function SubstitutionPanel({
   const off = state.match.events.findLast(
     (event) => event.kind === 'substitution' && event.playerId === player.id,
   );
+  // The engine names who comes on (match-15).
+  const incoming = off?.receiverId ? setup.players[off.receiverId] : undefined;
   return (
     <section className="match-panel match-interrupt" role="status" aria-labelledby={`${id}-sub`}>
       <div className="match-interrupt-head">
         <div className="match-sub-board">
           <span className="sr-only">
-            {matchFormat(u.substitutionBoard, { number: player.squadNumber })}
+            {incoming
+              ? matchFormat(u.substitutionBoardOn, {
+                  number: player.squadNumber,
+                  incoming: incoming.squadNumber,
+                })
+              : matchFormat(u.substitutionBoard, { number: player.squadNumber })}
           </span>
           <span aria-hidden="true">
             <small>{u.off}</small>
             {player.squadNumber}
           </span>
+          {incoming && (
+            <span aria-hidden="true" className="is-on">
+              <small>{u.on}</small>
+              {incoming.squadNumber}
+            </span>
+          )}
         </div>
         <div className="min-w-0">
           <p className="match-interrupt-meta">
-            {matchFormat(u.substitutionMeta, {
-              minute: off?.minute ?? state.match.minute,
-              name: surname(player.name),
-            })}
+            {incoming
+              ? matchFormat(u.substitutionMetaOn, {
+                  minute: off?.minute ?? state.match.minute,
+                  name: surname(player.name),
+                  incoming: surname(incoming.name),
+                })
+              : matchFormat(u.substitutionMeta, {
+                  minute: off?.minute ?? state.match.minute,
+                  name: surname(player.name),
+                })}
           </p>
           <h2 id={`${id}-sub`} className="match-interrupt-title">
             {m.substitution}

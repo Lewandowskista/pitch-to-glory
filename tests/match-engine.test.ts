@@ -216,7 +216,10 @@ describe('match engine', () => {
     const chosen = structuredClone(setup);
     chosen.players[chosen.selectedPlayerId]!.fatigue = 95;
     const s = finish(createMatchSession(chosen, tactics)).state;
-    const substitution = s.match.events.find((e) => e.kind === 'substitution')!;
+    // Managers also make their own changes (match-15): find the selected player's.
+    const substitution = s.match.events.find(
+      (e) => e.kind === 'substitution' && e.playerId === chosen.selectedPlayerId,
+    )!;
     expect(substitution).toBeDefined();
     expect(s.selectedPlayerMinutes).toBe(65);
     expect(
@@ -229,10 +232,20 @@ describe('match engine', () => {
         (e) => e.minute > substitution.minute && e.playerId === chosen.selectedPlayerId,
       ),
     ).toHaveLength(0);
-    // The replacement plays the same position when the bench has one.
-    const initial = createMatchSession(chosen, tactics).state.match.home.starterIds;
-    const incoming = s.match.home.starterIds.find((id) => !initial.includes(id))!;
-    expect(chosen.players[incoming]!.primaryPosition).toBe('ST');
+    // The replacement, named on the event, plays the same position when the bench still has
+    // one (the manager's earlier changes may have used it), otherwise a neighbouring one.
+    const incoming = substitution.receiverId!;
+    expect(s.match.home.starterIds).toContain(incoming);
+    const used = s.match.events
+      .filter((e) => e.kind === 'substitution' && e.minute < substitution.minute)
+      .map((e) => e.receiverId);
+    const bench = createMatchSession(chosen, tactics).state.match.home.benchIds.filter(
+      (id) => !used.includes(id),
+    );
+    const striker = bench.some((id) => chosen.players[id]!.primaryPosition === 'ST');
+    expect(striker ? ['ST'] : ['ST', 'LW', 'RW', 'AM']).toContain(
+      chosen.players[incoming]!.primaryPosition,
+    );
   });
   it('offers goalkeeper situations and preserves positional lineups', () => {
     const chosen = {
@@ -479,7 +492,13 @@ describe('match edge cases', () => {
     const final = applyMatchCommand(tired, { type: 'advance' });
     expect(final.state.match.status).toBe('finished');
     expect(final.state.substituted).toBe(false);
-    expect(final.state.match.events.some((e) => e.kind === 'substitution')).toBe(false);
+    // Managers' own changes come between 60′ and 80′ (match-15); nobody goes off at 90′.
+    expect(
+      final.state.match.events.some(
+        (e) =>
+          e.kind === 'substitution' && (e.playerId === setup.selectedPlayerId || e.minute >= 90),
+      ),
+    ).toBe(false);
     const forged = structuredClone(final);
     forged.state.substitutionDecisionPending = true;
     expect(() => applyMatchCommand(forged, { type: 'substitution', response: 'accept' })).toThrow();
