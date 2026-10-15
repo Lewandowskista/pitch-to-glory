@@ -845,7 +845,7 @@ export const CONFIG = {
       chronicleLimit: 600,
     },
   },
-  gallery: { clubs: 15, players: 8, ages: [17, 28, 42] as const },
+  gallery: { clubs: 15, players: 12, ages: [17, 28, 42] as const },
   workers: { transportBatchEntries: 32, transportYieldMs: 8 },
   /** Team selection (Phase 5.1): one formation-aware eleven for every match. */
   selection: {
