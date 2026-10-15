@@ -11,6 +11,7 @@ import type {
 } from '../../model/domain';
 import { createRng, hashSeed, type Rng } from '../rng';
 import { clamp } from './decisions';
+import { OFF_ANIMATION, PARKED } from './parked';
 import { SITUATION_BY_ID, type Situation } from './situations';
 import { HEAT_COLUMNS, HEAT_ROWS, type MatchSession, type PlayState } from './types';
 import {
@@ -279,6 +280,12 @@ class Director {
   private readonly lookup = new Map<string, Actor>();
   /** Current positions, by actor index. */
   private readonly pos: Point[] = [];
+  /**
+   * Actors sent off (engine match-16), by index: they keep their place in the line-up (so
+   * keyframes and clips keep 22 players in slot order) but stand parked off the pitch, out of
+   * play and hidden by the renderers. Empty on earlier engines.
+   */
+  private readonly parked = new Set<number>();
 
   constructor(
     private readonly session: MatchSession,
@@ -287,8 +294,13 @@ class Director {
     readonly minute: number,
     private readonly startTime: number,
     readonly rng: Rng,
+    /** Players sent off during this passage: they play it out and leave after it. */
+    exempt: ReadonlySet<string> = new Set(),
   ) {
     const m = session.state.match;
+    const off = new Set(
+      [...(m.home.sentOffIds ?? []), ...(m.away.sentOffIds ?? [])].filter((id) => !exempt.has(id)),
+    );
     [m.home, m.away].forEach((team, side) => {
       const posts = FORMATION_SLOTS[formationOf(team.formation)];
       team.starterIds.forEach((id, slot) => {
@@ -303,6 +315,7 @@ class Director {
         };
         this.actors.push(actor);
         this.lookup.set(id, actor);
+        if (off.has(id)) this.parked.add(actor.index);
       });
     });
     this.play = { ...play };
@@ -311,7 +324,9 @@ class Director {
     const shown = new Map(start?.players.map((p) => [p.id, p.point]));
     for (const actor of this.actors) {
       // A substitute takes the place of the player who left that slot.
-      const point = shown.get(actor.id) ?? start?.players[actor.index]?.point;
+      const point = this.parked.has(actor.index)
+        ? PARKED
+        : (shown.get(actor.id) ?? start?.players[actor.index]?.point);
       this.pos.push(
         point
           ? { ...point }
@@ -322,6 +337,9 @@ class Director {
       const index = start?.players.findIndex((p) => p.id === this.play.carrierId) ?? -1;
       this.play.carrierId = this.actors[index]?.id ?? null;
     }
+    // A player sent off leaves the ball where it is.
+    if (this.parked.size && this.play.carrierId && !this.actor(this.play.carrierId))
+      this.play.carrierId = null;
     this.frames.push(this.snapshot(this.ball, this.play.carrierId, 'dead'));
     this.arrived = start?.ballMotion;
   }
@@ -333,7 +351,8 @@ class Director {
   // ── Geometry ────────────────────────────────────────────────────────────────
 
   actor(id: string | null | undefined): Actor | undefined {
-    return id ? this.lookup.get(id) : undefined;
+    const actor = id ? this.lookup.get(id) : undefined;
+    return actor && this.parked.size && this.parked.has(actor.index) ? undefined : actor;
   }
   at(id: string): Point {
     return this.pos[this.lookup.get(id)!.index]!;
@@ -376,7 +395,8 @@ class Director {
     };
   }
   teammates(side: Side) {
-    return side === 0 ? this.actors.slice(0, 11) : this.actors.slice(11);
+    const team = side === 0 ? this.actors.slice(0, 11) : this.actors.slice(11);
+    return this.parked.size ? team.filter((actor) => !this.parked.has(actor.index)) : team;
   }
   keeperOf(side: Side): Actor {
     return this.actors[side === 0 ? 0 : 11]!;
@@ -421,7 +441,11 @@ class Director {
       players: this.actors.map((actor) => ({
         id: actor.id,
         point: { ...this.pos[actor.index]! },
-        animation: actor.id === carrierId ? 'ball' : 'run',
+        animation: this.parked.has(actor.index)
+          ? OFF_ANIMATION
+          : actor.id === carrierId
+            ? 'ball'
+            : 'run',
       })),
       carrierId,
       ballMotion: motion,
@@ -488,6 +512,8 @@ class Director {
     const origin = this.ball;
     const marks: (Point | undefined)[] = new Array<Point | undefined>(count);
     for (const [id, point] of options.fixed ?? []) marks[this.lookup.get(id)!.index] = point;
+    // Players sent off stay parked off the pitch (match-16).
+    for (const index of this.parked) marks[index] = PARKED;
     const carrier = this.actor(options.carrier);
     const side: Side = carrier ? carrier.side : (options.side ?? this.play.side);
     if (carrier) marks[carrier.index] = options.ball;
@@ -2229,6 +2255,7 @@ function director(
   start: ReplayFrame | null,
   startTime: number,
   tag: string,
+  exempt?: ReadonlySet<string>,
 ) {
   const minute = session.state.match.minute;
   return new Director(
@@ -2238,6 +2265,7 @@ function director(
     minute,
     startTime,
     createRng(`${session.setup.seed}:motion:${minute}:${tag}`),
+    exempt,
   );
 }
 const lastFrame = (session: MatchSession) => session.state.frames[session.state.frames.length - 1]!;
@@ -2339,7 +2367,13 @@ function outcomeScene(
   decisionEvents: number,
 ): Passage {
   const minute = session.state.match.minute;
-  const scene = director(session, lastFrame(session), minute * 60000 - 20000, 'outcome');
+  // A player the decision sent off (match-16) plays the decision out and leaves after it.
+  const dismissed = new Set(
+    events.flatMap((event) =>
+      event.kind === 'card' && event.card !== 'yellow' && event.playerId ? [event.playerId] : [],
+    ),
+  );
+  const scene = director(session, lastFrame(session), minute * 60000 - 20000, 'outcome', dismissed);
   scene.run(events, SITUATION_BY_ID[situationId] ?? null, decisionEvents);
   scene.fill(2);
   return scene.finish();

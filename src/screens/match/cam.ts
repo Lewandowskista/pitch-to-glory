@@ -1,5 +1,6 @@
 import type { KeyMoment, Point, ReplayFrame } from '../../model/domain';
 import { attacksRightAt, SITUATION_BY_ID, type MatchSetup } from '../../engine/match';
+import { OFF_ANIMATION } from '../../engine/match/parked';
 
 /**
  * The tactical camera's geometry (redesign phase 5b). A key moment is drawn on a vertical
@@ -145,7 +146,10 @@ export function deriveCast(
     point.y >= window.top + 1 &&
     point.y <= window.bottom - 3;
   const keeper = (id: string) => setup.players[id]?.primaryPosition === 'GK';
-  const others = frame.players.filter((p) => p.id !== setup.selectedPlayerId);
+  // Players sent off (match-16) are parked off the pitch and never in the cast.
+  const others = frame.players.filter(
+    (p) => p.id !== setup.selectedPlayerId && p.animation !== OFF_ANIMATION,
+  );
   const opponents = others.filter((p) => !ownIds.has(p.id) && !keeper(p.id));
   const teammates = others.filter((p) => ownIds.has(p.id) && !keeper(p.id));
   const near = (id: string) => Math.min(distance(at.get(id)!, ball), distance(at.get(id)!, you));

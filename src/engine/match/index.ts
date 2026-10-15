@@ -62,8 +62,16 @@ import { SITUATION_BY_ID, type ChoiceTemplate, type Situation } from './situatio
 import { halftimeRole, roleEffect, shiftMentality } from './roles';
 import { cutHighlight } from './highlight';
 import { matchObjectives, objectivesFor } from './objectives';
-import { bookings, substitutionOff, substitutionPlan } from './discipline';
+import {
+  bookingRisk,
+  bookings,
+  cardsOfMinute,
+  substitutionOff,
+  substitutionPlan,
+  type Card,
+} from './discipline';
 import { intensityFor, pitchStateFor } from './conditions';
+import { OFF_ANIMATION } from './parked';
 import {
   buildChoices,
   clamp,
@@ -106,6 +114,8 @@ export {
   type Intensity,
   type PitchState,
 } from './conditions';
+export { bookingRisk, cardsOfMinute, drawCard, type Card } from './discipline';
+export { PARKED, OFF_ANIMATION, isParked } from './parked';
 
 /** Thrown before replay when a saved session was produced by a different match engine. */
 export class OutdatedMatchSessionError extends Error {
@@ -146,6 +156,9 @@ const RATING_PARTS: RatingPart[] = [
   'errors',
   'team',
 ];
+/** The rating parts a match keeps: cards (`discipline`) count from match-16. */
+const partsOf = (setup: Pick<MatchSetup, 'occasions' | 'discipline'>): RatingPart[] =>
+  full(setup) ? [...RATING_PARTS, 'discipline'] : RATING_PARTS;
 
 function fit(player: Player, position: Position): number {
   return player.primaryPosition === position
@@ -163,12 +176,21 @@ function formationLineup(
   selected: string,
   /** A matchday bench of seven (match-15); earlier engines name every other available player. */
   capBench = false,
+  /** Players suspended for this match (match-16), as long as eleven remain. */
+  suspended: readonly string[] = [],
 ): Lineup {
   const ready = club.playerIds.filter((id) => available(players[id]));
   if (ready.length < 11) throw new Error('A match requires eleven available players per team');
+  const banned = suspended.filter((id) => id !== selected && ready.includes(id));
+  const exclude = banned.slice(0, Math.max(0, ready.length - 11));
   // With every keeper out, the shared selection puts an outfielder in goal rather than
   // leaving the club unable to play.
-  const choice = selectLineup(club.playerIds, players, formation, { selected });
+  const choice = selectLineup(
+    club.playerIds,
+    players,
+    formation,
+    exclude.length ? { selected, exclude } : { selected },
+  );
   if (choice.starterIds.length !== 11) throw new Error('Invalid lineup');
   return {
     teamId: club.id,
@@ -260,6 +282,8 @@ export function createMatchSetup(
     fixture?: MatchSetup['fixture'];
     chemistry?: number;
     captain?: boolean;
+    /** Players of either club serving a suspension in this competition (match-16). */
+    suspended?: readonly string[];
   } = {},
 ): MatchSetup {
   const home = world.clubs[homeId],
@@ -298,6 +322,10 @@ export function createMatchSetup(
           slotMoments: true as const,
           dramaMoments: true as const,
           occasions: true as const,
+          discipline: true as const,
+          ...(options.suspended?.some((id) => id !== selectedPlayerId)
+            ? { suspended: options.suspended.filter((id) => id !== selectedPlayerId) }
+            : {}),
         }
       : {}),
     strengthBonus: [
@@ -314,6 +342,22 @@ const selectedSide = (setup: MatchSetup) =>
  * the later steps apply. Earlier paths (setups without `occasions`) keep their rules.
  */
 const latest = (setup: Pick<MatchSetup, 'occasions'>) => Boolean(setup.occasions);
+/** Full discipline (`match-16`): second yellows, reds, ten men and booking risks. */
+const full = (setup: Pick<MatchSetup, 'occasions' | 'discipline'>) =>
+  Boolean(setup.occasions && setup.discipline);
+const F = C.cards;
+/** The players of a line-up on the pitch: its starters, less anyone sent off (match-16). */
+const onPitch = (team: Lineup): string[] =>
+  team.sentOffIds?.length
+    ? team.starterIds.filter((id) => !team.sentOffIds!.includes(id))
+    : team.starterIds;
+/** The selected player no longer plays: substituted, or sent off (match-16). */
+const offPitch = (state: MatchState) => state.substituted || state.sentOff !== undefined;
+/** How many men each side is down (match-16). */
+const menDown = (match: MatchState['match']): [number, number] => [
+  match.home.sentOffIds?.length ?? 0,
+  match.away.sentOffIds?.length ?? 0,
+];
 
 /**
  * Where the selected player plays: the formation slot they fill in a slot-aware match, with
@@ -360,6 +404,22 @@ function rates(setup: MatchSetup, strength: [number, number], tactics: Tactics):
   factors[1 - own] = mentality[1] * role[1];
   return [round6(home * risk * factors[0]!), round6(away * risk * factors[1]!)];
 }
+/**
+ * Expected goals for the game as it stands: personal tactics, and on match-16 the men each
+ * side is down. A side a man short scores × (1 − attack) per man (at least the floor), and
+ * concedes × (1 + concede) per man the other side is up.
+ */
+function currentRates(session: MatchSession, tactics: Tactics): [number, number] {
+  const s = session.state;
+  const base = rates(session.setup, s.strength, tactics);
+  if (!full(session.setup)) return base;
+  const [home, away] = menDown(s.match);
+  if (!home && !away) return base;
+  const M = F.menDown;
+  const scale = (own: number, other: number) =>
+    Math.max(M.attackFloor, 1 - own * M.attack) * (1 + other * M.concede);
+  return [round6(base[0] * scale(home, away)), round6(base[1] * scale(away, home))];
+}
 function shares(position: Position, role: string, drama = false): MatchState['shares'] {
   const [attack, defence] = C.shares[position];
   const weights = situationWeights(position, role);
@@ -385,9 +445,13 @@ function possessionBase(setup: MatchSetup, state: Pick<MatchState, 'strength'>, 
 }
 function updatePossession(session: MatchSession): void {
   const s = session.state;
+  // A side down to ten men (match-16) sees less of the ball.
+  const [home, away] = menDown(s.match);
+  const short = home || away ? (away - home) * F.menDown.possession : 0;
   s.stats.homePossession = Math.round(
     clamp(
       possessionBase(session.setup, s, s.match.tactics) +
+        short +
         (s.match.momentum - 50) * C.possession.momentum,
       C.possession.minimum,
       C.possession.maximum,
@@ -400,11 +464,26 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   validateTactics(tactics, selected.primaryPosition);
   const formations = setup.formations;
   const bench = latest(setup);
+  const suspended = full(setup) ? (setup.suspended ?? []) : [];
   const home = formations
-      ? formationLineup(setup.home, setup.players, formations[0], setup.selectedPlayerId, bench)
+      ? formationLineup(
+          setup.home,
+          setup.players,
+          formations[0],
+          setup.selectedPlayerId,
+          bench,
+          suspended,
+        )
       : lineup(setup.home, setup.players, setup.selectedPlayerId),
     away = formations
-      ? formationLineup(setup.away, setup.players, formations[1], setup.selectedPlayerId, bench)
+      ? formationLineup(
+          setup.away,
+          setup.players,
+          formations[1],
+          setup.selectedPlayerId,
+          bench,
+          suspended,
+        )
       : lineup(setup.away, setup.players, setup.selectedPlayerId);
   const starters = (team: Lineup) => team.starterIds.map((id) => setup.players[id]!);
   // With formations each starter is valued in their slot, as background results are.
@@ -548,10 +627,9 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       ratingByMinute: [],
       narration: [],
       heat: new Array<number>(HEAT_COLUMNS * HEAT_ROWS).fill(0),
-      ratingParts: Object.fromEntries(RATING_PARTS.map((part) => [part, 0])) as Record<
-        RatingPart,
-        number
-      >,
+      ratingParts: Object.fromEntries(
+        partsOf(setup).map((part) => [part, 0]),
+      ) as MatchState['ratingParts'],
       report: null,
       momentMinutes: minutes,
       talkOdds: 1,
@@ -747,14 +825,17 @@ function goal(session: MatchSession, side: number, playerId: string, target?: nu
 }
 function addRating(session: MatchSession, part: RatingPart, delta: number): void {
   const s = session.state;
-  s.ratingParts = { ...s.ratingParts, [part]: round6(s.ratingParts[part] + delta) };
-  const total = RATING_PARTS.reduce<number>((sum, key) => sum + s.ratingParts[key], C.rating.base);
+  s.ratingParts = { ...s.ratingParts, [part]: round6((s.ratingParts[part] ?? 0) + delta) };
+  const total = partsOf(session.setup).reduce<number>(
+    (sum, key) => sum + (s.ratingParts[key] ?? 0),
+    C.rating.base,
+  );
   s.stats.rating = round6(clamp(total, C.rating.minimum, C.rating.maximum));
 }
 /** Picks a likely finisher: forwards most often, never the goalkeeper. */
 function finisher(session: MatchSession, side: number, rng: Rng, exclude?: string): string {
   const team = side === 0 ? session.state.match.home : session.state.match.away;
-  const pool = team.starterIds.filter(
+  const pool = onPitch(team).filter(
     (id) => id !== exclude && session.setup.players[id]!.primaryPosition !== 'GK',
   );
   const weighted = pool.flatMap((id) => {
@@ -788,23 +869,19 @@ function simulateMinuteGoals(session: MatchSession): void {
     rng = createRng(`${session.setup.seed}:minute:${s.match.minute}`);
   const selected = session.setup.players[session.setup.selectedPlayerId]!,
     own = selectedSide(session.setup);
+  const off = offPitch(s);
   for (let side = 0; side < 2; side++) {
     // Personal key moments replace part of each side's expected goals while the player is on.
-    const replaced = s.substituted ? 0 : side === own ? s.shares.attack : s.shares.defence;
+    const replaced = off ? 0 : side === own ? s.shares.attack : s.shares.defence;
     const rate = clamp((s.expectedGoals[side]! * (1 - replaced)) / 90, 0, 0.2);
     if (rng.next() < rate / C.shotConversion) {
-      const id = finisher(
-        session,
-        side,
-        rng,
-        side === own && !s.substituted ? selected.id : undefined,
-      );
+      const id = finisher(session, side, rng, side === own && !off ? selected.id : undefined);
       recordShot(session, side, id, 'match.commentary.attempt', C.shotConversion);
       if (rng.next() < C.shotConversion) goal(session, side, id);
     }
   }
   // Ordinary passes are real logged actions and contribute to the pass map.
-  if (!s.substituted && selected.primaryPosition !== 'GK' && rng.next() < C.passPerMinute) {
+  if (!off && selected.primaryPosition !== 'GK' && rng.next() < C.passPerMinute) {
     const P = C.routinePass;
     const probability = round6(
       clamp(
@@ -835,7 +912,8 @@ function simulateMinuteGoals(session: MatchSession): void {
     );
   }
   s.match.rng = rng.snapshot();
-  if (latest(session.setup)) discipline(session);
+  // Cosmetic yellows on match-15; match-16 shows its cards at the start of the minute.
+  if (latest(session.setup) && !full(session.setup)) discipline(session);
 }
 /**
  * Cosmetic yellow cards (match-15, decision 5): drawn on `${seed}:discipline:${minute}`,
@@ -856,6 +934,93 @@ function discipline(session: MatchSession): void {
     );
     booking.card = 'yellow';
   }
+}
+/** Players on a yellow and still on the pitch (match-16). */
+function bookedPlayers(match: MatchState['match']): Set<string> {
+  const off = new Set([...(match.home.sentOffIds ?? []), ...(match.away.sentOffIds ?? [])]);
+  return new Set(
+    match.events.flatMap((e) =>
+      e.kind === 'card' && e.card === 'yellow' && e.playerId && !off.has(e.playerId)
+        ? [e.playerId]
+        : [],
+    ),
+  );
+}
+/**
+ * Full discipline (match-16): the minute's cards, drawn at its start on
+ * `${seed}:cards:${minute}` (see `cardsOfMinute`), before anything else happens in it.
+ */
+function showCards(session: MatchSession): void {
+  const s = session.state,
+    m = s.match,
+    setup = session.setup;
+  // While on, the selected player's defending moments carry part of their risk.
+  const scaled = offPitch(s)
+    ? undefined
+    : {
+        id: setup.selectedPlayerId,
+        factor: Math.max(0, 1 - s.shares.defence * F.selectedDefence),
+      };
+  for (const card of cardsOfMinute(
+    setup.seed,
+    m.minute,
+    [m.home, m.away],
+    setup.players,
+    bookedPlayers(m),
+    scaled,
+  ))
+    showCard(session, card.side, card.playerId, card.card);
+}
+const CARD_COMMENTARY: Record<Card['card'], string> = {
+  yellow: 'match.commentary.card',
+  'second-yellow': 'match.commentary.second-yellow',
+  red: 'match.commentary.red',
+};
+/**
+ * A card shown (match-16): a `card` event with commentary; a second yellow or a red sends the
+ * player off. The selected player's cards cost rating (`cards.rating`).
+ */
+function showCard(
+  session: MatchSession,
+  side: 0 | 1,
+  playerId: string,
+  kind: Card['card'],
+): MatchEvent {
+  const shown = event(
+    session,
+    'card',
+    sideTeam(session, side),
+    playerId,
+    line(session, CARD_COMMENTARY[kind]),
+  );
+  shown.card = kind;
+  if (playerId === session.setup.selectedPlayerId)
+    addRating(session, 'discipline', kind === 'yellow' ? F.rating.yellow : F.rating.red);
+  if (kind !== 'yellow') dismiss(session, side, playerId, kind);
+  return shown;
+}
+/**
+ * A player leaves the pitch (match-16): his side plays on a man short, with expected goals,
+ * possession and team odds recalculated. The selected player's match ends here.
+ */
+function dismiss(
+  session: MatchSession,
+  side: 0 | 1,
+  playerId: string,
+  kind: 'second-yellow' | 'red',
+): void {
+  const s = session.state,
+    m = s.match;
+  const key = side === 0 ? 'home' : 'away';
+  m[key] = { ...m[key], sentOffIds: [...(m[key].sentOffIds ?? []), playerId] };
+  if (playerId === session.setup.selectedPlayerId) {
+    const reason = kind === 'red' ? 'straight-red' : 'second-yellow';
+    s.sentOff = { minute: m.minute, reason };
+    s.managerTrustDelta += F.trust[reason];
+    s.captainDecisionPending = false;
+  }
+  s.expectedGoals = currentRates(session, m.tactics);
+  updatePossession(session);
 }
 /**
  * The managers' substitutions (match-15): each side's plan from `${seed}:ai-subs` (60–80′, at
@@ -881,11 +1046,14 @@ function managerSubstitutions(session: MatchSession): void {
       const made = m.events.filter((e) => e.kind === 'substitution' && e.teamId === team.teamId);
       if (made.length >= S.limit) break;
       const cameOn = new Set(made.map((e) => e.receiverId));
+      // A player sent off (match-16) cannot be replaced.
+      const sentOff = team.sentOffIds ?? [];
       const candidates = team.starterIds.filter(
         (id, slot) =>
           slot > 0 &&
           id !== setup.selectedPlayerId &&
           !cameOn.has(id) &&
+          !sentOff.includes(id) &&
           setup.players[id]!.primaryPosition !== 'GK',
       );
       const rng = createRng(`${setup.seed}:ai-subs:${m.minute}:${side}:${change}`);
@@ -967,7 +1135,7 @@ function shootoutDue(session: MatchSession): boolean {
   return (
     Boolean(session.setup.occasions) &&
     lead !== undefined &&
-    !s.substituted &&
+    !offPitch(s) &&
     !s.shootout &&
     s.match.score[0] - s.match.score[1] + lead === 0
   );
@@ -1012,6 +1180,7 @@ const RATING_LABELS: Record<RatingPart, string> = {
   saves: 'match.rating.saves',
   errors: 'match.rating.errors',
   team: 'match.rating.team',
+  discipline: 'match.rating.discipline',
 };
 function report(session: MatchSession): MatchReport {
   const s = session.state,
@@ -1025,7 +1194,7 @@ function report(session: MatchSession): MatchReport {
     session,
     'team',
     (margin > 0 ? C.rating.result : margin < 0 ? -C.rating.result : 0) +
-      (back && m.score[1 - own] === 0 && !s.substituted ? C.rating.cleanSheet : 0),
+      (back && m.score[1 - own] === 0 && !offPitch(s) ? C.rating.cleanSheet : 0),
   );
   const rating = Math.round(clamp(s.stats.rating, C.rating.minimum, C.rating.maximum) * 10) / 10;
   const playerEvents = m.events.filter((e) => e.playerId === id);
@@ -1091,11 +1260,13 @@ function report(session: MatchSession): MatchReport {
   // Every contribution is listed; the final factor absorbs the 3–10 bound and the rounding.
   const ratingFactors: ProbabilityFactor[] = [
     { labelKey: 'match.rating.base', source: 'attribute', contribution: C.rating.base },
-    ...RATING_PARTS.filter((part) => s.ratingParts[part] !== 0).map((part) => ({
-      labelKey: RATING_LABELS[part],
-      source: 'attribute' as const,
-      contribution: s.ratingParts[part],
-    })),
+    ...partsOf(session.setup)
+      .filter((part) => (s.ratingParts[part] ?? 0) !== 0)
+      .map((part) => ({
+        labelKey: RATING_LABELS[part],
+        source: 'attribute' as const,
+        contribution: s.ratingParts[part] ?? 0,
+      })),
   ];
   const limit = round6(
     rating - ratingFactors.reduce((sum, f) => sum + f.contribution, 0 as number),
@@ -1117,16 +1288,36 @@ function report(session: MatchSession): MatchReport {
       assists: s.stats.assists,
       objectives: objectives.filter((o) => o.progress >= o.target).length,
     }),
-    fameDelta: performanceFame(rating, s.stats.goals, s.stats.assists, backLine && cleanSheet),
+    // A dismissal costs fame (match-16).
+    fameDelta:
+      performanceFame(
+        rating,
+        s.stats.goals,
+        s.stats.assists,
+        backLine && cleanSheet && !s.sentOff,
+      ) - (s.sentOff ? F.fame : 0),
     heatmap: s.frames.flatMap((f) => {
       const p = f.players.find((p) => p.id === id);
-      return p ? [p.point] : [];
+      return p && p.animation !== OFF_ANIMATION ? [p.point] : [];
     }),
     passes,
     shots,
     objectives,
     headlineId: s.headlineKey,
     ...(s.headlineParams ? { headlineParams: s.headlineParams } : {}),
+    ...(full(session.setup)
+      ? {
+          cards: {
+            yellow: m.events.filter(
+              (e) =>
+                e.kind === 'card' &&
+                e.playerId === id &&
+                (e.card === 'yellow' || e.card === 'second-yellow'),
+            ).length,
+            ...(s.sentOff ? { sentOff: { ...s.sentOff } } : {}),
+          },
+        }
+      : {}),
   };
 }
 /** Best bench replacement: same position, then a compatible one, then any outfielder. */
@@ -1158,18 +1349,17 @@ function contextFor(
   const player = setup.players[setup.selectedPlayerId]!;
   const opposition = side === 0 ? s.match.away : s.match.home;
   // The drawn opponents are also the ones placed in the moment's scene.
+  const theirs = onPitch(opposition);
   const pickAbility = (positions: Position[], role: keyof typeof drawn) => {
-    const pool = opposition.starterIds.filter((id) =>
-      positions.includes(setup.players[id]!.primaryPosition),
-    );
-    const id = rng.pick(pool.length ? pool : opposition.starterIds);
+    const pool = theirs.filter((id) => positions.includes(setup.players[id]!.primaryPosition));
+    const id = rng.pick(pool.length ? pool : theirs);
     drawn[role] = id;
     return round6(playerAbility(setup.players[id]!));
   };
   const slot = playedSlot(session);
   // The finishers a created chance falls to: the best three teammate attackers on the pitch.
   const own = side === 0 ? s.match.home : s.match.away;
-  const finishing = own.starterIds
+  const finishing = onPitch(own)
     .filter((id) => id !== player.id && setup.players[id]!.primaryPosition !== 'GK')
     .map((id) => setup.players[id]!.attributes.finishing)
     .sort((a, b) => b - a)
@@ -1192,7 +1382,14 @@ function contextFor(
     pitchCondition: s.match.pitchCondition,
     ...(s.match.weatherIntensity ? { weatherIntensity: s.match.weatherIntensity } : {}),
     ...(s.match.pitchState ? { pitchState: s.match.pitchState } : {}),
-    strengthGap: round6(s.strength[side]! - s.strength[1 - side]!),
+    // A side down to ten men (match-16) plays as if weaker.
+    strengthGap: round6(
+      s.strength[side]! -
+        s.strength[1 - side]! -
+        (full(setup)
+          ? (menDown(s.match)[side]! - menDown(s.match)[1 - side]!) * F.menDown.strength
+          : 0),
+    ),
     opponents: {
       keeper: pickAbility(['GK'], 'keeper'),
       defender: pickAbility(['CB', 'LB', 'RB', 'DM'], 'defender'),
@@ -1227,7 +1424,7 @@ function framing(
   const variant = rng.int(0, C.drama.situationVariants - 1);
   const name = (id: string | undefined) => (id ? setup.players[id]?.name : undefined);
   const own = side === 0 ? m.home : m.away;
-  const teammate = own.starterIds
+  const teammate = onPitch(own)
     .filter((id) => id !== setup.selectedPlayerId && setup.players[id]!.primaryPosition !== 'GK')
     .sort(
       (a, b) =>
@@ -1511,6 +1708,14 @@ function openMoment(next: MatchSession, forced?: ForcedMoment): void {
       return target ? { ...choice, target } : choice;
     });
   }
+  // Defending choices carry a booking risk (match-16), shown with the odds.
+  if (full(setup) && player.primaryPosition !== 'GK') {
+    const booked = bookedPlayers(m).has(player.id);
+    moment.choices = moment.choices.map((choice) => {
+      const booking = bookingRisk(choice.id, player, choice.probability, booked);
+      return booking ? { ...choice, booking } : choice;
+    });
+  }
   if (setup.dramaMoments) Object.assign(moment, framing(next, situation, opponents, margin));
   if (forced) moment.follows = forced.kind;
   if (forced?.kind === 'shootout')
@@ -1565,6 +1770,29 @@ function resolveChoice(next: MatchSession, choiceId: string): void {
     addXg(next, side, shot, choice.probability);
     if (success) goal(next, side, p.id, template.target);
   } else event(next, template.event, p.clubId!, p.id, line(next, key), outcome);
+  // A failed defending choice can be a foul worth a card (match-16): its own stream, so the
+  // decision's rolls never move. A side already down `maxDismissals` men gets no more reds.
+  if (full(setup) && !success && choice.booking) {
+    const draw = createRng(`${setup.seed}:booking:${moment.id}:${choice.id}`);
+    const foulRoll = round6(draw.next()),
+      redRoll = draw.next();
+    const kind: Card['card'] | undefined =
+      foulRoll >= choice.booking.foul
+        ? undefined
+        : redRoll < choice.booking.straight
+          ? 'red'
+          : choice.booking.booked
+            ? 'second-yellow'
+            : 'yellow';
+    const shown =
+      kind && (kind === 'yellow' || menDown(m)[side]! < F.maxDismissals) ? kind : undefined;
+    outcome.booking = {
+      roll: foulRoll,
+      foul: choice.booking.foul,
+      ...(shown ? { card: shown } : {}),
+    };
+    if (shown) showCard(next, side, p.id, shown);
+  }
   if (template.stat === 'passes') {
     s.stats.passesAttempted++;
     if (success) s.stats.passesCompleted++;
@@ -1703,7 +1931,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
       throw new Error('Cannot advance paused match');
     m.minute++;
     const first = m.events.length;
-    if (!state.substituted) {
+    if (!offPitch(state)) {
       state.selectedPlayerMinutes++;
       const stamina =
         player.primaryPosition === 'GK'
@@ -1757,8 +1985,11 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
       }
     }
     if (latest(setup)) managerSubstitutions(next);
+    // Full discipline (match-16): the minute's cards come first, so a player sent off takes
+    // no further part in it (and the selected player has no moment).
+    if (full(setup)) showCards(next);
     if (setup.dramaMoments && m.minute === C.drama.lateDecisionMinute) placeLateMoment(next);
-    if (!state.substituted && state.momentMinutes.includes(m.minute)) openMoment(next);
+    if (!offPitch(state) && state.momentMinutes.includes(m.minute)) openMoment(next);
     else {
       simulateMinuteGoals(next);
       applyPassage(next, 'minute', minutePassage(next, m.events.slice(first)));
@@ -1829,14 +2060,15 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     } else state.talkOdds = command.response === 'complain' ? talk.complain : 1;
     if (command.response === 'role') {
       m.tactics.role = halftimeRole(player.primaryPosition, m.tactics.role);
-      state.expectedGoals = rates(setup, state.strength, m.tactics);
+      state.expectedGoals = currentRates(next, m.tactics);
       state.shares = shares(player.primaryPosition, m.tactics.role, setup.dramaMoments);
     }
     state.stats.fatigue = round6(Math.max(0, state.stats.fatigue - C.halftimeRecovery));
     // Ends are switched and the away side kicks off the second half.
     state.play = { side: 1, carrierId: null, restart: 'second-half' };
     m.status = 'live';
-    state.captainDecisionPending = state.captain;
+    // A captain sent off (match-16) no longer leads the side.
+    state.captainDecisionPending = state.captain && !state.sentOff;
   } else if (command.type === 'substitution') {
     if (
       m.status === 'finished' ||
@@ -1867,7 +2099,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
         C.momentum.maximum,
       );
     }
-    state.expectedGoals = rates(setup, state.strength, m.tactics);
+    state.expectedGoals = currentRates(next, m.tactics);
     updatePossession(next);
   } else throw new Error('Unknown match command');
   return next;

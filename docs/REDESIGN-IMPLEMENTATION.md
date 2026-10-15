@@ -304,7 +304,11 @@ camera). Phase 6 done (engine `match-15`: M4 cast and targets, M5 track the runn
 objectives stream with a hub preview, cosmetic yellow cards, AI substitutions and a bench of
 seven, M8 weather and pitch; re-gated at 2.65 goals a match, shot objectives raised to five for
 a striker and three for other attackers). Phase 7 done (C2, C3, C5, C6, C7, C10; optional fields
-only). Next: the optional discipline phase, then the release pass (Firefox and WebKit flows).
+only). Discipline phase done (engine `match-16`: second yellows and straight reds at 3.7 yellows
+and 0.14 reds a match, ten men re-gated at 2.67 goals a match, the career player's dismissal,
+booking risk on defending choices, suspensions by scope in selection and the world; optional
+fields only, schema v21; the `match-15` path kept byte-identical). Next: the release pass
+(Firefox and WebKit flows).
 
 | Phase                                     | Contents                                                                                                                                                                                                                                                                                                                 | Outcome-changing?                 | Save impact                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------- |

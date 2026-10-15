@@ -30,6 +30,7 @@ import { commitPlayedFixture, type PlayedFixture } from '../world/simulate';
 import { recordEvent } from '../world/events';
 import { matchExposure } from '../world/finalize';
 import { isKnockoutFixture } from '../world/continental';
+import { suspendedFor, type FixtureCard } from '../world/discipline';
 import { addXp } from './progression';
 import { injure, injuryFactor, revealHidden } from './training';
 import { fixtureImportance } from './fixtures';
@@ -61,6 +62,10 @@ export function careerMatchSetup(world: World, fixture: Fixture): MatchSetup {
       },
       chemistry: Math.round(chemistry(world)),
       captain: world.career!.captaincy?.clubId === world.players[world.career!.playerId]!.clubId,
+      // Players banned in this fixture's scope sit it out (the discipline phase).
+      suspended: [fixture.homeId, fixture.awayId].flatMap((id) =>
+        suspendedFor(world, world.clubs[id]!, fixture),
+      ),
     },
   );
 }
@@ -165,15 +170,43 @@ export function commitCareerMatch(
       );
       if (event.receiverId) on.set(event.receiverId, event.minute);
     }
+  // A player sent off (match-16) plays until the card; the career player the session's count.
+  const sentOff = new Map<string, number>();
+  for (const event of state.match.events)
+    if (event.kind === 'card' && event.card !== 'yellow' && event.playerId)
+      sentOff.set(
+        event.playerId,
+        event.playerId === playerId ? state.selectedPlayerMinutes : event.minute,
+      );
   const minutes = (club: { playerIds: string[] }, starterIds: string[]) => {
     const members = new Set(club.playerIds);
     const result: Record<string, number> = {};
-    for (const id of initial) if (members.has(id)) result[id] = off.get(id) ?? 90;
+    for (const id of initial)
+      if (members.has(id)) result[id] = sentOff.get(id) ?? off.get(id) ?? 90;
     for (const id of starterIds)
-      if (!kickoff.has(id))
-        result[id] = Math.max(1, 90 - (on.get(id) ?? state.selectedPlayerMinutes));
+      if (!kickoff.has(id)) {
+        const from = on.get(id) ?? state.selectedPlayerMinutes;
+        // A substitute sent off plays from coming on until the card.
+        result[id] = Math.max(1, (sentOff.get(id) ?? 90) - from);
+      }
     return result;
   };
+  const cards: FixtureCard[] | undefined = session.setup.discipline
+    ? state.match.events.flatMap((event) =>
+        event.kind === 'card' && event.card && event.playerId
+          ? [
+              {
+                playerId: event.playerId,
+                teamId: event.teamId,
+                minute: Math.max(1, event.minute),
+                card: event.card,
+              },
+            ]
+          : [],
+      )
+    : undefined;
+  const onPitch = (lineup: { starterIds: string[]; sentOffIds?: string[] }) =>
+    lineup.starterIds.filter((id) => !lineup.sentOffIds?.includes(id));
   const played: PlayedFixture = {
     score: [state.match.score[0], state.match.score[1]],
     goals: state.match.events
@@ -188,11 +221,9 @@ export function commitCareerMatch(
       home: minutes(session.setup.home, state.match.home.starterIds),
       away: minutes(session.setup.away, state.match.away.starterIds),
     },
-    onPitch: {
-      home: [...state.match.home.starterIds],
-      away: [...state.match.away.starterIds],
-    },
+    onPitch: { home: onPitch(state.match.home), away: onPitch(state.match.away) },
     selected: { playerId, rating: state.report.rating },
+    ...(cards ? { cards } : {}),
     ...(state.shootout
       ? {
           shootout: {
@@ -230,7 +261,11 @@ export function commitCareerMatch(
   });
   // The same terms as the report's fame, from the finalized contributions.
   const backLine = ['GK', 'CB', 'LB', 'RB'].includes(player.primaryPosition);
-  const fame = performanceFame(me.rating, me.goals, me.assists, backLine && conceded === 0);
+  // A dismissal (match-16) costs fame and the clean sheet's, as the report shows.
+  const dismissed = state.sentOff;
+  const fame =
+    performanceFame(me.rating, me.goals, me.assists, backLine && conceded === 0 && !dismissed) -
+    (dismissed ? CONFIG.match.cards.fame : 0);
   const opponentId = ownHome ? fixture.awayId : fixture.homeId;
   const outcome =
     result.winnerId === player.clubId ? 'win' : result.winnerId === opponentId ? 'loss' : 'draw';
@@ -282,6 +317,8 @@ export function commitCareerMatch(
     auto: Boolean(options.auto),
     passes: [state.stats.passesCompleted, state.stats.passesAttempted],
     tackles: state.stats.tackles,
+    ...(state.report.cards?.yellow ? { yellowCards: state.report.cards.yellow } : {}),
+    ...(dismissed ? { sentOff: { ...dismissed } } : {}),
   };
   career.matches.push(record);
   recordDecisions(career, decisions);

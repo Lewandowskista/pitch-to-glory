@@ -1248,6 +1248,11 @@ export interface World {
   awardState?: AwardState;
   /** This season's statistics by competition and club (Phase 1.3, schema 14). */
   seasonStats?: SeasonStatistics;
+  /**
+   * This season's cards by competition and the bans still to serve by scope (the discipline
+   * phase; optional, schema 21 unchanged). See BALANCING.md, "Discipline and suspensions".
+   */
+  discipline?: DisciplineState;
   /** Edit mode changes (milestone 9), with the original values for reverting and export. */
   edits?: WorldEdits;
 }

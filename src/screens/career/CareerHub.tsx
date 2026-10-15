@@ -23,13 +23,16 @@ import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engi
 import { StakeLine } from './stakesUi';
 import { ManagerPlan } from './briefUi';
 import { ObjectivesLine } from './objectivesUi';
+import { CardMark, SuspendedBadge, SuspendedNote } from './disciplineUi';
+import { bansOf, disciplineScope, suspension } from '../../engine/world/discipline';
+import { cardsLine, disciplineText as d, matchesLabel, scopeLabel } from '../../i18n/discipline';
 import { lazyPage } from '../../ui/lazyPage';
 import { chooseRecovery } from '../../engine/career/training';
 import { canAnnounceFarewell, retirementState } from '../../engine/career/honours/retirement';
 import { attributeSummary } from '../../engine/strength';
 import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { recentResults } from '../../engine/career/social/dressing';
-import type { Career, Club, Injury, Player, World } from '../../model/domain';
+import type { Career, Club, DisciplineScope, Injury, Player, World } from '../../model/domain';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { calendarDate, getSeasonWeeks } from '../../engine/world/calendar';
@@ -424,6 +427,8 @@ function NextMatch({
   const injury = career.injury;
   const awaitingRecovery = Boolean(injury && injury.recovery === null);
   const complete = world.phase === 'complete';
+  // A ban that rules the player out of this fixture (the discipline phase).
+  const banned = fixture && !injury ? suspension(world, career.playerId, fixture) : 0;
   const busy = Boolean(job);
   const save = params.get('save');
   const action = session ? (
@@ -569,13 +574,20 @@ function NextMatch({
           </p>
         )}
         {fixture && !complete && <StakeLine world={world} fixture={fixture} />}
-        {fixture && !complete && !awaitingRecovery && (
+        {fixture && !complete && !awaitingRecovery && !banned && (
           // Phones keep the action in the first view: the plan follows it there.
           <ManagerPlan world={world} fixture={fixture} className="max-sm:order-1" />
         )}
-        {fixture && !complete && (
+        {fixture && !complete && !banned && (
           // On phones the objectives follow the action too, after the plan.
           <ObjectivesLine world={world} fixture={fixture} className="max-sm:order-1" />
+        )}
+        {fixture && !complete && banned > 0 && !session && (
+          <SuspendedNote
+            matches={banned}
+            scope={disciplineScope(world, fixture)}
+            className="max-sm:order-1"
+          />
         )}
         {pending && !session && (
           <p className="max-w-prose text-sm text-hero-muted max-sm:order-1">{c.hub.matchdayBody}</p>
@@ -991,6 +1003,16 @@ function SeasonStats({
           })}
         </p>
       )}
+      {(line.yellow > 0 || line.red > 0) && (
+        // This season's cards (the discipline phase).
+        <p className="flex items-center gap-2 text-[0.8125rem] text-muted">
+          <CardMark red={line.red > 0} />
+          <span>
+            <span className="sr-only">{d.record}: </span>
+            {cardsLine(line.yellow, line.red)}
+          </span>
+        </p>
+      )}
     </Panel>
   );
 }
@@ -1263,6 +1285,7 @@ function Condition({
   className?: string;
 }) {
   const injury = career.injury;
+  const bans = Object.entries(bansOf(world, career.playerId)) as [DisciplineScope, number][];
   const meters: [string, number, 'accent' | 'gold' | 'danger', string | null][] = [
     [c.common.meters.form, player.form, 'accent', trendNote(world, 'form', player.form)],
     [c.common.meters.morale, player.morale, 'accent', trendNote(world, 'morale', player.morale)],
@@ -1287,7 +1310,17 @@ function Condition({
       <div className="flex items-baseline justify-between gap-3">
         <CardTitle id="condition-heading">{c.hub.condition}</CardTitle>
         {injury && <Chip tone="danger">{c.hub.injuredStatus}</Chip>}
+        {!injury && bans.length > 0 && (
+          <SuspendedBadge matches={Math.max(...bans.map(([, matches]) => matches))} />
+        )}
       </div>
+      {bans.map(([scope, matches]) => (
+        // Bans to serve (the discipline phase), wherever they apply.
+        <p key={scope} className="flex items-center gap-2 text-sm font-semibold text-danger">
+          <CardMark red />
+          {format(d.suspendedLine, { matches: matchesLabel(matches), scope: scopeLabel(scope) })}
+        </p>
+      ))}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13.75rem),1fr))] gap-x-7 gap-y-3.5">
         {meters.map(([label, value, tone, note]) => (
           <div key={label}>

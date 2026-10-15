@@ -6,6 +6,7 @@ import type {
   MatchReport,
   KeyMoment,
   ReplayFrame,
+  SentOff,
   Tactics,
 } from '../../model/domain';
 import type { RatingFamily } from './situations';
@@ -19,9 +20,17 @@ export type { Tactics } from '../../model/domain';
  * by design: key moments name their cast and each choice's target (a pass reaches the teammate
  * named before the choice), "Track the runner" when defending, objectives on their own stream,
  * cosmetic yellow cards, AI substitutions with a bench of seven, and weather intensity with a
- * pitch state as separate odds factors.
+ * pitch state as separate odds factors. `match-16` (the discipline phase, decision 5) adds full
+ * discipline: second yellows and straight reds, sides playing on with fewer men, the career
+ * player's own dismissal and a booking risk on defending choices.
  */
-export const MATCH_ENGINE_VERSION = 'match-15';
+export const MATCH_ENGINE_VERSION = 'match-16';
+/**
+ * The engine before full discipline (redesign phase 6): yellow cards are cosmetic. A setup with
+ * `occasions` but without `discipline` still replays as it was, so sessions saved by match-15
+ * keep playing.
+ */
+export const OCCASIONS_MATCH_ENGINE = 'match-15';
 /**
  * The engine before big occasions (a shootout kick, chained moments, final and derby
  * headlines). A setup with `dramaMoments` but without `occasions` still replays as it was.
@@ -46,7 +55,10 @@ export const PREVIOUS_MATCH_ENGINE = 'match-10';
 export const LEGACY_MATCH_ENGINE = 'match-10-lines';
 /** The engine a setup replays with. */
 export const engineFor = (
-  setup: Pick<MatchSetup, 'formations' | 'slotMoments' | 'dramaMoments' | 'occasions'>,
+  setup: Pick<
+    MatchSetup,
+    'formations' | 'slotMoments' | 'dramaMoments' | 'occasions' | 'discipline'
+  >,
 ): string =>
   !setup.formations
     ? LEGACY_MATCH_ENGINE
@@ -55,7 +67,9 @@ export const engineFor = (
       : !setup.dramaMoments
         ? SLOT_MATCH_ENGINE
         : setup.occasions
-          ? MATCH_ENGINE_VERSION
+          ? setup.discipline
+            ? MATCH_ENGINE_VERSION
+            : OCCASIONS_MATCH_ENGINE
           : DRAMA_MATCH_ENGINE;
 
 export interface MatchSetup {
@@ -89,6 +103,14 @@ export interface MatchSetup {
    * headlines. Absent in sessions saved before, which replay as they were.
    */
   occasions?: true;
+  /**
+   * Full discipline (`match-16`): second yellows and straight reds send players off, a side
+   * plays on with fewer men, and defending choices carry a booking risk. Absent in sessions
+   * saved before, which replay with cosmetic yellow cards.
+   */
+  discipline?: true;
+  /** Players serving a suspension in this fixture's competition, never picked (`match-16`). */
+  suspended?: string[];
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */
   strengthBonus?: [number, number];
   /** The selected player's chemistry with their teammates (0–100; 60 when absent). */
@@ -152,7 +174,9 @@ export interface LiveStats {
 /** The heat grid: columns along the pitch and rows across it (cells of about 5 m × 5 m). */
 export const HEAT_COLUMNS = 20;
 export const HEAT_ROWS = 13;
-export type RatingPart = RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team';
+/** `discipline` (cards) exists only on the match-16 path. */
+export type RatingPart =
+  RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team' | 'discipline';
 /** How play restarts at the start of the next passage (see motion.ts). */
 export type Restart = 'kickoff' | 'goal' | 'second-half' | 'goal-kick' | 'corner';
 /** Who has the ball between passages. */
@@ -237,7 +261,7 @@ export interface MatchState {
    */
   heat: number[];
   /** Rating contributions above the base, by decision family and outcome bonus. */
-  ratingParts: Record<RatingPart, number>;
+  ratingParts: Record<Exclude<RatingPart, 'discipline'>, number> & { discipline?: number };
   report: MatchReport | null;
   momentMinutes: number[];
   /** Second-half odds multiplier from the half-time talk. */
@@ -252,6 +276,11 @@ export interface MatchState {
   headlineParams?: Record<string, string>;
   /** The player's shootout kick (or save), taken at full time in a level knockout (match-13). */
   shootout?: { choiceId: string; probability: number; roll: number; success: boolean };
+  /**
+   * The selected player's dismissal (match-16): the minute and why. Their match ends there and
+   * the rest is simulated to full time.
+   */
+  sentOff?: SentOff;
   /** A follow-up moment due after a beaten defender (match-13): the chance it carries. */
   chain?: { goal: number };
 }

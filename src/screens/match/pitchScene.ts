@@ -4,6 +4,7 @@ import 'pixi.js/unsafe-eval';
 import { Application, Container, Graphics, Text } from 'pixi.js';
 import type { Club, Point, ReplayFrame } from '../../model/domain';
 import { isPassBeat } from './cam';
+import { OFF_ANIMATION } from '../../engine/match/parked';
 import { kitAppearance } from './Maps';
 import { preparePlayback, samplePlayback, type Playback } from './playback';
 import {
@@ -15,6 +16,12 @@ import {
   pitchAssetScale,
   shirtNumber,
 } from './pitchArt';
+
+/** The players a frame shows: everyone but those sent off (match-16), parked off the pitch. */
+const onPitch = (frame: ReplayFrame) =>
+  new Set(
+    frame.players.filter((player) => player.animation !== OFF_ANIMATION).map((player) => player.id),
+  );
 
 interface Token {
   view: Container;
@@ -338,7 +345,7 @@ export async function createPitchScene(
   };
   /** Show a frame exactly, adding tokens for players seen for the first time. */
   const applyFrame = (next: ReplayFrame) => {
-    const active = new Set(next.players.map((player) => player.id));
+    const active = onPitch(next);
     for (const [id, token] of tokens) token.view.visible = active.has(id);
     next.players.forEach((player, index) => {
       if (!tokens.has(player.id)) addToken(player.id, player.point, index);
@@ -544,7 +551,7 @@ export async function createPitchScene(
       if (replay) {
         const frames = [onScreen(view.motion![0]!), ...view.motion!.slice(1)];
         const prepared = preparePlayback(frames, view.rate, view.maxMs);
-        const active = new Set(view.frame.players.map((player) => player.id));
+        const active = onPitch(view.frame);
         for (const [id, token] of tokens) token.view.visible = active.has(id);
         playback = prepared.duration > 0 ? { ...prepared, elapsed: 0 } : null;
         if (!playback) applyFrame(view.frame);

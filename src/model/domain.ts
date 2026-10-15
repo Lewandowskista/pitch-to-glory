@@ -330,6 +330,10 @@ export interface PlayerStats {
   cleanSheets: number;
   ratingTotal: number;
   trophies: Id[];
+  /** Career yellow cards (the discipline phase); absent until the first. */
+  yellowCards?: number;
+  /** Career dismissals, second yellows included (the discipline phase); absent until the first. */
+  redCards?: number;
 }
 export interface Player {
   id: Id;
@@ -465,6 +469,10 @@ export interface CareerMatchRecord {
   passes?: [number, number];
   /** Successful tackles (recorded from Phase 5.2). */
   tackles?: number;
+  /** Yellow cards shown, a second yellow included (the discipline phase). */
+  yellowCards?: number;
+  /** Sent off, and why (the discipline phase). */
+  sentOff?: SentOff;
 }
 /**
  * The career. The player is an ordinary entry in `world.players` and their club's squad;
@@ -1284,6 +1292,11 @@ export interface Lineup {
   formation: string;
   starterIds: Id[];
   benchIds: Id[];
+  /**
+   * Starters sent off (engine match-16): they keep their slot in `starterIds` (so the shape
+   * and clips keep their order) but are off the pitch and out of play.
+   */
+  sentOffIds?: Id[];
 }
 export interface Tactics {
   role: string;
@@ -1347,6 +1360,8 @@ export interface DecisionChoice {
   };
   /** Where the choice goes (engine match-15); absent on earlier engines. */
   target?: ChoiceTarget;
+  /** A tackle or defending choice's booking risk (engine match-16); absent otherwise. */
+  booking?: BookingRisk;
 }
 export interface KeyMoment {
   id: Id;
@@ -1378,6 +1393,11 @@ export interface DecisionOutcome {
   roll: number;
   probability: number;
   factors: ProbabilityFactor[];
+  /**
+   * A failed defending choice's booking roll (engine match-16): the roll against the foul
+   * chance, and the card it brought, if any.
+   */
+  booking?: { roll: number; foul: number; card?: CardKind };
 }
 export interface MatchEvent {
   id: Id;
@@ -1402,8 +1422,32 @@ export interface MatchEvent {
   zone?: PitchZone;
   /** On shots: the chance of a goal from this shot (engine match-14). */
   xg?: number;
-  /** On cards: the colour shown (engine match-15 books cosmetic yellows only). */
-  card?: 'yellow';
+  /**
+   * On cards: what was shown. Engine match-15 books cosmetic yellows only; match-16 adds a
+   * second yellow (a yellow, then red: off) and a straight red.
+   */
+  card?: CardKind;
+}
+export type CardKind = 'yellow' | 'second-yellow' | 'red';
+/** A dismissal (engine match-16): the minute and why. */
+export interface SentOff {
+  minute: number;
+  reason: 'second-yellow' | 'straight-red';
+}
+/**
+ * The booking risk of a defending choice (engine match-16, decision transparency): a failed
+ * attempt is a foul worth a card with chance `foul` (its factors add up to it), and of those a
+ * straight red with chance `straight`. `yellow` and `red` are the chances of each card when
+ * the choice is made: an already booked player's yellow is a second yellow, so a red.
+ */
+export interface BookingRisk {
+  foul: number;
+  straight: number;
+  yellow: number;
+  red: number;
+  /** Already booked: a second yellow sends the player off. */
+  booked: boolean;
+  factors: ProbabilityFactor[];
 }
 export interface MatchReport {
   playerId: Id;
@@ -1418,6 +1462,11 @@ export interface MatchReport {
   headlineId: Id;
   /** Names and numbers the headline refers to (player, opponent, score…). */
   headlineParams?: Record<string, string>;
+  /**
+   * The player's cards (engine match-16): yellows shown (a second yellow counts) and the
+   * dismissal, if any. Absent on earlier engines.
+   */
+  cards?: { yellow: number; sentOff?: SentOff };
 }
 export interface Match {
   id: Id;
@@ -1527,8 +1576,29 @@ export interface World {
    * the current season.
    */
   seasonStats?: SeasonStatistics;
+  /**
+   * This season's cards and suspensions (the discipline phase). Absent in worlds saved before
+   * it until the first card; reset at each season's rollover.
+   */
+  discipline?: DisciplineState;
   /** Edit mode changes (milestone 9), with the original values for reverting and export. */
   edits?: WorldEdits;
+}
+/** Where a ban is served: league football, the domestic cup, or continental football. */
+export type DisciplineScope = 'league' | 'cup' | 'continental';
+/** One player's record: this season's cards, and bans (only the non-empty entries). */
+export interface DisciplineRecord {
+  /** Yellow cards and dismissals this season, by competition. */
+  cards: Record<Id, [number, number]>;
+  /** This season's yellows towards an accumulation ban, by scope (not those that ended in a dismissal). */
+  tally: Partial<Record<DisciplineScope, number>>;
+  /** Matches still to serve, by scope; they carry over a season's end. */
+  bans: Partial<Record<DisciplineScope, number>>;
+}
+export interface DisciplineState {
+  version: 1;
+  season: number;
+  players: Record<Id, DisciplineRecord>;
 }
 /** A club changed in edit mode. Only the edited fields are set. */
 export interface ClubEdit {

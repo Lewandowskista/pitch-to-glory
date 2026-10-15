@@ -157,8 +157,12 @@ describe('career match accounting', () => {
           minutes += now.minutes - was.minutes;
           appearances += now.appearances - was.appearances;
         }
-        // Eleven places for ninety minutes, however they were shared.
-        expect(minutes).toBe(990);
+        // Eleven places for ninety minutes, however they were shared, less the minutes a
+        // side played a man short after a dismissal (match-16).
+        const short = session.state.match.events
+          .filter((e) => e.kind === 'card' && e.card !== 'yellow' && e.teamId === team.teamId)
+          .reduce((sum, e) => sum + 90 - e.minute, 0);
+        expect(minutes + short).toBe(990);
         const made = subs.filter((e) => e.teamId === team.teamId);
         expect(appearances).toBe(11 + made.length);
         for (const sub of made) {
@@ -292,7 +296,7 @@ describe('career match accounting', () => {
       while (session.state.match.status !== 'finished')
         session = applyMatchCommand(session, autoPlayCommand(session));
       const [home, away] = session.state.match.score;
-      if (home !== away || session.state.substituted) continue;
+      if (home !== away || session.state.substituted || session.state.sentOff) continue;
       const playerId = world.career!.playerId;
       const before = clone(world);
       const { record, final, celebrationFame } = commitCareerMatch(world, session);

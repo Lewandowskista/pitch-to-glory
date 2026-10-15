@@ -48,6 +48,59 @@ export const CONFIG = {
      * chance (about 3.6 a match), the player weighted base + aggression × a + tackling × t.
      */
     discipline: { perTeamPerMinute: 0.02, base: 20, aggression: 1, tackling: 0.5 },
+    /**
+     * Full discipline (engine match-16; docs/MATCH-BALANCING.md "Full discipline"). Each side
+     * is shown a card in a minute with `perTeamPerMinute`; the player is drawn among its
+     * outfielders on the pitch, weighted as the cosmetic cards (base + aggression × a +
+     * tackling × t), a booked player × `bookedCaution`. The card is a straight red with
+     * `straightRed` × (1 + (aggression − 50) × `straightAggression`), else a yellow (a second
+     * yellow sends off). A side loses at most `maxDismissals`.
+     */
+    cards: {
+      perTeamPerMinute: 0.0205,
+      bookedCaution: 0.16,
+      straightRed: 0.0155,
+      straightAggression: 0.02,
+      maxDismissals: 3,
+      /**
+       * While the selected player is on, their own defending moments carry their booking risk,
+       * so their weight here is × (1 − defence share × `selectedDefence`), at least 0.
+       */
+      selectedDefence: 2,
+      /**
+       * Each man down: the side's expected goals × (1 − `attack`), at least `attackFloor`;
+       * the opposition's × (1 + `concede`); possession − `possession` points; team odds as if
+       * `strength` strength points weaker.
+       */
+      menDown: { attack: 0.3, attackFloor: 0.4, concede: 0.45, possession: 5, strength: 8 },
+      /** The selected player's rating for each yellow, and for a dismissal. */
+      rating: { yellow: -0.2, red: -1 },
+      /** Fame lost to a dismissal, and the manager's trust for each kind. */
+      fame: 2,
+      trust: { 'second-yellow': -2, 'straight-red': -4 },
+    },
+    /**
+     * A defending choice's booking risk (match-16): a failed attempt is a foul worth a card with
+     * `foul` × aggression (1 + (aggression − 50) × `aggression`) × tackling (1 − (tackling − 50)
+     * × `tackling`) × `booked` once on a yellow; of those, `straight` are straight reds.
+     */
+    booking: {
+      choices: {
+        tackle: { foul: 0.11, straight: 0.05 },
+        'slide-block': { foul: 0.14, straight: 0.08 },
+        'stretch-tackle': { foul: 0.2, straight: 0.2 },
+        'body-block': { foul: 0.06, straight: 0.03 },
+        intercept: { foul: 0.04, straight: 0.03 },
+        'track-runner': { foul: 0.07, straight: 0.04 },
+        jockey: { foul: 0.02, straight: 0.02 },
+        'drop-off': { foul: 0.02, straight: 0.02 },
+      } as Record<string, { foul: number; straight: number }>,
+      aggression: 0.012,
+      tackling: 0.008,
+      booked: 0.8,
+      minimum: 0.01,
+      maximum: 0.6,
+    },
     /** Background shot → goal conversion, and created-chance goal probability per recorded shot. */
     shotConversion: 0.12,
     chanceConversion: 0.3,
@@ -1140,6 +1193,19 @@ export const CONFIG = {
       rotation: { fatigueFrom: 40, fatigueDivisor: 150, jitter: 6, cupJitter: 14 },
       /** AI players get injured too: chance per match × (0.5 + proneness/100) × (1 + fatigue/weight). */
       aiInjuries: { matchChance: 0.012, fatigueWeight: 50 },
+      /**
+       * Suspensions (the discipline phase; docs/BALANCING.md "Discipline and suspensions"). A
+       * ban is served in the scope it was earned in: league football (league, phases and
+       * playoffs), the domestic cup, or continental football. A second yellow bans for
+       * `secondYellow` matches and a straight red for `straightRed`; every `accumulation`
+       * yellows in a scope in a season (those that ended in a dismissal aside) ban for one.
+       * Bans carry over a season's end; cards and tallies start again.
+       */
+      suspensions: {
+        secondYellow: 1,
+        straightRed: 3,
+        accumulation: { league: 5, cup: 3, continental: 3 },
+      },
       /** Background goals follow finishing (and assists passing and vision) around the team mean. */
       abilityScorerSlope: 1 / 25,
       abilityScorerFloor: 0.2,

@@ -1,3 +1,5 @@
+import { disciplineText } from './discipline';
+
 /** Market copy (milestone 5): contracts, transfers, loans, negotiation, agents and inbox. */
 export const marketText = {
   titles: { transfers: 'Transfers and contract', agent: 'Agent', inbox: 'Inbox' },
@@ -422,6 +424,8 @@ export const marketText = {
       subject: 'Contract extended by the club',
       body: 'Your contract ran out, so {club} took up their option for one more season, to the end of {season}.',
     },
+    // A ban starts (the discipline phase); `messageText` words the matches, scope and reason.
+    suspended: disciplineText.message,
     dropped: {
       subject: 'Left out against {opponent}',
       body: 'The manager left you out of the side to face {opponent}. Form, fitness and trust decide who plays.',

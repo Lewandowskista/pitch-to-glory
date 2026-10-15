@@ -13,6 +13,7 @@ import {
 } from './pitchArt';
 import { useSvgAssetScale, useSvgPlayback } from './useSvgPlayback';
 import { isPassBeat } from './cam';
+import { OFF_ANIMATION } from '../../engine/match/parked';
 
 /**
  * The pitch drawn as SVG: the accessible fallback when WebGL is unavailable. It uses the same
@@ -44,17 +45,20 @@ export function SvgPitch({
   const kits = kitAppearance(home, away);
   const { ref, scale: assetScale } = useSvgAssetScale(viewBox);
   const sample = useSvgPlayback(frame, motion, rate, maxMs, reducedMotion, paused);
+  // Players sent off (match-16) are parked off the pitch: not drawn.
   const shown = sample
     ? {
         ...sample.to,
         ball: sample.ball,
         carrierId: sample.carrierId,
-        players: sample.to.players.map((player) => ({
-          ...player,
-          point: sample.players.get(player.id) ?? player.point,
-        })),
+        players: sample.to.players
+          .filter((player) => player.animation !== OFF_ANIMATION)
+          .map((player) => ({
+            ...player,
+            point: sample.players.get(player.id) ?? player.point,
+          })),
       }
-    : frame;
+    : { ...frame, players: frame.players.filter((player) => player.animation !== OFF_ANIMATION) };
   const x = (value: number) => 8 + Math.max(-5, Math.min(105, value));
   const y = (value: number) => 8 + Math.max(0, Math.min(100, value)) * 0.64;
   const homeKeeper = shown.players.find((player) => home.playerIds.includes(player.id));

@@ -237,6 +237,32 @@ export const matchText = {
     timelineMoment: '{minute}′ key moment',
     timelineGoal: '{minute}′ goal, {team}',
     timelineCard: '{minute}′ booking, {name}, {team}',
+    /** Full discipline (match-16): reds, booking risks and a dismissal. */
+    timelineRed: '{minute}′ sent off, {name}, {team}',
+    redCards: '{count} sent off',
+    bookingRisk: 'Booking risk {chance}%',
+    redRisk: 'Red card risk {chance}%',
+    bookingTitle: 'Booking risk if it fails',
+    foulChance: 'Foul chance if it fails',
+    bookingLine:
+      'A failed attempt is a foul worth a card {foul}% of the time, {straight}% of those a straight red: {yellow}% yellow and {red}% red overall.',
+    bookingLineBooked:
+      'You are on a yellow: a failed attempt is a foul worth a card {foul}% of the time, and that sends you off. {red}% overall.',
+    bookingRoll: 'Booking roll {roll} against the {chance}% foul chance: {result}.',
+    bookingResults: {
+      none: 'no card',
+      yellow: 'a yellow card',
+      'second-yellow': 'a second yellow, and you are sent off',
+      red: 'a straight red, and you are sent off',
+    },
+    sentOff: 'Sent off',
+    sentOffMeta: '{minute}′ · {reason}',
+    sentOffReasons: { 'second-yellow': 'Second yellow card', 'straight-red': 'Straight red card' },
+    sentOffBody: 'Your match is over. The rest is simulated to full time, your side a man short.',
+    sentOffBan:
+      'A suspension follows: one match for two yellows, three for a straight red, in this competition.',
+    reportSentOff: 'Sent off · {minute}′ · {reason}. Your minutes, rating, XP and fame reflect it.',
+    reportCards: 'Cards: {yellow} yellow',
     timelineHalf: 'Half-time',
     timelineNow: 'Now: {minute}′',
     ratingTitle: 'Your rating · {name}',
@@ -617,6 +643,11 @@ const headlines: Record<string, [string, string, string]> = {
     '{opponent} too strong for {club}',
     'Defeat for {club} as {opponent} take the points',
   ],
+  'sent-off': [
+    'Red mist: {player} sent off against {opponent}',
+    '{player} sees red as {club} finish {score}',
+    'Early bath for {player} in {club}’s {score} with {opponent}',
+  ],
 };
 const headlineText: Record<string, string> = Object.fromEntries(
   Object.entries(headlines).flatMap(([kind, lines]) =>
@@ -649,6 +680,13 @@ const reactionText: Record<string, string> = {
   'match.reaction.fans.loss.star': 'At least one player turned up today.',
   'match.reaction.fans.loss.solid': 'Disappointing. A long journey home.',
   'match.reaction.fans.loss.poor': 'Unacceptable. Some of them should not be wearing the shirt.',
+  'match.reaction.manager.sent-off.second-yellow':
+    'Two bookings is carelessness. You left us a man short and you will miss the next one.',
+  'match.reaction.manager.sent-off.straight-red':
+    'Reckless. You let the team down, and now you are suspended. We will talk this week.',
+  'match.reaction.fans.sent-off.win': 'Got away with it. The ten held on, no thanks to that red.',
+  'match.reaction.fans.sent-off.draw': 'That red card cost us two points.',
+  'match.reaction.fans.sent-off.loss': 'Sent off and beaten. Not a day to remember.',
 };
 /** Commentary templates: three variants per outcome, picked deterministically by the engine. */
 const commentary: Record<string, [string, string, string]> = {
@@ -816,6 +854,16 @@ const commentary: Record<string, [string, string, string]> = {
     'Yellow card. {player} goes into the book.',
     '{player} is booked for a late challenge.',
     'The referee shows {player} a yellow card.',
+  ],
+  'second-yellow': [
+    'Second yellow! {player} is off, and the side are down a man.',
+    '{player} is booked again, and the red card follows.',
+    'A second caution for {player}, and that is an early bath.',
+  ],
+  red: [
+    'Straight red! {player} is sent off.',
+    '{player} sees red for a reckless challenge.',
+    'No hesitation from the referee: a straight red for {player}.',
   ],
   change: [
     'Substitution: {receiver} comes on for {player}.',
@@ -1132,7 +1180,12 @@ const engineText: Record<string, string> = {
   'match.rating.saves': 'Saves and defensive stops',
   'match.rating.errors': 'Goals conceded from your moments',
   'match.rating.team': 'Result and clean sheet',
+  'match.rating.discipline': 'Cards',
   'match.rating.limit': 'Rating limit and rounding',
+  'match.booking.base': 'Foul chance of this challenge',
+  'match.booking.aggression': 'Aggression',
+  'match.booking.tackling': 'Tackling',
+  'match.booking.booked': 'Already booked: more careful',
   'match.reaction.manager.steady': 'Keep working on your decisions. There is more to come.',
   'match.reaction.manager.pleased': 'That is the composure and commitment I want to see.',
   'match.reaction.fans.steady': 'A shift to build on. We will be watching the next one.',

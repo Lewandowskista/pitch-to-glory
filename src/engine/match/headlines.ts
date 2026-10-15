@@ -30,7 +30,8 @@ export type HeadlineKind =
   | 'win'
   | 'draw'
   | 'strong-loss'
-  | 'loss';
+  | 'loss'
+  | 'sent-off';
 export const HEADLINE_KINDS: readonly HeadlineKind[] = [
   'late-winner',
   'late-equaliser',
@@ -54,6 +55,7 @@ export const HEADLINE_KINDS: readonly HeadlineKind[] = [
   'draw',
   'strong-loss',
   'loss',
+  'sent-off',
 ];
 export const HEADLINE_VARIANTS = 3;
 export type ResultKind = 'win' | 'draw' | 'loss';
@@ -80,6 +82,8 @@ export function headlineKind(session: MatchSession, rating: number): HeadlineKin
       moment.situationId === 'penalty-save' &&
       m.events.some((e) => e.outcome?.input.momentId === moment.id && e.outcome.success),
   );
+  // A dismissal (match-16) is the story of the player's match.
+  if (s.sentOff) return 'sent-off';
   if (lateGoal && margin === 1) return 'late-winner';
   if (lateGoal && margin === 0) return 'late-equaliser';
   if (goals >= 3) return 'hat-trick';
@@ -95,7 +99,8 @@ export function headlineKind(session: MatchSession, rating: number): HeadlineKin
   if (goals > 0) return margin > 0 ? 'scorer-win' : margin === 0 ? 'scorer-draw' : 'scorer-loss';
   if (s.stats.assists >= 2 && margin >= 0) return 'provider';
   if (s.stats.errors >= 2 && margin < 0) return 'nightmare';
-  if (back && m.score[1 - own] === 0 && margin >= 0 && rating >= 7 && !s.substituted) return 'wall';
+  if (back && m.score[1 - own] === 0 && margin >= 0 && rating >= 7 && !s.substituted && !s.sentOff)
+    return 'wall';
   if (margin >= 3) return 'rout';
   if (margin <= -3) return 'thrashed';
   if (margin > 0) return rating >= STAR ? 'strong-win' : 'win';
@@ -142,7 +147,12 @@ export function reportCopy(
       goals: String(session.state.stats.goals),
       assists: String(session.state.stats.assists),
     },
-    managerReactionKey: `match.reaction.manager.${result}.${performance}`,
-    fanReactionKey: `match.reaction.fans.${result}.${performance}`,
+    // A dismissal (match-16) is what the manager and the fans react to.
+    managerReactionKey: session.state.sentOff
+      ? `match.reaction.manager.sent-off.${session.state.sentOff.reason}`
+      : `match.reaction.manager.${result}.${performance}`,
+    fanReactionKey: session.state.sentOff
+      ? `match.reaction.fans.sent-off.${result}`
+      : `match.reaction.fans.${result}.${performance}`,
   };
 }

@@ -19,6 +19,7 @@ import { ART } from '../../engine/assets/shared';
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { marketText as m } from '../../i18n/market';
+import { disciplineText, matchesLabel, scopeLabel } from '../../i18n/discipline';
 import { socialText } from '../../i18n/social';
 import { lifestyleText } from '../../i18n/lifestyle';
 import { honoursText } from '../../i18n/honours';
@@ -85,6 +86,15 @@ export function messageText(message: InboxMessage): { subject: string; body: str
     params.ambition = lowerFirst(ambitionName(params.ambition as AmbitionId, message.params));
   if (typeof params.role === 'string' && params.role in m.roles)
     params.role = roleName(params.role as Contract['role']);
+  // A ban (the discipline phase): its length, where it is served and why, in words.
+  if (message.subjectKey === 'suspended') {
+    if (typeof params.matches === 'number') params.matches = matchesLabel(params.matches);
+    if (typeof params.scope === 'string') params.scope = scopeLabel(params.scope);
+    if (typeof params.reason === 'string')
+      params.reason =
+        disciplineText.reasons[params.reason as keyof typeof disciplineText.reasons] ??
+        params.reason;
+  }
   return { subject: format(template.subject, params), body: format(template.body, params) };
 }
 

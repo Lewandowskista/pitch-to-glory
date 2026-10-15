@@ -1,5 +1,6 @@
 import { useMemo, type CSSProperties, type RefObject } from 'react';
-import type { DecisionChoice, KeyMoment, ProbabilityFactor } from '../../model/domain';
+import type { BookingRisk, DecisionChoice, KeyMoment, ProbabilityFactor } from '../../model/domain';
+import { cx } from '../../ui/kit';
 import type { MatchSession } from '../../engine/match';
 import { t } from '../../i18n';
 import {
@@ -73,6 +74,19 @@ function ChoiceHint({
             ? matchFormat(m.stakeConcede, { percent: percent(stakes.failureConcede) })
             : m.stakeSafe}
       </span>
+      {choice.booking && (
+        // A defending choice's booking risk (match-16): a red once already booked.
+        <span className="match-booking-risk">
+          <span
+            className={cx('match-card-chip', choice.booking.booked && 'is-red')}
+            aria-hidden="true"
+          />
+          {/* Any card if not yet booked; once booked, every card is a red. */}
+          {matchFormat(choice.booking.booked ? u.redRisk : u.bookingRisk, {
+            chance: percent(choice.booking.yellow + choice.booking.red),
+          })}
+        </span>
+      )}
       {choice.traitId && traits.includes(choice.traitId) && (
         <span className="match-tag">
           {matchFormat(m.traitActive, {
@@ -81,6 +95,27 @@ function ChoiceHint({
         </span>
       )}
     </p>
+  );
+}
+
+/**
+ * A defending choice's booking risk in the breakdown (match-16): the foul chance of a failed
+ * attempt with the factors that build it, then what it means overall.
+ */
+function BookingBreakdown({ booking }: { booking: BookingRisk }) {
+  return (
+    <div className="match-booking">
+      <h4 className="match-factors-title">{u.bookingTitle}</h4>
+      <Factors factors={booking.factors} total={booking.foul} totalLabel={u.foulChance} />
+      <p className="match-card-note">
+        {matchFormat(booking.booked ? u.bookingLineBooked : u.bookingLine, {
+          foul: percent(booking.foul),
+          straight: percent(booking.straight),
+          yellow: percent(booking.yellow),
+          red: percent(booking.red),
+        })}
+      </p>
+    </div>
   );
 }
 
@@ -271,6 +306,7 @@ export function DecisionPanel({
                 >
                   <summary>{m.transparency}</summary>
                   <Factors factors={choice.factors} total={choice.probability} />
+                  {choice.booking && <BookingBreakdown booking={choice.booking} />}
                   <p className="match-esc-note">{u.escNote}</p>
                 </details>
               </div>

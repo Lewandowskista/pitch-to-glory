@@ -46,6 +46,9 @@ export interface SeasonLine {
   rating: number;
   cleanSheets: number;
   xp: number;
+  /** Yellow cards shown and dismissals (the discipline phase). */
+  yellow: number;
+  red: number;
 }
 export function seasonLines(career: Career): SeasonLine[] {
   const lines = new Map<number, SeasonLine & { ratingTotal: number }>();
@@ -59,6 +62,8 @@ export function seasonLines(career: Career): SeasonLine[] {
       ratingTotal: 0,
       cleanSheets: 0,
       xp: 0,
+      yellow: 0,
+      red: 0,
     };
     line.apps++;
     line.goals += match.goals;
@@ -66,6 +71,8 @@ export function seasonLines(career: Career): SeasonLine[] {
     line.ratingTotal += match.rating;
     line.cleanSheets += match.cleanSheet ? 1 : 0;
     line.xp += match.xp;
+    line.yellow += match.yellowCards ?? 0;
+    line.red += match.sentOff ? 1 : 0;
     lines.set(match.season, line);
   }
   return [...lines.values()]
@@ -85,6 +92,8 @@ export function seasonLine(career: Career, season: number): SeasonLine {
       rating: 0,
       cleanSheets: 0,
       xp: 0,
+      yellow: 0,
+      red: 0,
     }
   );
 }

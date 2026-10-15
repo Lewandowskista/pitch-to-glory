@@ -24,6 +24,7 @@ export const selectionText = {
     fatigue: 'Fatigue ({value})',
     limit: 'Kept within limits',
     registration: 'Not yet registered to play: no selection until then',
+    suspended: 'Suspended, {value} to serve: no selection until it is served',
   },
   slot: {
     secondary: '{fit}% familiar',

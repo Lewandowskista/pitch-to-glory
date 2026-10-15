@@ -8,6 +8,7 @@ import {
   createMatchSetup,
   rolesForPosition,
   MATCH_ENGINE_VERSION,
+  OCCASIONS_MATCH_ENGINE,
   type MatchCommand,
   type MatchSession,
   type MatchSetup,
@@ -45,10 +46,29 @@ import type { Position } from '../src/model/domain';
  * - Shot objectives: the targets rise to five shots for a striker and three for other attackers
  *   (the profile read 76% completion against its 75% ceiling); only the objectives, and so the
  *   AM, RW and ST hashes, change. Goals and moments are untouched.
+ *
+ * Re-gated in the discipline phase (engine match-16, decision 5). The match-15 path is kept as
+ * its own engine (setups with `occasions` but no `discipline`), and its hashes (`MATCH_15`) are
+ * checked byte-identical on every run, alongside the earlier paths of variants 0 and 1:
+ * - Full discipline: the cosmetic bookings leave `${seed}:discipline:${minute}` for
+ *   `${seed}:cards:${minute}`, drawn at the start of the minute (three draws a side), with
+ *   second yellows and straight reds. A dismissal parks the player off the pitch, takes them
+ *   out of finishers, opponents, receivers and the managers' changes, and recalculates both
+ *   sides' expected goals, possession and team odds, so every later roll can land differently.
+ * - The career player's own dismissal ends their moments and their share of the attack and
+ *   defence; their cards add a `discipline` rating part, and the headline and reactions follow.
+ * - Booking risk: failed defending choices roll for a card on `${seed}:booking:...`, which
+ *   never moves a decision roll; the outcome records the roll (`outcome.booking`).
+ * Goals moved by at most three in a position (GK 63 → 61, DM 58 → 61, RW 53 → 54) and moments
+ * by at most four (LB 238 → 234, RW 294 → 293), from dismissals and the moments they end.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
-const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
+/**
+ * The match-15 path (setups without `discipline`): every hash recorded at the end of phase 6,
+ * held byte-identical by the discipline phase.
+ */
+const MATCH_15: Record<string, { hash: string; goals: number; moments: number }> = {
   GK: { hash: '004f2120207ee97fc7dadc43', goals: 63, moments: 214 },
   CB: { hash: 'f598c70b8e585f4c3df20aa8', goals: 62, moments: 231 },
   LB: { hash: 'c79dbf303b9cce13a59fd9f2', goals: 51, moments: 238 },
@@ -57,6 +77,17 @@ const EXPECTED: Record<string, { hash: string; goals: number; moments: number }>
   AM: { hash: '838af718612b298a0c3af003', goals: 74, moments: 277 },
   RW: { hash: '6832eff46902c10b0fcfdf7a', goals: 53, moments: 294 },
   ST: { hash: '16c89f360f61c603d4bd76f2', goals: 71, moments: 301 },
+};
+/** The current engine (match-16, full discipline). */
+const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
+  GK: { hash: '6782a66059b5c58a160b2809', goals: 61, moments: 214 },
+  CB: { hash: '01246285b1223dc007d2afbf', goals: 62, moments: 231 },
+  LB: { hash: 'c8c9e7ab04ae4331827154b3', goals: 51, moments: 234 },
+  DM: { hash: 'ed5cd8ec8e9d3303e757e596', goals: 61, moments: 207 },
+  CM: { hash: '9b91c1224a3e4d3f87011baf', goals: 76, moments: 242 },
+  AM: { hash: '436df8b4d6fe401b2f904292', goals: 74, moments: 277 },
+  RW: { hash: '7d02b929574bfc69064a0c60', goals: 54, moments: 293 },
+  ST: { hash: 'f6fa6d790df559145438e97f', goals: 71, moments: 301 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });
@@ -78,7 +109,7 @@ const STAT_KEYS = [
   'fatigue',
 ] as const;
 
-function setupFor(position: Position, index: number): MatchSetup {
+function setupFor(position: Position, index: number, previous = false): MatchSetup {
   const pair = index % 4 < 2 ? [clubs[0]!, clubs[1]!] : [clubs[2]!, clubs[3]!];
   const [home, away] = index % 2 ? [pair[1]!, pair[0]!] : [pair[0]!, pair[1]!];
   const club = pair[0]!;
@@ -119,6 +150,8 @@ function setupFor(position: Position, index: number): MatchSetup {
     delete setup.dramaMoments;
     delete setup.occasions;
   }
+  // Variants 0 and 1 never carry discipline; the match-15 run plays the rest without it.
+  if (previous || variant < 2) delete setup.discipline;
   return setup;
 }
 function tacticsFor(position: Position, index: number): Tactics {
@@ -154,13 +187,13 @@ function play(setup: MatchSetup, tactics: Tactics, index: number): MatchSession 
   return session;
 }
 /** Everything the outcome layer decides, without points, frames or bookkeeping fields. */
-function outcomes(session: MatchSession): unknown {
+function outcomes(session: MatchSession, current = MATCH_ENGINE_VERSION): unknown {
   const s = session.state,
     m = s.match;
   const report = s.report!;
   return {
     // The engine path by its rules; the current engine's version string is not an outcome.
-    engine: session.engine === MATCH_ENGINE_VERSION ? 'current' : session.engine,
+    engine: session.engine === current ? 'current' : session.engine,
     score: m.score,
     momentum: m.momentum,
     weather: m.weather,
@@ -214,22 +247,31 @@ function outcomes(session: MatchSession): unknown {
   };
 }
 
+function snapshot(previous: boolean) {
+  const found: Record<string, { hash: string; goals: number; moments: number }> = {};
+  for (const position of POSITIONS) {
+    const hash = createHash('sha256');
+    let goals = 0,
+      moments = 0;
+    for (let index = 0; index < PER_POSITION; index++) {
+      const session = play(setupFor(position, index, previous), tacticsFor(position, index), index);
+      hash.update(
+        JSON.stringify(outcomes(session, previous ? OCCASIONS_MATCH_ENGINE : MATCH_ENGINE_VERSION)),
+      );
+      goals += session.state.match.score[0] + session.state.match.score[1];
+      moments += session.state.match.keyMoments.length;
+    }
+    found[position] = { hash: hash.digest('hex').slice(0, 24), goals, moments };
+  }
+  if (process.env.SNAPSHOT_PRINT) console.log(JSON.stringify(found, null, 2));
+  return found;
+}
+
 describe('match outcome snapshot', { timeout: 300000 }, () => {
   it('keeps every outcome byte-identical per seed', () => {
-    const found: Record<string, { hash: string; goals: number; moments: number }> = {};
-    for (const position of POSITIONS) {
-      const hash = createHash('sha256');
-      let goals = 0,
-        moments = 0;
-      for (let index = 0; index < PER_POSITION; index++) {
-        const session = play(setupFor(position, index), tacticsFor(position, index), index);
-        hash.update(JSON.stringify(outcomes(session)));
-        goals += session.state.match.score[0] + session.state.match.score[1];
-        moments += session.state.match.keyMoments.length;
-      }
-      found[position] = { hash: hash.digest('hex').slice(0, 24), goals, moments };
-    }
-    if (process.env.SNAPSHOT_PRINT) console.log(JSON.stringify(found, null, 2));
-    expect(found).toEqual(EXPECTED);
+    expect(snapshot(false)).toEqual(EXPECTED);
+  });
+  it('keeps the match-15 path (cosmetic cards) byte-identical', () => {
+    expect(snapshot(true)).toEqual(MATCH_15);
   });
 });
