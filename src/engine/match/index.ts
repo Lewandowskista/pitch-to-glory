@@ -34,8 +34,13 @@ import {
   type MatchCommand,
   type MatchMotion,
   type RatingPart,
+  HEAT_COLUMNS,
+  HEAT_ROWS,
 } from './types';
 import {
+  METRES_PER_UNIT,
+  attacksRightAt,
+  followPlayer,
   minutePassage,
   momentPassage,
   openingKickoff,
@@ -519,7 +524,15 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
         errors: 0,
         rating: C.rating.base,
         fatigue: selected.fatigue,
+        xg: [0, 0],
+        shotsOnTarget: [0, 0],
+        keyPasses: 0,
+        tacklesAttempted: 0,
+        distanceM: 0,
+        touches: 0,
       },
+      ratingByMinute: [],
+      heat: new Array<number>(HEAT_COLUMNS * HEAT_ROWS).fill(0),
       ratingParts: Object.fromEntries(RATING_PARTS.map((part) => [part, 0])) as Record<
         RatingPart,
         number
@@ -564,6 +577,22 @@ function applyPassage(
   else s.frames.push(snapshot);
   s.play = passage.play;
   s.motion = { kind, frames: passage.frames, ...(passage.focus ? { focus: passage.focus } : {}) };
+  // Bookkeeping from what is shown (match-14): shots on target, and the selected player's
+  // distance, touches and heat, oriented with their team attacking towards x = 100.
+  const stats = s.stats;
+  stats.shotsOnTarget = [
+    stats.shotsOnTarget[0] + passage.onTarget[0],
+    stats.shotsOnTarget[1] + passage.onTarget[1],
+  ];
+  s.heat = [...s.heat];
+  const followed = followPlayer(
+    passage.frames,
+    session.setup.selectedPlayerId,
+    !attacksRightAt(selectedSide(session.setup), s.match.minute),
+    s.heat,
+  );
+  stats.distanceM = Math.round((stats.distanceM + followed.distance * METRES_PER_UNIT) * 10) / 10;
+  stats.touches += followed.touches;
   for (const goal of passage.goals)
     if (goal.playerId === session.setup.selectedPlayerId)
       s.highlights = [
@@ -636,11 +665,37 @@ function event(
 }
 const sideTeam = (session: MatchSession, side: number) =>
   side === 0 ? session.setup.home.id : session.setup.away.id;
-function recordShot(session: MatchSession, side: number, id: string, key: string, target?: number) {
+/** A shot's chance of a goal, kept on the event and in the side's expected goals (match-14). */
+function addXg(session: MatchSession, side: number, shot: MatchEvent, xg: number): void {
+  const stats = session.state.stats;
+  shot.xg = round6(xg);
+  stats.xg =
+    side === 0
+      ? [round6(stats.xg[0] + shot.xg), stats.xg[1]]
+      : [stats.xg[0], round6(stats.xg[1] + shot.xg)];
+}
+function recordShot(
+  session: MatchSession,
+  side: number,
+  id: string,
+  key: string,
+  xg: number,
+  target?: number,
+) {
   if (side === 0) session.state.stats.homeShots++;
   else session.state.stats.awayShots++;
   if (id === session.setup.selectedPlayerId) session.state.stats.shots++;
-  return event(session, 'shot', sideTeam(session, side), id, line(session, key), null, target);
+  const shot = event(
+    session,
+    'shot',
+    sideTeam(session, side),
+    id,
+    line(session, key),
+    null,
+    target,
+  );
+  addXg(session, side, shot, xg);
+  return shot;
 }
 function goal(session: MatchSession, side: number, playerId: string, target?: number): void {
   const m = session.state.match;
@@ -694,7 +749,8 @@ function chance(
   if (probability <= 0) return false;
   const shot = Math.min(1, probability / C.chanceConversion);
   if (rng.next() >= shot) return false;
-  recordShot(session, side, scorer, key);
+  // The shot's own chance: the goal probability given that the chance became a shot.
+  recordShot(session, side, scorer, key, probability / shot);
   if (rng.next() >= probability / shot) return false;
   goal(session, side, scorer);
   return true;
@@ -715,7 +771,7 @@ function simulateMinuteGoals(session: MatchSession): void {
         rng,
         side === own && !s.substituted ? selected.id : undefined,
       );
-      recordShot(session, side, id, 'match.commentary.attempt');
+      recordShot(session, side, id, 'match.commentary.attempt', C.shotConversion);
       if (rng.next() < C.shotConversion) goal(session, side, id);
     }
   }
@@ -770,6 +826,7 @@ function updateMomentum(session: MatchSession): void {
 }
 function afterMinute(session: MatchSession) {
   const s = session.state;
+  s.ratingByMinute = [...s.ratingByMinute, Math.round(s.stats.rating * 100) / 100];
   updateMomentum(session);
   if (s.match.minute === 45) {
     s.match.status = 'halftime';
@@ -1214,7 +1271,7 @@ function resolveChoice(next: MatchSession, choiceId: string): void {
   if (template.direct === 'against') {
     // The shot is already on its way: record it, then the goalkeeper's attempt.
     const shooter = opponentShooter();
-    recordShot(next, 1 - side, shooter, 'match.commentary.attempt');
+    recordShot(next, 1 - side, shooter, 'match.commentary.attempt', 1 - choice.probability);
     event(next, template.event, p.clubId!, p.id, line(next, key), outcome);
     if (!success) {
       goal(next, 1 - side, shooter);
@@ -1225,13 +1282,17 @@ function resolveChoice(next: MatchSession, choiceId: string): void {
     if (side === 0) s.stats.homeShots++;
     else s.stats.awayShots++;
     s.stats.shots++;
-    event(next, 'shot', p.clubId!, p.id, line(next, key), outcome, template.target);
+    const shot = event(next, 'shot', p.clubId!, p.id, line(next, key), outcome, template.target);
+    addXg(next, side, shot, choice.probability);
     if (success) goal(next, side, p.id, template.target);
   } else event(next, template.event, p.clubId!, p.id, line(next, key), outcome);
   if (template.stat === 'passes') {
     s.stats.passesAttempted++;
     if (success) s.stats.passesCompleted++;
-  } else if (template.stat === 'tackles' && success) s.stats.tackles++;
+  } else if (template.stat === 'tackles') {
+    s.stats.tacklesAttempted++;
+    if (success) s.stats.tackles++;
+  }
   if (template.stat === 'saves' && success) s.stats.saves++;
   if (success && (template.family === 'goalkeeping' || template.family === 'defending')) {
     // A stop earns credit in proportion to the danger it removed and its difficulty, so its
@@ -1269,6 +1330,7 @@ function resolveChoice(next: MatchSession, choiceId: string): void {
   if (goalProbability > 0) {
     const self = success && template.scorer === 'self';
     const scorer = self ? p.id : finisher(next, side, rng, p.id);
+    const shotsBefore = side === 0 ? s.stats.homeShots : s.stats.awayShots;
     const scored = chance(
       next,
       side,
@@ -1277,6 +1339,14 @@ function resolveChoice(next: MatchSession, choiceId: string): void {
       rng,
       self ? 'match.commentary.attempt' : 'match.commentary.chance',
     );
+    // A key pass: the player's completed pass led to a teammate's shot.
+    if (
+      success &&
+      !self &&
+      template.event === 'pass' &&
+      (side === 0 ? s.stats.homeShots : s.stats.awayShots) > shotsBefore
+    )
+      s.stats.keyPasses++;
     if (scored && success && template.assist && !self) {
       // Tag the goal so a committed fixture credits the assist to the right player.
       const scoredGoal = m.events.findLast((e) => e.kind === 'goal');
@@ -1524,10 +1594,13 @@ export function validateMatchSession(value: unknown): MatchSession {
   // Sessions from another engine cannot replay; callers discard them and keep the world. A
   // session from before formations, or before slot-aware moments, replays with the rules its
   // setup implies.
+  // Sessions saved before the choreography annotations and bookkeeping stats (match-14) lack
+  // them whatever their engine, so they cannot replay to the same state either.
   if (
     !session.setup ||
     typeof session.setup !== 'object' ||
-    session.engine !== engineFor(session.setup)
+    session.engine !== engineFor(session.setup) ||
+    !Array.isArray(session.state?.stats?.xg)
   )
     throw new OutdatedMatchSessionError(session.engine);
   if (

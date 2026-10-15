@@ -319,7 +319,7 @@ export function Report({
       {career?.outcome && world?.career && <CoachAdvice world={world} compact />}
       <section className="match-panel">
         <h2>{m.maps}</h2>
-        <MatchMaps report={report} />
+        <MatchMaps report={report} heat={state.heat} />
       </section>
       <div className="match-controls">
         {career ? (

@@ -398,8 +398,7 @@ export default function MatchScreen() {
         <div>
           <dt>{m.expectedGoals}</dt>
           <dd>
-            {((state.expectedGoals[0] * state.match.minute) / 90).toFixed(2)} –{' '}
-            {((state.expectedGoals[1] * state.match.minute) / 90).toFixed(2)}
+            {state.stats.xg[0].toFixed(2)} – {state.stats.xg[1].toFixed(2)}
           </dd>
         </div>
         <div>

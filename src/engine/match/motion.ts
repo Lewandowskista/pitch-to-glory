@@ -10,7 +10,7 @@ import type {
 import { createRng, hashSeed, type Rng } from '../rng';
 import { clamp } from './decisions';
 import { SITUATION_BY_ID, type Situation } from './situations';
-import type { MatchSession, PlayState } from './types';
+import { HEAT_COLUMNS, HEAT_ROWS, type MatchSession, type PlayState } from './types';
 import {
   FORMATION_SLOTS,
   formationOf,
@@ -82,12 +82,16 @@ export interface Passage {
   play: PlayState;
   /** Goals choreographed in this passage, with the index of their celebration frame. */
   goals: { eventId: string; playerId: string; frame: number }[];
+  /** Shots that ended in the net or in the keeper's hands, per side, as shown. */
+  onTarget: [number, number];
   /** The keyframes of the decision and what it led to (outcome passages). */
   focus?: { start: number; end: number };
 }
 
 /** One width unit is 0.65 length units (68 m across, 105 m along). */
 const WIDTH = 0.65;
+/** Metres per length unit (105 m along the pitch). */
+export const METRES_PER_UNIT = 1.05;
 /** Top running speed in length units per sporting millisecond (about 9 m/s). */
 const RUN = 0.0085;
 /** Longest pause a keyframe may take while players walk to their marks. */
@@ -205,6 +209,7 @@ class Director {
   last: Beat | null;
   /** The move the next beats belong to, when one is being played out. */
   pattern: PatternId | null = null;
+  readonly onTarget: [number, number] = [0, 0];
   focus: { start: number; end: number } | undefined;
   private time = 0;
   private readonly lookup = new Map<string, Actor>();
@@ -1010,6 +1015,7 @@ class Director {
       const end = toward(101.5, aim);
       // The keeper dives, a yard short of the ball.
       strike(end, 'shot', { fixed: fixed(toward(98.5, aim + (aim < 50 ? 3 : -3))) });
+      this.onTarget[side]++;
       this.celebrate(shooter, defending, ids.goal);
       return end;
     }
@@ -1022,6 +1028,7 @@ class Director {
         carrier: keeper.id,
         beat: shot,
       });
+      this.onTarget[side]++;
       return end;
     }
     if (visual === 'parry' || visual === 'punch') {
@@ -1035,6 +1042,7 @@ class Director {
         fixed: fixed(hands),
         beat: shot,
       });
+      this.onTarget[side]++;
       const away =
         visual === 'parry'
           ? toward(100.8, aim < 50 ? 36 : 64)
@@ -1214,6 +1222,7 @@ class Director {
           beat: { kind: 'save', actor: keeper, eventId: save.id },
         });
       }
+      this.onTarget[side]++;
       this.mark(event, this.at(shooter.id), landing);
       this.note(event, 'header', shooter);
       this.mark(save, this.at(keeper.id), this.ball);
@@ -1433,6 +1442,7 @@ class Director {
       frames: this.frames,
       play: { ...this.play, ...(this.last ? { last: this.last } : {}) },
       goals: this.goals,
+      onTarget: this.onTarget,
       ...(this.focus ? { focus: this.focus } : {}),
     };
   }
@@ -1747,4 +1757,54 @@ function outcomeScene(
   scene.run(events, SITUATION_BY_ID[situationId] ?? null, decisionEvents);
   scene.fill(2);
   return scene.finish();
+}
+
+/**
+ * What a passage shows of one player (engine match-14 bookkeeping): the distance covered in
+ * length units (`METRES_PER_UNIT` converts), their touches, and the time spent in each heat cell
+ * added to `heat`, sampled along each keyframe span. `mirror` flips the pitch so the player's
+ * team attacks towards x = 100. A half-time reset is a jump, not a run.
+ */
+export function followPlayer(
+  frames: readonly ReplayFrame[],
+  id: string,
+  mirror: boolean,
+  heat: number[],
+): { distance: number; touches: number } {
+  let distance = 0,
+    touches = 0;
+  let previous: Point | undefined;
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i]!;
+    const beat = frame.beat;
+    if (
+      i > 0 &&
+      beat &&
+      beat.kind !== 'restart' &&
+      beat.kind !== 'celebration' &&
+      (beat.actorId === id || beat.receiverId === id)
+    )
+      touches++;
+    const point = frame.players.find((player) => player.id === id)?.point;
+    if (point && previous && i > 0) {
+      const dt = frame.timeMs - frames[i - 1]!.timeMs;
+      const length = frame.ballMotion === 'reset' ? 0 : span(previous, point);
+      distance += length;
+      if (dt > 0) {
+        // About one sample every 5 units of running, each with its share of the time.
+        const samples = Math.max(1, Math.ceil(length / 5));
+        for (let k = 0; k < samples; k++) {
+          const at = lerp(previous, point, (k + 0.5) / samples);
+          const x = mirror ? 100 - at.x : at.x,
+            y = mirror ? 100 - at.y : at.y;
+          const column = clamp(Math.floor((x * HEAT_COLUMNS) / 100), 0, HEAT_COLUMNS - 1);
+          const row = clamp(Math.floor((y * HEAT_ROWS) / 100), 0, HEAT_ROWS - 1);
+          heat[row * HEAT_COLUMNS + column]! +=
+            Math.round((dt * (k + 1)) / samples) - Math.round((dt * k) / samples);
+        }
+      }
+    }
+    previous = point;
+  }
+  return { distance, touches };
 }

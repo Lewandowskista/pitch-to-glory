@@ -14,8 +14,9 @@ export type { Tactics } from '../../model/domain';
 
 /**
  * Bumped whenever replayed state changes; saved sessions from another engine are discarded.
- * `match-14` annotates the choreography (beats, a focus range) without changing any outcome of
- * `match-13`.
+ * `match-14` annotates the choreography (beats, a focus range) and keeps bookkeeping stats
+ * (xG, shots on target, key passes, distance, touches, a rating line and a heat grid) without
+ * changing any outcome of `match-13`.
  */
 export const MATCH_ENGINE_VERSION = 'match-14';
 /**
@@ -129,7 +130,25 @@ export interface LiveStats {
   errors: number;
   rating: number;
   fatigue: number;
+  /**
+   * Bookkeeping (engine match-14; no random draws). Expected goals [home, away]: the sum of
+   * each recorded shot's chance of a goal (`MatchEvent.xg`).
+   */
+  xg: [number, number];
+  /** Shots that ended in the net or in the keeper's hands [home, away], as choreographed. */
+  shotsOnTarget: [number, number];
+  /** The selected player's completed decision passes that led to a teammate's shot. */
+  keyPasses: number;
+  /** The selected player's tackling decisions, won or lost (`tackles` counts those won). */
+  tacklesAttempted: number;
+  /** Metres the selected player covered across the shown keyframes. */
+  distanceM: number;
+  /** Times the selected player played, received or won the ball in the shown keyframes. */
+  touches: number;
 }
+/** The heat grid: columns along the pitch and rows across it (cells of about 5 m × 5 m). */
+export const HEAT_COLUMNS = 20;
+export const HEAT_ROWS = 13;
 export type RatingPart = RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team';
 /** How play restarts at the start of the next passage (see motion.ts). */
 export type Restart = 'kickoff' | 'goal' | 'second-half' | 'goal-kick' | 'corner';
@@ -180,6 +199,14 @@ export interface MatchState {
   /** Fractions of own attack and opposition attack replaced by personal key moments. */
   shares: { attack: number; defence: number };
   stats: LiveStats;
+  /** The live rating at the end of each played minute, to two decimals (engine match-14). */
+  ratingByMinute: number[];
+  /**
+   * Milliseconds the selected player spent in each heat cell (`HEAT_COLUMNS` × `HEAT_ROWS`,
+   * row-major), sampled along every keyframe span and oriented with their team attacking
+   * towards x = 100 in both halves.
+   */
+  heat: number[];
   /** Rating contributions above the base, by decision family and outcome bonus. */
   ratingParts: Record<RatingPart, number>;
   report: MatchReport | null;

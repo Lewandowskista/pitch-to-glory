@@ -9,6 +9,8 @@ export const pitchCopy = {
   passes: 'Pass map',
   shots: 'Shot map',
   density: 'Brighter cells show more recorded positions.',
+  timeDensity: 'Brighter cells show where you spent more time. Your team attacks left to right.',
+  seconds: 'seconds of play',
   passLegend: 'Solid blue: completed. Dashed coral: incomplete.',
   shotLegend: 'Gold star: goal. White circle: other shot.',
   noPasses: 'No passes recorded.',

@@ -2,6 +2,7 @@ import type { Club, MatchReport } from '../../model/domain';
 import { chooseMatchKits } from '../../engine/assets/clash';
 import { pitchCopy as copy } from '../../i18n/pitch';
 import { pitchArt } from './pitchArt';
+import { HEAT_COLUMNS, HEAT_ROWS } from '../../engine/match/types';
 
 /**
  * Token colours for a match, shared by the SVG fallback and GPU scene (importing this does
@@ -45,14 +46,28 @@ export function PitchMarkings() {
 const x = (value: number) => 8 + Math.max(0, Math.min(100, value));
 const y = (value: number) => 8 + Math.max(0, Math.min(100, value)) * 0.64;
 
-export default function MatchMaps({ report }: { report: MatchReport }) {
-  const cells = Array.from({ length: 80 }, () => 0);
-  for (const point of report.heatmap) {
-    const column = Math.min(9, Math.max(0, Math.floor(point.x / 10)));
-    const row = Math.min(7, Math.max(0, Math.floor(point.y / 12.5)));
-    cells[row * 10 + column]!++;
-  }
+export default function MatchMaps({
+  report,
+  heat,
+}: {
+  report: MatchReport;
+  /** Time in each heat cell (engine match-14); older sessions fall back to minute samples. */
+  heat?: readonly number[];
+}) {
+  const timed = heat && heat.length === HEAT_COLUMNS * HEAT_ROWS && heat.some((ms) => ms > 0);
+  const columns = timed ? HEAT_COLUMNS : 10,
+    rows = timed ? HEAT_ROWS : 8;
+  const cells = timed ? [...heat] : Array.from({ length: 80 }, () => 0);
+  if (!timed)
+    for (const point of report.heatmap) {
+      const column = Math.min(9, Math.max(0, Math.floor(point.x / 10)));
+      const row = Math.min(7, Math.max(0, Math.floor(point.y / 12.5)));
+      cells[row * 10 + column]!++;
+    }
   const maximum = Math.max(1, ...cells);
+  const seconds = timed ? Math.round(cells.reduce((sum, ms) => sum + ms, 0) / 1000) : 0;
+  const width = 100 / columns,
+    height = 64 / rows;
   const background = (
     <>
       <rect width="116" height="80" rx="3" fill="#1e563b" />
@@ -75,7 +90,11 @@ export default function MatchMaps({ report }: { report: MatchReport }) {
         <svg
           viewBox="0 0 116 80"
           role="img"
-          aria-label={`${copy.heatmap}: ${report.heatmap.length} ${copy.samples}`}
+          aria-label={
+            timed
+              ? `${copy.heatmap}: ${seconds} ${copy.seconds}`
+              : `${copy.heatmap}: ${report.heatmap.length} ${copy.samples}`
+          }
           style={{ width: '100%', display: 'block', marginTop: '0.5rem' }}
         >
           {background}
@@ -84,15 +103,15 @@ export default function MatchMaps({ report }: { report: MatchReport }) {
               count > 0 && (
                 <rect
                   key={index}
-                  x={8 + (index % 10) * 10}
-                  y={8 + Math.floor(index / 10) * 8}
-                  width="10"
-                  height="8"
+                  x={8 + (index % columns) * width}
+                  y={8 + Math.floor(index / columns) * height}
+                  width={width}
+                  height={height}
                   fill="#ffe58e"
                   opacity={0.15 + (count / maximum) * 0.65}
                 >
                   <title>
-                    {count} {copy.samples}
+                    {timed ? Math.round(count / 1000) : count} {timed ? copy.seconds : copy.samples}
                   </title>
                 </rect>
               ),
@@ -100,7 +119,7 @@ export default function MatchMaps({ report }: { report: MatchReport }) {
           <PitchMarkings />
         </svg>
         <p className="muted" style={{ fontSize: '0.8rem' }}>
-          {report.heatmap.length ? copy.density : copy.noMovement}
+          {timed ? copy.timeDensity : report.heatmap.length ? copy.density : copy.noMovement}
         </p>
       </figure>
       <figure style={{ margin: 0 }}>
