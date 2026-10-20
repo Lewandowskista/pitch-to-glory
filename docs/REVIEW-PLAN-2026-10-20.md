@@ -262,6 +262,8 @@ Covers R11, R16 and proposed additions 2–4.
 
 ### 4.3 Lightweight discipline — M
 
+> **Update (merge with 0.2.0):** discipline already shipped upstream — cards, second yellows, reds, suspensions per competition and booking risk on choices (engine match-16). This step is done; only the link to the availability list (`suspended`) remains, and 1.5's statuses can add it.
+
 - Add booking risk to tackle-type choices, shown in the choice hint and scaled by aggression and tackling.
 - Add a background card model for AI matches at modest, realistic rates. The `card` event kind already exists in `MatchEvent`.
 - Bans build up per competition. Selection respects them, and the availability list records `suspended` (this connects to 1.5).

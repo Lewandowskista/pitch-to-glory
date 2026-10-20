@@ -1,12 +1,20 @@
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { errorCode, UnsavedWorldError } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
 import { useAppStore } from '../store';
-import { errorText, t } from '../i18n';
+import { errorText, format, t } from '../i18n';
+import { APP_VERSION } from '../release/version';
+import { acknowledgeUpdate, startupUpdateNotice } from '../release/notice';
+import { Icon } from './Icon';
+import { buttonClass } from './kit/Button';
 export function PwaPrompt() {
   const [error, setError] = useState('');
+  // "Updated to x.y.z": decided once per start, cleared when seen. Only the version and a tiny
+  // helper load here; the patch notes load with the What's new screen.
+  const [updated, setUpdated] = useState(() => startupUpdateNotice(APP_VERSION) !== null);
+  const onWhatsNew = useLocation().pathname === '/whats-new';
   const [activated, setActivated] = useState(false);
   const reloading = useRef(false);
   const unsavedWorld = useAppStore((state) => !!state.world && !state.activeSave);
@@ -42,20 +50,62 @@ export function PwaPrompt() {
         reportFailure(failure);
       });
   }
-  if ((!offline && !refresh && !error) || deciding) return null;
+  // Opening What's new by any route counts as seeing the update.
+  useEffect(() => {
+    if (!updated || !onWhatsNew) return;
+    acknowledgeUpdate(APP_VERSION);
+    setUpdated(false);
+  }, [updated, onWhatsNew]);
+  const seen = () => {
+    acknowledgeUpdate(APP_VERSION);
+    setUpdated(false);
+  };
+  if (deciding) return null;
+  if (!offline && !refresh && !error) {
+    if (!updated || onWhatsNew) return null;
+    // One prompt at a time: the service worker's prompts come first.
+    return (
+      <div className="pwa-prompt" role="status">
+        <span className="pwa-prompt-icon update" aria-hidden="true">
+          <Icon name="life" />
+        </span>
+        <p>{format(t.app.release.updated, { version: APP_VERSION })}</p>
+        <Link className={buttonClass('primary')} to="/whats-new" onClick={seen}>
+          {t.app.release.whatsNew}
+        </Link>
+        <button className="text-button" onClick={seen}>
+          {t.app.dismiss}
+        </button>
+      </div>
+    );
+  }
+  const kind = error ? 'error' : refresh ? 'update' : 'offline';
   return (
     <div className="pwa-prompt" role="status">
+      <span className={`pwa-prompt-icon ${kind}`} aria-hidden="true">
+        <Icon
+          name={
+            kind === 'error'
+              ? 'alert'
+              : kind === 'offline'
+                ? 'check'
+                : unsavedWorld
+                  ? 'save'
+                  : 'refresh'
+          }
+        />
+      </span>
       <p>
         {error || (refresh ? (unsavedWorld ? t.app.updateSaveFirst : t.app.update) : t.app.offline)}
       </p>
       {refresh && unsavedWorld && (
-        <Link className="button" to="/saves">
+        <Link className={buttonClass('primary')} to="/saves">
           {t.world.save}
         </Link>
       )}
       {refresh && !unsavedWorld && (
         <button
-          className="button"
+          className={buttonClass('primary')}
           disabled={simulating}
           title={simulating ? t.errors.busy : undefined}
           onClick={() => {

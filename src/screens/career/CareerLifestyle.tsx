@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { m } from 'framer-motion';
-import type { Career, Sponsorship, World } from '../../model/domain';
+import type { Career, SponsorCategory, Sponsorship, World } from '../../model/domain';
 import { CONFIG } from '../../engine/config';
 import {
   BRAND_BY_ID,
@@ -23,18 +23,23 @@ import {
   weeklyUpkeep,
   type LifestyleItem,
 } from '../../engine/career/lifestyle';
+import { careerContract } from '../../engine/career/market/rules';
+import { renderLifestyle } from '../../engine/assets/lifestyle';
+import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
+import { Button, CardTitle, Chip, Panel, StatusLine, cx } from '../../ui/kit';
 import { CareerPage, filterButton, plural, ui } from './shared';
-import { ActionError, BlockNote, money, Stat, weekly } from './marketUi';
+import { ActionError, BlockNote, money, weekly } from './marketUi';
 import { fameName, useLifestyleAction } from './lifestyleUi';
+import { LifeIcon, type LifeIconName } from './lifeIcons';
 import { audio } from '../../audio';
 
 const L = CONFIG.career.lifestyle;
 
 export default function CareerLifestyle() {
   return (
-    <CareerPage title={l.titles.lifestyle}>
+    <CareerPage title={l.titles.lifestyle} description={l.intro}>
       {({ world, career }) => <LifestyleContent world={world} career={career} />}
     </CareerPage>
   );
@@ -43,12 +48,13 @@ export default function CareerLifestyle() {
 function LifestyleContent({ world, career }: { world: World; career: Career }) {
   const action = useLifestyleAction();
   return (
-    // Fame, then a compact row of sponsors and money, then the catalogue across the full
-    // width: a short sponsor list never leaves a long empty column beside the shop.
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
+    // Fame, then sponsors beside money and assets, then the catalogue across the full width.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       <FameCard career={career} />
-      <Sponsors world={world} action={action} />
-      <Assets world={world} career={career} action={action} />
+      <div className="flex flex-wrap items-start gap-5">
+        <Sponsors world={world} action={action} />
+        <Assets world={world} career={career} action={action} />
+      </div>
       <Shop world={world} action={action} />
     </div>
   );
@@ -56,9 +62,25 @@ function LifestyleContent({ world, career }: { world: World; career: Career }) {
 
 type Action = ReturnType<typeof useLifestyleAction>;
 
+/** A small uppercase heading inside a card (one per group of rows). */
+function GroupHeading({ children, className = '' }: { children: string; className?: string }) {
+  return (
+    <h3 className={cx('text-xs font-extrabold tracking-[0.12em] text-muted uppercase', className)}>
+      {children}
+    </h3>
+  );
+}
+
+const UNLOCK_ICON: Record<'cosmetics' | 'brands' | 'items', LifeIconName> = {
+  cosmetics: 'shirt',
+  brands: 'star',
+  items: 'bag',
+};
+
 function FameCard({ career }: { career: Career }) {
   const progress = fameProgress(career.fame);
   const next = progress.level + 1;
+  const levels = L.fameLevels.length;
   const unlocks = {
     cosmetics: COSMETICS.filter((item) => item.fameLevel === next).length,
     brands: BRANDS.filter((brand) => brand.fameLevel === next).length,
@@ -66,39 +88,63 @@ function FameCard({ career }: { career: Career }) {
   };
   const anything = unlocks.cosmetics + unlocks.brands + unlocks.items > 0;
   return (
-    <section aria-labelledby="fame-heading" className={`${ui.panel} bg-art-gold lg:col-span-12`}>
-      <div className="flex flex-wrap items-center gap-5">
-        <m.div
-          key={progress.level}
-          initial={{ scale: 0.6, rotate: -12, opacity: 0 }}
-          animate={{ scale: 1, rotate: 0, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 16 }}
-          className="grid h-24 w-24 shrink-0 place-items-center rounded-full bg-gold font-display text-5xl text-[#1d3127] shadow-surface"
-          aria-hidden="true"
+    <Panel
+      tone="gold"
+      aria-labelledby="fame-heading"
+      className="relative flex flex-wrap items-center gap-x-8 gap-y-5 overflow-hidden"
+    >
+      {/* Spotlight rays and stars behind the level: decoration only. */}
+      <svg
+        viewBox="0 0 520 220"
+        preserveAspectRatio="xMaxYMid slice"
+        aria-hidden="true"
+        focusable="false"
+        className="pointer-events-none absolute top-0 right-0 h-full w-3/5"
+      >
+        <g className="fill-gold" opacity="0.45">
+          <path d="M520 110L300 0H360ZM520 110L380 0H430ZM520 110L450 0H490ZM520 110L300 220H360ZM520 110L380 220H430Z" />
+        </g>
+        <g className="fill-gold">
+          <path d="M330 46L334 56L345 57L337 64L339 75L330 69L321 75L323 64L315 57L326 56Z" />
+          <path d="M420 150L423 157L431 158L425 163L427 171L420 167L413 171L415 163L409 158L417 157Z" />
+          <path d="M470 40L472 45L478 46L474 50L475 56L470 53L465 56L466 50L462 46L468 45Z" />
+        </g>
+      </svg>
+      <m.div
+        key={progress.level}
+        initial={{ scale: 0.6, rotate: -12, opacity: 0 }}
+        animate={{ scale: 1, rotate: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 16 }}
+        className="relative grid h-[6.5rem] w-[6.5rem] shrink-0 place-items-center rounded-full bg-gold font-display text-[4.25rem] leading-none text-on-gold shadow-[0_6px_0_var(--color-gold-pressed)]"
+        aria-hidden="true"
+      >
+        {progress.level}
+      </m.div>
+      <div className="relative min-w-0 flex-[1_1_22rem]">
+        <h2
+          id="fame-heading"
+          className="font-display text-[2.25rem] leading-[0.95] sm:text-[2.75rem]"
         >
-          {progress.level}
-        </m.div>
-        <div className="min-w-0 flex-1 basis-64">
-          <h2 id="fame-heading" className="font-display text-[2.4rem] leading-none">
-            {format(l.fame.level, { level: progress.level })} · {fameName(progress.level)}
-          </h2>
-          <p className="mt-2 max-w-prose text-sm text-muted">{l.fame.body}</p>
-          <div
-            className="mt-3 h-3 overflow-hidden rounded-full bg-surface-soft"
-            role="progressbar"
-            aria-label={l.fame.title}
-            aria-valuemin={0}
-            aria-valuemax={Math.max(1, progress.needed)}
-            aria-valuenow={progress.needed ? progress.into : 1}
-          >
-            <span
-              className="block h-full rounded-full bg-gradient-to-r from-accent to-gold"
-              style={{
-                width: `${progress.needed ? Math.min(100, (progress.into / progress.needed) * 100) : 100}%`,
-              }}
-            />
-          </div>
-          <p className="mt-1 text-xs text-muted">
+          {format(l.fame.level, { level: progress.level })} · {fameName(progress.level)}
+        </h2>
+        <p className="mt-2 max-w-[35rem] text-sm text-gold-ink">{l.fame.body}</p>
+        <div
+          className="mt-3.5 h-3.5 max-w-[35rem] overflow-hidden rounded-full bg-surface"
+          role="progressbar"
+          aria-label={l.fame.title}
+          aria-valuemin={0}
+          aria-valuemax={Math.max(1, progress.needed)}
+          aria-valuenow={progress.needed ? progress.into : 1}
+        >
+          <span
+            className="block h-full rounded-full bg-gradient-to-r from-field to-gold"
+            style={{
+              width: `${progress.needed ? Math.min(100, (progress.into / progress.needed) * 100) : 100}%`,
+            }}
+          />
+        </div>
+        <div className="mt-1.5 flex max-w-[35rem] flex-wrap items-center justify-between gap-3">
+          <span className="text-[0.8125rem] font-semibold text-gold-ink">
             {progress.needed
               ? format(l.fame.progressTowards, {
                   into: progress.into,
@@ -106,28 +152,85 @@ function FameCard({ career }: { career: Career }) {
                   level: next,
                 })
               : l.fame.max}
-          </p>
+          </span>
+          <span
+            role="img"
+            aria-label={format(l.fame.ladder, { max: levels, level: progress.level })}
+            className="flex gap-[3px]"
+          >
+            {Array.from({ length: levels }, (_, index) => {
+              const level = index + 1;
+              return (
+                <span
+                  key={level}
+                  aria-hidden="true"
+                  className={cx(
+                    'grid h-5 w-5 place-items-center rounded-full text-[0.625rem] font-extrabold',
+                    level === progress.level
+                      ? 'bg-field text-hero-ink'
+                      : level < progress.level
+                        ? 'bg-gold text-on-gold'
+                        : 'bg-surface text-muted',
+                  )}
+                >
+                  {level}
+                </span>
+              );
+            })}
+          </span>
         </div>
-        {progress.needed > 0 && (
-          <div className="basis-56">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted">{l.fame.next}</p>
-            {anything ? (
-              <ul className="mt-1 text-sm">
-                {(Object.keys(unlocks) as (keyof typeof unlocks)[])
-                  .filter((key) => unlocks[key])
-                  .map((key) => (
-                    <li key={key}>
-                      {plural(unlocks[key], l.fame.unlocksOne[key], l.fame.unlocks[key])}
-                    </li>
-                  ))}
-              </ul>
-            ) : (
-              <p className="mt-1 text-sm">{l.fame.nothing}</p>
-            )}
-          </div>
-        )}
       </div>
-    </section>
+      {progress.needed > 0 && (
+        <div className="relative flex min-w-[13.75rem] flex-[0_1_16.25rem] flex-col gap-2.5 rounded-control bg-surface px-[1.125rem] py-4">
+          <h3 className="text-xs font-extrabold tracking-[0.12em] text-gold-ink uppercase">
+            {l.fame.next}
+          </h3>
+          {anything ? (
+            <ul className="grid gap-2">
+              {(Object.keys(unlocks) as (keyof typeof unlocks)[])
+                .filter((key) => unlocks[key])
+                .map((key) => (
+                  <li key={key} className="flex items-center gap-2.5 font-semibold">
+                    <span
+                      aria-hidden="true"
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-chip bg-art-gold text-gold-ink"
+                    >
+                      <LifeIcon name={UNLOCK_ICON[key]} className="h-[1.125rem] w-[1.125rem]" />
+                    </span>
+                    {plural(unlocks[key], l.fame.unlocksOne[key], l.fame.unlocks[key])}
+                  </li>
+                ))}
+            </ul>
+          ) : (
+            <p className="text-sm">{l.fame.nothing}</p>
+          )}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+const BRAND_MARK: Record<SponsorCategory, string> = {
+  boots: 'bg-night text-mint',
+  apparel: 'bg-info text-surface',
+  drinks: 'bg-danger text-on-danger',
+  watches: 'bg-gold text-on-gold',
+  cars: 'bg-field text-gold',
+  tech: 'bg-art-blue text-info',
+};
+
+/** A brand's mark: its initial on its category's colour. Decorative; the name is beside it. */
+function BrandMark({ name, category }: { name: string; category: SponsorCategory }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cx(
+        'grid h-12 w-12 shrink-0 place-items-center rounded-control font-display text-[1.75rem] leading-none',
+        BRAND_MARK[category],
+      )}
+    >
+      {name.charAt(0)}
+    </span>
   );
 }
 
@@ -137,87 +240,110 @@ function DealCard({ world, deal, action }: { world: World; deal: Sponsorship; ac
   const active = world.sponsorships.filter((d) => d.status === 'active').length;
   const full = active >= L.maxDeals[careerFameLevel(world) - 1]!;
   return (
-    <li className="flex flex-col gap-3 rounded-control border border-line bg-surface-soft p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <strong className="font-display text-2xl leading-none">{brand.name}</strong>
-        <span className={ui.chip}>
-          {l.sponsors.categories[brand.category]} · {l.sponsors.statuses[deal.status]}
-        </span>
-      </div>
-      <p className="text-sm tabular-nums">
-        {format(l.sponsors.fee, { fee: money(deal.weeklyFee) })} ·{' '}
-        {format(l.sponsors.bonus, { bonus: money(deal.bonus) })} ·{' '}
-        {format(l.sponsors.ends, { season: deal.endSeason })}
-      </p>
-      <ul className="grid gap-2">
-        {deal.obligations.map((obligation) => {
-          const progress = obligationProgress(world, deal, obligation);
-          const met = obligationMet(world, deal, obligation);
-          const label = format(
-            (obligation.target === 1 && l.sponsors.obligationsOne[obligation.kind]) ||
-              l.sponsors.obligations[obligation.kind],
-            { target: obligation.target },
-          );
-          return (
-            <li key={obligation.kind} className="text-sm">
-              {offered ? (
-                <span>{label}</span>
-              ) : (
-                <div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span>{label}</span>
-                    <span className={`text-xs font-bold ${met ? 'text-accent' : 'text-muted'}`}>
-                      {met
-                        ? l.sponsors.met
-                        : format(l.sponsors.progress, { progress, target: obligation.target })}
-                    </span>
-                  </div>
-                  {obligation.kind !== 'boots' &&
-                    obligation.kind !== 'rating' &&
-                    obligation.kind !== 'image' && (
-                      <div
-                        className="mt-1 h-2 overflow-hidden rounded-full bg-surface"
-                        aria-hidden="true"
-                      >
-                        <span
-                          className={`block h-full rounded-full ${met ? 'bg-accent' : 'bg-gold'}`}
-                          style={{
-                            width: `${Math.min(100, (progress / Math.max(1, obligation.target)) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                    )}
-                </div>
-              )}
-            </li>
-          );
+    <li>
+      <article
+        aria-label={format(offered ? l.sponsors.offerLabel : l.sponsors.dealLabel, {
+          brand: brand.name,
         })}
-      </ul>
-      {offered && (
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            className="button"
-            disabled={Boolean(action.block) || full}
-            onClick={() => {
-              if (action.run({ type: 'accept-sponsor', id: deal.id })) audio.play('reward');
-            }}
-          >
-            {l.sponsors.accept}
-            <span className="sr-only"> — {brand.name}</span>
-          </button>
-          <button
-            className="button secondary"
-            disabled={Boolean(action.block)}
-            onClick={() => action.run({ type: 'decline-sponsor', id: deal.id })}
-          >
-            {l.sponsors.decline}
-            <span className="sr-only"> — {brand.name}</span>
-          </button>
-          <span className="text-xs text-muted">
-            {full ? l.sponsors.full : format(l.sponsors.expires, { week: deal.expires.week })}
-          </span>
+        className="flex flex-col gap-3 rounded-control border border-line bg-surface-soft p-4"
+      >
+        <div className="flex items-center gap-3">
+          <BrandMark name={brand.name} category={brand.category} />
+          <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-2">
+            <strong className="font-display text-[1.875rem] leading-none font-normal">
+              {brand.name}
+            </strong>
+            <Chip tone={offered ? 'gold-soft' : 'accent'}>
+              {l.sponsors.categories[brand.category]} · {l.sponsors.statuses[deal.status]}
+            </Chip>
+          </div>
         </div>
-      )}
+        <p className="text-sm tabular-nums">
+          <strong>{format(l.sponsors.fee, { fee: money(deal.weeklyFee) })}</strong> ·{' '}
+          {format(l.sponsors.bonus, { bonus: money(deal.bonus) })} ·{' '}
+          {format(l.sponsors.ends, { season: deal.endSeason })}
+        </p>
+        <ul className={cx('grid text-sm', offered ? 'gap-1.5' : 'gap-2.5')}>
+          {deal.obligations.map((obligation) => {
+            const progress = obligationProgress(world, deal, obligation);
+            const met = obligationMet(world, deal, obligation);
+            const label = format(
+              (obligation.target === 1 && l.sponsors.obligationsOne[obligation.kind]) ||
+                l.sponsors.obligations[obligation.kind],
+              { target: obligation.target },
+            );
+            if (offered)
+              return (
+                <li key={obligation.kind} className="flex items-center gap-2">
+                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted" />
+                  {label}
+                </li>
+              );
+            const bar =
+              obligation.kind !== 'boots' &&
+              obligation.kind !== 'rating' &&
+              obligation.kind !== 'image';
+            return (
+              <li key={obligation.kind}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span>{label}</span>
+                  <span
+                    className={cx(
+                      'inline-flex shrink-0 items-center gap-1 text-xs font-extrabold whitespace-nowrap',
+                      met ? 'text-accent' : 'text-muted',
+                    )}
+                  >
+                    {met && <LifeIcon name="check" className="h-3 w-3" />}
+                    {met
+                      ? l.sponsors.met
+                      : format(l.sponsors.progress, { progress, target: obligation.target })}
+                  </span>
+                </div>
+                {bar && (
+                  <div
+                    className="mt-1.5 h-2 overflow-hidden rounded-full bg-surface"
+                    aria-hidden="true"
+                  >
+                    <span
+                      className={cx('block h-full rounded-full', met ? 'bg-accent' : 'bg-gold')}
+                      style={{
+                        width: `${Math.min(100, (progress / Math.max(1, obligation.target)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        {offered && (
+          <>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button
+                disabled={Boolean(action.block) || full}
+                onClick={() => {
+                  if (action.run({ type: 'accept-sponsor', id: deal.id })) audio.play('reward');
+                }}
+              >
+                {l.sponsors.accept}
+                <span className="sr-only"> — {brand.name}</span>
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={Boolean(action.block)}
+                onClick={() => action.run({ type: 'decline-sponsor', id: deal.id })}
+              >
+                {l.sponsors.decline}
+                <span className="sr-only"> — {brand.name}</span>
+              </Button>
+            </div>
+            <p className="flex items-start gap-2 text-[0.8125rem] text-muted">
+              <LifeIcon name={full ? 'info' : 'clock'} className="mt-0.5 h-4 w-4" />
+              {full ? l.sponsors.full : format(l.sponsors.expires, { week: deal.expires.week })}
+            </p>
+          </>
+        )}
+      </article>
     </li>
   );
 }
@@ -234,31 +360,34 @@ function Sponsors({ world, action }: { world: World; action: Action }) {
   // The first fame level any brand will talk to the player at.
   const firstLevel = Math.min(...BRANDS.map((brand) => brand.fameLevel));
   return (
-    <section aria-labelledby="sponsors-heading" className={`${ui.panel} lg:col-span-6`}>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="sponsors-heading" className={ui.heading}>
+    <Panel
+      aria-labelledby="sponsors-heading"
+      className="flex min-w-0 flex-[1_1_27.5rem] flex-col gap-3.5"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2.5">
+        <CardTitle id="sponsors-heading" size="lg">
           {l.sponsors.title}
-        </h2>
-        <span className={ui.chip}>{format(l.sponsors.slots, { used: active.length, max })}</span>
+        </CardTitle>
+        <Chip tone={max ? 'accent' : 'neutral'}>
+          {format(l.sponsors.slots, { used: active.length, max })}
+        </Chip>
       </div>
-      <p className={`${ui.muted} mt-1 max-w-prose`}>{l.sponsors.body}</p>
-      <div className="mt-4 grid gap-3">
-        <BlockNote block={action.block} />
-        <ActionError error={action.error} />
-      </div>
-      {offers.length + active.length === 0 && (
-        <p className={`${ui.muted} mt-4`}>
-          {level < firstLevel
-            ? format(l.sponsors.none, { level: firstLevel })
-            : l.sponsors.watching}
-        </p>
-      )}
+      <p className="text-muted">{l.sponsors.body}</p>
+      <BlockNote block={action.block} />
+      <ActionError error={action.error} />
+      {offers.length + active.length === 0 &&
+        (level < firstLevel ? (
+          <p className="flex items-start gap-2.5 rounded-control border border-dashed border-line p-3 text-[0.8125rem] text-muted">
+            <LifeIcon name="lock" className="mt-px h-[1.125rem] w-[1.125rem]" />
+            {format(l.sponsors.none, { level: firstLevel })}
+          </p>
+        ) : (
+          <p className="text-[0.8125rem] text-muted">{l.sponsors.watching}</p>
+        ))}
       {offers.length > 0 && (
         <>
-          <h3 className="mt-4 text-xs font-bold uppercase tracking-wider text-muted">
-            {l.sponsors.offers}
-          </h3>
-          <ul className="mt-2 grid gap-3">
+          <GroupHeading className="mt-1.5">{l.sponsors.offers}</GroupHeading>
+          <ul className="grid gap-3">
             {offers.map((deal) => (
               <DealCard key={deal.id} world={world} deal={deal} action={action} />
             ))}
@@ -267,10 +396,8 @@ function Sponsors({ world, action }: { world: World; action: Action }) {
       )}
       {active.length > 0 && (
         <>
-          <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
-            {l.sponsors.active}
-          </h3>
-          <ul className="mt-2 grid gap-3">
+          <GroupHeading className="mt-1.5">{l.sponsors.active}</GroupHeading>
+          <ul className="grid gap-3">
             {active.map((deal) => (
               <DealCard key={deal.id} world={world} deal={deal} action={action} />
             ))}
@@ -279,22 +406,62 @@ function Sponsors({ world, action }: { world: World; action: Action }) {
       )}
       {history.length > 0 && (
         <>
-          <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
-            {l.sponsors.history}
-          </h3>
-          <ul className="mt-2 divide-y divide-line text-sm">
+          <GroupHeading className="mt-1.5">{l.sponsors.history}</GroupHeading>
+          <ul className="text-sm">
             {history.map((deal) => (
-              <li key={deal.id} className="flex flex-wrap justify-between gap-2 py-2">
-                <span className="font-semibold">{BRAND_BY_ID[deal.brandId]?.name}</span>
+              <li
+                key={deal.id}
+                className="flex flex-wrap justify-between gap-2 border-t border-line py-2"
+              >
+                <span className="font-bold">{BRAND_BY_ID[deal.brandId]?.name}</span>
                 <span className="text-muted">{l.sponsors.statuses[deal.status]}</span>
               </li>
             ))}
           </ul>
         </>
       )}
-    </section>
+    </Panel>
   );
 }
+
+/** Each kind's tint behind its drawings (theme-aware tokens). */
+const TINT: Record<LifestyleItem['kind'], string> = {
+  car: 'bg-art-blue',
+  house: 'bg-art-gold',
+  staff: 'bg-accent-soft',
+  experience: 'bg-art-blue',
+  charity: 'bg-danger-soft',
+  investment: 'bg-art-gold',
+  legacy: 'bg-art-green',
+};
+
+/** A shop item's illustration on its kind's tint. Decorative: the name is always beside it. */
+function ItemArt({
+  itemId,
+  kind,
+  className,
+}: {
+  itemId: string;
+  kind: LifestyleItem['kind'] | undefined;
+  className: string;
+}) {
+  const svg = useMemo(() => renderLifestyle(itemId, kind), [itemId, kind]);
+  return (
+    <Artwork
+      svg={svg}
+      alt=""
+      className={`rounded-chip object-contain ${kind ? TINT[kind] : 'bg-art-green'} ${className}`}
+    />
+  );
+}
+
+type Lock = { chip: string; reason: string; kind: 'fame' | 'owned' | 'cooldown' | 'cash' };
+const LOCK_LOOK: Record<Lock['kind'], { icon: LifeIconName; className: string }> = {
+  owned: { icon: 'check', className: 'bg-accent-soft text-accent' },
+  cash: { icon: 'lock', className: 'border border-danger bg-surface text-danger' },
+  fame: { icon: 'lock', className: 'border border-line bg-surface text-muted' },
+  cooldown: { icon: 'clock', className: 'border border-line bg-surface text-muted' },
+};
 
 function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; action: Action }) {
   const [amount, setAmount] = useState<number>(item.cost);
@@ -317,30 +484,34 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
     : item.rest
       ? format(l.lifestyle.effects.rest!, { value: item.rest })
       : null;
-  const lock =
+  const lock: Lock | null =
     level < item.fameLevel
       ? {
           chip: format(l.lifestyle.lockedFame, { level: item.fameLevel }),
           reason: format(l.lifestyle.requires, { level: item.fameLevel }),
+          kind: 'fame',
         }
       : owned && item.kind !== 'investment' && item.kind !== 'experience'
-        ? { chip: l.lifestyle.ownedChip, reason: l.lifestyle.ownedReason }
+        ? { chip: l.lifestyle.ownedChip, reason: l.lifestyle.ownedReason, kind: 'owned' }
         : wait > 0
           ? {
               chip: l.lifestyle.cooldownChip,
               reason: plural(wait, l.lifestyle.cooldownNextWeek, l.lifestyle.cooldownWeeks),
+              kind: 'cooldown',
             }
           : cash < price
             ? {
                 chip: format(l.lifestyle.lockedCash, { amount: money(price) }),
                 reason: l.lifestyle.afford,
+                kind: 'cash',
               }
             : null;
   return (
     <li className="flex flex-col gap-2 rounded-control border border-line bg-surface-soft p-3">
+      <ItemArt itemId={item.id} kind={item.kind} className="h-[5.25rem] w-full" />
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
         <strong className="text-sm">{name}</strong>
-        <span className="text-base font-bold tabular-nums">{money(price)}</span>
+        <span className="font-display text-2xl leading-none tabular-nums">{money(price)}</span>
       </div>
       <p className="text-xs text-muted">
         {item.kind === 'investment'
@@ -359,7 +530,7 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
       </p>
       {item.kind === 'investment' && !lock && (
         <div>
-          <label htmlFor={`amount-${item.id}`} className="mb-1 block text-xs font-semibold">
+          <label htmlFor={`amount-${item.id}`} className="mb-1 block text-xs font-bold">
             {l.lifestyle.amount}
           </label>
           <select
@@ -376,16 +547,21 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
           </select>
         </div>
       )}
-      <div className="mt-auto pt-1">
+      <div className="mt-auto pt-0.5">
         {lock ? (
-          <p className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-bold text-muted">
-            <LockIcon />
+          <p
+            className={cx(
+              'inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 text-xs font-extrabold',
+              LOCK_LOOK[lock.kind].className,
+            )}
+          >
+            <LifeIcon name={LOCK_LOOK[lock.kind].icon} className="h-3.5 w-3.5" />
             {lock.chip}
             <span className="sr-only"> · {lock.reason}</span>
           </p>
         ) : (
-          <button
-            className="button secondary"
+          <Button
+            variant="secondary"
             disabled={Boolean(action.block)}
             onClick={() => {
               if (
@@ -400,28 +576,10 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
           >
             {item.kind === 'investment' ? l.lifestyle.invest : l.lifestyle.buy}
             <span className="sr-only"> — {name}</span>
-          </button>
+          </Button>
         )}
       </div>
     </li>
-  );
-}
-
-function LockIcon() {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      width="12"
-      height="12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="7" width="10" height="7" rx="1.5" />
-      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
-    </svg>
   );
 }
 
@@ -430,59 +588,101 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
   const morale = lifestyleMorale(world);
   const overspending = upkeep > weeklyIncome(world) * L.overspendShare;
   return (
-    <section aria-label={l.lifestyle.title} className={`${ui.panel} lg:col-span-6`}>
-      <h2 className={ui.heading}>{l.lifestyle.heading}</h2>
-      <p className={`${ui.muted} mt-1`}>{l.lifestyle.body}</p>
-      <dl className="mt-4 grid gap-2 sm:grid-cols-3 sm:gap-3">
-        <Stat row label={l.lifestyle.savings} value={money(career.market.finances.cash)} />
-        <Stat row label={l.lifestyle.upkeep} value={weekly(upkeep)} />
-        <Stat
-          row
-          label={l.lifestyle.morale}
-          value={`${morale > 0 ? '+' : morale < 0 ? '−' : '±'}${Math.abs(morale)}`}
-        />
+    // Named "Lifestyle" for assistive technology: the page's own record of what you own.
+    <Panel
+      aria-label={l.lifestyle.title}
+      className="flex min-w-0 flex-[1.25_1_30rem] flex-col gap-4"
+    >
+      <CardTitle size="lg">{l.lifestyle.heading}</CardTitle>
+      <p className="text-muted">{l.lifestyle.body}</p>
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-2.5">
+        <div className="rounded-control bg-surface-soft px-3.5 py-3">
+          <dt className="text-xs font-semibold text-muted">{l.lifestyle.savings}</dt>
+          <dd className="mt-0.5 font-display text-[2rem] leading-[0.95] tabular-nums">
+            {money(career.market.finances.cash)}
+          </dd>
+        </div>
+        <div className="rounded-control bg-surface-soft px-3.5 py-3">
+          <dt className="text-xs font-semibold text-muted">{l.lifestyle.upkeep}</dt>
+          <dd className="mt-0.5 font-display text-[2rem] leading-[0.95] tabular-nums">
+            {weekly(upkeep)}
+          </dd>
+        </div>
+        <div
+          className={cx(
+            'rounded-control px-3.5 py-3',
+            morale > 0
+              ? 'bg-accent-soft text-accent'
+              : morale < 0
+                ? 'bg-danger-soft text-danger'
+                : 'bg-surface-soft',
+          )}
+        >
+          <dt className={cx('text-xs font-semibold', morale === 0 && 'text-muted')}>
+            {l.lifestyle.morale}
+          </dt>
+          <dd className="mt-0.5 font-display text-[2rem] leading-[0.95] tabular-nums">
+            {`${morale > 0 ? '+' : morale < 0 ? '−' : '±'}${Math.abs(morale)}`}
+          </dd>
+        </div>
       </dl>
-      {overspending && (
-        <p className="mt-2 text-sm font-semibold text-danger">{l.lifestyle.overspend}</p>
-      )}
-      <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
-        {l.lifestyle.owned}
-      </h3>
+      {overspending && <StatusLine tone="error">{l.lifestyle.overspend}</StatusLine>}
+      <GroupHeading className="mt-1">{l.lifestyle.owned}</GroupHeading>
       {career.style.assets.length ? (
-        <ul className="mt-2 grid gap-2">
+        <ul className="grid gap-2.5">
           {career.style.assets.map((asset) => {
             const name = l.lifestyle.items[asset.itemId] ?? asset.itemId;
             return (
               <li
                 key={asset.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-control bg-surface-soft p-3"
+                className="flex flex-wrap items-center gap-3.5 rounded-control bg-surface-soft px-3 py-2.5"
               >
-                <span className="min-w-0">
-                  <strong className="block text-sm">{name}</strong>
-                  <span className="text-xs text-muted">
+                <ItemArt
+                  itemId={asset.itemId}
+                  kind={LIFESTYLE_BY_ID[asset.itemId]?.kind}
+                  className="h-[3.125rem] w-[5.25rem] shrink-0"
+                />
+                <span className="min-w-0 flex-[1_1_8.75rem]">
+                  <strong className="block">{name}</strong>
+                  <span className="text-[0.8125rem] text-muted">
                     {format(l.lifestyle.value, { amount: money(asset.value) })}
                   </span>
                 </span>
-                <button
-                  className="button secondary"
+                <Button
+                  variant="secondary"
                   disabled={Boolean(action.block)}
                   onClick={() => action.run({ type: 'sell-asset', assetId: asset.id })}
                 >
                   {format(l.lifestyle.sell, { amount: money(resaleValue(asset)) })}
                   <span className="sr-only"> — {name}</span>
-                </button>
+                </Button>
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className={`${ui.muted} mt-2`}>{l.lifestyle.none}</p>
+        <p className="text-[0.8125rem] text-muted">{l.lifestyle.none}</p>
       )}
-    </section>
+      <p className="flex items-start gap-3 rounded-control bg-art-blue px-3.5 py-3 text-[0.8125rem] font-semibold text-info">
+        <LifeIcon name="info" className="mt-px h-[1.125rem] w-[1.125rem]" />
+        {format(l.lifestyle.resaleNote, { percent: Math.round(L.resale * 100) })}
+      </p>
+    </Panel>
   );
 }
 
 const KINDS = ['car', 'house', 'staff', 'experience', 'charity', 'legacy', 'investment'] as const;
+const KIND_ICON: Record<(typeof KINDS)[number], LifeIconName> = {
+  car: 'car',
+  house: 'home',
+  staff: 'person',
+  experience: 'sun',
+  charity: 'heart',
+  legacy: 'legacy',
+  investment: 'chart',
+};
+/** Small categories sit side by side on wide screens. */
+const HALF = new Set<string>(['experience', 'charity', 'legacy']);
 
 /** The catalogue across the full width, one category or all of them (kept in the URL). */
 function Shop({ world, action }: { world: World; action: Action }) {
@@ -495,12 +695,16 @@ function Shop({ world, action }: { world: World; action: Action }) {
     setParams(next, { replace: true });
   };
   return (
-    <section aria-labelledby="shop-heading" className={`${ui.panel} lg:col-span-12`}>
-      <h2 id="shop-heading" className={ui.heading}>
-        {l.lifestyle.shop}
-      </h2>
-      <p className={ui.helper}>{l.lifestyle.shopBody}</p>
-      <div role="group" aria-label={l.lifestyle.categories} className={`mt-4 ${ui.filters}`}>
+    <Panel aria-labelledby="shop-heading" className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <CardTitle id="shop-heading" size="lg">
+          {l.lifestyle.shop}
+        </CardTitle>
+        <span className="text-[0.8125rem] font-semibold text-muted">
+          {format(l.lifestyle.wageNote, { wage: money(careerContract(world).weeklyWage) })}
+        </span>
+      </div>
+      <div role="group" aria-label={l.lifestyle.categories} className={ui.filters}>
         {[null, ...KINDS].map((kind) => {
           const pressed = (kind ?? undefined) === chosen;
           return (
@@ -515,21 +719,42 @@ function Shop({ world, action }: { world: World; action: Action }) {
           );
         })}
       </div>
-      {(chosen ? [chosen] : KINDS).map((kind) => (
-        <div key={kind} className="mt-5">
-          <h3 className="text-sm font-semibold">{l.lifestyle.kinds[kind]}</h3>
-          <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {LIFESTYLE.filter((item) => item.kind === kind).map((item) => (
-              <ShopItem
-                key={item.id}
-                world={world}
-                item={LIFESTYLE_BY_ID[item.id]!}
-                action={action}
-              />
-            ))}
-          </ul>
-        </div>
-      ))}
-    </section>
+      <div className="flex flex-wrap gap-x-5 gap-y-[1.375rem]">
+        {(chosen ? [chosen] : KINDS).map((kind) => {
+          const half = !chosen && HALF.has(kind);
+          return (
+            <div
+              key={kind}
+              className={cx('min-w-0', half ? 'flex-[1_1_27.5rem]' : 'flex-[1_1_100%]')}
+            >
+              <h3 className="mb-2.5 flex items-center gap-2 text-[0.9375rem] font-bold">
+                <LifeIcon
+                  name={KIND_ICON[kind]}
+                  className="h-[1.125rem] w-[1.125rem] text-accent"
+                />
+                {l.lifestyle.kinds[kind]}
+              </h3>
+              <ul
+                className={cx(
+                  'grid gap-3',
+                  half
+                    ? 'grid-cols-[repeat(auto-fill,minmax(min(100%,12.5rem),1fr))]'
+                    : 'grid-cols-[repeat(auto-fill,minmax(min(100%,13rem),1fr))]',
+                )}
+              >
+                {LIFESTYLE.filter((item) => item.kind === kind).map((item) => (
+                  <ShopItem
+                    key={item.id}
+                    world={world}
+                    item={LIFESTYLE_BY_ID[item.id]!}
+                    action={action}
+                  />
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
   );
 }

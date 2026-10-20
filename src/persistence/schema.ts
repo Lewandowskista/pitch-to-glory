@@ -5,6 +5,7 @@ import { initialMarket } from '../engine/career/market/records';
 import { attachSocial } from '../engine/career/social/week';
 import { attachLifestyle } from '../engine/career/lifestyle/week';
 import { attachHonours } from '../engine/career/honours/week';
+import { backfillSquadNumbers } from '../engine/world/squadNumbers';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
 import { validateWorld } from './worldSchema';
 import { validateMatchSession } from '../engine/match';
@@ -113,12 +114,40 @@ const migrations: Readonly<Record<number, Migration>> = {
   // v20 adds story arcs (optional `career.stories`) and the captaincy (`career.captaincy`),
   // with their inbox messages and Chronicle entry. Careers saved before start without either.
   19: (old) => ({ ...old, schemaVersion: 20 }),
-  // v21 adds the career's development rules (optional `career.developmentRules`) and running
-  // conditioning share (`career.conditioning`). Careers saved before keep the original rules
-  // until their next season, then adopt late-career decline with conditioning taken from
-  // their current training plan.
-  20: (old) => ({ ...old, schemaVersion: 21 }),
+  // v21 gives every player a squad number (`Player.squadNumber`), backfilled with the same
+  // rules new worlds use (no random draws), and copies it into a saved match session's
+  // players so the session still matches its world. The avatar's optional new parts need no
+  // migration; validation accepts them from v21.
+  20: (old) => ({ ...old, schemaVersion: 21, payload: withSquadNumbers(old.payload) }),
+  // v22 adds the career's development rules (optional `career.developmentRules`), running
+  // conditioning share (`career.conditioning`) and fixture availability, and the world's shared
+  // Hall of Fame record (`world.achievements`, `hallOfFame` on players and archived players).
+  // Careers and worlds saved before keep their rules until their next season, then adopt them.
+  21: (old) => ({ ...old, schemaVersion: 22 }),
 };
+/** Worlds saved before v21 gain squad numbers; an in-progress match keeps replaying. */
+function withSquadNumbers(payload: unknown): unknown {
+  try {
+    const p = object(payload);
+    if (p.kind !== 'world') return payload;
+    const world = object(p.world) as unknown as World;
+    object(world.players);
+    object(world.clubs);
+    backfillSquadNumbers(world);
+    // A match session holds copies of both squads that must equal the world's players, so
+    // they take the same numbers. The number is display-only: replays are unchanged.
+    if (p.matchSession === undefined) return payload;
+    const players = object(object(object(p.matchSession).setup).players);
+    for (const [id, value] of Object.entries(players)) {
+      const number = world.players[id]?.squadNumber;
+      if (number !== undefined && value && typeof value === 'object')
+        (value as Record<string, unknown>).squadNumber = number;
+    }
+  } catch {
+    // Validation reports the problem.
+  }
+  return payload;
+}
 function withLevelXp(payload: unknown): unknown {
   try {
     const p = object(payload);

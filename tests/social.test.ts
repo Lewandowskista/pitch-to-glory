@@ -285,6 +285,49 @@ describe('media', () => {
     expect(lapsed.media.find((entry) => entry.id === item.id)!.answer).toBe('silence');
     expect(lapsed.career!.fame).toBe(before + S.media.silenceFame);
   });
+  it('writes the rival’s reply into the rivalry timeline (phase 7, C6)', () => {
+    const world = clone(career);
+    const rival = rivalOf(world)!;
+    const item = openPress(world, createRng('press'), 'rival', { rival: rival.name });
+    const length = rivalryOf(world)!.timeline.length;
+    // A calm answer draws no reply, and nothing is written.
+    const humble = item.choices.find((entry) => entry.tone === 'humble')!;
+    const calm = applySocialAction(world, {
+      type: 'answer',
+      mediaId: item.id,
+      choiceId: humble.id,
+    });
+    expect(rivalryOf(calm)!.timeline).toHaveLength(length);
+    const provocative = item.choices.find((entry) => entry.tone === 'provocative')!;
+    const answered = applySocialAction(world, {
+      type: 'answer',
+      mediaId: item.id,
+      choiceId: provocative.id,
+    });
+    const entry = rivalryOf(answered)!.timeline.at(-1)!;
+    expect(entry).toEqual({
+      date: answered.date,
+      kind: 'media',
+      params: {
+        rival: rival.name,
+        player: player(answered).name,
+        answer: provocative.labelKey,
+        reply: 'rival.reply',
+      },
+    });
+    // The input world's rivalry is untouched.
+    expect(rivalryOf(world)!.timeline).toHaveLength(length);
+    // The timeline's copy names both sides of the exchange.
+    const text = socialText.rivalPress.entry
+      .replace('{rival}', rival.name)
+      .replace('{answer}', socialText.answers[provocative.labelKey]!)
+      .replace(
+        '{reply}',
+        socialText.posts['rival.reply']!.replace('{player}', player(answered).name),
+      );
+    expect(text).not.toMatch(/[{}]|undefined/);
+    valid(answered);
+  });
   it('is deterministic for a seed', () => {
     const a = weeks(clone(career), 10);
     const b = weeks(clone(career), 10);

@@ -1,18 +1,28 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useMemo, useId, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { MatchSession } from '../../engine/match';
 import type { CareerMatchFinal, CareerMatchOutcome } from '../../engine/career/matches';
 import { CONFIG } from '../../engine/config';
+import { levelProgress } from '../../engine/career/progression';
+import { renderAvatar } from '../../engine/assets/avatar';
+import { calendarDate } from '../../engine/world/calendar';
+import { formatGameDate } from '../../i18n/calendar';
 import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
 import { careerText as c } from '../../i18n/career';
 import { lifestyleText } from '../../i18n/lifestyle';
 import { format } from '../../i18n';
-import { Footballer } from './Shared';
+import { Artwork } from '../../ui/Artwork';
+import { Icon } from '../../ui/Icon';
+import { cx } from '../../ui/kit';
+import { FootballerAvatar } from './Shared';
 import MatchMaps from './Maps';
 import { m as motion, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../../store';
 import { audio } from '../../audio';
 import { CoachAdvice } from '../career/CoachAdvice';
+import { selectedSide } from './cam';
+
+const u = m.ui;
 
 /** Career fixtures: the granted XP once recorded, or the action that records it. */
 export interface CareerReport {
@@ -24,16 +34,25 @@ export interface CareerReport {
 
 function LevelUp({ outcome, reduced }: { outcome: CareerMatchOutcome; reduced: boolean }) {
   const level = outcome.previousLevel + outcome.levelsGained;
+  const career = useAppStore((store) => store.world?.career);
+  const progress = career ? levelProgress(career) : null;
   useEffect(() => audio.play('levelUp'), []);
   return (
-    <motion.div
+    <motion.section
       role="status"
       data-testid="level-up"
-      className="relative mt-5 overflow-hidden rounded-panel bg-gold p-5 text-[#1d3127] shadow-surface"
+      aria-labelledby="level-up-title"
+      className="match-level-up"
       initial={reduced ? false : { opacity: 0, scale: 0.7, rotate: -2 }}
       animate={{ opacity: 1, scale: 1, rotate: 0 }}
       transition={{ type: 'spring', stiffness: 260, damping: 14, delay: 0.35 }}
     >
+      <svg viewBox="0 0 200 200" aria-hidden="true" className="match-level-up-star">
+        <path
+          d="M100 10L123 72L190 76L138 118L156 184L100 146L44 184L62 118L10 76L77 72Z"
+          fill="#ffffff"
+        />
+      </svg>
       {!reduced && (
         <motion.span
           aria-hidden="true"
@@ -43,31 +62,36 @@ function LevelUp({ outcome, reduced }: { outcome: CareerMatchOutcome; reduced: b
           transition={{ duration: 1.1, delay: 0.7, ease: 'easeInOut' }}
         />
       )}
-      <p className="relative font-display text-[2.6rem] leading-none tracking-wide">
+      <h2 id="level-up-title" className="match-level-up-title">
         {c.report.levelUp}
-      </p>
-      <p className="relative mt-1 font-semibold">{format(c.report.levelUpBody, { level })}</p>
+      </h2>
+      <p className="relative font-bold">{format(c.report.levelUpBody, { level })}</p>
       <p className="relative text-sm">
         {format(c.report.levelPoints, {
           attribute: outcome.levelsGained * CONFIG.career.attributePointsPerLevel,
           skill: outcome.levelsGained * CONFIG.career.skillPointsPerLevel,
         })}
       </p>
-      <div className="relative mt-3 flex flex-wrap gap-2">
-        <Link
-          className="inline-flex min-h-11 items-center rounded-control bg-[#1d3127] px-4 text-sm font-bold text-white"
-          to="/career/profile"
-        >
+      {progress && progress.needed > 0 && (
+        <div className="relative grid gap-1.5">
+          <span className="match-level-up-track" aria-hidden="true">
+            <span style={{ width: `${Math.min(100, (progress.into / progress.needed) * 100)}%` }} />
+          </span>
+          <span className="text-xs font-bold">
+            {format(c.common.level, { level: career!.level })} ·{' '}
+            {format(c.common.xp, { into: progress.into, needed: progress.needed })}
+          </span>
+        </div>
+      )}
+      <div className="relative mt-1 flex flex-wrap gap-2">
+        <Link className="match-level-up-link is-solid" to="/career/profile">
           {c.report.allocate}
         </Link>
-        <Link
-          className="inline-flex min-h-11 items-center rounded-control border border-[#1d3127] px-4 text-sm font-bold"
-          to="/career/skills"
-        >
+        <Link className="match-level-up-link" to="/career/skills">
           {c.report.unlock}
         </Link>
       </div>
-    </motion.div>
+    </motion.section>
   );
 }
 
@@ -82,12 +106,14 @@ function FinalResult({
   keeper: boolean;
 }) {
   const pair = ([own, opposition]: [number, number]) => ({ own, opposition });
+  const [own, opposition] = final.score;
+  const won = final.penalties ? final.penalties[0] > final.penalties[1] : own > opposition;
+  const drew = !final.penalties && own === opposition;
   return (
-    <div className="mt-4 rounded-control bg-surface-soft p-4" data-testid="final-result">
-      <p className="text-xs font-bold uppercase tracking-wider text-muted">{c.report.finalTitle}</p>
-      <p className="font-display text-4xl leading-none">
-        {format(c.report.finalScore, pair(final.score))}
-      </p>
+    <div className="match-final" data-testid="final-result">
+      <p className="match-tile-label">{c.report.finalTitle}</p>
+      <p className="match-final-score">{format(c.report.finalScore, pair(final.score))}</p>
+      <p className="match-card-note">{won ? u.finalWon : drew ? u.finalDrew : u.finalLost}</p>
       {final.extraTime && (
         <>
           <p className="mt-2 text-sm">{c.report.afterExtraTime}</p>
@@ -137,6 +163,14 @@ function FinalResult({
   );
 }
 
+/** A signed rating step with two decimals and a true minus sign. */
+const signed2 = (value: number) => `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(2)}`;
+
+/**
+ * The match report (redesign phase 5b): the morning headline with your rewards, the result
+ * and how the XP was worked out; a level-up and the touchline quotes beside it; the rating
+ * breakdown, objectives and coach's advice; "Your match, mapped"; then what to do next.
+ */
 export function Report({
   session,
   onAgain,
@@ -150,6 +184,7 @@ export function Report({
 }) {
   const { setup, state } = session;
   const report = state.report!;
+  const id = useId();
   const systemReduced = useReducedMotion();
   const reduced = useAppStore((store) => store.settings.reducedMotion) || Boolean(systemReduced);
   const world = useAppStore((store) => store.world);
@@ -163,168 +198,377 @@ export function Report({
   const extraTimeRating = Math.round((rating - report.rating) * 100) / 100;
   const importance = setup.fixture?.importance ?? 1;
   const opposition = outcome && performance ? outcome.record.xp / (performance * importance) : 1;
+  const player = setup.players[setup.selectedPlayerId]!;
+  const side = selectedSide(setup);
+  const ownClub = side === 0 ? setup.home : setup.away;
+  const manager = world?.managers[world.clubs[ownClub.id]?.managerId ?? ''];
+  const managerSvg = useMemo(
+    () => (manager ? renderAvatar(manager.avatar, manager.age) : null),
+    [manager],
+  );
+  const fixture = setup.fixture && world ? world.fixtures[setup.fixture.id] : undefined;
+  const date = fixture
+    ? formatGameDate(calendarDate(fixture.date.season, fixture.date.week, fixture.date.day), true)
+    : null;
+  const [homeScore, awayScore] = state.match.score;
+  const stats = [
+    [m.minutes, outcome ? outcome.record.minutes : state.selectedPlayerMinutes],
+    [m.goals, outcome ? outcome.record.goals : state.stats.goals],
+    [m.assists, outcome ? outcome.record.assists : state.stats.assists],
+    [m.passes, `${state.stats.passesCompleted}/${state.stats.passesAttempted}`],
+    [m.tackles, state.stats.tackles],
+    [m.saves, state.stats.saves],
+    [m.errors, state.stats.errors],
+  ] as const;
+  const ratingRows = [
+    ...report.ratingFactors.map((factor) => ({
+      key: factor.labelKey,
+      label: matchLabel(factor.labelKey),
+      value: factor.contribution,
+    })),
+    ...(extraTimeRating !== 0
+      ? [{ key: 'extra-time', label: c.report.extraTimeRating, value: extraTimeRating }]
+      : []),
+  ];
   return (
     <div className="match-report">
-      <h2>{m.report}</h2>
-      <section className="match-panel match-report-hero">
-        <span className="match-eyebrow">{m.headline}</span>
-        <h2>{matchFormat(matchLabel(report.headlineId), report.headlineParams ?? {})}</h2>
-        <Footballer player={setup.players[setup.selectedPlayerId]!} season={setup.season} />
-        <motion.div
-          className="match-rewards"
-          initial={reduced ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-        >
-          <div>
-            <strong>{rating.toFixed(1)}</strong>
-            <span>{m.rating}</span>
-          </div>
-          <div data-testid={outcome ? 'career-xp' : undefined}>
-            <strong>+{outcome ? outcome.record.xp : report.xp}</strong>
-            <span>{outcome ? c.report.granted : m.earnedXp}</span>
-          </div>
-          <div>
-            <strong>
-              {fame >= 0 ? '+' : ''}
-              {fame}
-            </strong>
-            <span>{m.fame}</span>
-          </div>
-        </motion.div>
-        {!career ? (
-          <p className="muted">{m.friendlyRewards}</p>
-        ) : outcome && final ? (
-          <>
-            <FinalResult
-              final={final}
-              shootout={state.shootout}
-              keeper={setup.players[setup.selectedPlayerId]!.primaryPosition === 'GK'}
-            />
-            <p className="muted">
-              {format(c.report.breakdown, {
-                xp: performance,
-                opposition: `×${opposition.toFixed(2)}`,
-                importance: `×${importance.toFixed(2)}`,
+      <div className="match-report-heading">
+        <div>
+          <h2 className="match-report-title">{m.report}</h2>
+        </div>
+        {outcome && (
+          <span className="match-recorded">
+            <Icon name="check" className="h-4 w-4" />
+            {u.recorded}
+          </span>
+        )}
+      </div>
+      <div className="match-report-row">
+        <section className="match-panel match-report-hero" aria-labelledby={`${id}-headline`}>
+          <div className="match-newspaper">
+            <div className="match-newspaper-masthead">
+              <span>{m.headline}</span>
+              {date && <span>{date}</span>}
+            </div>
+            <h3 id={`${id}-headline`} className="match-headline">
+              {matchFormat(matchLabel(report.headlineId), report.headlineParams ?? {})}
+            </h3>
+            <p className="match-card-note">
+              {matchFormat(u.headlineLine, {
+                home: setup.home.name,
+                away: setup.away.name,
+                homeScore,
+                awayScore,
+                stadium: setup.home.stadium.name,
               })}
             </p>
-            <p className="muted">{c.report.careerRewards}</p>
-            {outcome.celebrationFame > 0 && (
-              <p className="match-celebration" data-testid="celebration-fame">
-                {format(lifestyleText.celebrations.fame, { fame: outcome.celebrationFame })}
-              </p>
-            )}
-            {outcome.levelsGained > 0 && <LevelUp outcome={outcome} reduced={reduced} />}
-            {outcome.injury && (
-              <div className="mt-4 rounded-control bg-danger-soft p-4 text-danger" role="alert">
-                <strong>
-                  {format(c.report.injured, {
-                    injury: c.injuries[outcome.injury.kind] ?? outcome.injury.kind,
-                  })}
-                </strong>
-                <p className="text-sm">
-                  {format(c.report.injuredBody, { weeks: outcome.injury.weeksRemaining })}
-                </p>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="mt-4 rounded-control bg-surface-soft p-4">
-            <strong className="block">{c.report.recordTitle}</strong>
-            <p className="muted mt-1 text-sm">{c.report.recordBody}</p>
-            <button className="button mt-3" disabled={career.recording} onClick={career.onRecord}>
-              {career.recording ? c.report.recording : c.report.record}
-            </button>
-            {career.recording && (
-              <p role="status" className="sr-only">
-                {c.report.recording}
-              </p>
-            )}
           </div>
-        )}
-      </section>
-      <div className="match-preview">
-        <section className="match-panel">
-          <h2>{m.ratingBreakdown}</h2>
-          <ul className="match-objectives">
-            {report.ratingFactors.map((factor) => (
-              <li key={factor.labelKey}>
-                <span>{matchLabel(factor.labelKey)}</span>
-                <strong>
-                  {factor.contribution >= 0 ? '+' : ''}
-                  {factor.contribution.toFixed(2)}
-                </strong>
-              </li>
-            ))}
-            {extraTimeRating !== 0 && (
-              <li>
-                <span>{c.report.extraTimeRating}</span>
-                <strong>
-                  {extraTimeRating >= 0 ? '+' : ''}
-                  {extraTimeRating.toFixed(2)}
-                </strong>
-              </li>
-            )}
-            {[
-              [m.minutes, outcome ? outcome.record.minutes : state.selectedPlayerMinutes],
-              [m.goals, outcome ? outcome.record.goals : state.stats.goals],
-              [m.assists, outcome ? outcome.record.assists : state.stats.assists],
-              [m.passes, `${state.stats.passesCompleted}/${state.stats.passesAttempted}`],
-              [m.tackles, state.stats.tackles],
-              [m.saves, state.stats.saves],
-              [m.errors, state.stats.errors],
-            ].map(([name, value]) => (
-              <li key={name}>
-                <span>{name}</span>
-                <strong>{value}</strong>
-              </li>
-            ))}
-          </ul>
-        </section>
-        <section className="match-panel">
-          <h2>{m.objectives}</h2>
-          <ul className="match-objectives">
-            {objectives.map((objective) => (
-              <li key={objective.id}>
-                <div>
-                  {m.objectiveNames[objective.kind]}
-                  <small>
-                    {matchFormat(m.objectiveProgress, {
-                      progress: Math.round(objective.progress * 10) / 10,
-                      target: objective.target,
+          <div className="match-report-player">
+            <div className="match-report-footballer">
+              <FootballerAvatar
+                player={player}
+                season={setup.season}
+                home={setup.home}
+                away={setup.away}
+                className="match-report-avatar"
+              />
+              <div className="min-w-0">
+                <p className="match-tile-label">{m.selected}</p>
+                <p className="match-report-name">{player.name}</p>
+                <p className="match-card-note">
+                  {player.primaryPosition} ·{' '}
+                  {matchFormat(m.age, { age: setup.season - player.birthSeason })}
+                </p>
+                {/* Cards (match-16): a dismissal is said plainly, a booking noted. */}
+                {report.cards?.sentOff ? (
+                  <p className="match-report-cards is-red" data-testid="report-sent-off">
+                    <span className="match-card-chip is-red" aria-hidden="true" />
+                    {matchFormat(u.reportSentOff, {
+                      minute: report.cards.sentOff.minute,
+                      reason: u.sentOffReasons[report.cards.sentOff.reason],
                     })}
-                  </small>
+                  </p>
+                ) : report.cards?.yellow ? (
+                  <p className="match-report-cards">
+                    <span className="match-card-chip" aria-hidden="true" />
+                    {matchFormat(u.reportCards, { yellow: report.cards.yellow })}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <motion.div
+              className="match-rewards"
+              initial={reduced ? false : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+            >
+              <div className="is-rating">
+                <strong>{rating.toFixed(1)}</strong>
+                <span>{m.rating}</span>
+              </div>
+              <div className="is-xp" data-testid={outcome ? 'career-xp' : undefined}>
+                <strong>+{outcome ? outcome.record.xp : report.xp}</strong>
+                <span>{outcome ? c.report.granted : m.earnedXp}</span>
+              </div>
+              <div className="is-fame">
+                <strong>
+                  {fame > 0 ? '+' : fame < 0 ? '−' : ''}
+                  {Math.abs(fame)}
+                </strong>
+                <span>{m.fame}</span>
+              </div>
+            </motion.div>
+          </div>
+          {!career ? (
+            <p className="match-card-note">{m.friendlyRewards}</p>
+          ) : outcome && final ? (
+            <>
+              <div className="match-report-result">
+                <FinalResult
+                  final={final}
+                  shootout={state.shootout}
+                  keeper={player.primaryPosition === 'GK'}
+                />
+                <div className="match-xp-breakdown">
+                  <h4>{u.xpTitle}</h4>
+                  <dl>
+                    <div>
+                      <dt>{u.xpPerformance}</dt>
+                      <dd>{performance}</dd>
+                    </div>
+                    <div>
+                      <dt>{u.xpOpposition}</dt>
+                      <dd>×{opposition.toFixed(2)}</dd>
+                    </div>
+                    <div>
+                      <dt>{u.xpOccasion}</dt>
+                      <dd>×{importance.toFixed(2)}</dd>
+                    </div>
+                    <div className="is-total">
+                      <dt>{u.xpEarned}</dt>
+                      <dd>+{outcome.record.xp}</dd>
+                    </div>
+                  </dl>
                 </div>
-                <strong>{objective.progress >= objective.target ? m.complete : m.missed}</strong>
-              </li>
-            ))}
-          </ul>
-          <h3>{m.reactions}</h3>
-          <blockquote>
-            <strong>{m.manager}</strong>
-            <p>{matchLabel(state.managerReactionKey)}</p>
-          </blockquote>
-          <blockquote>
-            <strong>{m.fans}</strong>
-            <p>{matchLabel(state.fanReactionKey)}</p>
-          </blockquote>
+              </div>
+              <p className="match-card-note">{c.report.careerRewards}</p>
+              {outcome.celebrationFame > 0 && (
+                <p className="match-celebration-fame" data-testid="celebration-fame">
+                  <Icon name="life" className="h-4 w-4 shrink-0" />
+                  {format(lifestyleText.celebrations.fame, { fame: outcome.celebrationFame })}
+                </p>
+              )}
+              {outcome.injury && (
+                <div className="match-injury" role="alert">
+                  <span className="match-injury-icon is-solid" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24">
+                      <path
+                        d="M12 4V20M4 12H20"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </span>
+                  <div>
+                    <strong>
+                      {format(c.report.injured, {
+                        injury: c.injuries[outcome.injury.kind] ?? outcome.injury.kind,
+                      })}
+                    </strong>
+                    <p className="text-sm">
+                      {format(c.report.injuredBody, { weeks: outcome.injury.weeksRemaining })}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="match-record">
+              <strong>{c.report.recordTitle}</strong>
+              <p className="match-card-note">{c.report.recordBody}</p>
+              <button
+                type="button"
+                className="button"
+                disabled={career.recording}
+                aria-busy={career.recording || undefined}
+                onClick={career.onRecord}
+              >
+                {career.recording ? c.report.recording : c.report.record}
+              </button>
+              {career.recording && (
+                <p role="status" className="sr-only">
+                  {c.report.recording}
+                </p>
+              )}
+            </div>
+          )}
         </section>
+        <div className="match-report-side">
+          {outcome && outcome.levelsGained > 0 && <LevelUp outcome={outcome} reduced={reduced} />}
+          <section className="match-panel" aria-labelledby={`${id}-touchline`}>
+            <h3 id={`${id}-touchline`} className="match-card-title is-display">
+              {m.reactions}
+            </h3>
+            <figure className="match-quote">
+              {managerSvg ? (
+                <Artwork svg={managerSvg} alt="" className="match-quote-face" />
+              ) : (
+                <span className="match-quote-face is-icon" aria-hidden="true">
+                  <Icon name="player" className="h-5 w-5" />
+                </span>
+              )}
+              <div>
+                <figcaption>
+                  {m.manager}
+                  {manager ? ` · ${manager.name}` : ''}
+                </figcaption>
+                <blockquote>“{matchLabel(state.managerReactionKey)}”</blockquote>
+              </div>
+            </figure>
+            <figure className="match-quote">
+              <span className="match-quote-face is-icon" aria-hidden="true">
+                <Icon name="club" className="h-5 w-5" />
+              </span>
+              <div>
+                <figcaption>{m.fans}</figcaption>
+                <blockquote>“{matchLabel(state.fanReactionKey)}”</blockquote>
+              </div>
+            </figure>
+          </section>
+        </div>
       </div>
-      {/* Once the result is recorded, the coach reads it with the decisions before it. */}
-      {career?.outcome && world?.career && <CoachAdvice world={world} compact />}
-      <section className="match-panel">
-        <h2>{m.maps}</h2>
-        <MatchMaps report={report} />
+      <div className="match-report-row">
+        <section className="match-panel match-rating-breakdown" aria-labelledby={`${id}-rating`}>
+          <div className="match-card-head">
+            <h3 id={`${id}-rating`} className="match-card-title is-display">
+              {m.ratingBreakdown}
+            </h3>
+            <span className="match-breakdown-total">{rating.toFixed(1)}</span>
+          </div>
+          <ul className="match-factors is-rating">
+            {ratingRows.map((row) => {
+              const base = row.key === 'match.rating.base';
+              const width = base ? 0 : Math.min(Math.abs(row.value) * 55, 50);
+              return (
+                <li
+                  key={row.key}
+                  className={cx(
+                    base
+                      ? 'is-base'
+                      : row.value > 0
+                        ? 'is-up'
+                        : row.value < 0
+                          ? 'is-down'
+                          : 'is-flat',
+                  )}
+                >
+                  <span>{row.label}</span>
+                  <span className="match-factor-bar" aria-hidden="true">
+                    {!base && (
+                      <span
+                        style={{
+                          width: `${width}%`,
+                          ...(row.value >= 0 ? { left: '50%' } : { right: '50%' }),
+                        }}
+                      />
+                    )}
+                  </span>
+                  <strong>{signed2(row.value)}</strong>
+                </li>
+              );
+            })}
+          </ul>
+          <dl className="match-report-stats">
+            {stats.map(([name, value]) => (
+              <div key={name}>
+                <dt>{name}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+        <div className="match-report-side">
+          <section className="match-panel" aria-labelledby={`${id}-objectives`}>
+            <h3 id={`${id}-objectives`} className="match-card-title is-display">
+              {m.objectives}
+            </h3>
+            <ul className="match-objective-results">
+              {objectives.map((objective) => {
+                const done = objective.progress >= objective.target;
+                const unit = objective.kind === 'passing' ? '%' : '';
+                return (
+                  <li key={objective.id} className={done ? 'is-done' : 'is-missed'}>
+                    <div className="match-objective-head">
+                      <span className="match-objective-mark" aria-hidden="true">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path
+                            d={done ? 'M5 12L10 17L19 7' : 'M7 7L17 17M17 7L7 17'}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span className="flex-1">{m.objectiveNames[objective.kind]}</span>
+                      <strong className="match-objective-state">
+                        {done ? m.complete : m.missed}
+                      </strong>
+                    </div>
+                    <div className="match-objective-progress">
+                      <span aria-hidden="true">
+                        <span
+                          style={{
+                            width: `${Math.min(100, (objective.progress / Math.max(0.01, objective.target)) * 100)}%`,
+                          }}
+                        />
+                      </span>
+                      <small>
+                        {matchFormat(m.objectiveProgress, {
+                          progress: `${Math.round(objective.progress * 10) / 10}${unit}`,
+                          target: `${objective.target}${unit}`,
+                        })}
+                      </small>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+          {/* Once the result is recorded, the coach reads it with the decisions before it. */}
+          {career?.outcome && world?.career && <CoachAdvice world={world} compact />}
+        </div>
+      </div>
+      <section className="match-panel" aria-labelledby={`${id}-maps`}>
+        <div className="match-card-head">
+          <h3 id={`${id}-maps`} className="match-card-title is-display">
+            {m.maps}
+          </h3>
+          <span className="match-card-note match-attacking">
+            {matchFormat(u.attacking, { club: ownClub.name })}
+            <Icon name="arrow" className="h-[18px] w-[18px]" />
+          </span>
+        </div>
+        <MatchMaps
+          report={report}
+          heat={state.heat}
+          events={state.match.events}
+          side={side}
+          team={ownClub.name}
+        />
       </section>
-      <div className="match-controls">
+      <div className="match-whats-next" role="group" aria-label={u.whatNext}>
         {career ? (
           career.actions
         ) : (
           <>
-            <button className="button" onClick={onAgain}>
+            <button type="button" className="button play button-lg" onClick={onAgain}>
               {m.again}
             </button>
-            <button className="button secondary" onClick={onNew}>
+            <button type="button" className="button match-night-button" onClick={onNew}>
               {m.newFixture}
             </button>
           </>

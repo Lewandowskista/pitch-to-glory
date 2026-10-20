@@ -1,5 +1,5 @@
 import { CONFIG } from '../engine/config';
-import { decodeClip } from '../engine/career/honours/clip';
+import { CLIP_MAX_LENGTH, decodeClip } from '../engine/career/honours/clip';
 import {
   array,
   avatar,
@@ -273,7 +273,7 @@ export function validateHonours(w: Record<string, unknown>): void {
     requireValue(score.length === 2);
     score.forEach((goals) => number(goals, 0, 40, true));
     text(moment.seed, 256);
-    requireValue(typeof moment.clip === 'string' && moment.clip.length <= 1200);
+    requireValue(typeof moment.clip === 'string' && moment.clip.length <= CLIP_MAX_LENGTH);
     try {
       decodeClip(String(moment.clip));
     } catch {

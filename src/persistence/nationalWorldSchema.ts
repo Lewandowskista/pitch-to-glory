@@ -24,7 +24,7 @@ import { validateMarket } from './marketValidation';
 import { validateSocial } from './socialValidation';
 import { validateLifestyle } from './lifestyleValidation';
 import { validateHonours } from './honoursValidation';
-import { validateSeasonStatistics } from './statisticsValidation';
+import { validateDiscipline, validateSeasonStatistics } from './statisticsValidation';
 import { QUALIFYING_DIVISIONS } from '../engine/world/titles';
 import { validateEdits } from './editsValidation';
 
@@ -338,6 +338,7 @@ export function validateNationalWorld(value: unknown): World {
   validateHonours(w);
   validateEdits(w);
   validateSeasonStatistics(w);
+  validateDiscipline(w);
   for (const club of Object.values(clubs)) {
     const identity = object(club.identity);
     requireValue(identity.counterpart === countries[String(club.countryId)]!.counterpart);
@@ -1019,6 +1020,11 @@ export function validateNationalWorld(value: unknown): World {
       'signing',
       'loan',
       'contract',
+      // Phase 7 (C7): a career's debut, first goal, injuries and rivalry.
+      'debut',
+      'first-goal',
+      'injury',
+      'rivalry',
     ]);
     ids(event.entityIds, 10);
     const params = object(event.params);

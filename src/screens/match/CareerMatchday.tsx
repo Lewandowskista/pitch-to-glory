@@ -1,44 +1,41 @@
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { Icon } from '../../ui/Icon';
-import { HeadToHead } from '../../ui/HeadToHead';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import { StakeLine } from '../career/stakesUi';
 import type { CareerMatchOutcome } from '../../engine/career/matches';
 import type { Fixture, World } from '../../model/domain';
+import { calendarDate } from '../../engine/world/calendar';
+import { formatGameDate } from '../../i18n/calendar';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
-import { CrestImage, JobProgress } from '../career/shared';
+import { CrestImage, JobProgress, PlayerPortrait } from '../career/shared';
 import { competitionName, leaguePosition, recentForm } from '../career/selectors';
 import { matchFormat, matchText as m } from '../../i18n/match';
 import { continueToMatchday } from '../career/actions';
+import { cx } from '../../ui/kit';
 
+const u = m.ui;
 const FORM_TONE = {
   win: 'bg-gold text-on-gold',
   draw: 'bg-white/20 text-white',
   loss: 'bg-danger-soft text-danger',
 } as const;
 
-/** Table place, and for your club the recent form, under each crest. */
-function SideDetail({
-  world,
-  clubId,
-  own,
-  home,
-}: {
-  world: World;
-  clubId: string;
-  own: boolean;
-  /** Wide screens align each side's details towards the centre, like the names. */
-  home: boolean;
-}) {
+/** One side of the fixture: crest, Bebas name, table place and, for your club, the form. */
+function FixtureSide({ world, clubId, own }: { world: World; clubId: string; own: boolean }) {
+  const club = world.clubs[clubId]!;
   const table = leaguePosition(world, clubId);
   const form = own ? recentForm(world.career!) : [];
-  if (!table && !form.length) return null;
   return (
-    <div className="grid gap-2">
+    <div className="match-fixture-side">
+      <CrestImage crest={club.crest} alt={club.name} className="match-fixture-crest" />
+      <div>
+        {own && <span className="match-hero-eyebrow">{u.yourClub}</span>}
+        <span className="match-fixture-name">{club.name}</span>
+      </div>
       {table && (
-        <span className="text-sm text-white/85">
+        <span className="text-sm text-hero-muted">
           {matchFormat(m.fixtureTable, {
             rank: table.rank,
             total: table.total,
@@ -48,7 +45,7 @@ function SideDetail({
       )}
       {form.length > 0 && (
         <span
-          className={`inline-flex gap-1.5 justify-self-center ${home ? 'sm:justify-self-end' : 'sm:justify-self-start'}`}
+          className="inline-flex gap-1.5"
           role="img"
           aria-label={format(c.hub.formLabel, {
             count: form.length,
@@ -58,7 +55,7 @@ function SideDetail({
           {form.map((record) => (
             <span
               key={record.fixtureId}
-              className={`grid h-7 w-7 place-items-center rounded-full font-display text-base leading-none ${FORM_TONE[record.result]}`}
+              className={`grid h-7 w-7 place-items-center rounded-full font-display text-[1.0625rem] leading-none ${FORM_TONE[record.result]}`}
             >
               {c.hub.results[record.result]}
             </span>
@@ -69,44 +66,10 @@ function SideDetail({
   );
 }
 
-function FixtureTeams({ world, fixture }: { world: World; fixture: Fixture }) {
-  const clubId = world.players[world.career!.playerId]!.clubId;
-  const home = world.clubs[fixture.homeId]!;
-  const away = world.clubs[fixture.awayId]!;
-  return (
-    <HeadToHead
-      inward
-      versus={c.common.vs}
-      versusClass="text-white/70"
-      sides={[home, away].map((club) => ({
-        id: club.id,
-        name: club.name,
-        artwork: (
-          <CrestImage
-            crest={club.crest}
-            alt={club.name}
-            className="h-16 w-16 drop-shadow-lg sm:h-24 sm:w-24"
-          />
-        ),
-        detail: (
-          <SideDetail
-            world={world}
-            clubId={club.id}
-            own={club.id === clubId}
-            home={club.id === home.id}
-          />
-        ),
-        label: club.id === clubId && (
-          <span className="block text-xs font-bold uppercase tracking-wider text-gold">
-            {c.hub.club}
-          </span>
-        ),
-      }))}
-    />
-  );
-}
-
-/** The pending career fixture, before the pre-match briefing opens: the hub's pitch hero. */
+/**
+ * The pending career fixture, before the pre-match briefing opens (redesign phase 5b): the
+ * field-green hero with both clubs and the one gold action, beside how matchday works.
+ */
 export function CareerFixture({
   world,
   fixture,
@@ -119,58 +82,134 @@ export function CareerFixture({
   onPrepare: () => void;
 }) {
   const kind = fixtureKind(world, fixture);
-  const clubId = world.players[world.career!.playerId]!.clubId;
+  const career = world.career!;
+  const player = world.players[career.playerId]!;
+  const clubId = player.clubId;
+  const home = world.clubs[fixture.homeId]!;
+  const date = formatGameDate(
+    calendarDate(fixture.date.season, fixture.date.week, fixture.date.day),
+  );
   return (
-    <section
-      aria-labelledby="career-fixture-heading"
-      className="relative overflow-hidden rounded-panel bg-field p-5 text-white shadow-surface sm:p-7"
-      data-testid="career-fixture"
-    >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-[0.12] [background:repeating-linear-gradient(90deg,transparent_0_56px,white_56px_112px)]"
-      />
-      <div className="relative mx-auto flex max-w-[40rem] flex-col gap-5">
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          <span className="text-xs font-bold uppercase tracking-[0.16em] text-gold">
+    <div className="match-fixture-layout">
+      <section
+        aria-labelledby="career-fixture-heading"
+        className="match-fixture-hero"
+        data-testid="career-fixture"
+      >
+        <svg
+          viewBox="0 0 800 460"
+          preserveAspectRatio="xMidYMid slice"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full"
+        >
+          <g fill="none" stroke="#ffffff" strokeOpacity="0.09" strokeWidth="3">
+            <path d="M400 -10V470" />
+            <circle cx="400" cy="230" r="86" />
+            <path d="M-10 110H120V350H-10" />
+            <path d="M810 110H680V350H810" />
+          </g>
+        </svg>
+        <div className="relative flex flex-wrap items-center justify-center gap-2.5">
+          <h2 id="career-fixture-heading" className="match-hero-eyebrow">
             {c.report.fixture}
-          </span>
+          </h2>
           <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
             {c.hub.importance[kind]}
           </span>
         </div>
-        <h2 id="career-fixture-heading" className="sr-only">
-          {c.report.fixture}
-        </h2>
-        <FixtureTeams world={world} fixture={fixture} />
-        <div className="flex justify-center text-center">
+        <div className="match-fixture-teams">
+          <FixtureSide world={world} clubId={fixture.homeId} own={fixture.homeId === clubId} />
+          <span className="match-fixture-v" aria-hidden="true">
+            {u.versus}
+          </span>
+          <span className="sr-only">{c.common.vs}</span>
+          <FixtureSide world={world} clubId={fixture.awayId} own={fixture.awayId === clubId} />
+        </div>
+        <div className="relative flex justify-center text-center">
           <StakeLine world={world} fixture={fixture} />
         </div>
-        <p className="text-center text-sm font-semibold text-white/90">
-          {format(c.hub.fixtureDate, {
-            week: fixture.date.week,
-            competition: competitionName(world, fixture.competitionId),
-          })}{' '}
-          ·{' '}
-          {fixture.neutral
-            ? c.common.neutral
-            : fixture.homeId === clubId
-              ? c.common.home
-              : c.common.away}
+        <div className="relative grid justify-items-center gap-1.5 text-center">
+          <p className="text-sm font-bold">
+            {format(c.hub.fixtureDate, {
+              date,
+              week: fixture.date.week,
+              competition: competitionName(world, fixture.competitionId),
+            })}{' '}
+            ·{' '}
+            {fixture.neutral
+              ? c.common.neutral
+              : fixture.homeId === clubId
+                ? c.common.home
+                : c.common.away}
+          </p>
+          {!fixture.neutral && (
+            <p className="text-[0.8125rem] text-hero-muted">
+              {matchFormat(u.venue, {
+                stadium: home.stadium.name,
+                capacity: home.stadium.capacity.toLocaleString('en-GB'),
+              })}
+            </p>
+          )}
+        </div>
+        <p className="match-fixture-note">
+          <Icon name="history" className="h-5 w-5 shrink-0 text-gold" />
+          <span>{c.report.previewNote}</span>
         </p>
-        <p className="text-center text-sm text-white/80">{c.report.previewNote}</p>
-        <div className="flex justify-center">
-          <button className="button play min-w-60" disabled={disabled} onClick={onPrepare}>
+        <div className="relative flex justify-center">
+          <button
+            type="button"
+            className="button play button-lg match-fixture-cta"
+            disabled={disabled}
+            onClick={onPrepare}
+          >
             {c.report.prepare}
             <Icon name="arrow" />
           </button>
         </div>
-      </div>
-    </section>
+      </section>
+      <aside className="match-panel match-steps" aria-labelledby="matchday-steps">
+        <h2 id="matchday-steps" className="match-card-title is-display">
+          {u.howTitle}
+        </h2>
+        <ol>
+          {u.steps.map((step, index) => (
+            <li key={step.title} className={cx(index === 0 && 'is-next')}>
+              <span className="match-step-number" aria-hidden="true">
+                {index + 1}
+              </span>
+              <span className="min-w-0">
+                <strong>{step.title}</strong>
+                <span>{step.body}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+        <div className="match-steps-player">
+          <PlayerPortrait
+            player={player}
+            age={world.date.season - player.birthSeason}
+            club={clubId ? world.clubs[clubId] : null}
+            className="h-12 w-12 shrink-0"
+          />
+          <div className="min-w-0">
+            <p className="font-bold">
+              {player.name} · {player.primaryPosition}
+            </p>
+            <p className="match-card-note">
+              {matchFormat(u.fitness, {
+                fitness: Math.round(player.fitness),
+                fatigue: Math.round(player.fatigue),
+              })}
+            </p>
+          </div>
+        </div>
+        <p className="match-card-note">{u.pausesNote}</p>
+      </aside>
+    </div>
   );
 }
 
-/** No career fixture can be played this week. */
+/** No career fixture can be played this week: the reason, what comes next and the way on. */
 export function CareerNoMatch({ world }: { world: World }) {
   const job = useAppStore((s) => s.worldJob);
   const career = world.career!;
@@ -178,33 +217,59 @@ export function CareerNoMatch({ world }: { world: World }) {
   const next = nextCareerFixture(world);
   const last = career.matches.at(-1);
   const opponent = last ? world.clubs[last.opponentId] : undefined;
+  const blocked = Boolean(career.injury && career.injury.recovery === null);
   return (
-    <section className="match-panel flex flex-col gap-4" aria-labelledby="no-match-heading">
-      <h2 id="no-match-heading">{injured ? c.report.injuredNoMatch : c.report.noMatch}</h2>
-      <p className="muted">
+    <section className="match-panel match-no-match" aria-labelledby="no-match-heading">
+      <div className="flex items-center gap-3">
+        {injured && (
+          <span className="match-injury-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24">
+              <path
+                d="M12 4V20M4 12H20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+        )}
+        <h2 id="no-match-heading" className="match-card-title is-display">
+          {injured ? c.report.injuredNoMatch : c.report.noMatch}
+        </h2>
+      </div>
+      <p className="match-card-note">
         {world.phase === 'complete' ? c.hub.seasonCompleteBody : c.report.noMatchBody}
       </p>
-      {next && world.phase !== 'complete' && (
-        <p className="text-sm">
-          <strong>{c.report.nextFixture}: </strong>
-          {world.clubs[next.homeId]?.name} {c.common.vs} {world.clubs[next.awayId]?.name} ·{' '}
-          {format(c.common.week, { week: next.date.week })}
-        </p>
-      )}
-      {last && opponent && (
-        <p className="flex items-center gap-2 text-sm">
-          <CrestImage crest={opponent.crest} alt="" className="h-7 w-7" />
-          <span>
-            <strong>{c.report.lastRecorded}: </strong>
-            {opponent.name} {last.score[0]}–{last.score[1]} · +{last.xp} XP
-          </span>
-        </p>
+      {((next && world.phase !== 'complete') || (last && opponent)) && (
+        <div className="match-no-match-facts">
+          {next && world.phase !== 'complete' && (
+            <p>
+              <Icon name="history" className="h-[18px] w-[18px] shrink-0 text-accent" />
+              <span>
+                <strong>{c.report.nextFixture}: </strong>
+                {world.clubs[next.homeId]?.name} {c.common.vs} {world.clubs[next.awayId]?.name} ·{' '}
+                {format(c.common.week, { week: next.date.week })}
+              </span>
+            </p>
+          )}
+          {last && opponent && (
+            <p>
+              <CrestImage crest={opponent.crest} alt="" className="h-5 w-5 shrink-0" />
+              <span>
+                <strong>{c.report.lastRecorded}: </strong>
+                {opponent.name} {last.score[0]}–{last.score[1]} · +{last.xp} XP
+              </span>
+            </p>
+          )}
+        </div>
       )}
       <div className="flex flex-wrap gap-3">
         {world.phase !== 'complete' && (
           <button
+            type="button"
             className="button play"
-            disabled={Boolean(job) || Boolean(career.injury && career.injury.recovery === null)}
+            disabled={Boolean(job) || blocked}
             onClick={continueToMatchday}
           >
             {c.report.continue}
@@ -215,8 +280,11 @@ export function CareerNoMatch({ world }: { world: World }) {
           {c.report.hub}
         </Link>
       </div>
-      {career.injury && career.injury.recovery === null && (
-        <p className="text-sm font-semibold">{c.hub.injuredBlock}</p>
+      {blocked && (
+        <p className="match-blocked" role="note">
+          <Icon name="warning" className="h-4 w-4 shrink-0" />
+          {c.hub.injuredBlock}
+        </p>
       )}
       <JobProgress />
     </section>
@@ -238,7 +306,8 @@ export function CareerReportActions({
     <>
       {pending ? (
         <button
-          className="button play"
+          type="button"
+          className="button play button-lg"
           disabled={Boolean(job)}
           onClick={() => useAppStore.getState().setCareerResult(null)}
         >
@@ -247,7 +316,8 @@ export function CareerReportActions({
         </button>
       ) : world.phase !== 'complete' ? (
         <button
-          className="button play"
+          type="button"
+          className="button play button-lg"
           disabled={Boolean(job) || Boolean(world.career!.injury && !world.career!.injury.recovery)}
           onClick={continueToMatchday}
         >
@@ -255,16 +325,16 @@ export function CareerReportActions({
           <Icon name="arrow" />
         </button>
       ) : null}
-      <Link className="button secondary" to="/career">
+      <Link className="button match-night-button" to="/career">
         {c.report.hub}
       </Link>
       {gained && (
-        <Link className="button secondary" to="/career/profile">
+        <Link className="button match-night-button" to="/career/profile">
           {c.report.allocate}
         </Link>
       )}
       {world.career!.skillPoints > 0 && (
-        <Link className="button secondary" to="/career/skills">
+        <Link className="button match-night-button" to="/career/skills">
           {c.report.unlock}
         </Link>
       )}

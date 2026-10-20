@@ -32,6 +32,7 @@ export const en = {
       '/career/moments': 'Moments',
       '/career/legacy': 'Legacy',
       '/moment': 'Moment replay',
+      '/whats-new': 'What’s new',
     } as Record<string, string>,
     short: {
       '/': 'Club',
@@ -62,11 +63,34 @@ export const en = {
     cancel: 'Cancel',
     helpNav:
       'Tab: move between controls. Enter: activate. Space: play or pause a live match. 1–4: choose a key-moment action. Arrow keys: move between navigation links, tabs and match choices. Escape: close a dialog or go back. ?: open this guide.',
+    /** The shortcut guide as keycaps beside what they do (the same content as `helpNav`). */
+    shortcuts: [
+      { keys: ['Tab'], does: 'Move between controls.' },
+      { keys: ['Enter'], does: 'Activate.' },
+      { keys: ['Space'], does: 'Play or pause a live match.' },
+      { keys: ['1', '2', '3', '4'], does: 'Choose a key-moment action.' },
+      {
+        keys: ['←', '↑', '→', '↓'],
+        does: 'Move between navigation links, tabs and match choices.',
+      },
+      { keys: ['Esc'], does: 'Close a dialog or go back.' },
+      { keys: ['?'], does: 'Open this guide.' },
+    ],
+    shortcutHint: 'Press {key} anywhere',
+    slotLocal: 'Slot {slot} · Stored on this device',
+    saveStatus: 'Save status: {status}',
     offline: 'Your clubhouse is ready offline.',
     update: 'An update is ready.',
     updateAction: 'Save & update',
     updateSaveFirst: 'Save your world in a slot before installing this update.',
     later: 'Dismiss',
+    /** Versions and the "Updated" notice; the patch notes live in i18n/patchNotes.ts. */
+    release: {
+      updated: 'Updated to {version}',
+      whatsNew: 'See what’s new',
+      version: 'Version {version}',
+      link: 'What’s new',
+    },
     preferencesError: 'Preferences could not be stored. Export a save to keep a copy.',
     exportUnsaved: 'Export unsaved copy',
     dismiss: 'Dismiss',
@@ -127,6 +151,24 @@ export const en = {
     ],
     promise:
       'Free in your browser. No account and no ads. Your saves stay on your device, and the game plays offline after your first visit.',
+    /** Under the first call to action on the landing hero. */
+    startHint: 'About two minutes to build your footballer',
+    /** One line per pillar, for the compact list a returning player sees. */
+    pillarsShort: [
+      'Every key moment shows the odds and the reasons.',
+      'Train, level up and climb the pyramid.',
+      'The press, your manager and a rival.',
+      'Retire into the Hall of Fame, play on as your child.',
+    ],
+    /** The illustrated key moment beside the first pillar (decorative, not game data). */
+    sampleMoment: 'Key moment',
+    sampleMinute: '88′',
+    sampleChoices: [
+      { label: 'Shoot far post', odds: 64 },
+      { label: 'Square it across the box', odds: 71 },
+      { label: 'Take on the centre-back', odds: 38 },
+    ],
+    clubArtLabel: 'An illustrated football stadium in the colours of {club}',
   },
   gallery: {
     title: 'Gallery',
@@ -236,6 +278,13 @@ export const en = {
       'This slot could not be read. Your other slots are unaffected. Import a backup or replace it with your current session.',
     futureBody:
       'This slot was saved by a newer version of Pitch to Glory. Update the game to open it.',
+    slotState: '{slot}, {state}',
+    activeState: 'active save',
+    emptyState: 'empty',
+    loadingState: 'loading',
+    damagedState: 'unreadable',
+    futureState: 'needs an update',
+    careerTag: 'Career',
   },
   settings: {
     title: 'Settings',
@@ -300,6 +349,13 @@ export const en = {
       'A short guided tour runs during your first week and your first match. Show it again on your next career week and match.',
     tutorialReset: 'Show the tutorial again',
     tutorialDone: 'The tutorial will show again.',
+    tutorialQueued: 'The tour will run on your next career week and match.',
+    preferences: 'Play preferences',
+    sample: 'Live sample',
+    sampleQuote: '“A far-post finish that showed composure beyond his years.”',
+    sampleSource: 'Matchday report',
+    about: 'About',
+    aboutBody: 'The version you are playing, and what changed in each update.',
   },
   errors: {
     invalid: 'This backup is incomplete or invalid. Choose a valid Pitch to Glory file.',
@@ -312,7 +368,8 @@ export const en = {
     simulation: 'The world could not advance. Your last completed week is retained. Try again.',
     'match-active': 'Finish your match on Matchday before advancing or replacing this world.',
     storage: 'The browser could not access local storage. Check available space and try again.',
-    render: 'The clubhouse could not open. Reload the page to try again.',
+    render: 'The clubhouse could not open.',
+    renderBody: 'Reload the page to try again. Your saves stay on this device.',
     reload: 'Reload page',
   },
   world: {
@@ -510,6 +567,7 @@ export const en = {
     inspect: 'Club details',
     jumpToClub: 'Go to club details',
     reputation: 'Reputation',
+    founded: 'Founded {year}',
     stadium: 'Stadium',
     capacity: '{count} seats',
     manager: 'Manager',
@@ -534,6 +592,7 @@ export const en = {
     transferBudget: 'Transfer budget',
     money: '{amount} Cr',
     squad: 'Squad',
+    squadNumber: 'Squad number',
     player: 'Player',
     age: 'Age',
     position: 'Position',
@@ -593,5 +652,81 @@ export const en = {
       release: '{name} leaves {club} as a free agent.',
       signing: '{name} signs for {club} on a free transfer.',
     },
+    /** Redesigned World screen (phase 4). */
+    seasonEyebrow: 'Season {season}',
+    hero: {
+      weekTitle: 'Week {week} of {total}',
+      weekBody: 'Every league and cup in the world plays this week’s fixtures.',
+      completeTitle: 'Season complete',
+      nextFixture: 'Next match',
+      versus: 'v',
+    },
+    map: {
+      label:
+        'Map of the six countries in every world: England, France, Spain, Portugal, Germany and Italy',
+      caption: 'Six real countries and their towns. Every club in them is your seed’s own.',
+      countries: {
+        england: 'England',
+        france: 'France',
+        spain: 'Spain',
+        portugal: 'Portugal',
+        germany: 'Germany',
+        italy: 'Italy',
+      },
+    },
+    unsavedAction: 'Choose a save slot',
+    progressTitle: 'Simulation progress',
+    you: 'You',
+    zoneMarks: {
+      promotion: '↑',
+      'promotion-playoff': 'P',
+      relegation: '↓',
+      'survival-playoff': 'S',
+      qualification: 'Q',
+    },
+    zones: 'Table zones',
+    latestEvents: 'Latest {count}',
+    eventKinds: {
+      transfer: 'Transfer',
+      retirement: 'Retirement',
+      'youth-intake': 'Academy',
+      'manager-change': 'Manager change',
+      trophy: 'Trophy',
+      release: 'Release',
+      signing: 'Free signing',
+    },
+    /** Phase 7 (C7): career news in the "Around the world" feed, and its labels. */
+    careerEvents: {
+      debut: '{name} makes a debut for {club} against {opponent}.',
+      'first-goal': '{name} scores a first goal for {club}, against {opponent}.',
+      injury: '{name} of {club} is out injured for about {weeks} weeks.',
+      rivalry: '{name} and {rival} of {club}: a rivalry is born.',
+    },
+    careerEventKinds: {
+      debut: 'Debut',
+      'first-goal': 'First goal',
+      injury: 'Injury',
+      rivalry: 'Rivalry',
+    },
+    showSquad: 'Show all {count} players',
+    showFewer: 'Show fewer players',
+    allAttributes: 'Show all attributes',
+    playerLine: '#{number} · {position} · Age {age}',
+    movementUp: 'Up',
+    movementDown: 'Down',
+    movementAcross: 'Across',
+  },
+  art: {
+    /** Fictional shirt sponsors, chosen by a kit's sponsor number (0–7). */
+    sponsors: [
+      'Greenleaf',
+      'Kestrel Air',
+      'Tidewater',
+      'Ironbridge',
+      'Halcyon Bank',
+      'Brightwell',
+      'Oakmont & Co',
+      'Lumen Energy',
+    ],
   },
 } as const;

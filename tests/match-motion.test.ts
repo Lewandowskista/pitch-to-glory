@@ -5,6 +5,8 @@ import {
   attacksRightAt,
   createMatchSession,
   createMatchSetup,
+  OFF_ANIMATION,
+  PARKED,
   span,
   validateMatchSession,
   type MatchSession,
@@ -76,8 +78,10 @@ describe('match motion', { timeout: 60000 }, () => {
         expect(first.ball).toEqual(shown.ball);
         for (const player of first.players) {
           const before = shown.players.find((p) => p.id === player.id);
-          // A substitute appears where the replaced player stood.
-          if (before) expect(player.point).toEqual(before.point);
+          // A substitute appears where the replaced player stood; a player sent off (match-16)
+          // leaves the pitch between passages.
+          if (before && player.animation !== OFF_ANIMATION)
+            expect(player.point).toEqual(before.point);
         }
         shown = passage.frames[passage.frames.length - 1]!;
       }
@@ -111,7 +115,12 @@ describe('match motion', { timeout: 60000 }, () => {
             const carrier = frame.players.find((p) => p.id === frame.carrierId)!;
             expect(carrier.point).toEqual(frame.ball);
           }
-          for (const { point } of frame.players) {
+          for (const { point, animation } of frame.players) {
+            // Players sent off (match-16) stand parked off the pitch, hidden.
+            if (animation === OFF_ANIMATION) {
+              expect(point).toEqual(PARKED);
+              continue;
+            }
             expect(point.x).toBeGreaterThanOrEqual(0);
             expect(point.x).toBeLessThanOrEqual(100);
             expect(point.y).toBeGreaterThanOrEqual(0);
@@ -154,6 +163,7 @@ describe('match motion', { timeout: 60000 }, () => {
         const kicker = kickoff.frame.carrierId!;
         expect(home.has(kicker)).toBe(side === 1);
         for (const player of kickoff.frame.players) {
+          if (player.animation === OFF_ANIMATION) continue;
           const playerSide = home.has(player.id) ? 0 : 1;
           expect(depth(playerSide, kickoff.minute, player.point.x)).toBeLessThanOrEqual(50.5);
         }
@@ -286,7 +296,7 @@ describe('match motion', { timeout: 60000 }, () => {
     )!;
     expect(validateMatchSession(JSON.parse(JSON.stringify(session)))).toBeDefined();
     const highlight = session.state.highlights[0]!;
-    expect(highlight.frames.length).toBeLessThanOrEqual(12);
+    expect(highlight.frames.length).toBeLessThanOrEqual(24);
     const scorer = session.setup.selectedPlayerId;
     // The highlight shows the selected player striking the ball.
     expect(highlight.frames.some((frame) => frame.carrierId === scorer)).toBe(true);

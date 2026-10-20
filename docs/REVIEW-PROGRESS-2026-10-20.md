@@ -48,3 +48,26 @@ Seed `review-2026-10-20`, specialised centre-back, the review's harness and poli
 A comparable defender's career now ranks among the top 0.2% instead of around 1.5%, as R1 intended.
 
 **Open observation for step 2.4.** This career played for 19 clubs and loan clubs. From 32 it moved each season as a backup (Naples, Turin, Verona), where the review's run stayed at one club from 24. Whether that comes from the harness's offer policy or from the new late-career curve needs the multi-policy comparison planned in 2.4. It is not yet a confirmed defect.
+
+### Merged with the redesign
+
+Before pushing, `main` turned out to hold 94 commits (release 0.2.0, dated 16 October) that the reviewed checkout did not have: the full redesign, squad numbers, richer match play and discipline. Phase 1 was merged onto it:
+
+- **Save schema.** Upstream's v21 adds squad numbers, so Phase 1's fields move to **v22**.
+- **Hall of Fame.** Upstream's sorted, cached ranking table now scores everyone from the shared record. Its reference test was updated to the new rules.
+- **Chronicle poster.** The poster moved to `chroniclePoster.ts` and still counted cap entries; the R14 fix was reapplied there.
+- **Transfer talks.**
+  - The redesigned hero already gives the club's name a full-width row on phones.
+  - On phones the hero crest is now smaller.
+  - The term tiles split words at 130% text. The cause was the signing-on fee tile's `col-span-2`, which added an implicit column to a one-column grid. It now spans the row with `col-span-full`, in an auto-fill grid.
+  - The phone test checks the new markup. It allows a fourth title line at 130% text, and 2.25 screens to the first term on a 360 × 640 phone at 130%.
+- **Profile, Skill tree, hub and honours card.** The Longevity panel, soft caps, the Evergreen detail, the bridge-deal confirmation and the decline advice were re-added on the new UI kit.
+- **Release.** This is **0.3.0** (`src/i18n/patchNotes.ts`, `CHANGELOG.md`), as `docs/RELEASING.md` requires for every push to `main`.
+
+**Verification after the merge:**
+
+- Format, lint, typecheck and the release check pass.
+- 675 unit tests pass across 77 files.
+- The full Playwright suite passes in Chromium, Firefox and WebKit (271 passed, 5 skipped); its only failures were the phone talks test, since fixed. The transfer, accessibility and layout specs were rerun and pass.
+
+**Risk.** The Match route's initial JavaScript is 299.8 KB of its 300 KB gzip budget. Upstream alone was 294.5 KB; shared engine chunks grew with Phase 1. The next change that touches the match route needs a bundle-size reduction first.

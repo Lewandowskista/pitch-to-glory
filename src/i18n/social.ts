@@ -118,6 +118,29 @@ export const socialText = {
     },
     talks: 'Culture fit at {club}',
   },
+  /** The Club life page around its cards (redesign phase 3). */
+  club: {
+    description:
+      'How the manager, the dressing room and the fans see you, and what that does to your morale and your place in the side.',
+    drift: {
+      up: 'Target {target} this week, so it rises',
+      down: 'Target {target} this week, so it drifts down',
+      steady: 'Target {target} this week, so it holds',
+    },
+    trend: { up: 'rising', down: 'falling', steady: 'steady' },
+    moraleTrend: 'Morale {value} · {trend}',
+    formNote: 'Last {count} matches: {ratings}',
+    formNoteOne: 'Last match: {ratings}',
+    formNone: 'No matches played yet.',
+    lowers: 'Lowers',
+    raises: 'Raises',
+    chartSeason: 'Season {season}',
+    chartSeasons: 'Seasons {from}–{to}',
+    chartWeek: 'W{week}',
+    chartSoon: 'The chart starts once two weekly reviews are in.',
+    noLeaders: 'No clear leaders yet.',
+    prefers: '· prefers {formation}',
+  },
   media: {
     pending: 'Questions waiting',
     none: 'No questions right now. Journalists come to you after notable matches, moves and rival meetings.',
@@ -165,6 +188,15 @@ export const socialText = {
       club: 'Club',
       teammate: 'Teammate',
     },
+    intro:
+      'Answer the press before the deadline, then see how the fans, the journalists and your rival are talking about you.',
+    waiting: '{count} waiting',
+    keyHintBefore: 'Press',
+    keyHintAfter: 'to choose an answer.',
+    coverageScale: { critical: 'Critical', neutral: 'Neutral', glowing: 'Glowing' },
+    answeredLabel: 'questions answered',
+    answeredLabelOne: 'question answered',
+    groupsBody: 'Your answers to the press move these groups.',
   },
   press: {
     win: 'A big result against {opponent}, {score}. What made the difference?',
@@ -356,6 +388,28 @@ export const socialText = {
     outcomes: { won: 'a win', drawn: 'a draw', lost: 'a defeat' },
     verdicts: { ahead: 'you finished ahead.', behind: 'your rival finished ahead.' },
     portrait: 'Portrait of {name}',
+    intro: {
+      ahead: 'You are {count} goals ahead of {rival} this season. Here is where you stand.',
+      aheadOne: 'You are a goal ahead of {rival} this season. Here is where you stand.',
+      behind: '{rival} is {count} goals ahead of you this season. Here is where you stand.',
+      behindOne: '{rival} is a goal ahead of you this season. Here is where you stand.',
+      level: 'You and {rival} are level on goals this season. Here is where you stand.',
+      none: 'A rival of your generation and position will emerge as your career takes shape.',
+    },
+    rivalChip: 'Rival',
+    identity: '{position} · {age} · Overall {overall}',
+    leads: { you: 'You lead {count}', rival: '{name} leads {count}' },
+    intensityScale: { friendly: 'Friendly', heated: 'Heated', bitter: 'Bitter' },
+    tallies: { won: 'won', drawn: 'drawn', lost: 'lost' },
+    nextMeeting: 'Next meeting: {home} v {away}',
+    nextMeta: '{week} · {date} · {stadium}',
+    tags: {
+      started: 'Rivalry begins',
+      transfer: 'Transfer',
+      'head-to-head': 'Meeting',
+      season: 'Season',
+      media: 'Press',
+    } as Record<string, string>,
   },
   hub: {
     press: 'Press room',
@@ -380,4 +434,8 @@ export const socialText = {
       body: 'Your rival has joined {club} for {fee}.',
     },
   } as Record<string, { subject: string; body: string }>,
+  /** Phase 7 (C6): a press exchange with the rival, on the rivalry timeline. */
+  rivalPress: {
+    entry: 'You said: "{answer}" {rival} hit back: "{reply}"',
+  },
 };

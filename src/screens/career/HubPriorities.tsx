@@ -7,6 +7,7 @@ import { careerText as c } from '../../i18n/career';
 import { lifestyleText as l } from '../../i18n/lifestyle';
 import { marketText as m } from '../../i18n/market';
 import { Icon } from '../../ui/Icon';
+import { CardTitle, Panel, cx } from '../../ui/kit';
 import { useAppStore } from '../../store';
 import {
   advanceDigest,
@@ -17,6 +18,15 @@ import {
   withSave,
 } from './agenda';
 import { ui } from './shared';
+
+/** Small tags in the coming-up list: a word always says what the colour means. */
+const TAG_TONE = {
+  accent: 'bg-accent-soft text-accent',
+  info: 'bg-art-blue text-info',
+  gold: 'bg-gold text-on-gold',
+  'gold-soft': 'bg-art-gold text-gold-ink',
+  neutral: 'bg-surface-soft text-muted',
+} as const;
 
 const count = (value: number, one: string, many: string, params = {}) =>
   format(value === 1 ? one : many, { ...params, count: value });
@@ -82,22 +92,28 @@ function priorityDetail(item: Priority): string | null {
  * then deadlines by date, then unspent points. The match itself is the hero's action, so it
  * appears here only when something outranks it.
  */
-export function HubPriorities({ world, items }: { world: World; items: Priority[] }) {
+export function HubPriorities({
+  world,
+  items,
+  className,
+}: {
+  world: World;
+  items: Priority[];
+  className?: string;
+}) {
   const [params] = useSearchParams();
   const save = params.get('save');
   const first = items[0];
   const shown = items.filter((item) => item.group !== 'match' || first?.group === 'recovery');
   return (
-    <section
+    <Panel
       id="priorities"
       data-tour="priorities"
       aria-labelledby="priorities-heading"
-      className={`${ui.panel} flex flex-col`}
+      className={cx('flex flex-col gap-3', className)}
     >
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="priorities-heading" className={ui.heading}>
-          {a.priorities.title}
-        </h2>
+        <CardTitle id="priorities-heading">{a.priorities.title}</CardTitle>
         {shown.length > 0 && (
           <span className="shrink-0 text-sm font-semibold text-muted">
             {format(a.priorities.count, { count: shown.length })}
@@ -105,7 +121,7 @@ export function HubPriorities({ world, items }: { world: World; items: Priority[
         )}
       </div>
       {shown.length ? (
-        <ol className="-mx-2 mt-3 grid grid-cols-[minmax(0,1fr)] gap-1">
+        <ol className="-mx-2 grid grid-cols-[minmax(0,1fr)] gap-1">
           {shown.map((item, index) => {
             const detail = priorityDetail(item);
             const urgent = item.group === 'recovery' || item.group === 'match';
@@ -120,20 +136,24 @@ export function HubPriorities({ world, items }: { world: World; items: Priority[
               <li key={item.id}>
                 <Link
                   to={withSave(item.to, save)}
-                  className={`group flex min-h-12 items-center gap-3 rounded-control px-2 py-2 transition-colors hover:bg-surface-soft ${
-                    index === 0 && urgent ? 'bg-art-gold' : ''
-                  }`}
+                  className={cx(
+                    'group flex min-h-12 items-center gap-3 rounded-control px-2 py-2 transition-colors',
+                    index === 0 && urgent
+                      ? 'bg-art-gold hover:bg-art-gold'
+                      : 'hover:bg-surface-soft',
+                  )}
                 >
                   <span
                     aria-hidden="true"
-                    className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold ${
-                      urgent ? 'bg-gold text-on-gold' : 'bg-surface-soft text-ink'
-                    }`}
+                    className={cx(
+                      'grid h-8 w-8 shrink-0 place-items-center rounded-full text-[0.8125rem] font-extrabold',
+                      urgent ? 'bg-gold text-on-gold' : 'bg-surface-soft text-ink',
+                    )}
                   >
                     {index + 1}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-bold leading-snug">
+                    <span className="block text-sm leading-snug font-bold">
                       {priorityLabel(item)}
                     </span>
                     {(detail || deadline) && (
@@ -144,7 +164,7 @@ export function HubPriorities({ world, items }: { world: World; items: Priority[
                   </span>
                   <Icon
                     name="arrow"
-                    className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5"
+                    className="h-4 w-4 shrink-0 text-muted transition-transform motion-safe:group-hover:translate-x-0.5"
                   />
                 </Link>
               </li>
@@ -152,10 +172,18 @@ export function HubPriorities({ world, items }: { world: World; items: Priority[
           })}
         </ol>
       ) : (
-        <p className={`${ui.muted} mt-3`}>{a.priorities.empty}</p>
+        <p className="flex items-center gap-3 rounded-control bg-accent-soft px-3.5 py-3 text-sm text-ink">
+          <span
+            aria-hidden="true"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-on-accent"
+          >
+            <Icon name="check" className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">{a.priorities.empty}</span>
+        </p>
       )}
       <ComingUp world={world} />
-      <div className="mt-auto pt-3">
+      <div className="mt-auto">
         <Link
           className="text-button -ml-3 inline-flex items-center gap-1"
           to={withSave('/career/calendar', save)}
@@ -163,15 +191,14 @@ export function HubPriorities({ world, items }: { world: World; items: Priority[
           {a.priorities.calendar}
         </Link>
       </div>
-    </section>
+    </Panel>
   );
 }
 
 /** What Continue will do, said plainly under the hero's button. */
 export function AdvancePreviewText({ world, preview }: { world: World; preview: AdvancePreview }) {
-  if (preview.kind === 'match' || preview.kind === 'complete') return null;
-  if (preview.kind === 'recovery')
-    return <p className="max-w-prose text-sm text-white/85">{a.preview.recovery}</p>;
+  if (preview.kind === 'match' || preview.kind === 'complete' || preview.kind === 'recovery')
+    return null;
   const clubId = world.players[world.career!.playerId]?.clubId;
   const fixture = preview.fixture;
   const opponentId = fixture && (fixture.homeId === clubId ? fixture.awayId : fixture.homeId);
@@ -180,7 +207,7 @@ export function AdvancePreviewText({ world, preview }: { world: World; preview: 
       ? format(a.preview.weekOne, { from: preview.from })
       : format(a.preview.weeks, { from: preview.from, through: preview.through });
   return (
-    <div className="grid max-w-prose gap-2 text-sm text-white/85">
+    <div className="grid max-w-prose gap-3 text-sm text-hero-muted">
       <p>
         {preview.fitWeek !== null && `${format(a.preview.fit, { week: preview.fitWeek })} `}
         {preview.deadline
@@ -196,9 +223,9 @@ export function AdvancePreviewText({ world, preview }: { world: World; preview: 
             : format(a.preview.season, { through: preview.through })}
       </p>
       {preview.lapsing.length > 0 && (
-        <div className="rounded-control bg-black/20 px-3 py-2">
-          <p className="font-semibold text-gold">{a.preview.lapsing}</p>
-          <ul className="mt-1 grid gap-0.5">
+        <div className="rounded-control bg-black/25 px-3.5 py-2.5">
+          <p className="font-bold text-gold">{a.preview.lapsing}</p>
+          <ul className="mt-1.5 grid list-disc gap-0.5 pl-[1.125rem] text-hero-ink">
             {preview.lapsing.map((item) => (
               <li key={item.id}>
                 {format(a.preview.lapsingItem, {
@@ -232,7 +259,7 @@ export function AdvanceDigest({ world }: { world: World }) {
     next.delete('since');
     setParams(next, { replace: true });
   };
-  const lines: { key: string; text: string; tone?: 'good' | 'bad' }[] = [];
+  const lines: { key: string; text: string; tone?: 'good' | 'bad'; tag?: string }[] = [];
   for (const { fixture, result } of digest.results.slice(-4)) {
     const home = world.clubs[fixture.homeId]?.name ?? fixture.homeId;
     const away = world.clubs[fixture.awayId]?.name ?? fixture.awayId;
@@ -246,8 +273,11 @@ export function AdvanceDigest({ world }: { world: World }) {
         home,
         away,
         score: `${result.score[0]}–${result.score[1]}`,
-      })}${career.matches.some((match) => match.fixtureId === fixture.id) ? '' : ` · ${a.digest.without}`}`,
+      })}`,
       tone: won ? 'good' : lost ? 'bad' : undefined,
+      tag: career.matches.some((match) => match.fixtureId === fixture.id)
+        ? undefined
+        : a.digest.without,
     });
   }
   if (digest.injury)
@@ -304,31 +334,44 @@ export function AdvanceDigest({ world }: { world: World }) {
       ? format(a.digest.weekOne, { from: digest.from })
       : format(a.digest.weeks, { from: digest.from, to: digest.to });
   return (
-    <section aria-labelledby="digest-heading" className={`${ui.panel} flex flex-col`}>
+    <Panel aria-labelledby="digest-heading" className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="digest-heading" className={ui.heading}>
-          {a.digest.title}
-        </h2>
+        <CardTitle id="digest-heading">{a.digest.title}</CardTitle>
         <span className="text-sm font-semibold text-muted">{range}</span>
       </div>
       {lines.length ? (
-        <ul className="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-          {lines.map((line) => (
-            <li key={line.key} className="flex items-start gap-2">
-              <span
-                aria-hidden="true"
-                className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                  line.tone === 'good' ? 'bg-accent' : line.tone === 'bad' ? 'bg-danger' : 'bg-line'
-                }`}
-              />
-              <span className="min-w-0">{line.text}</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,18.75rem),1fr))] gap-x-7 gap-y-2 text-sm">
+            {lines.map((line) => (
+              <li key={line.key} className="flex items-start gap-2.5">
+                <span
+                  aria-hidden="true"
+                  className={cx(
+                    'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full',
+                    line.tone === 'good'
+                      ? 'bg-accent'
+                      : line.tone === 'bad'
+                        ? 'bg-danger'
+                        : 'bg-line',
+                  )}
+                />
+                <span className="min-w-0">
+                  {line.text}
+                  {line.tag && (
+                    <span className="ml-2 inline-block rounded-full bg-surface-soft px-2 text-[0.6875rem] font-bold text-muted">
+                      {line.tag}
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted">{c.hub.digestLegend}</p>
+        </>
       ) : (
-        <p className={`${ui.muted} mt-3`}>{a.digest.nothing}</p>
+        <p className={ui.muted}>{a.digest.nothing}</p>
       )}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
         {digest.messages > 0 && (
           <Link className="text-button -ml-3" to={withSave('/career/inbox', params.get('save'))}>
             {digest.messages === 1
@@ -338,14 +381,14 @@ export function AdvanceDigest({ world }: { world: World }) {
         )}
         <button
           type="button"
-          className="text-button"
+          className={cx('text-button', digest.messages > 0 ? '' : '-ml-3')}
           onClick={dismiss}
           aria-label={format(a.digest.dismissLabel, { from: digest.from, to: digest.to })}
         >
           {a.digest.dismiss}
         </button>
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -356,35 +399,81 @@ export function AdvanceDigest({ world }: { world: World }) {
 function ComingUp({ world }: { world: World }) {
   if (world.phase === 'complete') return null;
   const clubId = world.players[world.career!.playerId]?.clubId;
-  const lines: { key: string; week: number; text: string }[] = [];
+  const lines: {
+    key: string;
+    week: number;
+    text: string;
+    tag?: string;
+    tone?: keyof typeof TAG_TONE;
+  }[] = [];
   for (const week of seasonAgenda(world)) {
     if (week.week <= world.date.week) continue;
     for (const [index, entry] of week.entries.entries()) {
-      let text: string | null = null;
+      const key = `${week.week}:${index}`;
       if (entry.kind === 'fixture') {
         const home = entry.fixture.homeId === clubId;
         const opponent = world.clubs[home ? entry.fixture.awayId : entry.fixture.homeId];
-        text = `${opponent?.name ?? ''} · ${home ? a.calendar.home : a.calendar.away}`;
-      } else if (entry.kind === 'window-opens') text = a.calendar.windowOpens;
-      else if (entry.kind === 'window-closes') text = a.calendar.windowCloses;
-      else if (entry.kind === 'international') text = a.calendar.international;
-      else if (entry.kind === 'fit') text = a.calendar.fit;
-      else if (entry.kind === 'season-end') text = a.calendar.seasonEnd;
-      if (text) lines.push({ key: `${week.week}:${index}`, week: week.week, text });
+        const league = Boolean(world.leagues[entry.fixture.competitionId]);
+        lines.push({
+          key,
+          week: week.week,
+          text: opponent?.name ?? '',
+          tag: !league
+            ? a.priorities.tags.cup
+            : entry.fixture.neutral
+              ? a.priorities.tags.neutral
+              : home
+                ? a.priorities.tags.home
+                : a.priorities.tags.away,
+          tone: !league ? 'gold' : home ? 'accent' : 'info',
+        });
+      } else if (entry.kind === 'window-opens' || entry.kind === 'window-closes')
+        lines.push({
+          key,
+          week: week.week,
+          text: entry.kind === 'window-opens' ? a.calendar.windowOpens : a.calendar.windowCloses,
+          tag: a.priorities.tags.window,
+          tone: 'gold-soft',
+        });
+      else if (entry.kind === 'international')
+        lines.push({ key, week: week.week, text: a.calendar.international, tone: 'neutral' });
+      else if (entry.kind === 'fit')
+        lines.push({
+          key,
+          week: week.week,
+          text: a.calendar.fit,
+          tag: a.priorities.tags.fit,
+          tone: 'accent',
+        });
+      else if (entry.kind === 'season-end')
+        lines.push({ key, week: week.week, text: a.calendar.seasonEnd });
     }
     if (lines.length >= 4) break;
   }
   if (!lines.length) return null;
   return (
-    <div className="mt-5 hidden border-t border-line pt-4 lg:block">
-      <h3 className="text-sm font-bold">{a.priorities.comingUp}</h3>
-      <ul className="mt-2 grid gap-1.5 text-sm">
+    <div className="mt-2 hidden border-t border-line pt-3.5 lg:block">
+      <h3 className="text-[0.8125rem] font-bold">{a.priorities.comingUp}</h3>
+      <ul className="mt-1">
         {lines.slice(0, 4).map((line) => (
-          <li key={line.key} className="flex gap-3">
-            <span className="w-16 shrink-0 text-muted">
+          <li
+            key={line.key}
+            className="flex items-center gap-3 border-b border-line/60 py-2 text-sm last:border-b-0"
+          >
+            <span className="w-16 shrink-0 text-xs font-semibold text-muted">
               {format(c.common.week, { week: line.week })}
             </span>
-            <span className="min-w-0 break-words">{line.text}</span>
+            <span className="min-w-0 flex-1 break-words">{line.text}</span>
+            {line.tag && (
+              <span
+                className={cx(
+                  'shrink-0 rounded-full px-2.5 py-0.5 text-[0.6875rem] font-bold',
+                  TAG_TONE[line.tone ?? 'neutral'],
+                )}
+              >
+                {line.tag}
+              </span>
+            )}
           </li>
         ))}
       </ul>

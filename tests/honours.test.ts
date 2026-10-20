@@ -29,9 +29,18 @@ import {
   windowWeeks,
   type Clip,
 } from '../src/engine/career/honours';
-import { careerTotals } from '../src/engine/career/honours/retirement';
+import {
+  careerTotals,
+  careerHallOfFameScore,
+  hallOfFameStanding,
+  hallOfFameTable,
+  legacyNeighbour,
+  liveHallOfFame,
+  liveHallOfFameRank,
+  memoisedHallOfFameTable,
+} from '../src/engine/career/honours/retirement';
 import { achievementScore } from '../src/engine/career/honours/achievements';
-import { posterSvg } from '../src/screens/career/ChronicleView';
+import { posterSvg } from '../src/screens/career/chroniclePoster';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { validateNationalWorld } from '../src/persistence/nationalWorldSchema';
@@ -478,7 +487,7 @@ describe('persistence', () => {
         settings: DEFAULT_SETTINGS,
       },
     });
-    expect(migrated.schemaVersion).toBe(21);
+    expect(migrated.schemaVersion).toBe(22);
     const next = (migrated.payload as { world: World }).world;
     expect(next.career!.honours.caps).toEqual({ U19: 0, U21: 0, senior: 0 });
     expect(next.international!.nations.length).toBeGreaterThan(6);
@@ -616,4 +625,88 @@ describe('Hall of Fame comparisons', () => {
     expect(parent.hallOfFame.score).toBeGreaterThan(child.hallOfFame.score);
     valid(world);
   }, 120000);
+});
+
+describe('live Hall of Fame rank (phase 7, C3)', () => {
+  /** The ranking loop as retirement ran it before the table was extracted. */
+  function reference(world: World, score: number, excludeId: string) {
+    let better = 0;
+    let of = 1;
+    let next: { id: string; name: string; score: number } | null = null;
+    const counted = new Set<string>([excludeId]);
+    const compare = (id: string, value: number, name: string) => {
+      if (counted.has(id)) return;
+      counted.add(id);
+      of++;
+      if (value <= score) return;
+      better++;
+      if (!next || value < next.score || (value === next.score && id < next.id))
+        next = { id, name, score: value };
+    };
+    for (const legacy of world.legacies)
+      compare(legacy.playerId, legacy.hallOfFame.score, legacy.name);
+    // Everyone else by the shared achievement record, as `hallOfFameTable` scores them.
+    for (const player of Object.values(world.players))
+      compare(player.id, achievementScore(world, player), player.name);
+    for (const [id, record] of Object.entries(world.archive?.players ?? {}))
+      compare(id, Math.round(record.hallOfFame ?? 0), record.name);
+    return { rank: better + 1, of, next };
+  }
+
+  it('ranks exactly as the retirement loop did, for any score and owner', () => {
+    const playerId = season.career!.playerId;
+    const other = Object.keys(season.players).find((id) => id !== playerId)!;
+    for (const score of [0, 1, 25, 120, careerHallOfFameScore(season), 800, 100000])
+      for (const id of [playerId, other, 'player:absent'])
+        expect(hallOfFameStanding(season, score, id)).toEqual(reference(season, score, id));
+  });
+
+  it('keeps the retirement legacy identical to the original ranking', () => {
+    const before = aged(season, 34);
+    const score = careerHallOfFameScore(before);
+    const expected = reference(before, score, before.career!.playerId);
+    const legacy = applyHonoursAction(before, { type: 'retire' }).legacies.at(-1)!;
+    expect(legacy.hallOfFame).toEqual({ score, rank: expected.rank, of: expected.of });
+  });
+
+  it('memoises the table per world state and matches the fresh standing', () => {
+    const world = clone(season);
+    const table = memoisedHallOfFameTable(world);
+    expect(memoisedHallOfFameTable(clone(world))).toBe(table);
+    expect(liveHallOfFameRank(world)).toEqual(liveHallOfFame(world));
+    // A new week (or new results) rebuilds it.
+    const next = clone(world);
+    next.date = { ...next.date, week: next.date.week + 1 };
+    expect(memoisedHallOfFameTable(next)).not.toBe(table);
+    expect(memoisedHallOfFameTable(next)).toEqual(hallOfFameTable(next));
+    // The career's own score is always current, even within the same week (the record, not
+    // the raw totals, is what counts).
+    const scored = clone(world);
+    const own = scored.players[scored.career!.playerId]!;
+    own.hallOfFame = (own.hallOfFame ?? 0) + 600;
+    expect(liveHallOfFameRank(scored)).toEqual(liveHallOfFame(scored));
+    expect(liveHallOfFameRank(scored).rank).toBeLessThan(liveHallOfFameRank(world).rank);
+  });
+
+  it('names the player just below a legacy while the table still agrees with it', () => {
+    const world = applyHonoursAction(aged(season, 34), { type: 'retire' });
+    const legacy = world.legacies.at(-1)!;
+    const table = hallOfFameTable(world).filter((entry) => entry.id !== legacy.playerId);
+    const below = table.filter((entry) => entry.score < legacy.hallOfFame.score);
+    const top = below.at(-1);
+    const neighbour = legacyNeighbour(world, legacy);
+    if (!top) expect(neighbour).toBeNull();
+    else {
+      const first = below.find((entry) => entry.score === top.score)!;
+      expect(neighbour).toEqual({
+        name: world.players[first.id]?.name ?? world.archive?.players[first.id]?.name,
+        rank: 2 + table.filter((entry) => entry.score > first.score).length,
+      });
+      expect(neighbour!.rank).toBeGreaterThan(legacy.hallOfFame.rank);
+    }
+    // Once the world has moved on, the stored rank and today's table no longer agree.
+    const moved = clone(world);
+    moved.legacies.at(-1)!.hallOfFame.rank += 5;
+    expect(legacyNeighbour(moved, moved.legacies.at(-1)!)).toBeNull();
+  });
 });

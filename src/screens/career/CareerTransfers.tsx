@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
-import { competitionLine } from './selectionUi';
-import { withSave } from './agenda';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CONFIG } from '../../engine/config';
 import { nextCareerFixture } from '../../engine/career/fixtures';
@@ -9,17 +7,18 @@ import {
   bridgeWage,
   careerContract,
   careerSelection,
-  contractExpiring,
   contractAskState,
+  contractExpiring,
   canRequestLoan,
   lineOf,
   managerTrust,
   marketValue,
   openOffers,
   relationshipValue,
-  validTerms,
   windowState,
 } from '../../engine/career/market';
+import { cultureFit } from '../../engine/career/social';
+import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import type {
   Career,
   Club,
@@ -29,19 +28,25 @@ import type {
   TransferOffer,
   World,
 } from '../../model/domain';
+import { Artwork } from '../../ui/Artwork';
 import { Dialog } from '../../ui/Dialog';
 import { Icon } from '../../ui/Icon';
+import { Button, CardTitle, Chip, HeroPanel, Panel, cx } from '../../ui/kit';
+import { ValueMeter } from '../../ui/kit/ValueMeter';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
-import { CareerPage, CrestImage, EmptySection, Meter, plural, ui } from './shared';
-import { useUrlDialog } from './useUrlDialog';
-import { cultureFit } from '../../engine/career/social';
 import { socialText } from '../../i18n/social';
+import { withSave } from './agenda';
+import { competitionLine } from './selectionUi';
+import { CareerPage, CrestImage, EmptySection, plural } from './shared';
 import { cultureTraits } from './socialUi';
+import { useUrlDialog } from './useUrlDialog';
 import {
   ActionError,
+  AgentPortrait,
   BlockNote,
+  ClockIcon,
   money,
   roleName,
   Stat,
@@ -52,10 +57,20 @@ import {
 
 const MK = CONFIG.career.market;
 const ROLE_ORDER: ContractTerms['role'][] = ['key', 'rotation', 'youth', 'backup'];
+const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
+/** The small uppercase label over a group inside a card (at most one per card). */
+const groupLabel = 'text-xs font-extrabold tracking-[0.1em] text-muted uppercase';
+/** A light outlined button for the field-green heroes. */
+const heroButton =
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-hero-ink/45 px-4.5 font-bold text-hero-ink transition-colors hover:bg-hero-ink/10';
 
 export default function CareerTransfers() {
   return (
-    <CareerPage title={m.titles.transfers}>
+    <CareerPage
+      title={m.titles.transfers}
+      description={m.offers.pageBody}
+      actions={({ world }) => <WindowBanner world={world} />}
+    >
       {(context) => <TransfersContent {...context} />}
     </CareerPage>
   );
@@ -77,27 +92,25 @@ function TransfersContent({
   if (offer)
     return (
       <div className="grid gap-5">
-        <WindowBanner world={world} />
         <Talks world={world} offer={offer} onClose={talks.close} />
       </div>
     );
   return (
-    // Below the offers, two independent columns on wide screens so short panels never stretch
-    // to match a long neighbour; on phones the columns dissolve and `order` sets the sequence.
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
-      <div className="lg:col-span-12">
-        <WindowBanner world={world} />
-      </div>
+    <div className="grid gap-5">
       <Offers world={world} onOpen={(id) => talks.open(id)} />
-      <div className="contents lg:col-span-7 lg:flex lg:flex-col lg:gap-5">
-        <ContractCard world={world} player={player} />
-        <Earnings career={career} />
-        <Interest world={world} />
-      </div>
-      <div className="contents lg:col-span-5 lg:flex lg:flex-col lg:gap-5">
-        <PlayingTime world={world} career={career} player={player} club={club} />
-        <Requests world={world} career={career} />
-        <Moves world={world} career={career} />
+      {/* Two independent columns on wide screens so short cards never stretch to match a long
+          neighbour; on phones the columns dissolve and `order` sets the sequence. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
+        <div className="contents lg:col-span-7 lg:flex lg:flex-col lg:gap-5">
+          <ContractCard world={world} player={player} />
+          <Earnings career={career} />
+          <Interest world={world} />
+        </div>
+        <div className="contents lg:col-span-5 lg:flex lg:flex-col lg:gap-5">
+          <PlayingTime world={world} career={career} player={player} club={club} />
+          <Requests world={world} career={career} />
+          <Moves world={world} career={career} />
+        </div>
       </div>
     </div>
   );
@@ -112,25 +125,25 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
   const deciding = world.phase === 'complete' && contractExpiring(world);
   const talks = openOffers(world).filter((offer) => offer.kind === 'pre-contract').length;
   return (
-    <section aria-labelledby="contract-heading" className={`${ui.panel} order-1 lg:order-none`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <h2 id="contract-heading" className={ui.heading}>
+    <Panel aria-labelledby="contract-heading" className="order-1 flex flex-col gap-4 lg:order-none">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <CardTitle id="contract-heading" size="lg">
           {m.contract.title}
-        </h2>
-        {final && <span className={ui.chip}>{m.contract.finalSeason}</span>}
+        </CardTitle>
+        {final && <Chip tone="gold-soft">{m.contract.finalSeason}</Chip>}
       </div>
       {deciding && (
         <div
           id="contract-decision"
-          className="mt-4 rounded-control border border-gold bg-art-gold p-4 text-sm"
+          className="flex flex-col gap-1 rounded-control border border-gold bg-art-gold px-3.5 py-3 text-[0.8125rem]"
         >
-          <p className="font-semibold">{m.contract.decisionTitle}</p>
-          <p className="mt-1">
+          <p className="font-bold">{m.contract.decisionTitle}</p>
+          <p>
             {talks
               ? plural(talks, m.contract.decisionOffersOne, m.contract.decisionOffers)
               : m.contract.decisionNoOffers}
           </p>
-          <p className="mt-1">
+          <p>
             {format(m.contract.decisionDefault, {
               club: parent.name,
               wage: weekly(bridgeWage(world)),
@@ -138,24 +151,24 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
           </p>
         </div>
       )}
-      <div className="mt-4 flex items-center gap-3">
-        <CrestImage crest={parent.crest} alt="" className="h-12 w-12 shrink-0" />
+      <div className="flex items-center gap-3.5">
+        <CrestImage crest={parent.crest} alt="" className="h-13 w-13 shrink-0" />
         <div className="min-w-0">
-          <p className="break-words font-semibold">{parent.name}</p>
-          <p className="text-sm text-muted">
+          <p className="text-base font-bold break-words">{parent.name}</p>
+          <p className="text-[0.8125rem] text-muted">
             {roleName(contract.role)} · {m.roleBodies[contract.role]}
           </p>
         </div>
       </div>
       {loan && (
-        <div className="mt-4 rounded-control border border-accent/40 bg-accent-soft p-4 text-sm">
-          <p className="font-semibold">
+        <div className="flex flex-col gap-1 rounded-control border border-accent bg-accent-soft px-3.5 py-3 text-[0.8125rem]">
+          <p className="font-bold">
             {format(m.contract.onLoan, {
               club: world.clubs[loan.destinationClubId]!.name,
               season: loan.end.season,
             })}
           </p>
-          <p className="mt-1">
+          <p>
             {m.contract.loanRole}: {roleName(loan.role)} ·{' '}
             {format(m.contract.loanShare, {
               club: world.clubs[loan.destinationClubId]!.name,
@@ -163,13 +176,11 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
             })}
           </p>
           {loan.purchaseOption !== null && (
-            <p className="mt-1">
-              {format(m.contract.purchaseOption, { fee: money(loan.purchaseOption) })}
-            </p>
+            <p>{format(m.contract.purchaseOption, { fee: money(loan.purchaseOption) })}</p>
           )}
         </div>
       )}
-      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] gap-2.5">
         <Stat label={m.contract.wage} value={weekly(contract.weeklyWage)} />
         <Stat
           label={m.contract.ends}
@@ -193,30 +204,32 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
               : m.contract.noClause
           }
         />
-        <Stat label={m.contract.loyalty} value={money(contract.loyaltyBonus)} />
+        <Stat
+          label={m.contract.loyalty}
+          value={money(contract.loyaltyBonus)}
+          note={m.contract.loyaltyBody}
+        />
       </dl>
-      {/* Notes sit under the grid, so one long note never stretches a row of figures. */}
-      <p className="mt-2 text-xs text-muted">
-        {m.contract.loyalty}: {m.contract.loyaltyBody}
-      </p>
-      <p className="mt-1 text-xs text-muted">
+      <p className="text-xs text-muted">
         {m.contract.option}:{' '}
         {contract.optionTaken
           ? m.contract.optionUsed
           : format(m.contract.optionOpen, { club: parent.name })}
       </p>
-      <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
-        {m.contract.bonuses}
-      </h3>
-      <dl className="mt-2 grid grid-cols-3 gap-2">
-        <Stat label={m.contract.appearance} value={money(contract.appearanceBonus)} />
-        <Stat label={m.contract.goal} value={money(contract.goalBonus)} />
-        <Stat label={m.contract.cleanSheet} value={money(contract.cleanSheetBonus)} />
-      </dl>
-      <p className="mt-2 text-xs text-muted">
-        {m.contract.cleanSheet}: {m.contract.cleanSheetNote}
-      </p>
-    </section>
+      <div>
+        <h3 className={cx(groupLabel, 'mb-2')}>{m.contract.bonuses}</h3>
+        <dl className="grid grid-cols-3 gap-2">
+          <Stat outline label={m.contract.appearance} value={money(contract.appearanceBonus)} />
+          <Stat outline label={m.contract.goal} value={money(contract.goalBonus)} />
+          <Stat
+            outline
+            label={m.contract.cleanSheet}
+            value={money(contract.cleanSheetBonus)}
+            note={m.contract.cleanSheetNote}
+          />
+        </dl>
+      </div>
+    </Panel>
   );
 }
 
@@ -237,73 +250,77 @@ function PlayingTime({
   const chance = fixture && !player.injuryId ? careerSelection(world, fixture) : null;
   const line = lineOf(player.primaryPosition);
   const manager = club ? world.managers[club.managerId] : undefined;
+  const low = chance ? chance.probability < 0.5 : false;
   return (
-    <section aria-labelledby="playing-heading" className={`${ui.panel} order-2 lg:order-none`}>
-      <h2 id="playing-heading" className={ui.heading}>
-        {m.playing.title}
-      </h2>
-      <p className={`${ui.muted} mt-1`}>{m.playing.body}</p>
-      <dl className="mt-4 grid grid-cols-2 gap-3">
-        <Stat label={m.playing.selected} value={selection.selected} />
-        <Stat label={m.playing.dropped} value={selection.dropped} />
+    <Panel
+      aria-labelledby="playing-heading"
+      className="order-2 flex flex-col gap-3.5 lg:order-none"
+    >
+      <div>
+        <CardTitle id="playing-heading">{m.playing.title}</CardTitle>
+        <p className="mt-1.5 text-muted">{m.playing.body}</p>
+      </div>
+      <dl className="grid grid-cols-2 gap-2.5">
+        <Stat display label={m.playing.selected} value={selection.selected} />
+        <Stat display label={m.playing.dropped} value={selection.dropped} />
       </dl>
-      {chance && (
-        <div className="mt-4">
-          {chance.registered ? (
-            <>
-              <Meter
-                label={m.playing.chance}
-                value={chance.probability * 100}
-                tone={chance.probability < 0.5 ? 'danger' : 'accent'}
-              />
-              {chance.competition.formation ? (
-                <p className="mt-1.5 text-xs text-muted">
+      {chance &&
+        (chance.registered ? (
+          <ValueMeter
+            label={m.playing.chance}
+            value={chance.probability * 100}
+            tone={low ? 'danger' : 'accent'}
+            numberTone={low ? 'danger' : 'accent'}
+            note={
+              chance.competition.formation ? (
+                <>
                   {competitionLine(world, chance)}{' '}
                   <Link
-                    className="font-semibold text-accent underline"
+                    className="font-bold text-accent underline underline-offset-3"
                     to={withSave('/career/club', params.get('save'))}
                   >
                     {m.playing.reasons}
                   </Link>
-                </p>
+                </>
               ) : (
-                <p className="mt-1.5 text-xs text-muted">
-                  {format(m.playing.chanceBody, {
-                    count: MK.slots[line],
-                    line: m.playing.lines[line],
-                  })}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm font-semibold">{m.playing.unregistered}</p>
-          )}
-        </div>
-      )}
+                format(m.playing.chanceBody, {
+                  count: MK.slots[line],
+                  line: m.playing.lines[line],
+                })
+              )
+            }
+          />
+        ) : (
+          <p className="text-[0.8125rem] font-bold">{m.playing.unregistered}</p>
+        ))}
       <p
-        className={`mt-4 text-sm font-semibold ${selection.promiseBroken ? 'text-danger' : 'text-accent'}`}
+        className={cx(
+          'flex items-start gap-2 text-[0.8125rem] font-bold',
+          selection.promiseBroken ? 'text-danger' : 'text-accent',
+        )}
       >
+        <Icon
+          name={selection.promiseBroken ? 'warning' : 'check'}
+          className="mt-0.5 h-4 w-4 shrink-0"
+        />
         {selection.promiseBroken ? m.playing.promiseBroken : m.playing.promiseKept}
       </p>
-      <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
-        {m.relations.title}
-      </h3>
-      <div className="mt-2 grid gap-3">
-        <Meter label={m.relations.trust} value={managerTrust(world)} />
-        {manager && (
-          <p className="-mt-1.5 text-xs text-muted">
-            {format(m.relations.manager, { name: manager.name })}
-          </p>
-        )}
+      <div className="flex flex-col gap-3 border-t border-line pt-3.5">
+        <h3 className={groupLabel}>{m.relations.title}</h3>
+        <ValueMeter
+          label={m.relations.trust}
+          value={managerTrust(world)}
+          note={manager ? format(m.relations.manager, { name: manager.name }) : undefined}
+        />
         {club && (
-          <Meter
+          <ValueMeter
             label={m.relations.fans}
             value={relationshipValue(world, 'fans', club.id)}
             tone="gold"
           />
         )}
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -316,98 +333,108 @@ function Requests({ world, career }: { world: World; career: Career }) {
   const onLoan = Boolean(activeLoan(world, career.playerId));
   const T = MK.transferRequest;
   return (
-    <section aria-labelledby="requests-heading" className={`${ui.panel} order-3 lg:order-none`}>
-      <h2 id="requests-heading" className={ui.heading}>
-        {m.requests.title}
-      </h2>
-      <div className="mt-4 grid gap-4">
-        <BlockNote block={block} />
-        <ActionError error={error} />
-        <p role="status" className="text-sm font-semibold text-accent empty:hidden">
-          {notice}
+    <Panel
+      aria-labelledby="requests-heading"
+      className="order-3 flex flex-col gap-4.5 lg:order-none"
+    >
+      <CardTitle id="requests-heading">{m.requests.title}</CardTitle>
+      <BlockNote block={block} />
+      <ActionError error={error} />
+      <p role="status" className="text-[0.8125rem] font-bold text-accent empty:hidden">
+        {notice}
+      </p>
+      <div>
+        <Button
+          variant="secondary"
+          className="w-full sm:w-auto"
+          aria-describedby="ask-hint"
+          disabled={Boolean(block) || ask !== 'available'}
+          onClick={() => {
+            const result = run({ type: 'ask-contract' });
+            if (result === 'opened') setNotice(m.requests.askOpened);
+            else if (result === 'refused')
+              setNotice(format(m.requests.askRefused, { weeks: MK.renewal.askCooldownWeeks }));
+          }}
+        >
+          {m.requests.askContract}
+        </Button>
+        <p id="ask-hint" className="mt-1.5 text-xs text-muted">
+          {ask === 'available'
+            ? m.requests.askContractBody
+            : ask === 'cooldown'
+              ? format(m.requests.askStates.cooldown, {
+                  week: market.renewalAskAfter?.week ?? '',
+                })
+              : m.requests.askStates[ask]}
         </p>
-        <div>
-          <button
-            className="button secondary w-full sm:w-auto"
-            disabled={Boolean(block) || ask !== 'available'}
-            onClick={() => {
-              const result = run({ type: 'ask-contract' });
-              if (result === 'opened') setNotice(m.requests.askOpened);
-              else if (result === 'refused')
-                setNotice(format(m.requests.askRefused, { weeks: MK.renewal.askCooldownWeeks }));
-            }}
-          >
-            {m.requests.askContract}
-          </button>
-          <p className="mt-1.5 text-xs text-muted">
-            {ask === 'available'
-              ? m.requests.askContractBody
-              : ask === 'cooldown'
-                ? format(m.requests.askStates.cooldown, {
-                    week: market.renewalAskAfter?.week ?? '',
-                  })
-                : m.requests.askStates[ask]}
-          </p>
-        </div>
-        <div>
-          {market.transferRequest ? (
-            <>
-              <p className="text-sm font-semibold">
-                {format(m.requests.transferActive, {
-                  week: market.transferRequest.week,
-                  season: market.transferRequest.season,
-                })}
-              </p>
-              <button
-                className="text-button -ml-3 mt-1"
-                disabled={Boolean(block)}
-                onClick={() => run({ type: 'withdraw-transfer-request' })}
-              >
-                {m.requests.withdraw}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                className="button secondary w-full sm:w-auto"
-                disabled={Boolean(block) || onLoan}
-                onClick={() => confirm.open('transfer')}
-              >
-                {m.requests.transferRequest}
-              </button>
-              <p className="mt-1.5 text-xs text-muted">{m.requests.transferRequestBody}</p>
-            </>
-          )}
-        </div>
-        <div>
-          {market.loanRequest ? (
-            <>
-              <p className="text-sm font-semibold">{m.requests.loanActive}</p>
-              <button
-                className="text-button -ml-3 mt-1"
-                disabled={Boolean(block)}
-                onClick={() => run({ type: 'withdraw-loan-request' })}
-              >
-                {m.requests.loanWithdraw}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                className="button secondary w-full sm:w-auto"
-                disabled={Boolean(block) || !canRequestLoan(world)}
-                onClick={() => run({ type: 'loan-request' })}
-              >
-                {m.requests.loanRequest}
-              </button>
-              <p className="mt-1.5 text-xs text-muted">
-                {canRequestLoan(world) || onLoan
-                  ? m.requests.loanRequestBody
-                  : m.requests.loanUnavailable}
-              </p>
-            </>
-          )}
-        </div>
+      </div>
+      <div>
+        {market.transferRequest ? (
+          <>
+            <p className="text-[0.8125rem] font-bold">
+              {format(m.requests.transferActive, {
+                week: market.transferRequest.week,
+                season: market.transferRequest.season,
+              })}
+            </p>
+            <Button
+              variant="text"
+              className="-ml-3"
+              disabled={Boolean(block)}
+              onClick={() => run({ type: 'withdraw-transfer-request' })}
+            >
+              {m.requests.withdraw}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="danger-outline"
+              icon="warning"
+              className="w-full sm:w-auto"
+              aria-describedby="transfer-hint"
+              disabled={Boolean(block) || onLoan}
+              onClick={() => confirm.open('transfer')}
+            >
+              {m.requests.transferRequest}
+            </Button>
+            <p id="transfer-hint" className="mt-1.5 text-xs text-muted">
+              {m.requests.transferRequestBody}
+            </p>
+          </>
+        )}
+      </div>
+      <div>
+        {market.loanRequest ? (
+          <>
+            <p className="text-[0.8125rem] font-bold">{m.requests.loanActive}</p>
+            <Button
+              variant="text"
+              className="-ml-3"
+              disabled={Boolean(block)}
+              onClick={() => run({ type: 'withdraw-loan-request' })}
+            >
+              {m.requests.loanWithdraw}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="secondary"
+              className="w-full sm:w-auto"
+              aria-describedby="loan-hint"
+              disabled={Boolean(block) || !canRequestLoan(world)}
+              onClick={() => run({ type: 'loan-request' })}
+            >
+              {m.requests.loanRequest}
+            </Button>
+            <p id="loan-hint" className="mt-1.5 text-xs text-muted">
+              {canRequestLoan(world) || onLoan
+                ? m.requests.loanRequestBody
+                : m.requests.loanUnavailable}
+            </p>
+          </>
+        )}
       </div>
       {confirm.value === 'transfer' && (
         <Dialog
@@ -426,23 +453,24 @@ function Requests({ world, career }: { world: World; career: Career }) {
           }}
         />
       )}
-    </section>
+    </Panel>
   );
 }
 
 function Earnings({ career }: { career: Career }) {
   const finances = career.market.finances;
   return (
-    <section aria-labelledby="earnings-heading" className={`${ui.panel} order-4 lg:order-none`}>
-      <h2 id="earnings-heading" className={ui.heading}>
-        {m.earnings.title}
-      </h2>
-      <dl className="mt-4 grid gap-2 sm:grid-cols-3 sm:gap-3">
-        <Stat row label={m.earnings.cash} value={money(finances.cash)} />
-        <Stat row label={m.earnings.lifetime} value={money(finances.lifetimeEarnings)} />
-        <Stat row label={m.earnings.agentFees} value={money(finances.agentFees)} />
+    <Panel
+      aria-labelledby="earnings-heading"
+      className="order-4 flex flex-col gap-3.5 lg:order-none"
+    >
+      <CardTitle id="earnings-heading">{m.earnings.title}</CardTitle>
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-2.5">
+        <Stat display label={m.earnings.cash} value={money(finances.cash)} />
+        <Stat display label={m.earnings.lifetime} value={money(finances.lifetimeEarnings)} />
+        <Stat display label={m.earnings.agentFees} value={money(finances.agentFees)} />
       </dl>
-      <p className="mt-4 text-sm">
+      <p className="text-sm">
         {finances.lastPay ? (
           <>
             <strong>
@@ -460,15 +488,15 @@ function Earnings({ career }: { career: Career }) {
             })}
           </>
         ) : (
-          m.earnings.none
+          <span className="text-muted">{m.earnings.none}</span>
         )}
       </p>
       {career.market.pendingBonuses > 0 && (
-        <p className="mt-2 text-sm text-muted">
+        <p className="self-start rounded-control bg-art-gold px-3 py-2 text-[0.8125rem] font-bold text-gold-ink">
           {format(m.earnings.pending, { amount: money(career.market.pendingBonuses) })}
         </p>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -477,24 +505,167 @@ function OfferSummary({ world, offer }: { world: World; offer: TransferOffer }) 
   const terms = negotiation?.rounds.filter((round) => round.actor === 'club').at(-1)?.terms;
   if (offer.loan)
     return (
-      <span>
+      <>
         {format(m.offers.loanTerms, {
           role: roleName(offer.loan.role),
           club: world.clubs[offer.clubId]!.name,
           share: Math.round(offer.loan.wageShare * 100),
         })}
-      </span>
+      </>
     );
-  if (!terms)
-    return <span>{format(m.offers.bids, { bids: offer.bids.map(money).join(' → ') })}</span>;
+  if (!terms) return <>{format(m.offers.bids, { bids: offer.bids.map(money).join(' → ') })}</>;
   return (
-    <span>
+    <>
       {format(m.talks.summary, {
         wage: weekly(terms.weeklyWage),
         years: plural(terms.years, m.talks.yearsOne, m.talks.yearsValue),
         role: roleName(terms.role),
       })}
-    </span>
+    </>
+  );
+}
+
+/** Where the bidding club plays, measured against the player's own club. */
+function leagueLine(world: World, club: Club): string {
+  const league = world.leagues[club.leagueId];
+  const parent = world.clubs[careerContract(world).clubId];
+  if (!league) return '';
+  if (!parent || parent.id === club.id) return league.name;
+  if (club.countryId !== parent.countryId)
+    return `${league.name} · ${format(m.offers.abroad, { country: world.countries[club.countryId]?.name ?? '' })}`;
+  const own = world.leagues[parent.leagueId];
+  if (!own) return league.name;
+  const gap = own.tier - league.tier;
+  const relation =
+    gap === 0
+      ? format(m.offers.tierSame, { club: parent.name })
+      : gap > 0
+        ? format(gap === 1 ? m.offers.tierAboveOne : m.offers.tierAbove, {
+            count: gap,
+            club: parent.name,
+          })
+        : format(gap === -1 ? m.offers.tierBelowOne : m.offers.tierBelow, {
+            count: -gap,
+            club: parent.name,
+          });
+  return `${league.name} · ${relation}`;
+}
+
+/** The footnote of an open offer: its deadline, or why an agreed one stands. */
+function offerFoot(offer: TransferOffer): string {
+  if (offer.status === 'terms') return format(m.offers.expires, { week: offer.expires.week });
+  return offer.releaseClauseTriggered ? m.offers.clause : '';
+}
+
+/** The open offer that needs an answer first: the hero of the page, with its one gold action. */
+function LeadOffer({
+  world,
+  offer,
+  onOpen,
+}: {
+  world: World;
+  offer: TransferOffer;
+  onOpen: (id: string) => void;
+}) {
+  const club = world.clubs[offer.clubId]!;
+  return (
+    <HeroPanel
+      as="li"
+      padding="compact"
+      markings
+      className="min-w-0 flex-[1.5_1_26rem]"
+      aria-labelledby={`offer-${offer.id}`}
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <CrestImage crest={club.crest} alt="" className="h-18 w-16 shrink-0" />
+          <div className="min-w-0 flex-[1_1_11rem]">
+            <p className="text-xs font-extrabold tracking-[0.12em] text-gold uppercase">
+              {m.kinds[offer.kind]} · {m.statuses[offer.status]}
+            </p>
+            <h3
+              id={`offer-${offer.id}`}
+              className="mt-0.5 font-display text-[2.5rem] leading-[0.95] break-words"
+            >
+              {club.name}
+            </h3>
+            <p className="mt-0.5 text-[0.8125rem] text-hero-muted">{leagueLine(world, club)}</p>
+          </div>
+          {offer.fee > 0 && (
+            <div className="text-right">
+              <p className="text-xs font-semibold text-hero-muted">{m.offers.fee}</p>
+              <p className="font-display text-[2.25rem] leading-[0.9] text-gold tabular-nums sm:text-[2.75rem]">
+                {money(offer.fee)}
+              </p>
+            </div>
+          )}
+        </div>
+        <p className="rounded-control bg-night/35 px-3.5 py-3 font-semibold">
+          <OfferSummary world={world} offer={offer} />
+        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 text-[0.8125rem] font-bold">
+            <ClockIcon className="h-4 w-4 shrink-0 text-gold" />
+            {offerFoot(offer)}
+          </span>
+          <Button variant="play" size="lg" iconEnd="arrow" onClick={() => onOpen(offer.id)}>
+            {m.offers.open}
+            <span className="sr-only">{format(m.offers.openWith, { club: club.name })}</span>
+          </Button>
+        </div>
+      </div>
+    </HeroPanel>
+  );
+}
+
+/** Any other open offer: a quiet card beside the lead one. */
+function OpenOffer({
+  world,
+  offer,
+  onOpen,
+}: {
+  world: World;
+  offer: TransferOffer;
+  onOpen: (id: string) => void;
+}) {
+  const club = world.clubs[offer.clubId]!;
+  const note =
+    offer.kind === 'renewal'
+      ? m.talks.renewalNote
+      : offer.kind === 'pre-contract'
+        ? format(m.talks.preContract, { club: club.name })
+        : '';
+  return (
+    <li
+      aria-labelledby={`offer-${offer.id}`}
+      className="flex min-w-0 flex-[1_1_19rem] flex-col gap-3.5 rounded-panel border border-line bg-surface-soft p-5.5"
+    >
+      <div className="flex items-center gap-3.5">
+        <CrestImage crest={club.crest} alt="" className="h-13 w-12 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <h3 id={`offer-${offer.id}`} className="text-base font-bold break-words">
+            {club.name}
+          </h3>
+          <p className="text-xs text-muted">
+            {m.kinds[offer.kind]} · {m.statuses[offer.status]}
+          </p>
+        </div>
+        {offer.fee > 0 && (
+          <span className="text-base font-extrabold tabular-nums">{money(offer.fee)}</span>
+        )}
+      </div>
+      <p className="text-sm">
+        <OfferSummary world={world} offer={offer} />
+      </p>
+      {note && <p className="text-[0.8125rem] text-muted">{note}</p>}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2.5">
+        <span className="text-xs font-semibold text-muted">{offerFoot(offer)}</span>
+        <Button variant="secondary" iconEnd="arrow" onClick={() => onOpen(offer.id)}>
+          {offer.status === 'terms' ? m.offers.open : m.offers.view}
+          <span className="sr-only">{format(m.offers.openWith, { club: club.name })}</span>
+        </Button>
+      </div>
+    </li>
   );
 }
 
@@ -512,12 +683,12 @@ function EarlierOffer({
 }) {
   const club = world.clubs[offer.clubId]!;
   return (
-    <li className="flex items-center gap-3 py-2.5">
-      <CrestImage crest={club.crest} alt="" className="h-9 w-9 shrink-0" />
+    <li className="flex items-center gap-3 border-b border-line py-2.5 last:border-b-0">
+      <CrestImage crest={club.crest} alt="" className="h-10 w-9 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
-          <span className="min-w-0 font-semibold break-words">{club.name}</span>
-          {offer.fee > 0 && <span className="font-semibold tabular-nums">{money(offer.fee)}</span>}
+        <p className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm">
+          <span className="min-w-0 font-bold break-words">{club.name}</span>
+          {offer.fee > 0 && <span className="font-bold tabular-nums">{money(offer.fee)}</span>}
         </p>
         <p className="text-xs text-muted">
           {m.kinds[offer.kind]} · {m.statuses[offer.status]} ·{' '}
@@ -525,10 +696,10 @@ function EarlierOffer({
         </p>
       </div>
       {offer.negotiationId && (
-        <button className="text-button shrink-0" onClick={() => onOpen(offer.id)}>
+        <Button variant="text" className="shrink-0" onClick={() => onOpen(offer.id)}>
           {m.offers.view}
           <span className="sr-only"> — {club.name}</span>
-        </button>
+        </Button>
       )}
     </li>
   );
@@ -545,79 +716,55 @@ function Offers({ world, onOpen }: { world: World; onOpen: (id: string) => void 
     .reverse();
   if (!open.length && !earlier.length)
     return (
-      <EmptySection id="offers-heading" title={m.offers.title} className="lg:col-span-12">
+      <EmptySection id="offers-heading" title={m.offers.title}>
         <p className="max-w-prose">{m.offers.empty}</p>
       </EmptySection>
     );
+  const waiting = open.filter((offer) => offer.status === 'terms').length;
+  const lead = open.find((offer) => offer.status === 'terms');
+  const rest = open.filter((offer) => offer !== lead);
   return (
-    <section aria-labelledby="offers-heading" className={`${ui.panel} lg:col-span-12`}>
-      <h2 id="offers-heading" className={ui.heading}>
-        {m.offers.title}
-      </h2>
+    <Panel aria-labelledby="offers-heading" className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <CardTitle id="offers-heading" size="lg">
+          {m.offers.title}
+        </CardTitle>
+        {waiting > 0 && (
+          <span className="text-[0.8125rem] font-semibold text-muted">
+            {waiting === 1 ? m.offers.waitingOne : format(m.offers.waiting, { count: waiting })}
+          </span>
+        )}
+      </div>
       {open.length ? (
-        <ul className="mt-4 grid gap-3 md:grid-cols-2">
-          {open.map((offer) => {
-            const club = world.clubs[offer.clubId]!;
-            return (
-              <li
-                key={offer.id}
-                className="flex flex-col gap-3 rounded-control border border-line bg-surface-soft p-4"
-              >
-                <div className="flex items-center gap-3">
-                  <CrestImage crest={club.crest} alt="" className="h-12 w-12 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words font-semibold">{club.name}</p>
-                    <p className="text-xs text-muted">
-                      {m.kinds[offer.kind]} · {m.statuses[offer.status]}
-                    </p>
-                  </div>
-                  {offer.fee > 0 && (
-                    <span className="text-lg font-bold tabular-nums">{money(offer.fee)}</span>
-                  )}
-                </div>
-                <p className="text-sm">
-                  <OfferSummary world={world} offer={offer} />
-                </p>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-muted">
-                    {offer.status === 'terms'
-                      ? format(m.offers.expires, { week: offer.expires.week })
-                      : offer.releaseClauseTriggered
-                        ? m.offers.clause
-                        : ''}
-                  </span>
-                  <button className="button" onClick={() => onOpen(offer.id)}>
-                    {offer.status === 'terms' ? m.offers.open : m.offers.view}
-                    <Icon name="arrow" />
-                  </button>
-                </div>
-              </li>
-            );
-          })}
+        <ul className="flex flex-wrap gap-3.5">
+          {lead && <LeadOffer world={world} offer={lead} onOpen={onOpen} />}
+          {rest.map((offer) => (
+            <OpenOffer key={offer.id} world={world} offer={offer} onOpen={onOpen} />
+          ))}
         </ul>
       ) : (
-        <p className={`${ui.muted} mt-4 max-w-prose`}>{m.offers.empty}</p>
+        <p className="max-w-prose text-sm text-muted">{m.offers.empty}</p>
       )}
       {earlier.length > 0 && (
-        <>
-          <h3 className="mt-6 text-base font-bold">{m.offers.history}</h3>
-          <ul className="mt-2 divide-y divide-line">
+        <div className={open.length ? 'border-t border-line pt-3.5' : ''}>
+          <h3 className="text-[0.9375rem] font-bold">{m.offers.history}</h3>
+          <ul className="mt-1.5">
             {(showAll ? earlier : earlier.slice(0, EARLIER_SHOWN)).map((offer) => (
               <EarlierOffer key={offer.id} world={world} offer={offer} onOpen={onOpen} />
             ))}
           </ul>
           {!showAll && earlier.length > EARLIER_SHOWN && (
-            <button className="text-button -ml-3 mt-1" onClick={() => setShowAll(true)}>
+            <Button variant="text" className="-ml-3 mt-1" onClick={() => setShowAll(true)}>
               {plural(
                 earlier.length - EARLIER_SHOWN,
                 m.offers.showEarlierOne,
                 m.offers.showEarlier,
               )}
-            </button>
+            </Button>
           )}
-        </>
+        </div>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -625,53 +772,64 @@ function Interest({ world }: { world: World }) {
   const entries = [...world.scouting].sort((a, b) => b.confidence - a.confidence);
   const parent = world.clubs[careerContract(world).clubId]!;
   return (
-    <section aria-labelledby="interest-heading" className={`${ui.panel} order-5 lg:order-none`}>
-      <h2 id="interest-heading" className={ui.heading}>
-        {m.interest.title}
-      </h2>
-      <p className={`${ui.muted} mt-1 max-w-prose`}>{m.interest.body}</p>
+    <Panel
+      aria-labelledby="interest-heading"
+      className="order-5 flex flex-col gap-3.5 lg:order-none"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <CardTitle id="interest-heading">{m.interest.title}</CardTitle>
+        {entries.length > 0 && (
+          <span className="text-[0.8125rem] font-semibold text-muted">
+            {entries.length === 1
+              ? m.interest.countOne
+              : format(m.interest.count, { count: entries.length })}
+          </span>
+        )}
+      </div>
+      <p className="max-w-prose text-muted">{m.interest.body}</p>
       {entries.length ? (
-        <ul className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-3">
+        <ul className="flex flex-col gap-2.5">
           {entries.map((interest) => {
             const club = world.clubs[interest.clubId]!;
             const league = world.leagues[club.leagueId];
+            const ready = interest.stage === 'offer';
             return (
-              <li key={interest.id} className="rounded-control bg-surface-soft p-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <CrestImage crest={club.crest} alt="" className="h-10 w-10 shrink-0" />
-                  <div className="min-w-0 flex-1 basis-36">
-                    <p className="break-words text-sm font-semibold">{club.name}</p>
-                    <p className="break-words text-xs text-muted">
-                      {league?.name}
-                      {club.countryId !== parent.countryId
-                        ? ` · ${m.interest.abroad}: ${world.countries[club.countryId]!.name}`
-                        : ''}
-                    </p>
-                  </div>
-                  <span className={ui.chip}>
-                    {interest.kind === 'loan' ? `${m.interest.loan} · ` : ''}
-                    {m.stages[interest.stage]}
-                  </span>
-                </div>
-                <div className="mt-3">
-                  <Meter
-                    label={m.interest.confidence}
-                    ariaLabel={`${m.interest.confidence} · ${club.name}`}
-                    value={interest.confidence}
-                    tone={interest.stage === 'offer' ? 'gold' : 'accent'}
-                  />
-                  <p className="mt-1 text-xs text-muted">
-                    {format(m.interest.weeks, { weeks: interest.weeksObserved })}
+              <li
+                key={interest.id}
+                className="flex flex-wrap items-center gap-x-3.5 gap-y-3 rounded-control bg-surface-soft px-3.5 py-3"
+              >
+                <CrestImage crest={club.crest} alt="" className="h-11 w-10 shrink-0" />
+                <div className="min-w-0 flex-[1_1_11rem]">
+                  <p className="text-sm font-bold break-words">{club.name}</p>
+                  <p className="text-xs break-words text-muted">
+                    {league?.name}
+                    {club.countryId !== parent.countryId
+                      ? ` · ${m.interest.abroad}: ${world.countries[club.countryId]!.name}`
+                      : ''}
                   </p>
                 </div>
+                <ValueMeter
+                  className="flex-[1_1_12rem]"
+                  size="sm"
+                  track="surface"
+                  label={m.interest.confidence}
+                  ariaLabel={`${m.interest.confidence} · ${club.name}`}
+                  value={interest.confidence}
+                  tone={ready ? 'gold' : 'accent'}
+                  note={format(m.interest.weeks, { weeks: interest.weeksObserved })}
+                />
+                <Chip tone={ready ? 'gold' : 'accent'}>
+                  {interest.kind === 'loan' ? `${m.interest.loan} · ` : ''}
+                  {m.stages[interest.stage]}
+                </Chip>
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className={`${ui.muted} mt-4`}>{m.interest.empty}</p>
+        <p className="text-sm text-muted">{m.interest.empty}</p>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -684,57 +842,54 @@ function Moves({ world, career }: { world: World; career: Career }) {
       </EmptySection>
     );
   return (
-    <section aria-labelledby="moves-heading" className={`${ui.panel} order-6 lg:order-none`}>
-      <h2 id="moves-heading" className={ui.heading}>
-        {m.moves.title}
-      </h2>
-      {moves.length ? (
-        <div
-          className="relative mt-4 overflow-x-auto"
-          tabIndex={0}
-          role="region"
-          aria-label={m.moves.table}
-        >
-          <table className="w-full min-w-[22rem] text-left text-sm">
-            <thead>
-              <tr className="text-xs uppercase tracking-wider text-muted">
-                <th scope="col" className="py-2 pr-3 font-bold">
-                  {m.moves.columns.date}
-                </th>
-                <th scope="col" className="py-2 pr-3 font-bold">
-                  {m.moves.columns.move}
-                </th>
-                <th scope="col" className="py-2 pr-3 font-bold">
-                  {m.moves.columns.club}
-                </th>
-                <th scope="col" className="py-2 text-right font-bold">
-                  {m.moves.columns.fee}
-                </th>
+    <Panel aria-labelledby="moves-heading" className="order-6 flex flex-col gap-3 lg:order-none">
+      <CardTitle id="moves-heading">{m.moves.title}</CardTitle>
+      <div
+        className="relative overflow-x-auto"
+        tabIndex={0}
+        role="region"
+        aria-label={m.moves.table}
+      >
+        <table className="w-full min-w-[21rem] border-collapse text-left text-[0.8125rem] tabular-nums">
+          <thead>
+            <tr className="text-[0.6875rem] tracking-[0.08em] text-muted uppercase">
+              <th scope="col" className="py-2 pr-2.5 font-extrabold">
+                {m.moves.columns.date}
+              </th>
+              <th scope="col" className="py-2 pr-2.5 font-extrabold">
+                {m.moves.columns.move}
+              </th>
+              <th scope="col" className="py-2 pr-2.5 font-extrabold">
+                {m.moves.columns.club}
+              </th>
+              <th scope="col" className="py-2 text-right font-extrabold">
+                {m.moves.columns.fee}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {moves.map((move, index) => (
+              <tr
+                key={`${move.date.season}-${move.date.week}-${index}`}
+                className="border-t border-line"
+              >
+                <td className="py-2.5 pr-2.5 whitespace-nowrap text-muted">
+                  {format(c.common.seasonWeek, {
+                    season: move.date.season,
+                    week: move.date.week,
+                  })}
+                </td>
+                <td className="py-2.5 pr-2.5">{m.moves.kinds[move.kind]}</td>
+                <td className="py-2.5 pr-2.5 font-bold">{world.clubs[move.toClubId]?.name}</td>
+                <td className="py-2.5 text-right whitespace-nowrap">
+                  {move.fee > 0 ? money(move.fee) : '–'}
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {moves.map((move, index) => (
-                <tr key={`${move.date.season}-${move.date.week}-${index}`}>
-                  <td className="py-2 pr-3 whitespace-nowrap text-muted">
-                    {format(c.common.seasonWeek, {
-                      season: move.date.season,
-                      week: move.date.week,
-                    })}
-                  </td>
-                  <td className="py-2 pr-3">{m.moves.kinds[move.kind]}</td>
-                  <td className="py-2 pr-3 font-semibold">{world.clubs[move.toClubId]?.name}</td>
-                  <td className="py-2 text-right whitespace-nowrap">
-                    {move.fee > 0 ? money(move.fee) : '–'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className={`${ui.muted} mt-4`}>{m.moves.empty}</p>
-      )}
-    </section>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
   );
 }
 
@@ -744,9 +899,10 @@ function clubTerms(negotiation: Negotiation): ContractTerms {
 }
 
 function TermsList({ terms }: { terms: ContractTerms }) {
-  // Two tiles a row while values fit whole; one when enlarged text would split words.
+  // Two tiles a row while values fit whole, one when enlarged text would split words. The
+  // signing-on fee spans the row, however many columns there are.
   return (
-    <dl className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,8rem),1fr))] gap-3">
+    <dl className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-2.5">
       <Stat label={m.talks.wage} value={weekly(terms.weeklyWage)} />
       <Stat
         label={m.talks.years}
@@ -757,10 +913,22 @@ function TermsList({ terms }: { terms: ContractTerms }) {
         label={m.talks.clause}
         value={terms.releaseClause === null ? m.talks.clauseNone : money(terms.releaseClause)}
       />
-      <Stat label={m.talks.signingBonus} value={money(terms.signingBonus)} />
+      <Stat
+        className="col-span-full"
+        label={m.talks.signingBonus}
+        value={money(terms.signingBonus)}
+      />
     </dl>
   );
 }
+
+type Outcome = '' | 'accept' | 'counter' | 'walk-away';
+const OUTCOME_STYLE: Record<Exclude<Outcome, ''>, string> = {
+  accept: 'bg-gold text-on-gold font-extrabold',
+  counter: 'bg-accent-soft text-accent font-bold',
+  'walk-away': 'bg-danger-soft text-danger font-bold',
+};
+const OUTCOME_ICON = { accept: 'check', counter: 'refresh', 'walk-away': 'close' } as const;
 
 function Talks({
   world,
@@ -775,63 +943,89 @@ function Talks({
   const { run, error, block } = useMarketAction();
   const confirm = useUrlDialog('confirm');
   const negotiation = offer.negotiationId ? world.negotiations[offer.negotiationId] : undefined;
-  const [outcome, setOutcome] = useState('');
+  const [outcome, setOutcome] = useState<Outcome>('');
   const isOpen = offer.status === 'terms';
   const windowClosed =
     (offer.kind === 'transfer' || offer.kind === 'loan') && !windowState(world).open;
   const disabled = Boolean(block) || !isOpen || windowClosed;
-  const agent = world.career!.market.agentId
-    ? world.agents[world.career!.market.agentId]
-    : undefined;
+  const player = world.players[world.career!.playerId]!;
+  const fit = cultureFit(world, player, club).value;
   return (
-    <section
-      aria-labelledby="talks-heading"
-      className={`${ui.panel} @container flex flex-col gap-5`}
-    >
-      {/* On a narrow panel Back takes its own row, so the club's name keeps the full width. */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 @lg:flex-row @lg:items-start @lg:gap-4">
-          <button className="button secondary self-start @lg:order-last" onClick={onClose}>
-            {m.talks.back}
-          </button>
-          {/* Narrow: crest beside the label, the title below at full width. Wide: crest beside both. */}
-          <div className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 @lg:gap-x-4 @lg:gap-y-1">
-            <CrestImage
-              crest={club.crest}
-              alt=""
-              className="h-11 w-11 shrink-0 @lg:row-span-2 @lg:h-16 @lg:w-16"
-            />
-            <p className={`${ui.eyebrow} @lg:self-end`}>
+    <div className="grid gap-5">
+      <HeroPanel aria-labelledby="talks-heading" markings>
+        <div className="flex flex-wrap items-center gap-x-7 gap-y-4.5">
+          {/* On phones the crest has a row to itself: smaller, so the terms come sooner. */}
+          <CrestImage crest={club.crest} alt="" className="h-18 w-16 shrink-0 sm:h-27 sm:w-24" />
+          <div className="flex min-w-0 flex-[1_1_22rem] flex-col gap-1.5">
+            <p className="text-xs font-extrabold tracking-[0.12em] text-gold uppercase">
               {m.kinds[offer.kind]} · {m.statuses[offer.status]}
             </p>
             <h2
               id="talks-heading"
-              className="col-span-2 font-display text-[1.9rem] leading-none text-balance break-words @lg:col-span-1 @lg:col-start-2 @lg:self-start @lg:text-[2.2rem]"
+              className="font-display text-[2.75rem] leading-[0.9] break-words sm:text-[4rem]"
             >
               {format(m.talks.title, { club: club.name })}
             </h2>
+            {offer.fee > 0 && (
+              <p className="text-[0.9375rem]">
+                {m.talks.fee.split('{fee}')[0]}
+                <strong className="text-gold">{money(offer.fee)}</strong>
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-hero-muted">
+              <span>
+                {format(socialText.fit.talks, { club: club.name })}:{' '}
+                <strong className="text-[0.9375rem] text-hero-ink">{fit}</strong>
+              </span>
+              <ul className="flex flex-wrap gap-1.5" aria-label={socialText.fit.traits}>
+                {cultureTraits(club).map((trait) => (
+                  <li
+                    key={trait}
+                    className="rounded-full border border-hero-ink/30 px-2.5 py-0.5 font-semibold"
+                  >
+                    {trait}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
+          <button type="button" className={heroButton} onClick={onClose}>
+            <Icon name="arrow" className="h-4.5 w-4.5 rotate-180" />
+            {m.talks.back}
+          </button>
         </div>
-        <div className="space-y-1 text-sm">
-          {offer.fee > 0 && <p>{format(m.talks.fee, { fee: money(offer.fee) })}</p>}
-          <p>
-            {format(socialText.fit.talks, { club: club.name })}:{' '}
-            <strong>{cultureFit(world, world.players[world.career!.playerId]!, club).value}</strong>{' '}
-            · {cultureTraits(club).join(' · ')}
-          </p>
-        </div>
-      </div>
+      </HeroPanel>
+      <p
+        role="status"
+        className={
+          outcome
+            ? cx('flex items-center gap-2.5 rounded-control px-4 py-3', OUTCOME_STYLE[outcome])
+            : 'sr-only'
+        }
+      >
+        {outcome && (
+          <>
+            <Icon name={OUTCOME_ICON[outcome]} className="h-4.5 w-4.5 shrink-0" />
+            {m.talks.outcomes[outcome]}
+          </>
+        )}
+      </p>
       <BlockNote block={block} />
       <ActionError error={error} />
-      <p role="status" className="text-sm font-semibold text-accent empty:hidden">
-        {outcome}
-      </p>
       {offer.kind === 'pre-contract' && (
-        <p className="text-sm">{format(m.talks.preContract, { club: club.name })}</p>
+        <TalksNote label={m.kinds[offer.kind]}>
+          {format(m.talks.preContract, { club: club.name })}
+        </TalksNote>
       )}
-      {offer.kind === 'renewal' && <p className="text-sm">{m.talks.renewalNote}</p>}
-      {!isOpen && <p className="text-sm font-semibold">{m.talks.closed}</p>}
-      {isOpen && windowClosed && <p className="text-sm font-semibold">{m.talks.windowClosed}</p>}
+      {offer.kind === 'renewal' && (
+        <TalksNote label={m.kinds[offer.kind]}>{m.talks.renewalNote}</TalksNote>
+      )}
+      {!isOpen && (
+        <TalksNote label={m.statuses[offer.status]} strong>
+          {m.talks.closed}
+        </TalksNote>
+      )}
+      {isOpen && windowClosed && <TalksNote strong>{m.talks.windowClosed}</TalksNote>}
       {offer.loan ? (
         <LoanTerms
           world={world}
@@ -842,59 +1036,17 @@ function Talks({
         />
       ) : (
         negotiation && (
-          <div className="grid gap-5 lg:grid-cols-2">
-            <div className="flex flex-col gap-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted">
-                {m.talks.clubTerms}
-              </h3>
-              <TermsList terms={clubTerms(negotiation)} />
-              {offer.kind !== 'renewal' || !careerContract(world).optionTaken ? (
-                <p className="text-xs text-muted">
-                  {format(m.talks.clubOption, { club: club.name })}
-                </p>
-              ) : null}
-              {agent && negotiation.agentEstimate !== null ? (
-                <p className="text-sm">
-                  {format(m.talks.agentRead, {
-                    agent: agent.name,
-                    wage: weekly(negotiation.agentEstimate),
-                  })}
-                </p>
-              ) : (
-                <p className="text-sm">
-                  {m.talks.noAgent}{' '}
-                  <Link className="font-semibold text-accent underline" to="/career/agent">
-                    {m.inbox.goAgent}
-                  </Link>
-                </p>
-              )}
-              {isOpen && (
-                <p className="text-xs text-muted">
-                  {negotiation.patience === 0
-                    ? m.talks.patienceNone
-                    : plural(negotiation.patience, m.talks.patienceOne, m.talks.patience)}
-                </p>
-              )}
-              <div className="flex flex-wrap gap-3">
-                <button
-                  className="button"
-                  disabled={disabled}
-                  onClick={() => {
-                    if (run({ type: 'accept', offerId: offer.id }))
-                      setOutcome(m.talks.outcomes.accept);
-                  }}
-                >
-                  {m.talks.accept}
-                </button>
-                <button
-                  className="button secondary"
-                  disabled={disabled}
-                  onClick={() => confirm.open('decline')}
-                >
-                  {m.talks.decline}
-                </button>
-              </div>
-            </div>
+          <div className="flex flex-wrap items-start gap-5">
+            <TheirOffer
+              world={world}
+              offer={offer}
+              negotiation={negotiation}
+              disabled={disabled}
+              onAccept={() => {
+                if (run({ type: 'accept', offerId: offer.id })) setOutcome('accept');
+              }}
+              onDecline={() => confirm.open('decline')}
+            />
             <CounterForm
               key={`${negotiation.id}:${negotiation.rounds.length}`}
               negotiation={negotiation}
@@ -902,7 +1054,7 @@ function Talks({
               onSubmit={(terms) => {
                 const result = run({ type: 'counter', offerId: offer.id, terms });
                 if (result === 'accept' || result === 'counter' || result === 'walk-away')
-                  setOutcome(m.talks.outcomes[result]);
+                  setOutcome(result);
               }}
             />
           </div>
@@ -922,7 +1074,142 @@ function Talks({
           }}
         />
       )}
-    </section>
+    </div>
+  );
+}
+
+/** A note on what kind of talks these are, or why they cannot move. */
+function TalksNote({
+  label,
+  strong = false,
+  children,
+}: {
+  label?: string;
+  strong?: boolean;
+  children: string;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 rounded-control bg-art-blue px-3.5 py-2.5 text-ink">
+      {label && <span className="text-[0.6875rem] font-extrabold text-info">{label}</span>}
+      <p className={cx('text-[0.8125rem]', strong && 'font-bold')}>{children}</p>
+    </div>
+  );
+}
+
+/** Patience as pips: filled for the counter-offers left, empty for the ones already spent. */
+function Patience({ negotiation }: { negotiation: Negotiation }) {
+  const spent = negotiation.rounds.filter(
+    (round) => round.actor === 'player' && round.response === 'counter',
+  ).length;
+  const total = Math.max(1, negotiation.patience + spent);
+  const text =
+    negotiation.patience === 0
+      ? m.talks.patienceNone
+      : plural(negotiation.patience, m.talks.patienceOne, m.talks.patience);
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <div
+        role="meter"
+        aria-label={m.talks.patienceLabel}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={negotiation.patience}
+        aria-valuetext={text}
+        className="flex gap-1"
+      >
+        {Array.from({ length: total }, (_, index) => (
+          <span
+            key={index}
+            className={cx(
+              'h-2.5 w-7 rounded-full',
+              index < negotiation.patience ? 'bg-accent' : 'bg-track',
+            )}
+          />
+        ))}
+      </div>
+      <span
+        className={cx(
+          'text-[0.8125rem]',
+          negotiation.patience === 0 ? 'font-bold text-danger' : 'text-muted',
+        )}
+      >
+        {text}
+      </span>
+    </div>
+  );
+}
+
+function TheirOffer({
+  world,
+  offer,
+  negotiation,
+  disabled,
+  onAccept,
+  onDecline,
+}: {
+  world: World;
+  offer: TransferOffer;
+  negotiation: Negotiation;
+  disabled: boolean;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  const isOpen = offer.status === 'terms';
+  const agent = world.career!.market.agentId
+    ? world.agents[world.career!.market.agentId]
+    : undefined;
+  const round = negotiation.rounds.filter((entry) => entry.actor === 'club').length;
+  const meta = [
+    format(m.talks.round, { round }),
+    isOpen ? format(m.offers.expires, { week: offer.expires.week }) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const [before = '', after = ''] = m.talks.agentRead.split('{wage}');
+  return (
+    <Panel aria-labelledby="their-heading" className="flex min-w-0 flex-[1_1_26rem] flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2.5">
+        <CardTitle id="their-heading" size="lg">
+          {m.talks.clubTerms}
+        </CardTitle>
+        <span className="text-xs font-semibold text-muted">{meta}</span>
+      </div>
+      <TermsList terms={clubTerms(negotiation)} />
+      {offer.kind !== 'renewal' || !careerContract(world).optionTaken ? (
+        <p className="text-xs text-muted">
+          {format(m.talks.clubOption, { club: world.clubs[offer.clubId]!.name })}
+        </p>
+      ) : null}
+      {agent && negotiation.agentEstimate !== null ? (
+        <div className="flex items-center gap-3.5 rounded-control bg-art-gold px-4 py-3.5">
+          <AgentPortrait avatar={agent.avatar} name={agent.name} className="h-14 w-14 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-extrabold text-gold-ink">{m.talks.agentReadTitle}</p>
+            <p className="mt-0.5 text-sm">
+              {format(before, { agent: agent.name })}
+              <strong>{weekly(negotiation.agentEstimate)}</strong>
+              {after}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm">
+          {m.talks.noAgent}{' '}
+          <Link className="font-bold text-accent underline underline-offset-3" to="/career/agent">
+            {m.inbox.goAgent}
+          </Link>
+        </p>
+      )}
+      {isOpen && <Patience negotiation={negotiation} />}
+      <div className="flex flex-wrap gap-2.5 border-t border-line pt-4">
+        <Button disabled={disabled} onClick={onAccept}>
+          {m.talks.accept}
+        </Button>
+        <Button variant="danger-outline" disabled={disabled} onClick={onDecline}>
+          {m.talks.decline}
+        </Button>
+      </div>
+    </Panel>
   );
 }
 
@@ -942,8 +1229,18 @@ function LoanTerms({
   const loan = offer.loan!;
   const club = world.clubs[offer.clubId]!;
   return (
-    <div className="grid gap-4">
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <Panel aria-labelledby="their-heading" className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2.5">
+        <CardTitle id="their-heading" size="lg">
+          {m.talks.clubTerms}
+        </CardTitle>
+        {offer.status === 'terms' && (
+          <span className="text-xs font-semibold text-muted">
+            {format(m.offers.expires, { week: offer.expires.week })}
+          </span>
+        )}
+      </div>
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-2.5">
         <Stat label={m.contract.loanRole} value={roleName(loan.role)} />
         <Stat
           label={m.talks.wage}
@@ -957,14 +1254,112 @@ function LoanTerms({
           value={loan.purchaseOption === null ? m.contract.noClause : money(loan.purchaseOption)}
         />
       </dl>
-      <p className="text-sm text-muted">{m.roleBodies[loan.role]}</p>
-      <div className="flex flex-wrap gap-3">
-        <button className="button" disabled={disabled} onClick={onAccept}>
+      <p className="text-[0.8125rem] text-muted">{m.roleBodies[loan.role]}</p>
+      <div className="flex flex-wrap gap-2.5 border-t border-line pt-4">
+        <Button disabled={disabled} onClick={onAccept}>
           {m.talks.acceptLoan}
-        </button>
-        <button className="button secondary" disabled={disabled} onClick={onDecline}>
+        </Button>
+        <Button variant="secondary" disabled={disabled} onClick={onDecline}>
           {m.talks.declineLoan}
-        </button>
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
+/** A whole, safe number at or above `min`. */
+const wholeAtLeast = (value: number, min: number) => Number.isSafeInteger(value) && value >= min;
+
+/** "Wage 600 Cr above their offer, 100 Cr under your agent's estimate." */
+function wageHint(wage: number, offered: number, estimate: number | null): string {
+  if (!wholeAtLeast(wage, 1)) return '';
+  const gap = wage - offered;
+  const parts = [
+    gap > 0
+      ? format(m.talks.wageAbove, { amount: money(gap) })
+      : gap < 0
+        ? format(m.talks.wageBelow, { amount: money(-gap) })
+        : m.talks.wageSame,
+  ];
+  if (estimate !== null) {
+    const room = estimate - wage;
+    parts.push(
+      room > 0
+        ? format(m.talks.agentUnder, { amount: money(room) })
+        : room < 0
+          ? format(m.talks.agentOver, { amount: money(-room) })
+          : m.talks.agentAt,
+    );
+  }
+  return `${parts.join(', ')}.`;
+}
+
+/** A number field with "Cr" before it and an optional unit after, in one 48px box. */
+function MoneyField({
+  id,
+  label,
+  value,
+  onChange,
+  min,
+  suffix,
+  invalid,
+  describedBy,
+  disabled,
+  srLabel = false,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  min: number;
+  suffix?: string;
+  invalid: boolean;
+  describedBy?: string;
+  disabled?: boolean;
+  srLabel?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <label
+        htmlFor={id}
+        className={srLabel ? 'sr-only' : 'mb-1.5 block text-[0.8125rem] font-bold'}
+      >
+        {label}
+      </label>
+      <div className="relative">
+        <span
+          aria-hidden="true"
+          className={cx(
+            'pointer-events-none absolute inset-y-0 left-3.5 flex items-center font-bold',
+            invalid ? 'text-danger' : 'text-muted',
+          )}
+        >
+          {m.talks.currency}
+        </span>
+        <input
+          id={id}
+          type="number"
+          inputMode="numeric"
+          min={min}
+          step={1}
+          value={value}
+          disabled={disabled}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? describedBy : undefined}
+          onChange={(event) => onChange(event.target.value)}
+          className={cx(
+            'text-[0.9375rem] font-bold tabular-nums',
+            suffix ? 'pr-16 pl-11' : 'pl-11',
+          )}
+        />
+        {suffix && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs text-muted"
+          >
+            {suffix}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -986,74 +1381,82 @@ function CounterForm({
   const [clauseOn, setClauseOn] = useState(start.releaseClause !== null);
   const [clause, setClause] = useState(String(start.releaseClause ?? ''));
   const [bonus, setBonus] = useState(String(start.signingBonus));
-  const [invalid, setInvalid] = useState(false);
-  useEffect(() => setInvalid(false), [wage, clause, bonus]);
-  const field =
-    'min-h-12 w-full rounded-control border border-line bg-surface px-3 text-sm font-semibold text-ink disabled:opacity-60';
-  const terms = (): ContractTerms => ({
-    weeklyWage: Number(wage),
-    years,
-    role,
-    releaseClause: clauseOn ? Number(clause) : null,
-    signingBonus: Number(bonus),
-  });
+  const [checked, setChecked] = useState(false);
+  useEffect(() => setChecked(false), [wage, clause, bonus, clauseOn]);
+  const floor = CONFIG.world.generation.wageFloor;
+  const wageValue = Number(wage);
+  const bad = {
+    wage: !(wholeAtLeast(wageValue, floor) && wageValue <= 10_000_000),
+    clause: clauseOn && !wholeAtLeast(Number(clause), 1),
+    bonus: !wholeAtLeast(Number(bonus), 0),
+  };
+  const invalid = checked && (bad.wage || bad.clause || bad.bonus);
+  const hint = useMemo(
+    () => wageHint(wageValue, start.weeklyWage, negotiation.agentEstimate),
+    [wageValue, start.weeklyWage, negotiation.agentEstimate],
+  );
   return (
     <form
       noValidate
-      className="flex flex-col gap-4 rounded-control border border-line p-4"
+      className="ui-card flex min-w-0 flex-[1_1_26rem] flex-col gap-4 rounded-panel border-2 border-accent bg-surface p-panel shadow-surface sm:p-panel-lg"
       aria-labelledby="counter-heading"
       onSubmit={(event) => {
         event.preventDefault();
-        const next = terms();
-        if (!validTerms(next)) return setInvalid(true);
+        const next: ContractTerms = {
+          weeklyWage: wageValue,
+          years,
+          role,
+          releaseClause: clauseOn ? Number(clause) : null,
+          signingBonus: Number(bonus),
+        };
+        if (bad.wage || bad.clause || bad.bonus) return setChecked(true);
         onSubmit(next);
       }}
     >
-      <h3 id="counter-heading" className="text-xs font-bold uppercase tracking-wider text-muted">
+      <CardTitle id="counter-heading" size="lg">
         {m.talks.yourTerms}
-      </h3>
-      <fieldset disabled={disabled} className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="counter-wage" className="mb-1.5 block text-sm font-semibold">
-            {m.talks.wage}
-          </label>
-          <input
-            id="counter-wage"
-            type="number"
-            inputMode="numeric"
-            min={CONFIG.world.generation.wageFloor}
-            step={1}
-            value={wage}
-            onChange={(event) => setWage(event.target.value)}
-            className={field}
-          />
+      </CardTitle>
+      <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-4">
+        <div className="flex flex-wrap gap-3.5">
+          <div className="min-w-0 flex-[1_1_11rem]">
+            <MoneyField
+              id="counter-wage"
+              label={m.talks.wage}
+              value={wage}
+              onChange={setWage}
+              min={floor}
+              suffix={m.talks.perWeekShort}
+              invalid={invalid && bad.wage}
+              describedBy="counter-invalid"
+            />
+          </div>
+          <div className="min-w-0 flex-[1_1_11rem]">
+            <label htmlFor="counter-years" className="mb-1.5 block text-[0.8125rem] font-bold">
+              {m.talks.years}
+            </label>
+            <select
+              id="counter-years"
+              value={years}
+              onChange={(event) => setYears(Number(event.target.value))}
+              className="min-h-12 w-full rounded-control border border-line bg-surface px-3 text-[0.9375rem] font-bold text-ink disabled:opacity-60"
+            >
+              {Array.from({ length: MK.negotiation.maximumYears }, (_, index) => index + 1).map(
+                (count) => (
+                  <option key={count} value={count}>
+                    {plural(count, m.talks.yearsOne, m.talks.yearsValue)}
+                  </option>
+                ),
+              )}
+            </select>
+          </div>
         </div>
-        <div>
-          <label htmlFor="counter-years" className="mb-1.5 block text-sm font-semibold">
-            {m.talks.years}
-          </label>
-          <select
-            id="counter-years"
-            value={years}
-            onChange={(event) => setYears(Number(event.target.value))}
-            className={field}
-          >
-            {Array.from({ length: MK.negotiation.maximumYears }, (_, index) => index + 1).map(
-              (count) => (
-                <option key={count} value={count}>
-                  {plural(count, m.talks.yearsOne, m.talks.yearsValue)}
-                </option>
-              ),
-            )}
-          </select>
-        </div>
-        <fieldset className="sm:col-span-2">
-          <legend className="mb-1.5 text-sm font-semibold">{m.talks.role}</legend>
+        <fieldset className="min-w-0">
+          <legend className="mb-1.5 text-[0.8125rem] font-bold">{m.talks.role}</legend>
           <div className="grid grid-cols-2 gap-1 rounded-control bg-surface-soft p-1 sm:grid-cols-4">
             {ROLE_ORDER.map((option) => (
               <label
                 key={option}
-                className="relative flex min-h-11 cursor-pointer items-center justify-center rounded-[0.6rem] px-1 text-center text-xs leading-tight font-bold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
+                className="relative flex min-h-11 cursor-pointer items-center justify-center rounded-chip px-1 text-center text-[0.8125rem] leading-tight font-extrabold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
               >
                 <input
                   type="radio"
@@ -1067,9 +1470,12 @@ function CounterForm({
               </label>
             ))}
           </div>
+          <p className="mt-1.5 text-xs text-muted">
+            {roleName(role)} · {m.roleBodies[role]}
+          </p>
         </fieldset>
-        <div className="sm:col-span-2">
-          <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold">
+        <div>
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 text-[0.8125rem] font-bold">
             <input
               type="checkbox"
               checked={clauseOn}
@@ -1078,49 +1484,60 @@ function CounterForm({
             />
             {m.talks.clauseAsk}
           </label>
-          <label htmlFor="counter-clause" className="sr-only">
-            {m.talks.clause}
-          </label>
-          <input
-            id="counter-clause"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            step={1}
-            disabled={!clauseOn}
-            value={clause}
-            onChange={(event) => setClause(event.target.value)}
-            className={`${field} mt-2`}
-          />
+          <div className="mt-1">
+            <MoneyField
+              id="counter-clause"
+              label={m.talks.clause}
+              srLabel
+              value={clause}
+              onChange={setClause}
+              min={1}
+              disabled={!clauseOn}
+              invalid={invalid && bad.clause}
+              describedBy="counter-invalid"
+            />
+          </div>
         </div>
-        <div className="sm:col-span-2">
-          <label htmlFor="counter-bonus" className="mb-1.5 block text-sm font-semibold">
-            {m.talks.signingBonus}
-          </label>
-          <input
-            id="counter-bonus"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={1}
-            value={bonus}
-            onChange={(event) => setBonus(event.target.value)}
-            className={field}
-          />
-        </div>
+        <MoneyField
+          id="counter-bonus"
+          label={m.talks.signingBonus}
+          value={bonus}
+          onChange={setBonus}
+          min={0}
+          invalid={invalid && bad.bonus}
+          describedBy="counter-invalid"
+        />
       </fieldset>
       {invalid && (
-        <p role="alert" className="inline-error">
-          {format(m.talks.invalid, { floor: CONFIG.world.generation.wageFloor })}
+        <p
+          id="counter-invalid"
+          role="alert"
+          className="flex items-start gap-2 text-[0.8125rem] font-bold text-danger"
+        >
+          <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
+          {format(m.talks.invalid, { floor })}
         </p>
       )}
-      <div>
-        <button type="submit" className="button" disabled={disabled}>
+      <div className="flex flex-wrap items-center gap-3.5 border-t border-line pt-4">
+        <Button type="submit" disabled={disabled}>
           {m.talks.counter}
-        </button>
+        </Button>
+        {hint && !disabled && <span className="text-xs text-muted">{hint}</span>}
       </div>
     </form>
   );
+}
+
+/** A small portrait of the career player in their club's kit, for the rounds list. */
+function RoundPortrait({ world }: { world: World }) {
+  const player = world.players[world.career!.playerId]!;
+  const club = player.clubId ? world.clubs[player.clubId] : undefined;
+  const age = world.date.season - player.birthSeason;
+  const svg = useMemo(
+    () => renderAvatar(player.avatar, Math.max(0, Math.min(110, age)), clubDress(club)),
+    [player.avatar, age, club],
+  );
+  return <Artwork svg={svg} alt="" className="h-9 w-9 shrink-0" />;
 }
 
 function Rounds({
@@ -1134,40 +1551,64 @@ function Rounds({
 }) {
   const club = world.clubs[offer.clubId]!;
   return (
-    <div>
-      <h3 className="text-xs font-bold uppercase tracking-wider text-muted">{m.talks.rounds}</h3>
-      <ol className="mt-2 grid gap-2">
+    <Panel aria-labelledby="rounds-heading" className="flex flex-col gap-3.5">
+      <CardTitle id="rounds-heading">{m.talks.rounds}</CardTitle>
+      <ol className="flex flex-col gap-2.5">
         {negotiation.rounds.map((round, index) => (
           <li
             key={index}
-            className={`rounded-control p-3 text-sm ${
-              round.actor === 'club' ? 'bg-surface-soft' : 'border border-line'
-            }`}
-          >
-            <p className="font-semibold">
-              {round.actor === 'club'
-                ? format(m.talks.roundClub, { club: club.name })
-                : m.talks.roundPlayer}{' '}
-              <span className="font-normal text-muted">
-                ·{' '}
-                {format(m.talks.summary, {
-                  wage: weekly(round.terms.weeklyWage),
-                  years: plural(round.terms.years, m.talks.yearsOne, m.talks.yearsValue),
-                  role: roleName(round.terms.role),
-                })}
-              </span>
-            </p>
-            {round.response && (
-              <p className="mt-1">
-                <strong>{m.talks.responses[round.response]}.</strong>{' '}
-                {(round.reasons ?? [])
-                  .map((reason) => m.talks.reasons[reason as keyof typeof m.talks.reasons])
-                  .join(' ')}
-              </p>
+            className={cx(
+              'flex items-start gap-3 rounded-control px-3.5 py-3 text-sm',
+              round.actor === 'club' ? 'bg-surface-soft' : 'border border-line bg-surface',
             )}
+          >
+            <span
+              aria-hidden="true"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-track font-display text-xl leading-none"
+            >
+              {integer.format(index + 1)}
+            </span>
+            {round.actor === 'club' ? (
+              <CrestImage crest={club.crest} alt="" className="h-10 w-9 shrink-0" />
+            ) : (
+              <RoundPortrait world={world} />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-bold">
+                {round.actor === 'club'
+                  ? format(m.talks.roundClub, { club: club.name })
+                  : m.talks.roundPlayer}{' '}
+                <span className="font-medium text-muted">
+                  ·{' '}
+                  {format(m.talks.summary, {
+                    wage: weekly(round.terms.weeklyWage),
+                    years: plural(round.terms.years, m.talks.yearsOne, m.talks.yearsValue),
+                    role: roleName(round.terms.role),
+                  })}
+                </span>
+              </p>
+              {round.response && (
+                <p className="mt-1">
+                  <strong
+                    className={
+                      round.response === 'accept'
+                        ? 'text-accent'
+                        : round.response === 'walk-away'
+                          ? 'text-danger'
+                          : ''
+                    }
+                  >
+                    {m.talks.responses[round.response]}.
+                  </strong>{' '}
+                  {(round.reasons ?? [])
+                    .map((reason) => m.talks.reasons[reason as keyof typeof m.talks.reasons])
+                    .join(' ')}
+                </p>
+              )}
+            </div>
           </li>
         ))}
       </ol>
-    </div>
+    </Panel>
   );
 }

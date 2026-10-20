@@ -54,7 +54,8 @@ test('gallery reseeds and reproduces all three SVG asset categories', async ({ p
   await page.getByRole('tab', { name: 'Match kits' }).click();
   await expect(page.locator('.kit-trio img')).toHaveCount(45);
   await page.getByRole('tab', { name: 'Player portraits' }).click();
-  await expect(page.locator('.age-trio img')).toHaveCount(24);
+  // Twelve players, so the twelve hairstyles (and every other portrait option) all appear.
+  await expect(page.locator('.age-trio img')).toHaveCount(36);
   await expect(page.getByAltText('Alex Moreno, aged 42')).toBeVisible();
   expect(await page.getByAltText('Alex Moreno, aged 17').getAttribute('src')).not.toBe(
     await page.getByAltText('Alex Moreno, aged 42').getAttribute('src'),
@@ -256,7 +257,7 @@ test('production PWA precaches unvisited routes for offline use', async ({
       return { urls, shell };
     });
     expect(cached.shell).toBe(true);
-    for (const route of ['Gallery', 'Settings', 'Saves', 'Menu'])
+    for (const route of ['Gallery', 'Settings', 'Saves', 'Menu', 'WhatsNew'])
       expect(cached.urls.some((url) => url.includes(`/assets/${route}-`))).toBe(true);
     await context.setOffline(false);
     return;
@@ -265,6 +266,8 @@ test('production PWA precaches unvisited routes for offline use', async ({
   await expect(page.locator('.crest-card')).toHaveCount(15);
   await page.goto('/settings');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
+  await page.goto('/whats-new');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('What’s new');
   await context.setOffline(false);
 });
 

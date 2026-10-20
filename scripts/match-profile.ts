@@ -26,6 +26,7 @@ import { ABILITY_WEIGHTS } from '../src/engine/strength';
 import { FORMATION_SLOTS, FORMATIONS } from '../src/engine/selection/formations';
 import { expectedImpact } from '../src/engine/match/decisions';
 import { autoPlayCommand } from '../src/engine/career/matches';
+import { motionProbe } from '../src/engine/match/motion';
 
 const OUT = 'artifacts/profile/matches.json';
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
@@ -51,6 +52,22 @@ export interface PositionProfile {
    * worst policy on a specialised profile. */
   policy: { best: [number, number]; worst: [number, number]; involvement: [number, number] };
   calibration: Record<string, Bucket>;
+  /**
+   * Cards a match, both sides (engine match-16): yellows shown (second yellows included),
+   * dismissals (second yellows and straight reds), the selected player's dismissals, and the
+   * goals a side scored and conceded per minute while a man short, against every side-minute.
+   */
+  cards?: {
+    yellow: number;
+    red: number;
+    secondYellow: number;
+    straightRed: number;
+    playerSentOff: number;
+    short: { minutes: number; for: number; against: number };
+    level: { minutes: number; goals: number };
+  };
+  /** Milliseconds per full match: everything, and the choreography (motion, narration included). */
+  cost: { matchMs: number; motionMs: number; narrationMs?: number };
 }
 
 function argument(name: string): string | undefined {
@@ -111,7 +128,24 @@ export function profilePosition(position: Position, matches: number): PositionPr
     fame: 0,
     policy: { best: [0, 0], worst: [0, 0], involvement: [0, 0] },
     calibration: {},
+    cards: {
+      yellow: 0,
+      red: 0,
+      secondYellow: 0,
+      straightRed: 0,
+      playerSentOff: 0,
+      short: { minutes: 0, for: 0, against: 0 },
+      level: { minutes: 0, goals: 0 },
+    },
+    cost: { matchMs: 0, motionMs: 0 },
   };
+  const cards = result.cards!;
+  // Motion cost probe (redesign step M0): choreography must stay within 10 ms a match.
+  motionProbe.clock = () => performance.now();
+  motionProbe.ms = 0;
+  motionProbe.passages = 0;
+  motionProbe.narrationMs = 0;
+  const started = performance.now();
   for (let index = 0; index < matches; index++) {
     const [home, away] = index % 2 ? [clubs[1]!, clubs[0]!] : [clubs[0]!, clubs[1]!];
     const club = index % 2 ? clubs[1]! : clubs[0]!;
@@ -156,6 +190,34 @@ export function profilePosition(position: Position, matches: number): PositionPr
       if (objective.progress >= objective.target) entry.completed++;
     }
     if (s.substituted) result.substituted++;
+    // Cards in all three matches of the seed (match-16), and goals while a side is a man short.
+    for (const session of [best, bestShaped, worst]) {
+      const events = session.state.match.events;
+      const shown = events.filter((event) => event.kind === 'card');
+      cards.yellow += shown.filter((e) => e.card === 'yellow' || e.card === 'second-yellow').length;
+      cards.secondYellow += shown.filter((e) => e.card === 'second-yellow').length;
+      cards.straightRed += shown.filter((e) => e.card === 'red').length;
+      if (session.state.sentOff) cards.playerSentOff++;
+      const homeId = session.setup.home.id;
+      // Men down per side for each minute 1–90 (a card at minute m counts from m on).
+      const down = (side: string, minute: number) =>
+        shown.filter((e) => e.card !== 'yellow' && e.teamId === side && e.minute <= minute).length;
+      for (let minute = 1; minute <= 90; minute++) {
+        const goals = events.filter((e) => e.kind === 'goal' && e.minute === minute);
+        for (const side of [homeId, session.setup.away.id]) {
+          const other = side === homeId ? session.setup.away.id : homeId;
+          const scored = goals.filter((e) => e.teamId === side).length;
+          if (down(side, minute) > down(other, minute)) {
+            cards.short.minutes++;
+            cards.short.for += scored;
+            cards.short.against += goals.filter((e) => e.teamId === other).length;
+          } else if (!down(side, minute) && !down(other, minute)) {
+            cards.level.minutes++;
+            cards.level.goals += scored;
+          }
+        }
+      }
+    }
     result.fatigueAtEnd += s.stats.fatigue;
     result.xp += report.xp;
     result.fame += report.fameDelta;
@@ -185,6 +247,13 @@ export function profilePosition(position: Position, matches: number): PositionPr
     }
   }
   const round = (value: number, digits = 2) => Math.round(value * 10 ** digits) / 10 ** digits;
+  // Three matches a seed: the best policy, and the best and worst on the specialised profile.
+  result.cost = {
+    matchMs: round((performance.now() - started) / (3 * matches)),
+    motionMs: round(motionProbe.ms / (3 * matches)),
+    narrationMs: round(motionProbe.narrationMs / (3 * matches)),
+  };
+  motionProbe.clock = null;
   result.goals = round(result.goals / matches);
   result.assists = round(result.assists / matches);
   result.rating = {
@@ -198,6 +267,16 @@ export function profilePosition(position: Position, matches: number): PositionPr
   result.fatigueAtEnd = round(result.fatigueAtEnd / matches, 1);
   result.xp = round(result.xp / matches, 0);
   result.fame = round(result.fame / matches, 2);
+  const played = 3 * matches;
+  result.cards = {
+    yellow: round(cards.yellow / played, 3),
+    red: round((cards.secondYellow + cards.straightRed) / played, 3),
+    secondYellow: round(cards.secondYellow / played, 3),
+    straightRed: round(cards.straightRed / played, 3),
+    playerSentOff: round(cards.playerSentOff / played, 4),
+    short: cards.short,
+    level: cards.level,
+  };
   result.policy = {
     best: [round(result.policy.best[0] / matches), round(result.policy.best[1] / matches)],
     worst: [round(result.policy.worst[0] / matches), round(result.policy.worst[1] / matches)],
@@ -282,6 +361,50 @@ export const GATES: Gate[] = [
     },
   },
   {
+    name: 'choreography costs at most 10 ms a match',
+    check: (profiles) => {
+      const off = profiles
+        .filter((p) => p.cost && p.cost.motionMs > 10)
+        .map((p) => `${p.position} ${p.cost.motionMs} ms`);
+      return off.length ? off.join('; ') : null;
+    },
+  },
+  {
+    name: 'cards a match: 3.3–4.3 yellows and 0.10–0.20 reds; a career player sent off in ≤ 3%',
+    check: (profiles) => {
+      const counted = profiles.filter((p) => p.cards);
+      if (!counted.length) return 'no card data';
+      const total = counted.reduce((sum, p) => sum + p.matches, 0);
+      const mean = (pick: (p: PositionProfile) => number) =>
+        counted.reduce((sum, p) => sum + pick(p) * p.matches, 0) / total;
+      const yellow = mean((p) => p.cards!.yellow),
+        red = mean((p) => p.cards!.red);
+      const problems: string[] = [];
+      if (yellow < 3.3 || yellow > 4.3) problems.push(`yellows ${yellow.toFixed(2)}`);
+      if (red < 0.1 || red > 0.2) problems.push(`reds ${red.toFixed(3)}`);
+      for (const p of counted)
+        if (p.cards!.playerSentOff > 0.03)
+          problems.push(`${p.position} sent off ${(p.cards!.playerSentOff * 100).toFixed(1)}%`);
+      return problems.length ? problems.join('; ') : null;
+    },
+  },
+  {
+    name: 'a side a man short scores less and concedes more than at eleven against eleven',
+    check: (profiles) => {
+      const sum = (pick: (p: PositionProfile) => number) =>
+        profiles.reduce((total, p) => total + (p.cards ? pick(p) : 0), 0);
+      const shortMinutes = sum((p) => p.cards!.short.minutes),
+        levelMinutes = sum((p) => p.cards!.level.minutes);
+      if (shortMinutes < 2000 || !levelMinutes) return `only ${shortMinutes} minutes a man short`;
+      const level = sum((p) => p.cards!.level.goals) / levelMinutes;
+      const scored = sum((p) => p.cards!.short.for) / shortMinutes / level,
+        conceded = sum((p) => p.cards!.short.against) / shortMinutes / level;
+      return scored < 0.9 && conceded > 1.1
+        ? null
+        : `scored ×${scored.toFixed(2)}, conceded ×${conceded.toFixed(2)}`;
+    },
+  },
+  {
     name: CALIBRATION_GATE,
     check: (profiles) => {
       const off = profiles.flatMap((p) => calibrationProblems(p.calibration, String(p.position)));
@@ -309,7 +432,7 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/match-profile.ts')) {
     const profiles = positions.map((position) => {
       const profile = profilePosition(position, matches);
       console.log(
-        `${position}: ${profile.goals} g ${profile.assists} a · rating ${profile.rating.mean} (p10 ${profile.rating.p10}, p90 ${profile.rating.p90}, 9+ ${profile.rating.nineOrMore}) · ${profile.moments} moments · subs ${profile.substituted} · fatigue ${profile.fatigueAtEnd} · xp ${profile.xp} fame ${profile.fame} · best ${profile.policy.best.join('-')} worst ${profile.policy.worst.join('-')} involvement ${profile.policy.involvement.join('/')} · objectives ${JSON.stringify(profile.objectives)}`,
+        `${position}: ${profile.goals} g ${profile.assists} a · rating ${profile.rating.mean} (p10 ${profile.rating.p10}, p90 ${profile.rating.p90}, 9+ ${profile.rating.nineOrMore}) · ${profile.moments} moments · subs ${profile.substituted} · fatigue ${profile.fatigueAtEnd} · xp ${profile.xp} fame ${profile.fame} · best ${profile.policy.best.join('-')} worst ${profile.policy.worst.join('-')} involvement ${profile.policy.involvement.join('/')} · ${profile.cost.matchMs} ms a match (motion ${profile.cost.motionMs}, narration ${profile.cost.narrationMs ?? 0}) · objectives ${JSON.stringify(profile.objectives)} · cards ${JSON.stringify(profile.cards)}`,
       );
       return profile;
     });

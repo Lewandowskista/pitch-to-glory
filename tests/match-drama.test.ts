@@ -88,7 +88,8 @@ describe('key moments that follow the game', () => {
       lateWhenClose = 0;
     for (const { drama } of played) {
       const s = drama.state;
-      if (s.substituted) continue;
+      // Substituted or sent off (match-16): no moments after leaving.
+      if (s.substituted || s.sentOff) continue;
       // Scheduled moments: a chained shot or a shootout kick shares its minute.
       const moments = s.match.keyMoments.filter((moment) => !moment.follows);
       const last = moments[moments.length - 1]!;
@@ -221,6 +222,11 @@ describe('key moments that follow the game', () => {
       for (const result of ['win', 'draw', 'loss'])
         for (const performance of ['star', 'solid', 'poor'])
           expect(hasMatchLabel(`match.reaction.${who}.${result}.${performance}`)).toBe(true);
+    // A dismissal (match-16): the manager reacts to the card, the fans to the result.
+    for (const reason of ['second-yellow', 'straight-red'])
+      expect(hasMatchLabel(`match.reaction.manager.sent-off.${reason}`)).toBe(true);
+    for (const result of ['win', 'draw', 'loss'])
+      expect(hasMatchLabel(`match.reaction.fans.sent-off.${result}`)).toBe(true);
     const losing = ['scorer-loss', 'thrashed', 'nightmare', 'strong-loss', 'loss'];
     const winning = ['late-winner', 'scorer-win', 'rout', 'strong-win', 'win'];
     const kinds = new Set<string>();
@@ -233,8 +239,14 @@ describe('key moments that follow the game', () => {
       if (losing.includes(kind)) expect(margin).toBeLessThan(0);
       if (winning.includes(kind)) expect(margin).toBeGreaterThan(0);
       const result = margin > 0 ? 'win' : margin < 0 ? 'loss' : 'draw';
-      expect(s.managerReactionKey.split('.')[3]).toBe(result);
-      expect(s.fanReactionKey.split('.')[3]).toBe(result);
+      if (s.sentOff) {
+        expect(kind).toBe('sent-off');
+        expect(s.managerReactionKey).toBe(`match.reaction.manager.sent-off.${s.sentOff.reason}`);
+        expect(s.fanReactionKey).toBe(`match.reaction.fans.sent-off.${result}`);
+      } else {
+        expect(s.managerReactionKey.split('.')[3]).toBe(result);
+        expect(s.fanReactionKey.split('.')[3]).toBe(result);
+      }
       const text = matchFormat(matchLabel(s.report!.headlineId), s.report!.headlineParams ?? {});
       expect(text).not.toMatch(/[{}]/);
       expect(s.report!.headlineParams?.player).toBe(

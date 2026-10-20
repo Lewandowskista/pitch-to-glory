@@ -1,6 +1,6 @@
 {
   "name": "pitch-to-glory",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -23,6 +23,8 @@
     "test:performance": "node scripts/performance.mjs",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
+    "changelog": "node --import tsx scripts/changelog.ts",
+    "check:release": "node --import tsx scripts/check-release.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "audit": "node scripts/audit.mjs",

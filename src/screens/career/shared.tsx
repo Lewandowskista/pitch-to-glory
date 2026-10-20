@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { careerGroupOf } from './navigation';
 import { navigationText as n } from '../../i18n/navigation';
 import { useAppStore } from '../../store';
 import { Page } from '../../ui/Page';
 import { Icon } from '../../ui/Icon';
 import { Artwork } from '../../ui/Artwork';
-import { renderAvatar } from '../../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { renderCrest } from '../../engine/assets/crest';
 import { levelProgress } from '../../engine/career/progression';
 import { errorCode } from '../../persistence/errors';
@@ -18,18 +18,24 @@ import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
 import { honoursText } from '../../i18n/honours';
-import { FootballIllustration } from '../../ui/FootballIllustration';
+import { cardTitleClass, PageHeader, panelClass } from '../../ui/kit/Panel';
+import { chipClass, CountBadge } from '../../ui/kit/Chip';
+import { Meter as KitMeter, XpBar as KitXpBar, type MeterTone } from '../../ui/kit/Meter';
+import { Button, ButtonLink, Spinner } from '../../ui/kit/Button';
+import { StatusLine } from '../../ui/kit/StatusLine';
 
-/** Shared Tailwind class strings, so every career card reads as one family. */
+/**
+ * Shared Tailwind class strings, so every career card reads as one family. They are the UI
+ * kit's classes (src/ui/kit, docs/UI-KIT.md); new code can use the kit components directly.
+ */
 export const ui = {
-  panel: 'ui-card rounded-panel border border-line bg-surface p-panel shadow-surface sm:p-panel-lg',
+  panel: panelClass('default', 'normal'),
   /** A dense or supporting card: summaries, quiet tiles, notices beside main content. */
-  panelCompact:
-    'ui-card rounded-panel border border-line bg-surface p-panel-compact shadow-surface sm:p-panel',
-  heading: 'font-display text-[1.75rem] leading-none tracking-[0.02em] text-ink',
+  panelCompact: panelClass('default', 'compact'),
+  heading: cardTitleClass('md'),
   eyebrow: 'text-xs font-bold uppercase tracking-[0.12em] text-accent',
   muted: 'text-sm text-muted',
-  chip: 'inline-flex min-h-7 items-center gap-1 rounded-full bg-accent-soft px-3 text-xs font-bold text-accent',
+  chip: chipClass('accent'),
   focus: 'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent',
   /** Helper text under a heading or label. */
   helper: 'mt-helper text-sm text-muted',
@@ -197,9 +203,7 @@ export function CareerNav() {
               <span>{page.label}</span>
               {page.path === '/career/inbox' && unread > 0 && (
                 <>
-                  <span aria-hidden="true" className="nav-badge">
-                    {unread > 99 ? '99+' : unread}
-                  </span>
+                  <CountBadge count={unread} />
                   <span className="sr-only"> · {format(m.inbox.unread, { count: unread })}</span>
                 </>
               )}
@@ -218,48 +222,54 @@ export function CareerNav() {
 export function CareerPage({
   title,
   description,
+  actions,
   children,
 }: {
   title: string;
   description?: string;
+  /** Controls beside the page title (view tabs, a status pill), once a career is loaded. */
+  actions?: (context: CareerContext) => ReactNode;
   children: (context: CareerContext) => ReactNode;
 }) {
   const world = useAppStore((s) => s.world);
   const { loading, error } = useRestoredWorld();
   const player = world?.career ? world.players[world.career.playerId] : undefined;
+  const context: CareerContext | null =
+    !loading && world?.career && player
+      ? {
+          world,
+          career: world.career,
+          player,
+          club: player.clubId ? world.clubs[player.clubId] : undefined,
+          age: world.date.season - player.birthSeason,
+        }
+      : null;
   return (
     <Page className="career-page">
       {/* Shown while a save loads too: the tabs depend only on the route, and appearing late
           would push the whole page down. */}
       {(loading || (world?.career && player)) && <CareerNav />}
       <div className="page-body">
-        <header className="page-heading">
-          <h1>{title}</h1>
-          {description && <p>{description}</p>}
-        </header>
+        <PageHeader
+          title={title}
+          description={description}
+          actions={context && actions ? actions(context) : undefined}
+        />
         {error && (
           <p role="alert" className="inline-error">
             {error}
           </p>
         )}
         {loading ? (
-          <p role="status" className={ui.muted}>
-            {c.common.loading}
-          </p>
+          <CareerLoading />
         ) : !world ? (
           <CareerEmpty />
-        ) : !world.career || !player ? (
+        ) : !context ? (
           <NoCareerInWorld />
         ) : (
           <>
             <UnsavedCareer />
-            {children({
-              world,
-              career: world.career,
-              player,
-              club: player.clubId ? world.clubs[player.clubId] : undefined,
-              age: world.date.season - player.birthSeason,
-            })}
+            {children(context)}
           </>
         )}
       </div>
@@ -271,16 +281,104 @@ function UnsavedCareer() {
   const active = useAppStore((s) => s.activeSave);
   if (active) return null;
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-4 rounded-panel border border-line bg-art-gold p-4 sm:p-5">
-      <Icon name="save" className="shrink-0 text-accent" />
-      <div className="min-w-0 flex-1 basis-60">
-        <strong className="block text-sm">{c.common.saveCareer}</strong>
-        <p className="text-sm text-muted">{c.common.saveCareerBody}</p>
+    <div className="mb-6 flex flex-wrap items-center gap-4 rounded-panel border border-line bg-art-gold px-panel-compact py-4 sm:px-[1.375rem] sm:py-[1.125rem]">
+      <span
+        aria-hidden="true"
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-control bg-gold text-on-gold"
+      >
+        <Icon name="save" className="h-[1.375rem] w-[1.375rem]" />
+      </span>
+      <div className="min-w-0 flex-[1_1_20rem]">
+        <strong className="block text-[0.9375rem]">{c.common.saveCareer}</strong>
+        <p className="mt-0.5 text-sm text-gold-ink">{c.common.saveCareerBody}</p>
       </div>
-      <Link className="button" to="/saves">
-        {c.common.openSaves}
-      </Link>
+      <ButtonLink to="/saves">{c.common.openSaves}</ButtonLink>
     </div>
+  );
+}
+
+/**
+ * While a saved career opens after a refresh: the page frame stays (its tabs depend only on
+ * the address), with a quiet outline of the hub where the career will appear.
+ */
+export function CareerLoading() {
+  return (
+    <div className="flex flex-col gap-[1.125rem]">
+      <p role="status" className="flex items-center gap-2.5 font-semibold text-muted">
+        <Spinner className="h-5 w-5 text-accent" />
+        {c.common.loading}
+      </p>
+      <div aria-hidden="true" className="flex flex-wrap gap-4">
+        <div className="h-44 flex-[2_1_22.5rem] rounded-panel bg-[repeating-linear-gradient(90deg,var(--accent-soft)_0_72px,var(--surface-soft)_72px_144px)]" />
+        <div className="h-44 flex-[1_1_13.75rem] rounded-panel border border-line bg-surface-soft" />
+      </div>
+    </div>
+  );
+}
+
+/** The football pyramid on the empty career page: tiers 1–4 above the semi-pro start. */
+function PyramidArt() {
+  const tiers = [
+    { x: 70, y: 30, width: 100, fill: 'fill-field' },
+    { x: 50, y: 68, width: 140, fill: 'fill-field-stripe' },
+    { x: 30, y: 106, width: 180, fill: 'fill-field-stripe opacity-80' },
+    { x: 14, y: 144, width: 212, fill: 'fill-field-stripe opacity-60' },
+  ];
+  return (
+    <svg
+      viewBox="0 0 240 230"
+      width="240"
+      height="230"
+      role="img"
+      aria-label={c.empty.pyramidLabel}
+      className="h-auto max-w-full shrink-0"
+    >
+      {tiers.map((tier, index) => (
+        <g key={tier.y}>
+          <rect x={tier.x} y={tier.y} width={tier.width} height="30" rx="8" className={tier.fill} />
+          <text
+            x="120"
+            y={tier.y + 19}
+            textAnchor="middle"
+            className="fill-hero-ink font-sans text-[11px] font-extrabold uppercase"
+          >
+            {format(c.empty.pyramidTier, { tier: index + 1 })}
+          </text>
+        </g>
+      ))}
+      <rect
+        x="1"
+        y="182"
+        width="238"
+        height="30"
+        rx="8"
+        strokeWidth="2"
+        className="fill-surface stroke-accent"
+      />
+      <text
+        x="110"
+        y="201"
+        textAnchor="middle"
+        className="fill-accent font-sans text-[11px] font-extrabold uppercase"
+      >
+        {c.empty.pyramidStart}
+      </text>
+      <path
+        d="M218 190 C236 150 214 90 160 48"
+        fill="none"
+        strokeWidth="2.5"
+        strokeDasharray="5 6"
+        strokeLinecap="round"
+        className="stroke-meter-gold"
+      />
+      <circle cx="219" cy="197" r="9" strokeWidth="2.5" className="fill-gold stroke-on-gold" />
+      <path
+        d="M146 6 H166 V14 Q166 24 156 24 Q146 24 146 14Z M152 24 V28 H160 V24"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        className="fill-gold stroke-meter-gold"
+      />
+    </svg>
   );
 }
 
@@ -306,42 +404,53 @@ export function CareerEmpty() {
       : [],
   );
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,1fr)]">
-      <section className={`${ui.panel} illustrated-empty bg-art-green`}>
-        <div className="grid justify-items-start gap-4">
+    <div className="flex flex-wrap items-stretch gap-5">
+      <section
+        aria-labelledby="career-story"
+        className="relative flex min-w-0 flex-[1.3_1_30rem] flex-wrap items-center gap-6 overflow-hidden rounded-panel border border-line bg-accent-soft p-panel sm:p-8"
+      >
+        <div className="flex min-w-0 flex-[1_1_16.25rem] flex-col items-start gap-3.5">
           <p className={ui.eyebrow}>{c.hub.eyebrow}</p>
-          <h2 className="font-display text-[2.6rem] leading-[0.95]">{c.empty.title}</h2>
-          <p className="max-w-prose text-muted">{c.empty.body}</p>
-          <div>
-            <Link className="button" to="/career/new">
-              {c.empty.start}
-              <Icon name="arrow" />
-            </Link>
-          </div>
+          <h2
+            id="career-story"
+            className="font-display text-[2.75rem] leading-[0.92] font-normal sm:text-[3.25rem]"
+          >
+            {c.empty.title}
+          </h2>
+          <p className="max-w-[23.75rem] text-[0.9375rem] text-muted">{c.empty.body}</p>
+          <ButtonLink to="/career/new" size="lg" iconEnd="arrow" className="mt-1.5">
+            {c.empty.start}
+          </ButtonLink>
         </div>
-        <FootballIllustration kind="career" />
+        <PyramidArt />
       </section>
-      <section className={ui.panel} aria-labelledby="saved-careers">
-        <h2 id="saved-careers" className={ui.heading}>
+      <section
+        className={`${ui.panel} flex flex-[1_1_21.25rem] flex-col gap-3.5`}
+        aria-labelledby="saved-careers"
+      >
+        <h2 id="saved-careers" className={cardTitleClass('md')}>
           {c.empty.loadTitle}
         </h2>
-        {error && (
-          <p role="alert" className="inline-error">
-            {error}
-          </p>
-        )}
+        {error && <StatusLine tone="error">{error}</StatusLine>}
         {!slots ? (
-          <p role="status" className={`${ui.muted} mt-4`}>
-            {t.saves.loading}
-          </p>
+          <>
+            <p role="status" className={ui.muted}>
+              {t.saves.loading}
+            </p>
+            <div aria-hidden="true" className="h-16 rounded-control bg-track" />
+            <div aria-hidden="true" className="h-16 rounded-control bg-surface-soft" />
+          </>
         ) : careers.length ? (
-          <ul className="mt-4 grid gap-3">
+          <ul className="flex flex-col gap-2.5">
             {careers.map((entry) => (
               <li key={entry.slot}>
                 <button
-                  className="flex min-h-14 w-full items-center gap-3 rounded-control border border-line bg-surface-soft p-3 text-left transition hover:border-accent disabled:opacity-60"
-                  disabled={busy !== null}
+                  type="button"
+                  className="flex min-h-16 w-full items-center gap-3.5 rounded-control border border-line bg-surface-soft px-3.5 py-3 text-left transition-colors hover:border-accent aria-disabled:cursor-progress"
+                  aria-busy={busy === entry.slot || undefined}
+                  aria-disabled={busy !== null || undefined}
                   onClick={() => {
+                    if (busy !== null) return;
                     setBusy(entry.slot);
                     setError('');
                     void persistence()
@@ -353,9 +462,9 @@ export function CareerEmpty() {
                       .finally(() => setBusy(null));
                   }}
                 >
-                  <CrestImage crest={entry.crest} alt="" className="h-11 w-11 shrink-0" />
+                  <CrestImage crest={entry.crest} alt="" className="h-[3.1rem] w-11 shrink-0" />
                   <span className="min-w-0 flex-1">
-                    <strong className="block truncate">
+                    <strong className="block truncate font-extrabold">
                       {format(c.empty.load, { name: entry.name })}
                     </strong>
                     <span className="block text-xs text-muted">
@@ -366,14 +475,22 @@ export function CareerEmpty() {
                       })}
                     </span>
                   </span>
-                  <Icon name="arrow" className="shrink-0 text-accent" />
+                  {busy === entry.slot ? (
+                    <Spinner className="h-5 w-5 text-accent" />
+                  ) : (
+                    <Icon name="arrow" className="shrink-0 text-accent" />
+                  )}
                 </button>
               </li>
             ))}
           </ul>
         ) : (
-          <p className={`${ui.muted} mt-4`}>{t.saves.emptyBody}</p>
+          <p className="flex items-center gap-3 rounded-control border border-dashed border-line p-4 text-muted">
+            <Icon name="save" className="h-6 w-6 shrink-0" />
+            {t.saves.emptyBody}
+          </p>
         )}
+        <p className="mt-auto text-xs text-muted">{c.empty.savesNote}</p>
       </section>
     </div>
   );
@@ -381,84 +498,120 @@ export function CareerEmpty() {
 
 function NoCareerInWorld() {
   const legacy = useAppStore((s) => s.world?.legacies.at(-1));
+  const lastClub = useAppStore((s) => {
+    const id = s.world?.legacies.at(-1)?.clubIds.at(-1);
+    return id ? s.world!.clubs[id] : undefined;
+  });
   const link = useSaveLink();
+  const portrait = useMemo(
+    () => (legacy ? renderAvatar(legacy.avatar, legacy.age, clubDress(lastClub), 'legacy') : null),
+    [legacy, lastClub],
+  );
   if (legacy)
     return (
-      <section className={`${ui.panel} flex flex-col gap-4 bg-art-green`}>
-        <p className={ui.eyebrow}>{honoursText.legacy.yourLegacy}</p>
-        <h2 className="font-display text-[2.2rem] leading-none">{legacy.name}</h2>
-        <p className="max-w-prose text-muted">
-          {format(honoursText.legacy.retired, { age: legacy.age, season: legacy.retiredAt.season })}{' '}
-          ·{' '}
-          {format(honoursText.legacy.hallLine, {
-            rank: legacy.hallOfFame.rank,
-            of: legacy.hallOfFame.of,
-          })}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Link className="button" to={link('/career/legacy')}>
-            {honoursText.titles.legacy}
-            <Icon name="arrow" />
-          </Link>
-          {!legacy.childPlayerId && (
-            <Link
-              className="button secondary"
-              to={link(`/career/new?parent=${encodeURIComponent(legacy.id)}`)}
-            >
-              {format(honoursText.legacy.child, { name: legacy.name })}
-            </Link>
-          )}
-          <Link className="button secondary" to={link('/career/new')}>
-            {honoursText.legacy.newCareer}
-          </Link>
+      <section
+        aria-labelledby="career-legacy-name"
+        className="flex flex-wrap items-center gap-[1.375rem] rounded-panel border border-line bg-accent-soft p-panel sm:p-[1.625rem]"
+      >
+        {portrait && (
+          <Artwork
+            svg={portrait}
+            alt={format(c.wizard.previewAlt, { age: legacy.age })}
+            className="h-[8.25rem] w-[8.25rem] shrink-0 rounded-full"
+          />
+        )}
+        <div className="flex min-w-0 flex-[1_1_17.5rem] flex-col gap-2.5">
+          <p className={ui.eyebrow}>{honoursText.legacy.yourLegacy}</p>
+          <h2
+            id="career-legacy-name"
+            className="font-display text-[2.75rem] leading-[0.95] font-normal break-words"
+          >
+            {legacy.name}
+          </h2>
+          <p className="text-muted">
+            {format(honoursText.legacy.retired, {
+              age: legacy.age,
+              season: legacy.retiredAt.season,
+            })}{' '}
+            ·{' '}
+            {format(honoursText.legacy.hallLine, {
+              rank: legacy.hallOfFame.rank,
+              of: legacy.hallOfFame.of,
+            })}
+          </p>
+          <div className="mt-1 flex flex-wrap gap-2.5">
+            <ButtonLink to={link('/career/legacy')} iconEnd="arrow">
+              {honoursText.titles.legacy}
+            </ButtonLink>
+            {!legacy.childPlayerId && (
+              <ButtonLink
+                variant="secondary"
+                to={link(`/career/new?parent=${encodeURIComponent(legacy.id)}`)}
+              >
+                {format(honoursText.legacy.child, { name: legacy.name })}
+              </ButtonLink>
+            )}
+            <ButtonLink variant="secondary" to={link('/career/new')}>
+              {honoursText.legacy.newCareer}
+            </ButtonLink>
+          </div>
         </div>
       </section>
     );
   return (
-    <section className={`${ui.panel} flex flex-col gap-4 bg-art-green`}>
-      <h2 className="font-display text-[2.2rem] leading-none">{c.empty.noWorldCareer}</h2>
+    <section
+      aria-labelledby="career-no-career"
+      className="flex max-w-3xl flex-col items-start gap-3 rounded-panel border border-line bg-accent-soft p-panel sm:p-[1.625rem]"
+    >
+      <h2 id="career-no-career" className="font-display text-[2.25rem] leading-[0.95] font-normal">
+        {c.empty.noWorldCareer}
+      </h2>
       <p className="max-w-prose text-muted">{c.empty.noWorldCareerBody}</p>
-      <div>
-        <Link className="button" to={link('/career/new')}>
-          {c.empty.start}
-          <Icon name="arrow" />
-        </Link>
-      </div>
+      <ButtonLink to={link('/career/new')} iconEnd="arrow">
+        {c.empty.start}
+      </ButtonLink>
     </section>
   );
 }
 
+/** A bust portrait in the club's home kit and crest, or the neutral shirt without a club. */
 export function PlayerPortrait({
   player,
   age,
+  club,
   className = '',
 }: {
   player: Player;
   age: number;
+  club?: Club | null;
   className?: string;
 }) {
-  const svg = useMemo(() => renderAvatar(player.avatar, age), [player.avatar, age]);
-  return (
-    <Artwork
-      svg={svg}
-      alt={format(c.wizard.previewAlt, { age })}
-      className={`rounded-full bg-art-blue ${className}`}
-    />
+  const svg = useMemo(
+    () => renderAvatar(player.avatar, age, clubDress(club)),
+    [player.avatar, age, club],
   );
+  return <Artwork svg={svg} alt={format(c.wizard.previewAlt, { age })} className={className} />;
 }
 export function CrestImage({
   crest,
   alt,
   className = '',
+  founded,
 }: {
   crest: Crest;
   alt: string;
   className?: string;
+  /** Show the club's founding-year ribbon (large crests on club pages only). */
+  founded?: number;
 }) {
-  const svg = useMemo(() => renderCrest(crest), [crest]);
+  const svg = useMemo(
+    () => renderCrest(crest, founded === undefined ? {} : { founded }),
+    [crest, founded],
+  );
   return <Artwork svg={svg} alt={alt} className={className} />;
 }
 
+/** A 0–100 career meter (form, morale, fitness, fatigue): the kit's `Meter`. */
 export function Meter({
   label,
   ariaLabel,
@@ -470,65 +623,22 @@ export function Meter({
   /** The full name for screen readers, when the visible label relies on the card title. */
   ariaLabel?: string;
   value: number;
-  tone?: 'accent' | 'danger' | 'gold';
+  tone?: MeterTone;
 }) {
-  const bounded = Math.max(0, Math.min(100, Math.round(value)));
-  const fill = tone === 'danger' ? 'bg-danger' : tone === 'gold' ? 'bg-meter-gold' : 'bg-accent';
-  return (
-    <div>
-      <div className="mb-1.5 flex items-baseline justify-between gap-2 text-sm">
-        <span className="font-semibold">{label}</span>
-        <span className="font-display text-xl leading-none tabular-nums">{bounded}</span>
-      </div>
-      <div
-        role="meter"
-        aria-label={ariaLabel ?? label}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={bounded}
-        aria-valuetext={format(c.common.meterValue, { value: bounded })}
-        className="h-2.5 overflow-hidden rounded-full bg-line"
-      >
-        <span className={`block h-full rounded-full ${fill}`} style={{ width: `${bounded}%` }} />
-      </div>
-    </div>
-  );
+  return <KitMeter label={label} ariaLabel={ariaLabel ?? label} value={value} tone={tone} />;
 }
 
+/** The career's level and experience: the kit's `XpBar`, fed from `levelProgress`. */
 export function XpBar({ career }: { career: Career }) {
   const { into, needed } = levelProgress(career);
-  const percent = needed ? Math.min(100, (into / needed) * 100) : 100;
-  return (
-    <div>
-      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2 text-sm">
-        <span className="font-display text-2xl leading-none text-accent">
-          {format(c.common.level, { level: career.level })}
-        </span>
-        <span className="text-muted">
-          {needed ? format(c.common.xp, { into, needed }) : c.common.xpMax}
-        </span>
-      </div>
-      <div
-        role="progressbar"
-        aria-label={format(c.common.xpLabel, { level: career.level + 1 })}
-        aria-valuemin={0}
-        aria-valuemax={Math.max(1, needed)}
-        aria-valuenow={needed ? into : 1}
-        className="h-3 overflow-hidden rounded-full bg-surface-soft"
-      >
-        <span
-          className="block h-full rounded-full bg-gradient-to-r from-accent to-gold"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-    </div>
-  );
+  return <KitXpBar level={career.level} into={into} needed={needed} />;
 }
 
 /** Live progress of a world job with its cancel control. */
 export function JobProgress() {
   const job = useAppStore((s) => s.worldJob);
   if (!job || job.type === 'commit-match') return null;
+  const total = Math.max(1, job.totalWeeks);
   return (
     <section
       aria-label={c.hub.simulating}
@@ -549,17 +659,24 @@ export function JobProgress() {
             {format(c.hub.progress, { completed: job.completedWeeks, total: job.totalWeeks })}
           </span>
         )}
-        <progress
-          className="mt-2 block h-2 w-full accent-[var(--accent)]"
-          max={Math.max(1, job.totalWeeks)}
-          value={job.completedWeeks}
+        <div
+          role="progressbar"
           aria-label={c.hub.simulating}
-        />
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={Math.min(total, job.completedWeeks)}
+          className="mt-2 h-2 overflow-hidden rounded-full bg-line"
+        >
+          <span
+            className="block h-full rounded-full bg-accent transition-[width] duration-300"
+            style={{ width: `${Math.min(100, (job.completedWeeks / total) * 100)}%` }}
+          />
+        </div>
       </div>
       {job.type !== 'create-career' && (
-        <button className="button secondary" disabled={job.cancelling} onClick={cancelWorldJob}>
+        <Button variant="secondary" disabled={job.cancelling} onClick={cancelWorldJob}>
           {c.hub.cancel}
-        </button>
+        </Button>
       )}
     </section>
   );

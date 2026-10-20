@@ -3,6 +3,8 @@ import { lazyPage } from './ui/lazyPage';
 import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
 import { Shell } from './ui/Shell';
 import { ErrorBoundary } from './ui/ErrorBoundary';
+import { FootballIllustration } from './ui/FootballIllustration';
+import { Icon } from './ui/Icon';
 import { t } from './i18n';
 const Menu = lazyPage(() => import('./screens/Menu'));
 const Gallery = lazyPage(() => import('./screens/Gallery'));
@@ -31,6 +33,7 @@ const CareerChronicle = lazyPage(() => import('./screens/career/CareerChronicle'
 const CareerMoments = lazyPage(() => import('./screens/career/CareerMoments'));
 const CareerLegacy = lazyPage(() => import('./screens/career/CareerLegacy'));
 const MomentViewer = lazyPage(() => import('./screens/MomentViewer'));
+const WhatsNew = lazyPage(() => import('./screens/WhatsNew'));
 export default function App() {
   return (
     <ErrorBoundary>
@@ -38,7 +41,8 @@ export default function App() {
         <Suspense
           fallback={
             <div className="loading-page" role="status">
-              {t.app.loading}
+              <FootballIllustration kind="loading" />
+              <span className="state-title">{t.app.loading}</span>
             </div>
           }
         >
@@ -71,15 +75,20 @@ export default function App() {
               <Route path="career/moments" element={<CareerMoments />} />
               <Route path="career/legacy" element={<CareerLegacy />} />
               <Route path="moment" element={<MomentViewer />} />
+              <Route path="whats-new" element={<WhatsNew />} />
               <Route
                 path="*"
                 element={
-                  <div className="page page-heading">
-                    <h1>{t.app.notFound}</h1>
-                    <p>{t.app.notFoundBody}</p>
-                    <Link className="button" to="/">
-                      {t.app.back}
-                    </Link>
+                  <div className="page">
+                    <div className="state-page">
+                      <FootballIllustration kind="lost" />
+                      <h1 className="state-title">{t.app.notFound}</h1>
+                      <p className="state-body">{t.app.notFoundBody}</p>
+                      <Link className="button" to="/">
+                        <Icon name="home" />
+                        {t.app.back}
+                      </Link>
+                    </div>
                   </div>
                 }
               />

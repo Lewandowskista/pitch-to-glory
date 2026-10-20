@@ -1,5 +1,6 @@
 import type { CareerStyle, Player, SleeveLength, Sponsorship, World } from '../../../model/domain';
 import { CONFIG } from '../../config';
+import { AVATAR_OPTIONS } from '../../assets/avatar';
 import { BRAND_BY_ID, COSMETIC_BY_ID, type CosmeticItem } from './catalogue';
 
 export const L = CONFIG.career.lifestyle;
@@ -104,7 +105,11 @@ export function applyWardrobe(world: World, change: WardrobeChange): void {
     }
     case 'hairColor':
     case 'facialHair':
-      if (!Number.isInteger(change.value) || change.value < 0 || change.value > 7)
+      if (
+        !Number.isInteger(change.value) ||
+        change.value < 0 ||
+        change.value >= AVATAR_OPTIONS[change.slot]
+      )
         throw new Error('Unknown option');
       player.avatar[change.slot] = change.value;
       return;

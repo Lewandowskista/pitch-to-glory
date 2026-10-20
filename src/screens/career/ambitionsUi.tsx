@@ -8,7 +8,7 @@ import {
   dreamClubs,
   setAmbitions,
 } from '../../engine/career/honours/ambitions';
-import { liveHallOfFame } from '../../engine/career/honours/retirement';
+import { liveHallOfFameRank } from '../../engine/career/honours/retirement';
 import { useAppStore } from '../../store';
 import { format } from '../../i18n';
 import { ambitionsText as a } from '../../i18n/ambitions';
@@ -21,8 +21,8 @@ const A = CONFIG.career.honours.ambitions;
 
 /** Where the career stands in the Hall of Fame right now, and the next name to pass. */
 function HallOfFameLine({ world }: { world: World }) {
-  // Ranking reads every player the world remembers: once per world state.
-  const standing = useMemo(() => liveHallOfFame(world), [world]);
+  // Ranking reads every player the world remembers: memoised per world state.
+  const standing = useMemo(() => liveHallOfFameRank(world), [world]);
   return (
     <div className="rounded-control bg-surface-soft px-3 py-2.5" data-testid="hall-of-fame-live">
       <p className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">

@@ -63,3 +63,36 @@ export function validateSeasonStatistics(w: Record<string, unknown>): void {
   // Every club's goals in every competition agree with its results.
   for (const [key, goals] of scored) requireValue((counted.get(key) ?? 0) === goals);
 }
+
+const SCOPES = ['league', 'cup', 'continental'];
+/**
+ * Cards and suspensions (the discipline phase): this season's, for known players, with
+ * bounded counts by competition and bans by scope. Absent in worlds saved before it.
+ */
+export function validateDiscipline(w: Record<string, unknown>): void {
+  if (w.discipline === undefined) return;
+  const state = object(w.discipline);
+  requireValue(state.version === 1 && state.season === Number(object(w.date).season));
+  const players = object(w.players);
+  const archived = object(object(w.archive ?? {}).players ?? {});
+  const records = Object.entries(object(state.players));
+  requireValue(records.length <= 30000);
+  for (const [playerId, value] of records) {
+    requireValue(Object.hasOwn(players, playerId) || Object.hasOwn(archived, playerId));
+    const record = object(value);
+    const cards = Object.entries(object(record.cards));
+    requireValue(cards.length <= 200);
+    for (const [competitionId, line] of cards) {
+      id(competitionId);
+      const pair = array(line, 2);
+      requireValue(pair.length === 2);
+      number(pair[0], 0, 400, true);
+      number(pair[1], 0, 200, true);
+    }
+    for (const key of ['tally', 'bans'] as const)
+      for (const [scope, count] of Object.entries(object(record[key]))) {
+        requireValue(SCOPES.includes(scope));
+        number(count, key === 'bans' ? 1 : 0, 400, true);
+      }
+  }
+}

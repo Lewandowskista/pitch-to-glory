@@ -48,6 +48,11 @@ export function celebrationFame(world: World, goals: number, importance: number)
   const fame = goals * L.signatureFame;
   world.career!.fame += fame;
   style.signatureUses += goals;
+  const id = style.equipped.celebration;
+  style.signatureUsesBy = {
+    ...style.signatureUsesBy,
+    [id]: (style.signatureUsesBy?.[id] ?? 0) + goals,
+  };
   return fame;
 }
 

@@ -31,6 +31,7 @@ import {
   personName,
 } from './catalog';
 import { addCupRound, createLeagueFixtures, emptyStanding } from './schedule';
+import { squadNumbersFor } from './squadNumbers';
 import { NATIONAL_PROFILES, germanRegionalZones } from './profiles';
 import {
   nationalCityName,
@@ -105,6 +106,8 @@ export function generatePlayer(
   age: number,
   date: GameDate,
   rng: Rng,
+  /** Shirt number at `club`, chosen by the caller from `squadNumbers.ts` (no RNG draws). */
+  squadNumber: number,
 ): { player: Player; contract: Contract } {
   const nationalityIndex = club.identity
     ? rng.next() < foreignChance(club.reputation)
@@ -158,6 +161,7 @@ export function generatePlayer(
     birthSeason: date.season - age,
     nationalityId: nationalityIndex === null ? club.countryId : `country:${nationalityIndex}`,
     clubId: club.id,
+    squadNumber,
     avatar: generateAvatar(rng),
     foot: rng.next() < GEN.twoFootedChance ? 'both' : rng.next() < 0.25 ? 'left' : 'right',
     primaryPosition: position,
@@ -214,6 +218,8 @@ export function generateWorld(
   const rng = createRng(seed);
   const year = CONFIG.world.startSeason;
   const date = { season: year, week: 1, day: 1 };
+  // Every generated squad lists the same positions, so it wears the same numbers.
+  const squadNumbers = squadNumbersFor(POSITIONS.slice(0, CONFIG.world.squadSize));
   const world: World = {
     ...(national
       ? {
@@ -489,6 +495,7 @@ export function generateWorld(
             age,
             date,
             scoped,
+            squadNumbers[playerIndex]!,
           );
           world.players[id] = player;
           world.contracts[contract.id] = contract;

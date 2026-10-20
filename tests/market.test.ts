@@ -34,6 +34,10 @@ import { honoursText } from '../src/i18n/honours';
 import { ambitionsText } from '../src/i18n/ambitions';
 import { storyletsText } from '../src/i18n/storylets';
 import { storiesText } from '../src/i18n/stories';
+import { postMessage } from '../src/engine/career/market/records';
+import { openPress } from '../src/engine/career/social/media';
+import { createRng } from '../src/engine/rng';
+import { messageDeadline, messageSender } from '../src/screens/career/CareerInbox';
 
 const MK = CONFIG.career.market;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
@@ -522,5 +526,92 @@ describe('market saves', () => {
     expect(next.career!.market.moves).toEqual([]);
     expect(Object.keys(next.agents)).toHaveLength(MK.agents.pool);
     expect(next.relationships.length).toBe(2);
+  });
+});
+
+describe('inbox sender and deadline (phase 7, C5)', () => {
+  const clubs = (world: World) =>
+    new Map(Object.values(world.clubs).map((club) => [club.name, club] as const));
+
+  it('stores the deadline of an offer that waits for an answer', () => {
+    const world = inWindow();
+    const offer = makePreContractOffer(world, buyer(world), 60);
+    const message = world.inbox.at(-1)!;
+    expect(message.actionId).toBe(offer.id);
+    expect(message.deadline).toEqual(offer.expires);
+    expect(messageDeadline(world, message)).toEqual(offer.expires);
+    // Once answered, the reader no longer asks for an answer.
+    offer.status = 'declined';
+    expect(messageDeadline(world, message)).toBeNull();
+    valid(world);
+  });
+
+  it('stores the club, agent, press outlet or manager who wrote it', () => {
+    const world = inWindow();
+    const club = own(world);
+    postMessage(world, 'renewal-refused', { club: club.name });
+    expect(world.inbox.at(-1)!.sender).toEqual({ kind: 'club', id: club.id, name: club.name });
+    const agent = Object.values(world.agents)[0]!;
+    postMessage(world, 'agent-pitch', { agent: agent.name, club: club.name });
+    expect(world.inbox.at(-1)!.sender).toEqual({ kind: 'agent', id: agent.id, name: agent.name });
+    const item = openPress(world, createRng('inbox-sender'), 'win', { opponent: 'Rivals' });
+    const press = world.inbox.at(-1)!;
+    expect(press.sender).toEqual({ kind: 'press', name: item.authorName });
+    expect(press.deadline).toEqual(item.expires);
+    const manager = world.managers[club.managerId]!;
+    postMessage(world, 'dropped', { club: club.name, opponent: 'Rivals' });
+    expect(world.inbox.at(-1)!.sender).toEqual({
+      kind: 'manager',
+      id: manager.id,
+      name: manager.name,
+    });
+    // Kinds without a sender store none.
+    postMessage(world, 'fame-level', { level: 2 });
+    expect(world.inbox.at(-1)!.sender).toBeUndefined();
+    expect(world.inbox.at(-1)!.deadline).toBeUndefined();
+    valid(world);
+  });
+
+  it('keeps the sender as it was after the manager changes', () => {
+    const world = inWindow();
+    const club = own(world);
+    const before = world.managers[club.managerId]!;
+    postMessage(world, 'dropped', { club: club.name, opponent: 'Rivals' });
+    const message = world.inbox.at(-1)!;
+    // A new manager arrives; the message still names the one who dropped the player.
+    const successor = Object.values(world.managers).find((entry) => entry.id !== before.id)!;
+    club.managerId = successor.id;
+    const sender = messageSender(world, message, clubs(world))!;
+    expect(sender.label).toContain(before.name);
+    expect(sender.manager?.id).toBe(before.id);
+  });
+
+  it('falls back to the message itself for messages saved before', () => {
+    const world = inWindow();
+    const club = own(world);
+    postMessage(world, 'renewal-refused', { club: club.name });
+    const old = { ...world.inbox.at(-1)! };
+    delete old.sender;
+    delete old.deadline;
+    expect(messageSender(world, old, clubs(world))).toMatchObject({ club: { id: club.id } });
+    const offer = makePreContractOffer(world, buyer(world), 60);
+    const legacy = { ...world.inbox.at(-1)! };
+    delete legacy.deadline;
+    expect(messageDeadline(world, legacy)).toEqual(offer.expires);
+  });
+
+  it('validates the optional fields and rejects forged ones', () => {
+    const world = inWindow();
+    postMessage(world, 'renewal-refused', { club: own(world).name });
+    valid(world);
+    const forged = clone(world);
+    forged.inbox.at(-1)!.sender = { kind: 'owner' as 'club', name: 'X' };
+    expect(() => validateWorld(clone(forged))).toThrow();
+    const late = clone(world);
+    late.inbox.at(-1)!.deadline = { season: world.date.season, week: 99, day: 1 };
+    expect(() => validateWorld(clone(late))).toThrow();
+    const older = clone(world);
+    delete older.inbox.at(-1)!.sender;
+    valid(older);
   });
 });

@@ -2,6 +2,24 @@ import { readFileSync, statSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 const manifest = JSON.parse(readFileSync('dist/.vite/manifest.json', 'utf8'));
 const entry = Object.values(manifest).find((chunk) => chunk.isEntry);
+// The patch notes load only with the What's new screen; the shell knows just the version.
+const notesMarker = /summary:\s*'([^']{20,})'/.exec(
+  readFileSync('src/i18n/patchNotes.ts', 'utf8').replace(/\s*\r?\n\s*/g, ' '),
+)?.[1];
+if (!notesMarker) throw new Error('Could not read a summary from src/i18n/patchNotes.ts');
+/** The files a chunk loads up front: itself and its static imports. */
+function staticFiles(chunk, seen = new Set()) {
+  if (!chunk || seen.has(chunk.file)) return seen;
+  seen.add(chunk.file);
+  for (const key of chunk.imports ?? []) staticFiles(manifest[key], seen);
+  return seen;
+}
+const withNotes = (files) =>
+  [...files].filter((file) => readFileSync(`dist/${file}`, 'utf8').includes(notesMarker));
+const shellNotes = withNotes(staticFiles(entry));
+if (shellNotes.length) throw new Error(`The app shell bundles the patch notes (${shellNotes})`);
+if (!withNotes(staticFiles(manifest['src/screens/WhatsNew.tsx'])).length)
+  throw new Error('The What’s new screen does not carry the patch notes');
 for (const route of [
   'Menu',
   'Gallery',
@@ -30,6 +48,7 @@ for (const route of [
   'career/CareerMoments',
   'career/CareerLegacy',
   'MomentViewer',
+  'WhatsNew',
 ]) {
   const visited = new Set();
   let bytes = 0;

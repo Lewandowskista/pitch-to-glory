@@ -36,5 +36,6 @@ export const navigationText = {
   play: 'Play',
   app: 'Game',
   close: 'Close',
+  moreHint: 'Start a career to add your trophies, chronicle and best moments here.',
   unread: '{count} unread',
 } as const;

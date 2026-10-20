@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Club, ReplayFrame } from '../../model/domain';
 import { pitchCopy as copy } from '../../i18n/pitch';
 import { SvgPitch } from './SvgPitch';
+import { pitchArt } from './pitchArt';
 import type { PitchScene, PitchView } from './pitchScene';
 
 export interface PitchProps {
@@ -9,6 +10,8 @@ export interface PitchProps {
   home: Club;
   away: Club;
   selectedPlayerId: string;
+  /** Squad numbers by player id (`shirtNumbers`); a token without one shows its slot. */
+  numbers?: Readonly<Record<string, number>>;
   /** The passage of play ending at `frame`, animated whenever a new one arrives. */
   motion?: ReplayFrame[] | null;
   /** Sporting milliseconds shown per real millisecond, and the longest a passage may take. */
@@ -20,6 +23,15 @@ export interface PitchProps {
   onUnavailable?: () => void;
   /** The selected player's latest goal celebration: replayed when its key changes. */
   celebration?: { key: string; motion: string } | null;
+  /**
+   * The pitch is out of view (a key moment's camera has the stage): passages jump to their
+   * end instead of playing, and a goal celebration waits until the pitch is back.
+   */
+  still?: boolean;
+  /** The accessible name of the drawing. */
+  label?: string;
+  /** Chips laid over the pitch (formations, attacking direction); decorative text only. */
+  overlay?: ReactNode;
 }
 
 const viewOf = (props: PitchProps): PitchView => ({
@@ -27,7 +39,7 @@ const viewOf = (props: PitchProps): PitchView => ({
   motion: props.motion ?? null,
   rate: props.rate ?? 18,
   maxMs: props.maxMs ?? 2100,
-  reducedMotion: props.reducedMotion,
+  reducedMotion: props.reducedMotion || Boolean(props.still),
   paused: props.paused ?? false,
 });
 
@@ -35,6 +47,7 @@ export default function Pitch(props: PitchProps) {
   const host = useRef<HTMLDivElement>(null);
   const scene = useRef<PitchScene | null>(null);
   const latest = useRef(props);
+  const celebrated = useRef<string | null>(null);
   const [fallback, setFallback] = useState(false);
   const [ready, setReady] = useState(false);
   latest.current = props;
@@ -74,6 +87,8 @@ export default function Pitch(props: PitchProps) {
           current.selectedPlayerId,
           current.frame,
           unavailable,
+          current.numbers,
+          copy.you,
         );
         ownedScene = created;
         if (cancelled || failed) {
@@ -95,46 +110,43 @@ export default function Pitch(props: PitchProps) {
   }, [props.home.id, props.away.id, props.selectedPlayerId]);
   useEffect(() => {
     scene.current?.update(viewOf(latest.current));
-  }, [props.frame, props.motion, props.rate, props.maxMs, props.reducedMotion, props.paused]);
+  }, [
+    props.frame,
+    props.motion,
+    props.rate,
+    props.maxMs,
+    props.reducedMotion,
+    props.paused,
+    props.still,
+  ]);
   const celebrationKey = props.celebration?.key;
   useEffect(() => {
-    if (celebrationKey && latest.current.celebration)
-      scene.current?.celebrate(latest.current.celebration.motion);
-  }, [celebrationKey, ready]);
+    // A goal scored from a key moment is celebrated once the live pitch is back in view.
+    const current = latest.current.celebration;
+    if (!celebrationKey || !current || props.still || celebrated.current === celebrationKey) return;
+    if (!scene.current && !fallback) return;
+    celebrated.current = celebrationKey;
+    scene.current?.celebrate(current.motion);
+  }, [celebrationKey, ready, props.still, fallback]);
   return (
-    <figure style={{ margin: 0 }}>
-      <div
-        style={{
-          position: 'relative',
-          aspectRatio: '116 / 80',
-          overflow: 'hidden',
-          borderRadius: 'var(--radius, 16px)',
-          background: '#143d2d',
-        }}
-      >
+    <figure className="match-pitch-figure">
+      <div className="match-pitch-stage" style={{ background: pitchArt.grass }}>
         {(!ready || fallback) && (
-          <div style={{ position: 'absolute', inset: 0 }}>
-            <SvgPitch {...props} />
+          <div className="absolute inset-0">
+            <SvgPitch {...props} reducedMotion={props.reducedMotion || Boolean(props.still)} />
           </div>
         )}
         <div
           ref={host}
           role="img"
-          aria-label={copy.label}
+          aria-label={props.label ?? copy.label}
           aria-hidden={!ready || fallback}
-          style={{ position: 'absolute', inset: 0, visibility: fallback ? 'hidden' : 'visible' }}
+          className="absolute inset-0"
+          style={{ visibility: fallback ? 'hidden' : 'visible' }}
         />
+        {props.overlay}
       </div>
-      <figcaption
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          gap: '0.5rem',
-          paddingTop: '0.75rem',
-          fontSize: '0.75rem',
-        }}
-      >
+      <figcaption className="match-pitch-legend">
         <span>
           {props.home.name} · {copy.home}
         </span>
@@ -144,7 +156,7 @@ export default function Pitch(props: PitchProps) {
         <span>{copy.selected}</span>
       </figcaption>
       {fallback && (
-        <p className="muted" role="status" style={{ fontSize: '0.8rem' }}>
+        <p className="match-pitch-fallback" role="status">
           {copy.fallback}
         </p>
       )}

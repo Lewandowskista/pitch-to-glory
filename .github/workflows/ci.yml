@@ -41,6 +41,9 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run lint
+      # Every push to main is a release: package.json's version needs patch notes, and
+      # CHANGELOG.md must match them (docs/RELEASING.md).
+      - run: npm run check:release
       # One national season of headless career play: invariants, export, import and the size
       # limit at its end (scripts/soak-career.ts). Longer runs are in endurance.yml.
       - run: npm run soak -- --seasons 1

@@ -20,7 +20,16 @@ export type IconName =
   | 'club'
   | 'life'
   | 'history'
-  | 'more';
+  | 'more'
+  | 'lock'
+  | 'alert'
+  | 'warning'
+  | 'info'
+  | 'chevron'
+  | 'close'
+  | 'inbox'
+  | 'contract'
+  | 'play';
 const paths: Record<IconName, string> = {
   home: 'M3 10L12 3L21 10V21H15V14H9V21H3Z',
   gallery: 'M3 3H10V10H3ZM14 3H21V10H14ZM3 14H10V21H3ZM14 14H21V21H14Z',
@@ -48,6 +57,15 @@ const paths: Record<IconName, string> = {
     'M8 4H16V9A4 4 0 0 1 8 9ZM8 6H4V7A3 3 0 0 0 8 10M16 6H20V7A3 3 0 0 1 16 10M12 13V17M9 17H15V21H9Z',
   more: 'M4 12A1.6 1.6 0 1 0 7.2 12A1.6 1.6 0 1 0 4 12M10.4 12A1.6 1.6 0 1 0 13.6 12A1.6 1.6 0 1 0 10.4 12M16.8 12A1.6 1.6 0 1 0 20 12A1.6 1.6 0 1 0 16.8 12',
   ball: 'M12 2A10 10 0 1 0 12 22A10 10 0 1 0 12 2M12 8L16 11L14 16H10L8 11ZM12 8V2M16 11L22 9M14 16L18 20M10 16L6 20M8 11L2 9',
+  lock: 'M6 11H18V21H6ZM8.5 11V7.5A3.5 3.5 0 0 1 15.5 7.5V11',
+  alert: 'M12 3A9 9 0 1 0 12 21A9 9 0 1 0 12 3M12 8V13M12 16.5V17',
+  warning: 'M12 3L22 20H2ZM12 10V14M12 17V17.5',
+  info: 'M12 3A9 9 0 1 0 12 21A9 9 0 1 0 12 3M12 11V16M12 7.5V8',
+  chevron: 'M9 6L15 12L9 18',
+  close: 'M6 6L18 18M18 6L6 18',
+  inbox: 'M4 6H20V18H4ZM4 7L12 13L20 7',
+  contract: 'M6 3H15L19 7V21H6ZM15 3V7H19M9 12H16M9 16H14',
+  play: 'M12 2A10 10 0 1 0 12 22A10 10 0 1 0 12 2M10 8L16 12L10 16Z',
 };
 export function Icon({ name, className = '' }: { name: IconName; className?: string }) {
   return (

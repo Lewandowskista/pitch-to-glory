@@ -35,6 +35,15 @@ export const agendaText = {
       story: 'A story this week',
       sponsor: 'Sponsorship offer',
     },
+    tags: {
+      home: 'Home',
+      away: 'Away',
+      neutral: 'Neutral',
+      cup: 'Cup',
+      window: 'Window',
+      international: 'International',
+      fit: 'Fit again',
+    },
   },
   preview: {
     weekOne: 'Continue plays out week {from}',
@@ -110,5 +119,15 @@ export const agendaText = {
     trainingExtra: ' · mentor session',
     trainingEdit: 'Change the plan',
     seasonEnd: 'Last week of the season',
+    legend: {
+      title: 'Key',
+      fixture: 'Fixture, window or fit again',
+      deadline: 'Deadline: act this week',
+      injury: 'Injury and recovery',
+      routine: 'Routine',
+    },
+    goHub: 'Go to the hub',
+    seasonOverNote:
+      'When the season is complete both views show every week, so the past results stay in reach.',
   },
 } as const;

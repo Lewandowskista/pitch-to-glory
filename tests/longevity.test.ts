@@ -180,9 +180,9 @@ describe('retirement under late decline', () => {
       gallery: { seed: 'l', generation: 0 },
       settings: DEFAULT_SETTINGS,
     });
-    const old: unknown = JSON.parse(JSON.stringify({ ...save, schemaVersion: 20 }));
+    const old: unknown = JSON.parse(JSON.stringify({ ...save, schemaVersion: 21 }));
     const migrated = migrateSave(old);
-    expect(migrated.schemaVersion).toBe(21);
+    expect(migrated.schemaVersion).toBe(22);
     expect(parseSave(JSON.stringify(save))).toEqual(save);
     const next = startNextSeason(world);
     const player = next.players[next.career!.playerId]!;

@@ -105,7 +105,12 @@ describe('skills in key moments', () => {
         const choices = buildChoices(context);
         expect(choices.some((c) => c.requiredTraitId)).toBe(false);
       }
-    for (const situation of SITUATIONS) expect(situation.choices.length).toBeLessThanOrEqual(4);
+    // Choices appended by match-15 (Track the runner) only fill a fourth place left free.
+    for (const situation of SITUATIONS)
+      expect(situation.choices.filter((c) => !c.latest).length).toBeLessThanOrEqual(4);
+    for (const position of ['ST', 'CM', 'CB', 'LB', 'DM', 'GK'] as const)
+      for (const context of contexts(position, unlocking))
+        expect(buildChoices({ ...context, latest: true }).length).toBeLessThanOrEqual(4);
     const unlocked = ['ST', 'CM', 'CB', 'GK'].flatMap((position) =>
       contexts(position as Position, unlocking).flatMap((c) => buildChoices(c)),
     );

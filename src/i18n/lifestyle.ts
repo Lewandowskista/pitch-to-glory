@@ -3,6 +3,8 @@ export const lifestyleText = {
   titles: { lifestyle: 'Lifestyle', wardrobe: 'Wardrobe and celebrations' },
   sectionNames: { lifestyle: 'Lifestyle', wardrobe: 'Wardrobe' },
   eyebrow: 'Fame and style',
+  intro:
+    'Fame opens the door to sponsors and style. Keep your deals on track, and spend your savings where they help you play.',
   fame: {
     title: 'Fame',
     level: 'Fame level {level}',
@@ -34,6 +36,7 @@ export const lifestyleText = {
       items: '1 new purchase',
     },
     nothing: 'Nothing new, but more fame still brings bigger sponsors.',
+    ladder: 'Fame levels 1 to {max}, level {level} reached',
     levelUp: 'Fame level {level}: {name}!',
   },
   sponsors: {
@@ -87,6 +90,8 @@ export const lifestyleText = {
     } as Record<string, string>,
     progress: '{progress} / {target}',
     met: 'Met',
+    offerLabel: '{brand} offer',
+    dealLabel: '{brand} deal',
   },
   lifestyle: {
     title: 'Lifestyle',
@@ -146,6 +151,9 @@ export const lifestyleText = {
     invest: 'Invest',
     amount: 'Amount',
     value: 'Worth {amount}',
+    resaleNote:
+      'Cars and homes sell for {percent}% of their worth; investments pay back their full value.',
+    wageNote: 'Prices follow your wage of {wage} a week',
     returns: {
       bond: 'Steady: about 0.1% a week',
       fund: 'Moderate: about 0.25% a week, can dip',
@@ -240,6 +248,17 @@ export const lifestyleText = {
     tokensOne: '1 style token',
     price: '{tokens} tokens',
     facialHairNote: 'Facial hair grows in with age. These previews show it at {age}.',
+    intro:
+      'Spend style tokens on looks before your fame unlocks them, and pick the celebration the crowd will remember.',
+    summary: 'What you wear',
+    summaryLabels: {
+      boots: 'Boots',
+      socks: 'Socks',
+      sleeves: 'Sleeves',
+      armband: 'Armband',
+      celebration: 'Celebration',
+    },
+    seeDeal: 'See the deal',
   },
   celebrations: {
     title: 'Celebrations',
@@ -317,6 +336,9 @@ export const lifestyleText = {
     reward_got: 'Reward collected!',
     toGo: '{count} to go',
     toGoOne: '1 to go',
+    ready: '{count} ready to claim',
+    renews: { daily: 'New ones at midnight', weekly: 'New ones on Monday' },
+    claimLabel: 'Claim {reward} for {challenge}',
   },
   hub: {
     title: 'Fame and challenges',
@@ -374,4 +396,9 @@ export const lifestyleText = {
       body: 'Your name is spreading. New looks, sponsors and purchases may be within reach.',
     },
   } as Record<string, { subject: string; body: string }>,
+  /** Phase 7 (C10): big-match uses of each celebration, on its Wardrobe tile. */
+  celebrationUses: {
+    one: '1 big-match use',
+    many: '{count} big-match uses',
+  },
 };

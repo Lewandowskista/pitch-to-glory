@@ -154,6 +154,15 @@ export function validateSetup(setup: MatchSetup): void {
     !ids.includes(setup.selectedPlayerId)
   )
     throw new Error('Invalid match roster');
+  // Suspended players (match-16) are known, distinct and never the selected player.
+  if (
+    setup.suspended !== undefined &&
+    (!Array.isArray(setup.suspended) ||
+      setup.suspended.length > 40 ||
+      new Set(setup.suspended).size !== setup.suspended.length ||
+      setup.suspended.some((id) => !ids.includes(id) || id === setup.selectedPlayerId))
+  )
+    throw new Error('Invalid match suspensions');
   const p = setup.players[setup.selectedPlayerId]!;
   if (p.retired || p.injuryId || p.fitness <= 0) throw new Error('Selected player unavailable');
 }

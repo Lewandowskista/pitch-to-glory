@@ -13,7 +13,10 @@ import { rankStandings } from './ranking';
 import { resetNationalSeason } from './movement';
 import { advanceContinental, isContinental, startContinental } from './continental';
 import { recordEvent as event } from './events';
+import { joinSquad } from './squadNumbers';
 import { startSeasonStatistics } from './statistics';
+import { rollDiscipline } from './discipline';
+import { noteBans } from '../career/discipline';
 import { decidedTitles, QUALIFYING_DIVISIONS } from './titles';
 import {
   applyFinalizedFixture,
@@ -31,6 +34,7 @@ import {
   marketSeasonEnd,
   marketWeek,
 } from '../career/market/week';
+import { careerSelection } from '../career/market/rules';
 import { postMessage, recordMove } from '../career/market/records';
 import { socialRollover, socialWeek } from '../career/social/week';
 import { lifestyleRollover, lifestyleWeek } from '../career/lifestyle/week';
@@ -70,7 +74,7 @@ export function commitPlayedFixture(
   const fixture = world.fixtures[fixtureId];
   if (!fixture || world.results[fixtureId]) throw new Error('Fixture already resolved');
   const final = finalizeFixture(world, fixture, played);
-  applyFinalizedFixture(world, final);
+  noteBans(world, applyFinalizedFixture(world, final));
   // Settle what the result decides immediately (tie aggregates, a cup final's winner), so the
   // committed world is consistent before the rest of the week is simulated.
   const tie = fixture.tieId ? world.pyramid?.ties[fixture.tieId] : undefined;
@@ -205,6 +209,7 @@ function exchangeTransfers(world: World, rng: Rng): void {
       };
       old.playerIds = old.playerIds.filter((id) => id !== player.id);
       destination.playerIds.push(player.id);
+      joinSquad(world, player, destination);
       event(world, 'transfer', [player.id, old.id, destination.id], {
         name: player.name,
         old: old.name,
@@ -495,6 +500,7 @@ function keepCareerInSimulatedLeagues(world: World): void {
   current.playerIds = current.playerIds.filter((id) => id !== player.id);
   destination.playerIds.push(player.id);
   player.clubId = destination.id;
+  joinSquad(world, player, destination);
   contract.clubId = destination.id;
   refreshDressingRoom(world, current);
   refreshDressingRoom(world, destination);
@@ -537,14 +543,20 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   // Fixtures the career player is fit for but was not picked for (or not yet registered).
   const benched = benchedCareerFixtures(world);
   const benchedIds = new Set(benched.map((fixture) => fixture.id));
+  // Matches missed through a suspension are not the manager's choice (the discipline phase):
+  // decided now, before this week's fixtures serve the ban.
+  const dropped = benched.filter((fixture) => !careerSelection(world, fixture).suspended);
   for (const fixture of fixtures)
-    applyFinalizedFixture(
+    noteBans(
       world,
-      finalizeFixture(
+      applyFinalizedFixture(
         world,
-        fixture,
-        undefined,
-        benchedIds.has(fixture.id) ? world.career!.playerId : undefined,
+        finalizeFixture(
+          world,
+          fixture,
+          undefined,
+          benchedIds.has(fixture.id) ? world.career!.playerId : undefined,
+        ),
       ),
     );
   for (const league of Object.values(world.leagues))
@@ -562,7 +574,7 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   if (world.career) {
     recordAvailability(world, benched);
     careerWeek(world);
-    marketWeek(world, benched);
+    marketWeek(world, dropped);
     socialWeek(world);
     lifestyleWeek(world);
     honoursWeek(world);
@@ -667,6 +679,8 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
   }
   // A new season of competition statistics: worlds saved before Phase 1.3 start here.
   startSeasonStatistics(world);
+  // Cards and tallies start again; bans still to serve carry over (the discipline phase).
+  rollDiscipline(world);
   // Award baselines once this season's league memberships are set.
   if (world.career) startAwardSeason(world);
   return world;

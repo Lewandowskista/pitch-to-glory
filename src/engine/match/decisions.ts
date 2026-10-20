@@ -9,6 +9,13 @@ import type {
 import { CONFIG } from '../config';
 import { roleEffect } from './roles';
 import {
+  pitchEffect,
+  pitchStateFor,
+  weatherEffect,
+  type Intensity,
+  type PitchState,
+} from './conditions';
+import {
   KEEPER_ATTRIBUTES,
   SITUATIONS,
   type ChoiceTemplate,
@@ -39,6 +46,10 @@ export interface DecisionContext {
   tactics: Tactics;
   weather: Match['weather'];
   pitchCondition: number;
+  /** How hard it rains, blows or snows (match-15; steady when absent). */
+  weatherIntensity?: Intensity;
+  /** The state of the pitch (match-15; derived from the weather when absent). */
+  pitchState?: PitchState;
   /** Selected team strength minus opposition strength. */
   strengthGap: number;
   /** Ability of the direct opponent each choice is measured against. */
@@ -55,6 +66,8 @@ export interface DecisionContext {
   chemistry: number;
   /** Attribute points lost to playing an unfamiliar slot (0 in the player's own position). */
   positionPenalty?: number;
+  /** The current engine (`match-15`): its appended choices are offered. */
+  latest?: boolean;
 }
 
 export function governingValue(
@@ -136,12 +149,13 @@ export const TRAIT_BOOSTS: Readonly<Record<string, readonly string[]>> = {
 /** How many of the player's skills improve one choice. */
 export function traitCount(
   traits: readonly string[],
-  template: Pick<ChoiceTemplate, 'id' | 'traitId'>,
+  template: Pick<ChoiceTemplate, 'id' | 'traitId' | 'boostedBy'>,
 ): number {
   return traits.filter(
     (trait) =>
       (template.traitId !== null && trait === template.traitId) ||
-      TRAIT_BOOSTS[trait]?.includes(template.id),
+      TRAIT_BOOSTS[trait]?.includes(template.id) ||
+      template.boostedBy?.includes(trait),
   ).length;
 }
 /** Odds multiplier from the player's skills: each further skill stacks, to a limit. */
@@ -186,8 +200,18 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
   const { player, situation, budget, tactics } = context;
   const role = roleEffect(tactics.role);
   const risk = D.risk[tactics.risk];
-  return situation.choices
-    .filter((t) => !t.requiredTraitId || player.traits.includes(t.requiredTraitId))
+  const intensity = context.weatherIntensity ?? 'steady';
+  const pitch =
+    context.pitchState ?? pitchStateFor(context.weather, context.pitchCondition, intensity);
+  // Choices appended by the current engine come last, and only while a moment has fewer than
+  // four (the number keys 1–4 cover every option): a skill-unlocked choice keeps its place.
+  const unlocked = situation.choices.filter(
+    (t) => !t.requiredTraitId || player.traits.includes(t.requiredTraitId),
+  );
+  const room = Math.max(0, 4 - unlocked.filter((t) => !t.latest).length);
+  const appended = context.latest ? unlocked.filter((t) => t.latest).slice(0, room) : [];
+  return unlocked
+    .filter((t) => !t.latest || appended.includes(t))
     .map((t) => {
       const value = governingValue(player, t.attributes);
       const relative = value + context.consistencyShift - context.matchLevel;
@@ -303,11 +327,28 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
           'attribute',
           t.direct === 'for' ? D.riskShot[tactics.risk] : t.direct ? 1 : risk.odds,
         ],
-        [
-          'match.factor.conditions',
-          'attribute',
-          1 + conditionsEffect(t.conditions, context.weather, context.pitchCondition),
-        ],
+        // The current engine (match-15) shows the weather and the pitch as separate factors,
+        // each named ("Heavy rain", "Heavy pitch"); earlier engines one combined factor.
+        ...(context.latest
+          ? ([
+              [
+                `match.factor.weather.${intensity}.${context.weather}`,
+                'attribute',
+                1 + weatherEffect(t.conditions, context.weather, intensity),
+              ],
+              [
+                `match.factor.pitch.${pitch}`,
+                'attribute',
+                1 + pitchEffect(t.conditions, context.weather, pitch, context.pitchCondition),
+              ],
+            ] as [string, ProbabilityFactor['source'], number][])
+          : ([
+              [
+                'match.factor.conditions',
+                'attribute',
+                1 + conditionsEffect(t.conditions, context.weather, context.pitchCondition),
+              ],
+            ] as [string, ProbabilityFactor['source'], number][])),
       ];
       let current = round6(clamp(base, D.minimumProbability, D.maximumProbability));
       const factors: ProbabilityFactor[] = [

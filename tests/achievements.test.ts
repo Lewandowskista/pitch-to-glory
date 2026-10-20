@@ -92,8 +92,8 @@ describe('one record for every player', () => {
     expect(tierWeight(4)).toBeLessThan(tierWeight(2));
     const world = clone(season);
     world.phase = 'active';
-    const [first, fourth] = [1, 4].map(
-      (tier) => Object.values(world.leagues).find((league) => league.tier === tier)!,
+    const [first, fourth] = [1, 4].map((tier) =>
+      Object.values(world.leagues).find((league) => league.tier === tier)!,
     );
     world.seasonStats!.competitions = {};
     const lines = [first!, fourth!].map((league) => {

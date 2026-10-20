@@ -680,6 +680,28 @@ From the [engagement review](ENGAGEMENT-REVIEW-2026-10-09.md). Match constants (
 
 **Playing counts.** Bonus XP for key decisions (4 a success, 8 against the odds) is earned only in matches the player plays; simulated matches earn match XP alone.
 
+## Redesign phase 7: career extras (October 2026)
+
+**Manager's plan (`career/brief.ts`, `career.brief`).** The hub's next-match card carries the manager's plan, worked out with no random draws: the role (start when picked this week, or for a later fixture when the selection chance is at least 50%; the bench otherwise; not registered), the slot from the selection (`slotCompetition`), the club's playing style for the instruction, and the opponent's eleven: forwards and midfielders attack the channel of the weaker full-back (our left faces their right-back), wingers the full-back they face, full-backs the winger they face, and centre-backs and keepers are told about the best forward. The closing line compares expected goals as the world simulates the fixture: 0.35 or more ahead is favourites (a win-now club, culture 65+, wants three points), as far behind is underdogs (an attacking club plays without fear); otherwise a youth club speaks to players up to 21 and a disciplined club asks for shape.
+
+**Hall of Fame table.** Ranking reads one sorted table of every remembered player (`hallOfFameTable`); retirement and the invariants work it out afresh, while screens share a copy memoised per world state (world, date, phase, results, matches, awards and legacies), so the live rank costs one pass a week. The career's own score is always current. The Legacy page names the next person down ("ahead of Kai Mercer, #9") only while today's table still gives the legacy the rank it retired with.
+
+**Big-match uses by celebration.** `signatureUsesBy` counts the same goals as `signatureUses`, by the celebration equipped, from the save that first has it; the parts never add up to more than the total.
+
+## Discipline and suspensions (the discipline phase, October 2026)
+
+The match side (cards, ten men, the career player's dismissal and booking risk) is in [MATCH-BALANCING.md](MATCH-BALANCING.md), "Full discipline". This is what the cards do to careers and the world; the code is `engine/world/discipline.ts`, the constants `CONFIG.world.background.suspensions`.
+
+**Scopes.** A ban is served in the scope it was earned in: league football (league fixtures, phases and promotion or relegation playoffs), the domestic cup, or continental football (both continental cups). Each finalized fixture first serves one match of every ban in its scope for both squads, then records its cards.
+
+**Rules.** A second yellow bans for `secondYellow` 1 match, a straight red for `straightRed` 3. Every `accumulation` yellows in a scope in a season ban for one match: 5 in league football, 3 in a cup or in continental football. Yellows in a match that ended in a dismissal never count towards accumulation. Bans carry over a season's end (the rollover keeps `bans` and clears cards and tallies), so a red in the last match is served in the next season; records of players who left the world are dropped.
+
+**Selection.** A suspended player is left out of every eleven in the scope (background fixtures, both sides of the career player's interactive match through `setup.suspended`), as long as eleven available players remain. The career player's selection chance is gated to 0 with a "Suspended, 2 to serve" reason (the parts still add up), so the fixture is simulated without them; a match missed through a ban never counts as "dropped" for the role promise. When a ban starts the manager writes ("Suspended for 3 matches": why, how many and where), the hub's next match says "Suspended · 2 matches" in place of the plan and objectives, the Condition card lists every ban, and the calendar marks each fixture a ban covers ("Suspended · match 1 of 2").
+
+**Background cards.** National worlds draw cards for every background fixture on `${seed}:cards:${fixtureId}` (a new stream; no existing world stream gains a draw), with the match engine's own draw (`drawCard`: three draws a side every minute, second yellows, straight reds, a side at most three men down). Results are decided first and never change: the cards matter through the suspensions that follow. Worlds from before the national pyramid keep their rules: no background cards, though cards from the career player's interactive matches still ban. Over ten national weeks the background shows about 3.7 yellows and 0.14 dismissals a fixture (`tests/discipline.test.ts`).
+
+**Records.** `world.discipline` (optional; created at the first card, so older saves load unchanged and the save schema stays v21) holds this season's cards by competition and the bans by scope. Career totals are `player.stats.yellowCards` and `redCards` (optional), and each career match record its `yellowCards` and `sentOff`; the profile's season card and season table, the hub's season card and the match history show them. All are validated when a save loads.
+
 ## Late career: decline and longevity (October 2026)
 
 From the [October 20 review](APP-REVIEW-2026-10-20.md) (R9) and the [plan](REVIEW-PLAN-2026-10-20.md), step 1.4. Constants are in `CONFIG.career.longevity`; formulas in `src/engine/career/longevity.ts`.

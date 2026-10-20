@@ -1,4 +1,22 @@
 import type { Hex } from '../../model/domain';
+/**
+ * Brand colours for generated SVG art. Art is shown as image data URIs, which cannot read CSS
+ * variables, so these mirror src/styles/tokens.css; keep the two in step.
+ */
+export const ART = {
+  field: '#075e45',
+  fieldStripe: '#0a6a4e',
+  gold: '#efcf63',
+  goldPressed: '#c9a73c',
+  onGold: '#153c2d',
+  heroInk: '#fff7e4',
+  ink: '#1d3329',
+  surface: '#ffffff',
+  artBlue: '#e4ebee',
+  artGold: '#f4ead4',
+  artGreen: '#e4eddd',
+  danger: '#a72d30',
+} as const satisfies Record<string, Hex>;
 export const PALETTES: readonly [Hex, Hex, Hex][] = [
   ['#075e45', '#f1cf58', '#f9f5e9'],
   ['#19386d', '#f6f2e7', '#e95042'],
@@ -22,6 +40,19 @@ export function colors(colors: readonly Hex[]): void {
 }
 export function svg(body: string, viewBox: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" fill="none">${body}</svg>`;
+}
+
+/** Blend `from` towards `to` by `amount` (0..1), for flat shadow and highlight tones. */
+export function mix(from: Hex, to: Hex, amount: number): Hex {
+  const t = Math.max(0, Math.min(1, amount));
+  const channel = (color: Hex, index: number) => parseInt(color.slice(index, index + 2), 16);
+  return `#${[1, 3, 5]
+    .map((index) =>
+      Math.round(channel(from, index) + (channel(to, index) - channel(from, index)) * t)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}` as Hex;
 }
 
 function luminance(color: Hex): number {

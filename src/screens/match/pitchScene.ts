@@ -3,9 +3,25 @@
 import 'pixi.js/unsafe-eval';
 import { Application, Container, Graphics, Text } from 'pixi.js';
 import type { Club, Point, ReplayFrame } from '../../model/domain';
+import { isPassBeat } from './cam';
+import { OFF_ANIMATION } from '../../engine/match/parked';
 import { kitAppearance } from './Maps';
 import { preparePlayback, samplePlayback, type Playback } from './playback';
-import { ballAtFeet, kitNumberColor, pitchArt, pitchPoint, pitchAssetScale } from './pitchArt';
+import {
+  ballAtFeet,
+  kitNumberColor,
+  pitchArt,
+  pitchBands,
+  pitchPoint,
+  pitchAssetScale,
+  shirtNumber,
+} from './pitchArt';
+
+/** The players a frame shows: everyone but those sent off (match-16), parked off the pitch. */
+const onPitch = (frame: ReplayFrame) =>
+  new Set(
+    frame.players.filter((player) => player.animation !== OFF_ANIMATION).map((player) => player.id),
+  );
 
 interface Token {
   view: Container;
@@ -91,6 +107,8 @@ export async function createPitchScene(
   selectedPlayerId: string,
   frame: ReplayFrame,
   unavailable: () => void,
+  numbers?: Readonly<Record<string, number>>,
+  youLabel = 'You',
 ): Promise<PitchScene> {
   const app = new Application();
   try {
@@ -115,14 +133,14 @@ export async function createPitchScene(
   const world = new Container();
   app.stage.addChild(world);
   const grass = new Graphics().rect(0, 0, 116, 80).fill(pitchArt.grass);
-  for (let stripe = 0; stripe < 10; stripe++)
-    grass.rect(8 + stripe * 10, 8, 10, 64).fill(pitchArt.stripes[stripe % 2]!);
-  const line = { color: pitchArt.line, width: 0.38, alpha: 0.85 };
+  for (const x of pitchBands) grass.rect(x, 0, 10, 80).fill(pitchArt.stripes[1]);
+  const line = { color: pitchArt.line, width: 0.32, alpha: pitchArt.lineAlpha };
+  const spot = { color: '#ffffff', alpha: pitchArt.lineAlpha };
   grass.rect(8, 8, 100, 64).stroke(line).moveTo(58, 8).lineTo(58, 72).stroke(line);
-  grass.circle(58, 40, 9.15).stroke(line).circle(58, 40, 0.55).fill('#d5e8cc');
+  grass.circle(58, 40, 9.15).stroke(line).circle(58, 40, 0.55).fill(spot);
   grass.rect(8, 20, 16.5, 40).stroke(line).rect(91.5, 20, 16.5, 40).stroke(line);
   grass.rect(8, 30.5, 5.5, 19).stroke(line).rect(102.5, 30.5, 5.5, 19).stroke(line);
-  grass.circle(19, 40, 0.4).fill('#d5e8cc').circle(97, 40, 0.4).fill('#d5e8cc');
+  grass.circle(19, 40, 0.4).fill(spot).circle(97, 40, 0.4).fill(spot);
   grass
     .moveTo(19 + Math.cos(-0.94) * 9.15, 40 + Math.sin(-0.94) * 9.15)
     .arc(19, 40, 9.15, -0.94, 0.94)
@@ -133,17 +151,11 @@ export async function createPitchScene(
     .stroke(line);
   grass
     .rect(5, 35.8, 3, 8.4)
-    .stroke({ color: '#f5f0df', width: 0.5 })
+    .fill({ color: '#ffffff', alpha: 0.16 })
+    .stroke({ color: '#ffffff', width: 0.32 })
     .rect(108, 35.8, 3, 8.4)
-    .stroke({ color: '#f5f0df', width: 0.5 });
-  for (const x of [5, 6, 7, 109, 110, 111])
-    grass.moveTo(x, 35.8).lineTo(x, 44.2).stroke({ color: '#f5f0df', width: 0.15, alpha: 0.5 });
-  for (const x of [5, 108])
-    for (let y = 37.2; y < 44.2; y += 1.4)
-      grass
-        .moveTo(x, y)
-        .lineTo(x + 3, y)
-        .stroke({ color: '#f5f0df', width: 0.12, alpha: 0.35 });
+    .fill({ color: '#ffffff', alpha: 0.16 })
+    .stroke({ color: '#ffffff', width: 0.32 });
   for (const [x, y, start] of [
     [8, 8, 0],
     [108, 8, Math.PI / 2],
@@ -158,10 +170,11 @@ export async function createPitchScene(
   const trail = new Graphics();
   const possession = new Graphics()
     .circle(0, 0, 2.55)
-    .stroke({ color: '#9ff5d5', width: 0.3, alpha: 0.8 });
+    .stroke({ color: pitchArt.trail, width: 0.3, alpha: 0.8 });
   const impact = new Graphics();
   world.addChild(trail, possession, impact);
   const tokens = new Map<string, Token>();
+  const label = new Container();
   const kits = kitAppearance(home, away);
   let reducedMotion = false;
   let paused = false;
@@ -171,6 +184,26 @@ export async function createPitchScene(
     shownMax = 0;
   let assetScale = 1;
   let celebration: { motion: string; elapsed: number } | null = null;
+  /** The last pass: drawn while it travels, then faded out (it pauses with the match). */
+  let pass: { from: Point; to: Point; key: ReplayFrame; age: number; flying: boolean } | null =
+    null;
+  const PASS_FADE_MS = 1800;
+  const drawPass = (to: Point, alpha: number) => {
+    trail.clear();
+    if (!pass || alpha <= 0) return;
+    const dx = to.x - pass.from.x,
+      dy = to.y - pass.from.y;
+    const length = Math.hypot(dx, dy);
+    if (length < 0.5) return;
+    // A dashed line: 1.2-unit dashes with 0.9-unit gaps.
+    for (let at = 0; at < length; at += 2.1) {
+      const end = Math.min(length, at + 1.2);
+      trail
+        .moveTo(pass.from.x + (dx * at) / length, pass.from.y + (dy * at) / length)
+        .lineTo(pass.from.x + (dx * end) / length, pass.from.y + (dy * end) / length);
+    }
+    trail.stroke({ color: pitchArt.trail, width: 0.35, alpha, cap: 'round' });
+  };
   let pendingCelebration: string | null = null;
   const addToken = (id: string, point: Point, index: number) => {
     const isHome = home.playerIds.includes(id);
@@ -182,15 +215,15 @@ export async function createPitchScene(
       .ellipse(0.15, 0.5, 2.05, 1.9)
       .fill({ color: '#06281b', alpha: 0.4 });
     if (id === selectedPlayerId)
-      shape
-        .circle(0, 0, 3.1)
-        .stroke({ color: pitchArt.gold, width: 0.3 })
-        .circle(0, 0, 2.75)
-        .stroke({ color: pitchArt.gold, width: 0.18 });
+      shape.circle(0, 0, 3.4).fill({ color: pitchArt.gold, alpha: 0.32 });
     shape
       .circle(0, 0, pitchArt.radius)
       .fill(color)
-      .stroke({ color: '#102c26', width: 0.3 })
+      .stroke(
+        id === selectedPlayerId
+          ? { color: pitchArt.gold, width: 0.45 }
+          : { color: '#102c26', width: 0.3 },
+      )
       .circle(0, 0, pitchArt.radius - 0.25)
       .stroke({ color: ink, width: 0.12, alpha: 0.3 });
     if (!isHome && kits.clash) shape.circle(0, 0, 1.35).stroke({ color: ink, width: 0.2 });
@@ -216,7 +249,7 @@ export async function createPitchScene(
     }
     body.addChild(shape);
     const number = new Text({
-      text: String((index % 11) + 1),
+      text: String(shirtNumber(numbers, id, index)),
       style: {
         fontFamily: 'Arial, sans-serif',
         // Rasterize at a real font size, then shrink the texture to scene units.
@@ -235,6 +268,30 @@ export async function createPitchScene(
     body.addChild(number);
     body.scale.set(assetScale);
     view.addChild(body);
+    if (id === selectedPlayerId) {
+      // "You" under your token, rasterised once; it follows the token, not a celebration.
+      const text = new Text({
+        text: youLabel,
+        style: {
+          fontFamily: 'Arial, sans-serif',
+          fontSize: 32,
+          fontWeight: 'bold',
+          fill: '#ffffff',
+        },
+        resolution: 2,
+      });
+      text.anchor.set(0.5);
+      text.scale.set(1.7 / 32);
+      const width = text.width + 2.2;
+      const pill = new Graphics()
+        .roundRect(-width / 2, -1.2, width, 2.4, 1.2)
+        .fill(pitchArt.night)
+        .stroke({ color: pitchArt.gold, width: 0.18 });
+      label.addChild(pill, text);
+      label.position.set(0, 4.4 * assetScale);
+      label.scale.set(assetScale);
+      view.addChild(label);
+    }
     const at = pitchPoint(point);
     view.position.set(at.x, at.y);
     world.addChild(view);
@@ -260,7 +317,6 @@ export async function createPitchScene(
   let ballHeight = 0;
   let ballFootOffset: Point | undefined;
   let shownCarrier: string | null = frame.carrierId ?? null;
-  const trailPoints: Point[] = [];
   const placeBall = (
     point: Point,
     height: number,
@@ -289,7 +345,7 @@ export async function createPitchScene(
   };
   /** Show a frame exactly, adding tokens for players seen for the first time. */
   const applyFrame = (next: ReplayFrame) => {
-    const active = new Set(next.players.map((player) => player.id));
+    const active = onPitch(next);
     for (const [id, token] of tokens) token.view.visible = active.has(id);
     next.players.forEach((player, index) => {
       if (!tokens.has(player.id)) addToken(player.id, player.point, index);
@@ -297,7 +353,7 @@ export async function createPitchScene(
       tokens.get(player.id)!.view.position.set(at.x, at.y);
     });
     trail.clear();
-    trailPoints.length = 0;
+    pass = null;
     impact.clear();
     arrival = null;
     placeBall(next.ball, 0, next.carrierId);
@@ -324,10 +380,12 @@ export async function createPitchScene(
     const scale = Math.min(host.clientWidth / 116, host.clientHeight / 80);
     assetScale = pitchAssetScale(scale);
     for (const token of tokens.values()) token.body.scale.set(assetScale);
+    label.scale.set(assetScale);
+    label.position.set(0, 4.4 * assetScale);
     placeBall(ballPoint, ballHeight, shownCarrier, ballFootOffset);
     world.scale.set(scale);
     world.position.set((host.clientWidth - 116 * scale) / 2, (host.clientHeight - 80 * scale) / 2);
-    if (!playback && !celebration && !arrival) app.render();
+    if (!playback && !celebration && !arrival && !pass) app.render();
   };
   const observer = new ResizeObserver(resize);
   observer.observe(host);
@@ -388,29 +446,27 @@ export async function createPitchScene(
       placeBall(sample.ball, sample.height, sample.carrierId, footOffset);
       const distance = Math.hypot(ball.x - previousBall.x, ball.y - previousBall.y);
       ball.rotation += sample.motion === 'reset' ? 0 : distance * 0.75;
-      trail.clear();
-      if (movingBall && distance > 0.01) {
-        trailPoints.push({ x: ball.x, y: ball.y });
-        if (trailPoints.length > 7) trailPoints.shift();
-        for (let i = 1; i < trailPoints.length; i++) {
-          const a = trailPoints[i - 1]!,
-            b = trailPoints[i]!;
-          trail
-            .moveTo(a.x, a.y)
-            .lineTo(b.x, b.y)
-            .stroke({
-              color: sample.motion === 'shot' ? pitchArt.gold : '#dffbea',
-              width: 0.3 + (0.5 * i) / trailPoints.length,
-              alpha: (0.4 * i) / trailPoints.length,
-            });
-        }
-      } else trailPoints.length = 0;
+      // The last pass, from the frame beats: drawn behind the ball, then left to fade.
+      if (isPassBeat(sample.to.beat?.kind) && movingBall) {
+        if (pass?.key !== sample.to)
+          pass = {
+            from: pitchPoint(sample.from.ball, 5),
+            to: pitchPoint(sample.to.ball, 5),
+            key: sample.to,
+            age: 0,
+            flying: true,
+          };
+        drawPass(pitchPoint(sample.ball, 5), 0.7);
+      } else if (pass?.flying) {
+        pass.flying = false;
+        drawPass(pass.to, 0.7);
+      }
       impact.clear();
       if (movingBall && sample.progress > 0.72) {
         const t = (sample.progress - 0.72) / 0.28;
         const at = pitchPoint(sample.to.ball, 5);
         impact.circle(at.x, at.y, 0.9 + t * 2).stroke({
-          color: sample.motion === 'shot' ? pitchArt.gold : '#dffbea',
+          color: sample.motion === 'shot' ? pitchArt.gold : pitchArt.trail,
           width: 0.2,
           alpha: Math.sin(t * Math.PI) * 0.65,
         });
@@ -419,17 +475,24 @@ export async function createPitchScene(
         if (movingBall)
           arrival = {
             point: { x: ball.x, y: ball.y },
-            color: sample.motion === 'shot' ? pitchArt.gold : '#dffbea',
+            color: sample.motion === 'shot' ? pitchArt.gold : pitchArt.trail,
             elapsed: 0,
           };
         playback = null;
-        trail.clear();
-        trailPoints.length = 0;
+        if (pass?.flying) pass.flying = false;
         impact.clear();
         if (pendingCelebration) {
           startCelebration(pendingCelebration);
           pendingCelebration = null;
         }
+      }
+    }
+    if (pass && !pass.flying) {
+      pass.age += ticker.deltaMS;
+      drawPass(pass.to, 0.7 * Math.max(0, 1 - pass.age / PASS_FADE_MS));
+      if (pass.age >= PASS_FADE_MS) {
+        pass = null;
+        trail.clear();
       }
     }
     if (arrival) {
@@ -459,7 +522,7 @@ export async function createPitchScene(
         celebration = null;
       }
     }
-    if (!playback && !celebration && !arrival) app.stop();
+    if (!playback && !celebration && !arrival && !pass) app.stop();
   });
   const lost = (event: Event) => {
     event.preventDefault();
@@ -468,7 +531,7 @@ export async function createPitchScene(
   app.canvas.addEventListener('webglcontextlost', lost);
   const visibility = () => {
     if (document.hidden) app.stop();
-    else if (!paused && !reducedMotion && (playback || celebration || arrival)) app.start();
+    else if (!paused && !reducedMotion && (playback || celebration || arrival || pass)) app.start();
   };
   document.addEventListener('visibilitychange', visibility);
   let shownMotion: ReplayFrame[] | null | undefined;
@@ -486,10 +549,9 @@ export async function createPitchScene(
         if (!tokens.has(player.id))
           addToken(player.id, player.point, view.frame.players.indexOf(player));
       if (replay) {
-        trailPoints.length = 0;
         const frames = [onScreen(view.motion![0]!), ...view.motion!.slice(1)];
         const prepared = preparePlayback(frames, view.rate, view.maxMs);
-        const active = new Set(view.frame.players.map((player) => player.id));
+        const active = onPitch(view.frame);
         for (const [id, token] of tokens) token.view.visible = active.has(id);
         playback = prepared.duration > 0 ? { ...prepared, elapsed: 0 } : null;
         if (!playback) applyFrame(view.frame);
@@ -518,7 +580,12 @@ export async function createPitchScene(
       if (selected) world.setChildIndex(selected.view, world.children.length - 3);
       world.setChildIndex(ballShadow, world.children.length - 2);
       world.setChildIndex(ball, world.children.length - 1);
-      if ((playback || celebration || arrival) && !reducedMotion && !paused && !document.hidden)
+      if (
+        (playback || celebration || arrival || pass) &&
+        !reducedMotion &&
+        !paused &&
+        !document.hidden
+      )
         app.start();
       else {
         app.stop();

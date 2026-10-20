@@ -7,6 +7,8 @@ import { siteUrl as configuredSiteUrl } from './site';
 
 /** The public address, for share tags and the canonical link. Override with SITE_URL. */
 const siteUrl = configuredSiteUrl();
+/** The release version (docs/RELEASING.md), shown in Settings and the "Updated" notice. */
+const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
 
 const escapeRegExp = (text: string) => text.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
 
@@ -91,5 +93,6 @@ export default defineConfig({
       },
     }),
   ],
+  define: { __APP_VERSION__: JSON.stringify(version) },
   build: { target: 'es2022', manifest: true },
 });

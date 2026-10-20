@@ -1,7 +1,9 @@
-import type { Club, MatchReport } from '../../model/domain';
+import type { Club, MatchEvent, MatchReport, Point } from '../../model/domain';
 import { chooseMatchKits } from '../../engine/assets/clash';
 import { pitchCopy as copy } from '../../i18n/pitch';
+import { matchFormat } from '../../i18n/match';
 import { pitchArt } from './pitchArt';
+import { HEAT_COLUMNS, HEAT_ROWS, attacksRightAt } from '../../engine/match';
 
 /**
  * Token colours for a match, shared by the SVG fallback and GPU scene (importing this does
@@ -15,7 +17,7 @@ export function kitAppearance(home: Club, away: Club) {
 
 export function PitchMarkings() {
   return (
-    <g fill="none" stroke={pitchArt.line} strokeWidth="0.38" opacity="0.85">
+    <g fill="none" stroke={pitchArt.line} strokeWidth="0.32" opacity={pitchArt.lineAlpha}>
       <rect x="8" y="8" width="100" height="64" />
       <path d="M58 8V72" />
       <circle cx="58" cy="40" r="9.15" />
@@ -23,16 +25,8 @@ export function PitchMarkings() {
       <rect x="91.5" y="20" width="16.5" height="40" />
       <rect x="8" y="30.5" width="5.5" height="19" />
       <rect x="102.5" y="30.5" width="5.5" height="19" />
-      <rect x="5" y="35.8" width="3" height="8.4" />
-      <rect x="108" y="35.8" width="3" height="8.4" />
-      {[5, 6, 7, 109, 110, 111].map((x) => (
-        <path key={x} d={`M${x} 35.8V44.2`} strokeWidth=".15" opacity=".5" />
-      ))}
-      {[5, 108].flatMap((x) =>
-        [37.2, 38.6, 40, 41.4, 42.8].map((y) => (
-          <path key={`${x}-${y}`} d={`M${x} ${y}h3`} strokeWidth=".12" opacity=".35" />
-        )),
-      )}
+      <rect x="5" y="35.8" width="3" height="8.4" fill="#ffffff" fillOpacity=".16" />
+      <rect x="108" y="35.8" width="3" height="8.4" fill="#ffffff" fillOpacity=".16" />
       <path d="M9 8A1 1 0 0 1 8 9M108 9A1 1 0 0 1 107 8M107 72A1 1 0 0 1 108 71M8 71A1 1 0 0 1 9 72" />
       <circle cx="19" cy="40" r="0.5" />
       <circle cx="97" cy="40" r="0.5" />
@@ -44,77 +38,161 @@ export function PitchMarkings() {
 
 const x = (value: number) => 8 + Math.max(0, Math.min(100, value));
 const y = (value: number) => 8 + Math.max(0, Math.min(100, value)) * 0.64;
+const MAP_GREEN = '#1e563b';
+const flip = (point: Point): Point => ({ x: 100 - point.x, y: 100 - point.y });
 
-export default function MatchMaps({ report }: { report: MatchReport }) {
-  const cells = Array.from({ length: 80 }, () => 0);
-  for (const point of report.heatmap) {
-    const column = Math.min(9, Math.max(0, Math.floor(point.x / 10)));
-    const row = Math.min(7, Math.max(0, Math.floor(point.y / 12.5)));
-    cells[row * 10 + column]!++;
-  }
+/**
+ * The report's passes and shots turned so your team attacks left to right in both halves
+ * (like the heat grid), with each shot's chance of a goal. The report keeps raw points; the
+ * player's events, in the same order, carry the minute that says which way they attacked.
+ */
+function oriented(
+  report: MatchReport,
+  events: readonly MatchEvent[] | undefined,
+  side: 0 | 1 | null,
+) {
+  const own = events?.filter((event) => event.playerId === report.playerId) ?? [];
+  const passEvents = own.filter((event) => event.kind === 'pass');
+  const shotEvents = own.filter((event) => event.kind === 'shot');
+  const turn = (minute: number | undefined) =>
+    side !== null && minute !== undefined && !attacksRightAt(side, minute);
+  const passes =
+    passEvents.length === report.passes.length
+      ? report.passes.map((pass, index) =>
+          turn(passEvents[index]!.minute)
+            ? { ...pass, from: flip(pass.from), to: flip(pass.to) }
+            : pass,
+        )
+      : report.passes;
+  const shots =
+    shotEvents.length === report.shots.length
+      ? report.shots.map((shot, index) => ({
+          ...(turn(shotEvents[index]!.minute)
+            ? { ...shot, from: flip(shot.from), to: flip(shot.to) }
+            : shot),
+          xg: shotEvents[index]!.xg,
+        }))
+      : report.shots.map((shot) => ({ ...shot, xg: undefined as number | undefined }));
+  return { passes, shots, turned: side !== null && passEvents.length === report.passes.length };
+}
+
+/**
+ * "Your match, mapped" (redesign phase 5b, M10): where you spent your time (the engine's
+ * heat grid), your passes (completed solid, incomplete dashed) and your shots (a gold star for
+ * a goal, circles sized by the chance), all with your team attacking left to right.
+ */
+export default function MatchMaps({
+  report,
+  heat,
+  events,
+  side = null,
+  team,
+}: {
+  report: MatchReport;
+  /** Time in each heat cell (engine match-14); older sessions fall back to minute samples. */
+  heat?: readonly number[];
+  /** The match's events, to turn passes and shots to one attacking direction. */
+  events?: readonly MatchEvent[];
+  /** The selected player's side (0 home, 1 away). */
+  side?: 0 | 1 | null;
+  /** Your club's name, for the attacking-direction note. */
+  team?: string;
+}) {
+  const timed = heat && heat.length === HEAT_COLUMNS * HEAT_ROWS && heat.some((ms) => ms > 0);
+  const columns = timed ? HEAT_COLUMNS : 10,
+    rows = timed ? HEAT_ROWS : 8;
+  const cells = timed ? [...heat] : Array.from({ length: 80 }, () => 0);
+  if (!timed)
+    for (const point of report.heatmap) {
+      const column = Math.min(9, Math.max(0, Math.floor(point.x / 10)));
+      const row = Math.min(7, Math.max(0, Math.floor(point.y / 12.5)));
+      cells[row * 10 + column]!++;
+    }
   const maximum = Math.max(1, ...cells);
+  const seconds = timed ? Math.round(cells.reduce((sum, ms) => sum + ms, 0) / 1000) : 0;
+  const width = 100 / columns,
+    height = 64 / rows;
+  const { passes, shots } = oriented(report, events, side);
+  const completed = passes.filter((pass) => pass.success).length;
+  const scored = shots.filter((shot) => shot.goal).length;
   const background = (
     <>
-      <rect width="116" height="80" rx="3" fill="#1e563b" />
+      <rect width="116" height="80" fill={MAP_GREEN} />
       <PitchMarkings />
     </>
   );
   return (
-    <div
-      className="match-maps"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))',
-        gap: '1rem',
-      }}
-    >
-      <figure style={{ margin: 0 }}>
-        <figcaption>
-          <strong>{copy.heatmap}</strong>
-        </figcaption>
+    <div className="match-maps">
+      <figure>
+        <figcaption>{copy.heatmap}</figcaption>
         <svg
           viewBox="0 0 116 80"
           role="img"
-          aria-label={`${copy.heatmap}: ${report.heatmap.length} ${copy.samples}`}
-          style={{ width: '100%', display: 'block', marginTop: '0.5rem' }}
+          aria-label={
+            timed
+              ? `${copy.heatmap}: ${seconds} ${copy.seconds}`
+              : `${copy.heatmap}: ${report.heatmap.length} ${copy.samples}`
+          }
         >
-          {background}
+          <rect width="116" height="80" fill={MAP_GREEN} />
           {cells.map(
             (count, index) =>
               count > 0 && (
                 <rect
                   key={index}
-                  x={8 + (index % 10) * 10}
-                  y={8 + Math.floor(index / 10) * 8}
-                  width="10"
-                  height="8"
-                  fill="#ffe58e"
+                  x={8 + (index % columns) * width}
+                  y={8 + Math.floor(index / columns) * height}
+                  width={width}
+                  height={height}
+                  fill={pitchArt.gold}
                   opacity={0.15 + (count / maximum) * 0.65}
                 >
                   <title>
-                    {count} {copy.samples}
+                    {timed ? Math.round(count / 1000) : count} {timed ? copy.seconds : copy.samples}
                   </title>
                 </rect>
               ),
           )}
           <PitchMarkings />
+          {timed && (
+            <path
+              d="M52 76H64M61 74L64 76L61 78"
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth=".5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity=".8"
+            />
+          )}
         </svg>
-        <p className="muted" style={{ fontSize: '0.8rem' }}>
-          {report.heatmap.length ? copy.density : copy.noMovement}
+        <p className="match-map-legend">
+          <svg width="48" height="14" viewBox="0 0 48 14" aria-hidden="true">
+            <rect width="48" height="14" fill={MAP_GREEN} />
+            <rect x="3" y="2" width="13" height="10" fill={pitchArt.gold} opacity="0.2" />
+            <rect x="17.5" y="2" width="13" height="10" fill={pitchArt.gold} opacity="0.5" />
+            <rect x="32" y="2" width="13" height="10" fill={pitchArt.gold} opacity="0.8" />
+          </svg>
+          <span>
+            {timed
+              ? team
+                ? `${copy.heatTime} ${matchFormat(copy.heatDirection, { club: team })}`
+                : copy.timeDensity
+              : report.heatmap.length
+                ? copy.density
+                : copy.noMovement}
+          </span>
         </p>
       </figure>
-      <figure style={{ margin: 0 }}>
-        <figcaption>
-          <strong>{copy.passes}</strong>
-        </figcaption>
+      <figure>
+        <figcaption>{copy.passes}</figcaption>
         <svg
           viewBox="0 0 116 80"
           role="img"
-          aria-label={`${copy.passes}: ${report.passes.length} ${copy.attempts}`}
-          style={{ width: '100%', display: 'block', marginTop: '0.5rem' }}
+          aria-label={`${copy.passes}: ${passes.length} ${copy.attempts}, ${completed} ${copy.completed}`}
         >
           {background}
-          {report.passes.map((pass, index) => (
+          {passes.map((pass, index) => (
             <g
               key={index}
               stroke={pass.success ? '#8bdbff' : '#ff9c8b'}
@@ -136,50 +214,108 @@ export default function MatchMaps({ report }: { report: MatchReport }) {
             </g>
           ))}
         </svg>
-        <p className="muted" style={{ fontSize: '0.8rem' }}>
-          {report.passes.length
-            ? `${report.passes.filter((pass) => pass.success).length}/${report.passes.length} ${copy.completed}. ${copy.passLegend}`
-            : copy.noPasses}
+        <p className="match-map-legend">
+          <span className="match-map-key">
+            <svg width="30" height="14" viewBox="0 0 30 14" aria-hidden="true">
+              <rect width="30" height="14" fill={MAP_GREEN} />
+              <path d="M3 7H27" stroke="#8bdbff" strokeWidth="2.5" />
+            </svg>
+            {copy.completedLegend}
+          </span>
+          <span className="match-map-key">
+            <svg width="30" height="14" viewBox="0 0 30 14" aria-hidden="true">
+              <rect width="30" height="14" fill={MAP_GREEN} />
+              <path d="M3 7H27" stroke="#ff9c8b" strokeWidth="2.5" strokeDasharray="5 3" />
+            </svg>
+            {copy.incompleteLegend}
+          </span>
+          <span>
+            {passes.length ? (
+              <>
+                <strong>
+                  {completed}/{passes.length} {copy.completed}.
+                </strong>{' '}
+                {copy.passLegend}
+              </>
+            ) : (
+              copy.noPasses
+            )}
+          </span>
         </p>
       </figure>
-      <figure style={{ margin: 0 }}>
-        <figcaption>
-          <strong>{copy.shots}</strong>
-        </figcaption>
+      <figure>
+        <figcaption>{copy.shots}</figcaption>
         <svg
           viewBox="0 0 116 80"
           role="img"
-          aria-label={`${copy.shots}: ${report.shots.length} ${copy.attempts}`}
-          style={{ width: '100%', display: 'block', marginTop: '0.5rem' }}
+          aria-label={`${copy.shots}: ${shots.length} ${copy.attempts}, ${scored} ${copy.scored}`}
         >
           {background}
-          {report.shots.map((shot, index) => (
-            <g key={index} stroke={shot.goal ? '#ffe58e' : '#ffffff'} fill="none">
-              <line
-                x1={x(shot.from.x)}
-                y1={y(shot.from.y)}
-                x2={x(shot.to.x)}
-                y2={y(shot.to.y)}
-                strokeWidth="0.6"
-                opacity="0.6"
-              />
-              {shot.goal ? (
-                <path
-                  transform={`translate(${x(shot.from.x)} ${y(shot.from.y)})`}
-                  d="M0 -2L.6 -.6L2 -.6L.9 .4L1.4 2L0 1L-1.4 2L-.9 .4L-2 -.6L-.6 -.6Z"
-                  fill="#ffe58e"
-                  strokeWidth="0.3"
+          {shots.map((shot, index) => {
+            const r = 1.1 + Math.sqrt(Math.max(0, Math.min(1, shot.xg ?? 0.12))) * 2.4;
+            return (
+              <g key={index}>
+                <line
+                  x1={x(shot.from.x)}
+                  y1={y(shot.from.y)}
+                  x2={x(shot.to.x)}
+                  y2={y(shot.to.y)}
+                  stroke={shot.goal ? pitchArt.gold : '#ffffff'}
+                  strokeWidth="0.6"
+                  opacity="0.6"
                 />
-              ) : (
-                <circle cx={x(shot.from.x)} cy={y(shot.from.y)} r="1.5" strokeWidth="0.6" />
-              )}
-            </g>
-          ))}
+                {shot.goal ? (
+                  <path
+                    transform={`translate(${x(shot.from.x)} ${y(shot.from.y)})`}
+                    d="M0 -2.6L0.8 -0.8L2.6 -0.8L1.2 0.5L1.8 2.6L0 1.3L-1.8 2.6L-1.2 0.5L-2.6 -0.8L-0.8 -0.8Z"
+                    fill={pitchArt.gold}
+                    stroke="#14251e"
+                    strokeWidth="0.3"
+                  />
+                ) : (
+                  <circle
+                    cx={x(shot.from.x)}
+                    cy={y(shot.from.y)}
+                    r={r}
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth="0.6"
+                  />
+                )}
+              </g>
+            );
+          })}
         </svg>
-        <p className="muted" style={{ fontSize: '0.8rem' }}>
-          {report.shots.length
-            ? `${report.shots.filter((shot) => shot.goal).length}/${report.shots.length} ${copy.scored}. ${copy.shotLegend}`
-            : copy.noShots}
+        <p className="match-map-legend">
+          <span className="match-map-key">
+            <svg width="14" height="14" viewBox="-3 -3 6 6" aria-hidden="true">
+              <path
+                d="M0 -2.6L0.8 -0.8L2.6 -0.8L1.2 0.5L1.8 2.6L0 1.3L-1.8 2.6L-1.2 0.5L-2.6 -0.8L-0.8 -0.8Z"
+                fill={pitchArt.gold}
+                stroke="#9a7612"
+                strokeWidth="0.4"
+              />
+            </svg>
+            {copy.goalLegend}
+          </span>
+          <span className="match-map-key">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" strokeWidth="2" />
+            </svg>
+            {copy.otherShotLegend}
+          </span>
+          <span>
+            {shots.length ? (
+              <>
+                <strong>
+                  {scored}/{shots.length} {copy.scored}.
+                </strong>{' '}
+                {copy.shotLegend} {copy.shotSizes}
+              </>
+            ) : (
+              copy.noShots
+            )}
+          </span>
         </p>
       </figure>
     </div>

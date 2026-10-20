@@ -1,18 +1,36 @@
 import type {
+  Beat,
   Club,
   Player,
   Match,
   MatchReport,
   KeyMoment,
   ReplayFrame,
+  SentOff,
   Tactics,
 } from '../../model/domain';
 import type { RatingFamily } from './situations';
 import type { Formation } from '../selection/formations';
 export type { Tactics } from '../../model/domain';
 
-/** Bumped whenever replayed state changes; saved sessions from another engine are discarded. */
-export const MATCH_ENGINE_VERSION = 'match-13';
+/**
+ * Bumped whenever replayed state changes; saved sessions from another engine are discarded.
+ * `match-14` annotated the choreography (beats, a focus range) and kept bookkeeping stats
+ * without changing any outcome of `match-13`. `match-15` (redesign phase 6) changes outcomes
+ * by design: key moments name their cast and each choice's target (a pass reaches the teammate
+ * named before the choice), "Track the runner" when defending, objectives on their own stream,
+ * cosmetic yellow cards, AI substitutions with a bench of seven, and weather intensity with a
+ * pitch state as separate odds factors. `match-16` (the discipline phase, decision 5) adds full
+ * discipline: second yellows and straight reds, sides playing on with fewer men, the career
+ * player's own dismissal and a booking risk on defending choices.
+ */
+export const MATCH_ENGINE_VERSION = 'match-16';
+/**
+ * The engine before full discipline (redesign phase 6): yellow cards are cosmetic. A setup with
+ * `occasions` but without `discipline` still replays as it was, so sessions saved by match-15
+ * keep playing.
+ */
+export const OCCASIONS_MATCH_ENGINE = 'match-15';
 /**
  * The engine before big occasions (a shootout kick, chained moments, final and derby
  * headlines). A setup with `dramaMoments` but without `occasions` still replays as it was.
@@ -37,7 +55,10 @@ export const PREVIOUS_MATCH_ENGINE = 'match-10';
 export const LEGACY_MATCH_ENGINE = 'match-10-lines';
 /** The engine a setup replays with. */
 export const engineFor = (
-  setup: Pick<MatchSetup, 'formations' | 'slotMoments' | 'dramaMoments' | 'occasions'>,
+  setup: Pick<
+    MatchSetup,
+    'formations' | 'slotMoments' | 'dramaMoments' | 'occasions' | 'discipline'
+  >,
 ): string =>
   !setup.formations
     ? LEGACY_MATCH_ENGINE
@@ -46,7 +67,9 @@ export const engineFor = (
       : !setup.dramaMoments
         ? SLOT_MATCH_ENGINE
         : setup.occasions
-          ? MATCH_ENGINE_VERSION
+          ? setup.discipline
+            ? MATCH_ENGINE_VERSION
+            : OCCASIONS_MATCH_ENGINE
           : DRAMA_MATCH_ENGINE;
 
 export interface MatchSetup {
@@ -80,6 +103,14 @@ export interface MatchSetup {
    * headlines. Absent in sessions saved before, which replay as they were.
    */
   occasions?: true;
+  /**
+   * Full discipline (`match-16`): second yellows and straight reds send players off, a side
+   * plays on with fewer men, and defending choices carry a booking risk. Absent in sessions
+   * saved before, which replay with cosmetic yellow cards.
+   */
+  discipline?: true;
+  /** Players serving a suspension in this fixture's competition, never picked (`match-16`). */
+  suspended?: string[];
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */
   strengthBonus?: [number, number];
   /** The selected player's chemistry with their teammates (0–100; 60 when absent). */
@@ -124,8 +155,28 @@ export interface LiveStats {
   errors: number;
   rating: number;
   fatigue: number;
+  /**
+   * Bookkeeping (engine match-14; no random draws). Expected goals [home, away]: the sum of
+   * each recorded shot's chance of a goal (`MatchEvent.xg`).
+   */
+  xg: [number, number];
+  /** Shots that ended in the net or in the keeper's hands [home, away], as choreographed. */
+  shotsOnTarget: [number, number];
+  /** The selected player's completed decision passes that led to a teammate's shot. */
+  keyPasses: number;
+  /** The selected player's tackling decisions, won or lost (`tackles` counts those won). */
+  tacklesAttempted: number;
+  /** Metres the selected player covered across the shown keyframes. */
+  distanceM: number;
+  /** Times the selected player played, received or won the ball in the shown keyframes. */
+  touches: number;
 }
-export type RatingPart = RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team';
+/** The heat grid: columns along the pitch and rows across it (cells of about 5 m × 5 m). */
+export const HEAT_COLUMNS = 20;
+export const HEAT_ROWS = 13;
+/** `discipline` (cards) exists only on the match-16 path. */
+export type RatingPart =
+  RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team' | 'discipline';
 /** How play restarts at the start of the next passage (see motion.ts). */
 export type Restart = 'kickoff' | 'goal' | 'second-half' | 'goal-kick' | 'corner';
 /** Who has the ball between passages. */
@@ -135,6 +186,8 @@ export interface PlayState {
   /** Player on the ball, or null while it runs loose or is out of play. */
   carrierId: string | null;
   restart: Restart | null;
+  /** The most recent ball action (engine match-14): a shot met from a cross is a header. */
+  last?: Beat;
 }
 /**
  * Keyframes of the most recent passage of play, starting at the previously shown frame:
@@ -143,6 +196,36 @@ export interface PlayState {
 export interface MatchMotion {
   kind: 'kickoff' | 'minute' | 'moment' | 'outcome';
   frames: ReplayFrame[];
+  /**
+   * In an outcome passage: the keyframes (indices into `frames`, inclusive) from where the
+   * chosen action starts to the end of what it led to (the follow-up shot, a goal's
+   * celebration), so a camera can replay just the decision.
+   */
+  focus?: { start: number; end: number };
+  /**
+   * Where this passage's narration starts in `MatchState.narration` (match-14): lines from this
+   * index on describe `frames` (`NarrationLine.frame`); earlier lines were already shown.
+   */
+  narrationStart?: number;
+}
+/**
+ * A line of narration (match-14, redesign step M3), generated from a passage's beats after it
+ * is choreographed (see narration.ts). The copy lives in `src/i18n/narration.ts`.
+ */
+export interface NarrationLine {
+  minute: number;
+  /** The keyframe it describes, as an index into the passage's `frames`. */
+  frame: number;
+  /** `match.narration.<family>.<variant>`. */
+  key: string;
+  /**
+   * `player` and `receiver` are player ids (opponents in the `…cut` families: the passer and
+   * the player who cut it out); `flank` (left, centre, right), `zone` (def, mid, final), `post`
+   * (near, far) and `pattern` (a PatternId) are plain descriptors.
+   */
+  params: Record<string, string>;
+  /** The engine event the move led to (a shot, or the decision it played). */
+  eventId?: string;
 }
 export interface MatchState {
   match: Match;
@@ -167,8 +250,18 @@ export interface MatchState {
   /** Fractions of own attack and opposition attack replaced by personal key moments. */
   shares: { attack: number; defence: number };
   stats: LiveStats;
+  /** The live rating at the end of each played minute, to two decimals (engine match-14). */
+  ratingByMinute: number[];
+  /** What the pitch showed, as narration lines in the order they were played (match-14). */
+  narration: NarrationLine[];
+  /**
+   * Milliseconds the selected player spent in each heat cell (`HEAT_COLUMNS` × `HEAT_ROWS`,
+   * row-major), sampled along every keyframe span and oriented with their team attacking
+   * towards x = 100 in both halves.
+   */
+  heat: number[];
   /** Rating contributions above the base, by decision family and outcome bonus. */
-  ratingParts: Record<RatingPart, number>;
+  ratingParts: Record<Exclude<RatingPart, 'discipline'>, number> & { discipline?: number };
   report: MatchReport | null;
   momentMinutes: number[];
   /** Second-half odds multiplier from the half-time talk. */
@@ -183,6 +276,11 @@ export interface MatchState {
   headlineParams?: Record<string, string>;
   /** The player's shootout kick (or save), taken at full time in a level knockout (match-13). */
   shootout?: { choiceId: string; probability: number; roll: number; success: boolean };
+  /**
+   * The selected player's dismissal (match-16): the minute and why. Their match ends there and
+   * the rest is simulated to full time.
+   */
+  sentOff?: SentOff;
   /** A follow-up moment due after a beaten defender (match-13): the chance it carries. */
   chain?: { goal: number };
 }

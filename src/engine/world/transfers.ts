@@ -18,6 +18,7 @@ import { marketValue } from '../career/market/rules';
 import { refreshDressingRoom } from './dressing';
 import { recordEvent } from './events';
 import { contractTerms, isActiveClub, squadRole, groupOf } from './lifecycle';
+import { joinSquad } from './squadNumbers';
 
 const M = CONFIG.world.aiMarket;
 const L = CONFIG.world.lifecycle;
@@ -54,6 +55,7 @@ export function transferPlayer(
   seller.playerIds = seller.playerIds.filter((id) => id !== player.id);
   buyer.playerIds.push(player.id);
   player.clubId = buyer.id;
+  joinSquad(world, player, buyer);
   const old = player.contractId;
   if (old) delete world.contracts[old];
   const rank = buyer.playerIds

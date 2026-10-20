@@ -85,6 +85,13 @@ export interface Avatar {
   eyebrows: number;
   eyes: number;
   accessory: number;
+  /**
+   * Eye colour, nose and mouth. Absent on generated people and in older saves: the renderer then
+   * derives them from the parts that never change after generation (see `resolveAvatar`).
+   */
+  iris?: number;
+  nose?: number;
+  mouth?: number;
 }
 export interface Stadium {
   id: Id;
@@ -323,6 +330,10 @@ export interface PlayerStats {
   cleanSheets: number;
   ratingTotal: number;
   trophies: Id[];
+  /** Career yellow cards (the discipline phase); absent until the first. */
+  yellowCards?: number;
+  /** Career dismissals, second yellows included (the discipline phase); absent until the first. */
+  redCards?: number;
 }
 export interface Player {
   id: Id;
@@ -330,6 +341,11 @@ export interface Player {
   birthSeason: number;
   nationalityId: Id;
   clubId: Id | null;
+  /**
+   * Shirt number, 1–99, unique within the club's current squad (schema 21). Assigned without
+   * random draws by `engine/world/squadNumbers.ts` and kept across moves when free.
+   */
+  squadNumber: number;
   avatar: Avatar;
   foot: Foot;
   primaryPosition: Position;
@@ -460,6 +476,10 @@ export interface CareerMatchRecord {
   passes?: [number, number];
   /** Successful tackles (recorded from Phase 5.2). */
   tackles?: number;
+  /** Yellow cards shown, a second yellow included (the discipline phase). */
+  yellowCards?: number;
+  /** Sent off, and why (the discipline phase). */
+  sentOff?: SentOff;
 }
 /**
  * The career. The player is an ordinary entry in `world.players` and their club's squad;
@@ -659,6 +679,11 @@ export interface CareerStyle {
   fameLevel: number;
   /** Goals celebrated with the signature celebration in big matches. */
   signatureUses: number;
+  /**
+   * The same, by celebration (phase 7, C10). Counted from when it arrived, so older saves
+   * start without it and the parts may add up to less than `signatureUses`.
+   */
+  signatureUsesBy?: Record<Id, number>;
   assets: LifestyleAsset[];
   /** When each experience was last taken, by catalogue item; absent in older saves. */
   experiences?: Record<Id, GameDate>;
@@ -979,6 +1004,19 @@ export interface InboxMessage {
   params: Record<string, string | number>;
   read: boolean;
   actionId: Id | null;
+  /**
+   * Who wrote it, as it stood when it arrived (phase 7, C5): a later manager change or move
+   * never rewrites the sender. Absent for kinds with no sender and in older saves.
+   */
+  sender?: InboxSender;
+  /** The last day to answer, for a message that asks for one. Absent otherwise. */
+  deadline?: GameDate;
+}
+export interface InboxSender {
+  kind: 'club' | 'agent' | 'press' | 'manager';
+  /** The club, agent or manager; absent for a press outlet. */
+  id?: Id;
+  name: string;
 }
 export type SponsorCategory = 'boots' | 'apparel' | 'drinks' | 'watches' | 'cars' | 'tech';
 export interface SponsorObligation {
@@ -1186,6 +1224,60 @@ export interface Point {
  * instantly (the second-half kickoff).
  */
 export type BallMotion = 'ground' | 'air' | 'shot' | 'over' | 'carry' | 'loose' | 'dead' | 'reset';
+/**
+ * What a player does with the ball in a keyframe (engine match-14). Passes split by shape:
+ * `cross` from wide in the final third into the box, `cutback` low from the byline, `switch`
+ * across the pitch in the air, `through` behind the line, `long` any other lofted pass.
+ * `intercept` is a pass cut out or a loose ball won; `restart` a dead ball being placed.
+ */
+export type BeatKind =
+  | 'pass'
+  | 'cross'
+  | 'switch'
+  | 'through'
+  | 'long'
+  | 'cutback'
+  | 'carry'
+  | 'dribble'
+  | 'shot'
+  | 'header'
+  | 'tackle'
+  | 'intercept'
+  | 'block'
+  | 'save'
+  | 'clearance'
+  | 'restart'
+  | 'celebration';
+/** Thirds of the pitch, from the acting team's own goal: defensive, middle, final. */
+export type PitchZone = 'def' | 'mid' | 'final';
+/** Channels of the pitch, as the acting team faces the goal it attacks. */
+export type PitchFlank = 'left' | 'centre' | 'right';
+/** A recognisable move a beat belongs to (the pattern library fills these in). */
+export type PatternId =
+  | 'wing-play'
+  | 'overlap'
+  | 'switch'
+  | 'through-ball'
+  | 'counter'
+  | 'cut-back'
+  | 'long-ball'
+  | 'recycle';
+/**
+ * The ball action that leads into a keyframe: who played it, to whom, from where. Zone and
+ * flank are where the actor plays the ball (where they win it, for tackles, interceptions,
+ * blocks and saves), relative to the actor's team's attacking direction.
+ */
+export interface Beat {
+  kind: BeatKind;
+  actorId: Id;
+  /** The teammate a completed pass, cross or switch reached. */
+  receiverId?: Id;
+  /** The engine event this action plays out (a shot, a decision, a goal's celebration). */
+  eventId?: Id;
+  pattern?: PatternId;
+  zone: PitchZone;
+  flank: PitchFlank;
+}
 export interface ReplayFrame {
   timeMs: number;
   ball: Point;
@@ -1193,6 +1285,8 @@ export interface ReplayFrame {
   /** Player with the ball at their feet; null while it travels, runs loose or is out of play. */
   carrierId?: Id | null;
   ballMotion?: BallMotion;
+  /** The action between the previous keyframe and this one (engine match-14). */
+  beat?: Beat;
 }
 /** A memorable play, stored as a compact clip that can be replayed and shared as a link. */
 export interface Moment {
@@ -1226,6 +1320,11 @@ export interface Lineup {
   formation: string;
   starterIds: Id[];
   benchIds: Id[];
+  /**
+   * Starters sent off (engine match-16): they keep their slot in `starterIds` (so the shape
+   * and clips keep their order) but are off the pitch and out of play.
+   */
+  sentOffIds?: Id[];
 }
 export interface Tactics {
   role: string;
@@ -1243,6 +1342,32 @@ export interface ProbabilityFactor {
   source: 'attribute' | 'trait' | 'defender' | 'fatigue';
   contribution: number;
 }
+/**
+ * Who a key moment involves (engine match-15, redesign step M4), named by the engine so the
+ * camera can label them: the opponent closing you down (or, when you defend, the one on the
+ * ball), the players covering (opponents when you attack, teammates when you defend), the
+ * keeper that matters, teammates in space, a runner (yours in behind, or theirs to track) and
+ * the crosser of an aerial ball. Every id is on the pitch in the moment's frame.
+ */
+export interface MomentCast {
+  selected: Id;
+  presser?: Id;
+  cover: Id[];
+  keeper?: Id;
+  free: Id[];
+  runner?: Id;
+  crosser?: Id;
+}
+/**
+ * Where a choice goes (engine match-15): a post of the goal attacked, a named teammate (the one
+ * a pass actually reaches), a lane to carry or step into, or a runner to track or challenge.
+ * Points are pitch coordinates of the moment's frame.
+ */
+export type ChoiceTarget =
+  | { kind: 'goal'; post: 'near' | 'far' | 'centre'; point: Point }
+  | { kind: 'teammate'; playerId: Id; point: Point }
+  | { kind: 'lane'; point: Point }
+  | { kind: 'runner'; playerId: Id };
 export interface DecisionChoice {
   id: Id;
   labelKey: string;
@@ -1261,6 +1386,10 @@ export interface DecisionChoice {
     failureGoal: number;
     failureConcede: number;
   };
+  /** Where the choice goes (engine match-15); absent on earlier engines. */
+  target?: ChoiceTarget;
+  /** A tackle or defending choice's booking risk (engine match-16); absent otherwise. */
+  booking?: BookingRisk;
 }
 export interface KeyMoment {
   id: Id;
@@ -1274,6 +1403,10 @@ export interface KeyMoment {
   /** A follow-up moment (match-13): the shot after a beaten defender, or the shootout kick. */
   follows?: 'chain' | 'shootout';
   frame: ReplayFrame;
+  /** The third the moment happens in, from the selected team's goal (engine match-15). */
+  zone?: PitchZone;
+  /** Who the moment involves (engine match-15); absent on earlier engines. */
+  cast?: MomentCast;
   /** Expected goals this moment replaces for the selected team and against it. */
   budget: { for: number; against: number };
   choices: DecisionChoice[];
@@ -1288,6 +1421,11 @@ export interface DecisionOutcome {
   roll: number;
   probability: number;
   factors: ProbabilityFactor[];
+  /**
+   * A failed defending choice's booking roll (engine match-16): the roll against the foul
+   * chance, and the card it brought, if any.
+   */
+  booking?: { roll: number; foul: number; card?: CardKind };
 }
 export interface MatchEvent {
   id: Id;
@@ -1304,6 +1442,40 @@ export interface MatchEvent {
   /** On goal events: the selected player, when their key-moment choice created the goal. */
   assistId?: Id;
   outcome: DecisionOutcome | null;
+  /** The teammate a completed pass reached, as choreographed (engine match-14). */
+  receiverId?: Id;
+  /** How the event was played on the pitch: a cross, a header, an interception… */
+  action?: BeatKind;
+  /** The third of the pitch it happened in, from the acting team's own goal. */
+  zone?: PitchZone;
+  /** On shots: the chance of a goal from this shot (engine match-14). */
+  xg?: number;
+  /**
+   * On cards: what was shown. Engine match-15 books cosmetic yellows only; match-16 adds a
+   * second yellow (a yellow, then red: off) and a straight red.
+   */
+  card?: CardKind;
+}
+export type CardKind = 'yellow' | 'second-yellow' | 'red';
+/** A dismissal (engine match-16): the minute and why. */
+export interface SentOff {
+  minute: number;
+  reason: 'second-yellow' | 'straight-red';
+}
+/**
+ * The booking risk of a defending choice (engine match-16, decision transparency): a failed
+ * attempt is a foul worth a card with chance `foul` (its factors add up to it), and of those a
+ * straight red with chance `straight`. `yellow` and `red` are the chances of each card when
+ * the choice is made: an already booked player's yellow is a second yellow, so a red.
+ */
+export interface BookingRisk {
+  foul: number;
+  straight: number;
+  yellow: number;
+  red: number;
+  /** Already booked: a second yellow sends the player off. */
+  booked: boolean;
+  factors: ProbabilityFactor[];
 }
 export interface MatchReport {
   playerId: Id;
@@ -1318,6 +1490,11 @@ export interface MatchReport {
   headlineId: Id;
   /** Names and numbers the headline refers to (player, opponent, score…). */
   headlineParams?: Record<string, string>;
+  /**
+   * The player's cards (engine match-16): yellows shown (a second yellow counts) and the
+   * dismissal, if any. Absent on earlier engines.
+   */
+  cards?: { yellow: number; sentOff?: SentOff };
 }
 export interface Match {
   id: Id;
@@ -1327,7 +1504,11 @@ export interface Match {
   home: Lineup;
   away: Lineup;
   weather: 'clear' | 'rain' | 'snow' | 'wind';
+  /** How hard it rains, blows or snows (engine match-15; absent on earlier engines). */
+  weatherIntensity?: 'light' | 'steady' | 'heavy';
   pitchCondition: number;
+  /** The pitch's state from the weather and its quality (engine match-15). */
+  pitchState?: 'firm' | 'good' | 'heavy' | 'frozen';
   instructionsKey: string;
   tactics: Tactics;
   objectives: Objective[];
@@ -1428,8 +1609,29 @@ export interface World {
    * the current season.
    */
   seasonStats?: SeasonStatistics;
+  /**
+   * This season's cards and suspensions (the discipline phase). Absent in worlds saved before
+   * it until the first card; reset at each season's rollover.
+   */
+  discipline?: DisciplineState;
   /** Edit mode changes (milestone 9), with the original values for reverting and export. */
   edits?: WorldEdits;
+}
+/** Where a ban is served: league football, the domestic cup, or continental football. */
+export type DisciplineScope = 'league' | 'cup' | 'continental';
+/** One player's record: this season's cards, and bans (only the non-empty entries). */
+export interface DisciplineRecord {
+  /** Yellow cards and dismissals this season, by competition. */
+  cards: Record<Id, [number, number]>;
+  /** This season's yellows towards an accumulation ban, by scope (not those that ended in a dismissal). */
+  tally: Partial<Record<DisciplineScope, number>>;
+  /** Matches still to serve, by scope; they carry over a season's end. */
+  bans: Partial<Record<DisciplineScope, number>>;
+}
+export interface DisciplineState {
+  version: 1;
+  season: number;
+  players: Record<Id, DisciplineRecord>;
 }
 /** A club changed in edit mode. Only the edited fields are set. */
 export interface ClubEdit {
@@ -1536,7 +1738,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 21;
+  schemaVersion: 22;
   engineVersion: string;
   slot: SlotId;
   name: string;

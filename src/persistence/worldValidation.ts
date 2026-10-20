@@ -1,5 +1,6 @@
 ﻿import type { Attributes, KeeperAttributes, Standing } from '../model/domain';
 import { CREST_SHAPES, CREST_SYMBOLS } from '../engine/assets/crest';
+import { AVATAR_OPTIONS, AVATAR_PARTS } from '../engine/assets/avatar';
 
 export function requireValue(condition: unknown): asserts condition {
   if (!condition) throw new Error('invalid-world');
@@ -65,17 +66,11 @@ export function options(value: unknown, choices: readonly string[]): void {
 }
 export function avatar(value: unknown): void {
   const a = object(value);
-  for (const key of [
-    'face',
-    'skin',
-    'hair',
-    'hairColor',
-    'facialHair',
-    'eyebrows',
-    'eyes',
-    'accessory',
-  ])
-    number(a[key], 0, 7, true);
+  for (const part of AVATAR_PARTS) {
+    // Eye colour, nose and mouth arrived later and may be absent; the renderer derives them.
+    if (a[part] === undefined && (part === 'iris' || part === 'nose' || part === 'mouth')) continue;
+    number(a[part], 0, AVATAR_OPTIONS[part] - 1, true);
+  }
 }
 export function palette(value: unknown): void {
   const colors = array(value, 3);
@@ -254,6 +249,9 @@ export function validateEntities(
   }
   for (const player of Object.values(players)) {
     text(player.name);
+    // Schema 21. Uniqueness within a squad is kept by the assignment rules, not enforced
+    // here, so a stray duplicate can never make a save unloadable.
+    number(player.squadNumber, 1, 99, true);
     number(player.birthSeason, 1800, Number(currentDate.season) - 16, true);
     ref(player.nationalityId, countries);
     avatar(player.avatar);
@@ -303,6 +301,9 @@ export function validateEntities(
       number(stats[key], 0, 1e7, true);
     number(stats.ratingTotal, 0, 1e8);
     ids(stats.trophies, 1000);
+    // Career cards (the discipline phase), absent until the first.
+    for (const key of ['yellowCards', 'redCards'])
+      if (stats[key] !== undefined) number(stats[key], 0, 1e5, true);
     if (player.hallOfFame !== undefined) number(player.hallOfFame, 0, 1e7);
   }
   // A loaned player is registered with the loan club while contracted to the parent club;

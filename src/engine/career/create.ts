@@ -2,6 +2,7 @@ import type { Avatar, Career, Club, Foot, Id, Position, World } from '../../mode
 import { emptyCoaching } from './coaching';
 import { CONFIG } from '../config';
 import { createRng, hashSeed } from '../rng';
+import { isAvatar } from '../assets/avatar';
 import {
   careerCap,
   isUntrained,
@@ -14,6 +15,7 @@ import {
 import { playerAbility } from '../strength';
 import { generatePlayer } from '../world/generate';
 import { refreshDressingRoom } from '../world/dressing';
+import { nextSquadNumber } from '../world/squadNumbers';
 import { getSeasonWeeks } from '../world/calendar';
 import { ARCHETYPE_BY_ID } from './catalogue';
 import { grantStartingSkill } from './progression';
@@ -80,7 +82,7 @@ export function validateDraft(world: World, draft: CareerDraft): void {
     draft.age > S.ageRange[1] ||
     (archetype.family === 'keeper') !== (draft.position === 'GK') ||
     !['left', 'right', 'both'].includes(draft.foot) ||
-    Object.values(draft.avatar).some((part) => !Number.isInteger(part) || part < 0 || part > 7)
+    !isAvatar(draft.avatar)
   )
     throw new Error('Invalid career draft');
   if (draft.parentLegacyId !== undefined) {
@@ -101,7 +103,15 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
   const id = `career:${hashSeed(`${seed}:${draft.name}`)}`;
   if (world.players[id]) throw new Error('Career player already exists');
   const archetype = ARCHETYPE_BY_ID[draft.archetype]!;
-  const { player, contract } = generatePlayer(id, club, draft.position, draft.age, world.date, rng);
+  const { player, contract } = generatePlayer(
+    id,
+    club,
+    draft.position,
+    draft.age,
+    world.date,
+    rng,
+    nextSquadNumber(world, club, draft.position),
+  );
   player.name = draft.name.trim();
   player.avatar = { ...draft.avatar };
   player.nationalityId = draft.nationalityId;

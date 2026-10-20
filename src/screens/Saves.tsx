@@ -2,6 +2,8 @@ import { Suspense, useEffect, useState } from 'react';
 import { lazyPage } from '../ui/lazyPage';
 import { t } from '../i18n';
 import { Page } from '../ui/Page';
+// The kit file itself, not the barrel: this route paints before the save system loads.
+import { PageHeader } from '../ui/kit/Panel';
 
 // The slots need the whole save system; the heading should not wait for it.
 const SavesContent = lazyPage(() => import('./SavesContent'));
@@ -51,16 +53,13 @@ export default function Saves() {
   const [painted, setPainted] = useState(false);
   useEffect(() => afterFirstPaint(() => setPainted(true)), []);
   const loading = (
-    <p role="status" className="muted">
+    <p role="status" className="text-muted">
       {t.saves.loading}
     </p>
   );
   return (
     <Page>
-      <div className="page-heading">
-        <h1>{t.saves.title}</h1>
-        <p>{t.saves.description}</p>
-      </div>
+      <PageHeader title={t.saves.title} description={t.saves.description} />
       {painted ? (
         <Suspense fallback={loading}>
           <SavesContent />

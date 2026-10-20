@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { AnimatePresence, m } from 'framer-motion';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { Avatar, Career, Challenge, Club, Kit, Player, World } from '../../model/domain';
 import {
   availability,
@@ -14,16 +15,17 @@ import {
   type Availability,
   type CosmeticItem,
 } from '../../engine/career/lifestyle';
-import { avatarSkinColor, renderAvatar } from '../../engine/assets/avatar';
-import { renderSocksAndBoots, renderWardrobeShirt } from '../../engine/assets/gear';
+import { AVATAR_OPTIONS, clubDress, renderAvatar } from '../../engine/assets/avatar';
+import { renderFigure } from '../../engine/assets/gear';
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
-import { CareerPage, filterButton, plural, ui } from './shared';
-import { useSearchParams } from 'react-router-dom';
+import { Button, CardTitle, Chip, Panel, cx } from '../../ui/kit';
+import { CareerPage, filterButton, plural, ui, useSaveLink } from './shared';
 import { ActionError, BlockNote, money } from './marketUi';
-import { CelebrationPreview, useChallengeRefresh, useLifestyleAction } from './lifestyleUi';
-import { Glyph } from './honoursUi';
+import { useChallengeRefresh, useLifestyleAction } from './lifestyleUi';
+import { CelebrationPreview } from './CelebrationPreview';
+import { LifeIcon, TokenCoin } from './lifeIcons';
 import { audio } from '../../audio';
 import { CONFIG } from '../../engine/config';
 import { Dialog } from '../../ui/Dialog';
@@ -31,13 +33,14 @@ import { useUrlDialog } from './useUrlDialog';
 
 type Action = ReturnType<typeof useLifestyleAction>;
 const W = l.wardrobe;
+const C = l.celebrations;
 /** Facial hair fades in with age, so its options are previewed on an older face. */
 const FACIAL_HAIR_PREVIEW_AGE = 26;
 
 export default function CareerWardrobe() {
   useChallengeRefresh();
   return (
-    <CareerPage title={l.titles.wardrobe}>
+    <CareerPage title={l.titles.wardrobe} description={W.intro}>
       {({ world, career, player, club, age }) =>
         club ? (
           <WardrobeContent world={world} career={career} player={player} club={club} age={age} />
@@ -77,41 +80,41 @@ function WardrobeContent({
     challenges: l.challenges.title,
     look: W.look,
     kit: W.kit,
-    celebrations: l.celebrations.title,
+    celebrations: C.title,
   } as const;
-  // The preview spans every row of the left column and stays in view while choosing.
+  // The preview stays in view beside the choices on wide screens.
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">
+    <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(17rem,1fr)_minmax(0,2.6fr)]">
       <Preview career={career} player={player} club={club} age={age} />
-      <div role="group" aria-label={W.sections} className={`lg:col-span-8 ${ui.filters}`}>
-        {[null, ...SECTIONS].map((section) => {
-          const pressed = (section ?? undefined) === chosen;
-          return (
-            <button
-              key={section ?? 'all'}
-              aria-pressed={pressed}
-              onClick={() => show(section)}
-              className={filterButton(pressed)}
-            >
-              {section ? names[section] : W.allSections}
-            </button>
-          );
-        })}
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5">
+        <div role="group" aria-label={W.sections} className={ui.filters}>
+          {[null, ...SECTIONS].map((section) => {
+            const pressed = (section ?? undefined) === chosen;
+            return (
+              <button
+                key={section ?? 'all'}
+                aria-pressed={pressed}
+                onClick={() => show(section)}
+                className={filterButton(pressed)}
+              >
+                {section ? names[section] : W.allSections}
+              </button>
+            );
+          })}
+        </div>
+        {visible('challenges') && <Challenges world={world} action={action} />}
+        {visible('look') && (
+          <Look world={world} player={player} club={club} age={age} action={action} />
+        )}
+        {visible('kit') && (
+          <KitOptions world={world} career={career} kit={club.kits.home} action={action} />
+        )}
+        {visible('celebrations') && (
+          <Celebrations world={world} career={career} kit={club.kits.home} action={action} />
+        )}
       </div>
-      {visible('challenges') && <Challenges world={world} action={action} />}
-      {visible('look') && <Look world={world} player={player} age={age} action={action} />}
-      {visible('kit') && (
-        <KitOptions world={world} career={career} kit={club.kits.home} action={action} />
-      )}
-      {visible('celebrations') && <Celebrations world={world} career={career} action={action} />}
     </div>
   );
-}
-
-/** Plain shorts in the kit colours, joining the shirt to the socks in the preview figure. */
-function shortsSvg(kit: Kit): string {
-  const [base, accent] = kit.colors;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40" fill="none"><path d="M4 0H96L100 36H56L50 18L44 36H0Z" fill="${base}" stroke="#182a35" stroke-opacity=".25" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 3L5 33M92 3L95 33" stroke="${accent}" stroke-width="3"/></svg>`;
 }
 
 function Preview({
@@ -127,62 +130,70 @@ function Preview({
 }) {
   const equipped = career.style.equipped;
   const kit = club.kits.home;
-  const skin = avatarSkinColor(player.avatar);
   const armband = COSMETIC_BY_ID[equipped.armband]?.colors ?? null;
-  const portrait = useMemo(() => renderAvatar(player.avatar, age), [player.avatar, age]);
-  const shirt = useMemo(
-    () => renderWardrobeShirt(kit, equipped.sleeves, armband, skin),
-    [kit, equipped.sleeves, armband, skin],
-  );
-  const shorts = useMemo(() => shortsSvg(kit), [kit]);
-  const feet = useMemo(
+  const boots = COSMETIC_BY_ID[equipped.boots]?.colors ?? null;
+  // One figure, head to boots, in the club's home kit.
+  const figure = useMemo(
     () =>
-      renderSocksAndBoots(
+      renderFigure(player.avatar, age, {
         kit,
-        equipped.socks,
-        COSMETIC_BY_ID[equipped.boots]?.colors ?? ['#1d1d1f', '#ffffff'],
-      ),
-    [kit, equipped.socks, equipped.boots],
+        crest: club.crest,
+        sleeves: equipped.sleeves,
+        armband,
+        socks: equipped.socks,
+        boots: boots ?? ['#1d1d1f', '#ffffff'],
+      }),
+    [player.avatar, age, kit, club.crest, equipped.sleeves, armband, equipped.socks, boots],
   );
   const tokens = career.style.tokens;
-  // One figure built from the head, arms/shirt, shorts and socks/boots artwork. Percentage margins
-  // resolve against the figure's width, so the pieces overlap the same way at every size:
-  // the shirt collar covers the neck, the shirt hem the shorts, the shorts the sock tops.
+  const summary: [string, string][] = [
+    [W.summaryLabels.boots, W.bootNames[equipped.boots] ?? ''],
+    [W.summaryLabels.socks, W.sockNames[equipped.socks] ?? ''],
+    [W.summaryLabels.sleeves, W.sleeveNames[equipped.sleeves]],
+    [W.summaryLabels.armband, W.armbandNames[equipped.armband] ?? ''],
+    [
+      W.summaryLabels.celebration,
+      equipped.celebration ? (C.names[equipped.celebration] ?? '') : C.none,
+    ],
+  ];
   return (
-    <section
+    <Panel
+      tone="blue"
       aria-labelledby="preview-heading"
-      // Single-column layouts keep the preview compact; wide screens keep it beside the shop.
-      className={`${ui.panel} grid grid-cols-[5.5rem_minmax(0,1fr)] content-center gap-x-4 bg-art-blue lg:sticky lg:top-6 lg:col-span-4 lg:row-span-5 lg:block`}
+      className="flex flex-wrap items-center justify-center gap-x-6 gap-y-4 xl:sticky xl:top-6"
     >
-      <h2 id="preview-heading" className={`${ui.heading} col-start-2 self-end`}>
+      <CardTitle id="preview-heading" className="w-full">
         {W.preview}
-      </h2>
-      <div
-        role="img"
-        aria-label={`${player.name}. ${format(W.previewAlt, {
+      </CardTitle>
+      <Artwork
+        svg={figure}
+        alt={`${player.name}. ${format(W.previewAlt, {
           boots: W.bootNames[equipped.boots] ?? '',
           socks: W.sockNames[equipped.socks] ?? '',
         })}`}
-        className="col-start-1 row-span-3 row-start-1 w-full self-center lg:mx-auto lg:mt-4 lg:w-48"
-      >
-        <div className="relative z-0 mx-auto w-[95%] overflow-hidden [aspect-ratio:200/166]">
-          <Artwork svg={portrait} alt="" className="block w-full" />
+        className="block w-28 shrink-0 sm:w-40 xl:w-[12.5rem]"
+      />
+      <div className="flex min-w-0 flex-[1_1_14rem] flex-col gap-3.5 xl:items-center">
+        <div className="xl:text-center">
+          <p className="inline-flex items-center gap-2 font-display text-[2rem] leading-none">
+            <TokenCoin className="h-[1.625rem] w-[1.625rem]" />
+            {plural(tokens, W.tokensOne, W.tokens)}
+          </p>
+          <p className="mt-1 max-w-[16.25rem] text-[0.8125rem] text-info xl:mx-auto">
+            {W.tokensBody}
+          </p>
         </div>
-        <Artwork svg={shirt} alt="" className="relative z-20 -mt-[22.5%] block w-full" />
-        <Artwork svg={shorts} alt="" className="relative z-10 mx-auto -mt-[15%] block w-[52%]" />
-        <Artwork svg={feet} alt="" className="relative z-0 -mt-[6%] ml-[23%] block w-[61%]" />
-        <span
-          aria-hidden="true"
-          className="mx-auto -mt-[3%] block h-3 w-3/4 rounded-[50%] bg-ink/10"
-        />
+        <h3 className="sr-only">{W.summary}</h3>
+        <dl className="grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-control bg-surface px-3.5 py-3 text-[0.8125rem]">
+          {summary.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-muted">{label}</dt>
+              <dd className="text-right font-bold">{value}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
-      <p className="col-start-2 mt-2 font-display text-2xl leading-none lg:mt-4 lg:text-center">
-        {plural(tokens, W.tokensOne, W.tokens)}
-      </p>
-      <p className="col-start-2 mt-1 max-w-xs self-start text-xs text-muted lg:mx-auto lg:text-center">
-        {W.tokensBody}
-      </p>
-    </section>
+    </Panel>
   );
 }
 
@@ -195,44 +206,68 @@ function stateLabel(item: CosmeticItem, state: Availability): string {
 }
 
 /**
- * A choice tile: equips when usable, offers a token unlock when for sale. Only the selected
- * tile and locked tiles carry a status line; locked tiles show a lock and what opens them.
+ * A choice tile in one of four states: worn (selected), yours to wear, for sale for tokens, or
+ * locked. Only the worn tile and the ones you cannot wear yet carry a status line; those show a
+ * lock and what opens them. Equips when usable, buys with tokens when affordable.
  */
 function Tile({
   item,
   world,
   selected,
   selectedLabel = W.equipped,
+  signature = false,
   label,
   children,
   onSelect,
   action,
+  size,
 }: {
   item: CosmeticItem | null;
   world: World;
   selected: boolean;
   selectedLabel?: string;
+  /** The selected celebration wears a gold "Signature" chip instead of the green tick. */
+  signature?: boolean;
   label: string;
   children: ReactNode;
   onSelect: () => void;
   action: Action;
+  size: 'look' | 'kit' | 'celebration';
 }) {
   const state = item ? availability(world, item) : 'owned';
   const usable = state === 'owned' || state === 'fame' || state === 'sponsor';
   const affordable = state === 'tokens' && world.career!.style.tokens >= (item?.tokens ?? Infinity);
   const status = selected ? (
-    <span className="inline-flex items-center gap-1 text-xs font-bold text-accent">
-      <Glyph name="check" className="h-3.5 w-3.5" />
-      {selectedLabel}
-    </span>
+    signature ? (
+      <span className="inline-flex items-center gap-1 rounded-full bg-gold px-2.5 py-0.5 text-xs font-extrabold text-on-gold">
+        <LifeIcon name="check" className="h-3 w-3" />
+        {selectedLabel}
+      </span>
+    ) : (
+      <span className="inline-flex items-center gap-1 text-[0.6875rem] font-extrabold text-accent">
+        <LifeIcon name="check" className="h-3 w-3" />
+        {selectedLabel}
+      </span>
+    )
   ) : usable || !item ? null : (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs leading-tight font-bold ${
-        affordable ? 'bg-accent text-on-accent' : 'bg-surface text-muted'
-      }`}
+      className={cx(
+        'inline-flex items-center gap-1 rounded-full px-2 py-px text-[0.6875rem] leading-snug font-extrabold',
+        affordable ? 'bg-accent text-on-accent' : 'border border-line bg-surface text-muted',
+      )}
     >
-      <Glyph name="lock" className="h-3.5 w-3.5" />
-      {state === 'tokens' ? format(W.price, { tokens: item.tokens! }) : stateLabel(item, state)}
+      {state === 'tokens' && size === 'look' ? (
+        // Narrow look tiles: the coin stands for "tokens" (the button's name says it in full).
+        <>
+          <TokenCoin className="h-3 w-3" />
+          <span className="whitespace-nowrap tabular-nums">{item.tokens}</span>
+        </>
+      ) : (
+        <>
+          <LifeIcon name="lock" className="h-3 w-3" />
+          {state === 'tokens' ? format(W.price, { tokens: item.tokens! }) : stateLabel(item, state)}
+        </>
+      )}
     </span>
   );
   return (
@@ -247,13 +282,17 @@ function Tile({
             audio.play('confirm');
         }}
         // A locked tile keeps its name and price at full contrast; only the artwork recedes.
-        className={`group flex h-full min-h-24 w-full flex-col items-center justify-center gap-1 rounded-control border-2 p-2 text-center transition disabled:cursor-not-allowed disabled:opacity-100 [&:disabled_img]:opacity-50 ${
+        className={cx(
+          'group flex h-full w-full flex-col items-center gap-1.5 rounded-control border-2 px-1.5 py-2 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-100 [&:disabled_.tile-art]:opacity-60',
+          size === 'look' && 'min-h-24 justify-center',
+          size === 'kit' && 'min-h-28 justify-center',
+          size === 'celebration' && 'min-h-[12.5rem] justify-start px-2.5 py-2.5',
           selected
             ? 'border-accent bg-accent-soft'
             : usable || affordable
               ? 'border-transparent bg-surface-soft hover:border-accent'
-              : 'border-dashed border-line bg-surface-soft'
-        }`}
+              : 'border-dashed border-line bg-surface-soft',
+        )}
       >
         {children}
         {status}
@@ -263,23 +302,63 @@ function Tile({
 }
 
 /** The lower face, where facial hair differs: a whole head hides it at thumbnail size. */
-const LOWER_FACE = 'viewBox="46 74 108 108"';
-function AvatarOption({ avatar, age, face }: { avatar: Avatar; age: number; face?: boolean }) {
+const LOWER_FACE = 'viewBox="54 80 92 92"';
+function AvatarOption({
+  avatar,
+  age,
+  club,
+  face,
+}: {
+  avatar: Avatar;
+  age: number;
+  club: Club;
+  face?: boolean;
+}) {
   const svg = useMemo(() => {
-    const art = renderAvatar(avatar, age);
+    const art = renderAvatar(avatar, age, clubDress(club));
     return face ? art.replace(/viewBox="[^"]*"/, LOWER_FACE) : art;
-  }, [avatar, age, face]);
-  return <Artwork svg={svg} alt="" className="h-14 w-14 rounded-full bg-art-blue" />;
+  }, [avatar, age, club, face]);
+  // The portrait draws its own disc; the lower-face crop is rounded to match.
+  return (
+    <Artwork svg={svg} alt="" className={`tile-art h-14 w-14${face ? ' rounded-full' : ''}`} />
+  );
+}
+
+/** A card section with its Bebas title and optional detail beside it. */
+function Section({
+  id,
+  title,
+  aside,
+  children,
+}: {
+  id: string;
+  title: string;
+  aside?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Panel aria-labelledby={id} className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <CardTitle id={id} size="lg">
+          {title}
+        </CardTitle>
+        {aside}
+      </div>
+      {children}
+    </Panel>
+  );
 }
 
 function Look({
   world,
   player,
+  club,
   age,
   action,
 }: {
   world: World;
   player: Player;
+  club: Club;
   age: number;
   action: Action;
 }) {
@@ -291,24 +370,22 @@ function Look({
   ] as const;
   const beardAge = Math.max(age, FACIAL_HAIR_PREVIEW_AGE);
   return (
-    <section aria-labelledby="look-heading" className={`${ui.panel} lg:col-span-8`}>
-      <h2 id="look-heading" className={ui.heading}>
-        {W.look}
-      </h2>
-      <div className="mt-3 grid gap-3">
-        <BlockNote block={action.block} />
-        <ActionError error={action.error} />
-      </div>
+    <Section id="look-heading" title={W.look}>
+      <BlockNote block={action.block} />
+      <ActionError error={action.error} />
       {slots.map(({ slot, label, option, gated }) => (
-        <div key={slot} className="mt-4">
-          <h3 className="text-sm font-semibold">{label}</h3>
+        <div key={slot}>
+          <h3 className="text-sm font-bold">{label}</h3>
           {slot === 'facialHair' && beardAge > age && (
             <p className="mt-0.5 text-xs text-muted">
               {format(W.facialHairNote, { age: beardAge })}
             </p>
           )}
-          <ul className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-8" aria-label={label}>
-            {Array.from({ length: 8 }, (_, value) => {
+          <ul
+            className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(5.25rem,1fr))] gap-2"
+            aria-label={label}
+          >
+            {Array.from({ length: AVATAR_OPTIONS[slot] }, (_, value) => {
               const item = gated ? (COSMETIC_BY_ID[`${slot}:${value}`] ?? null) : null;
               const name = format(option, { number: value + 1 });
               return (
@@ -319,11 +396,13 @@ function Look({
                   selected={player.avatar[slot] === value}
                   label={name}
                   action={action}
+                  size="look"
                   onSelect={() => action.run({ type: 'wardrobe', change: { slot, value } })}
                 >
                   <AvatarOption
                     avatar={{ ...player.avatar, [slot]: value }}
                     age={slot === 'facialHair' ? beardAge : age}
+                    club={club}
                     face={slot === 'facialHair'}
                   />
                 </Tile>
@@ -332,7 +411,7 @@ function Look({
           </ul>
         </div>
       ))}
-    </section>
+    </Section>
   );
 }
 
@@ -340,10 +419,10 @@ function Swatch({ colors }: { colors: [string, string] }) {
   return (
     <span
       aria-hidden="true"
-      className="flex h-10 w-14 overflow-hidden rounded-control border border-line"
+      className="tile-art flex h-10 w-14 overflow-hidden rounded-chip border border-line"
     >
       <span className="flex-1" style={{ background: colors[0] }} />
-      <span className="w-3" style={{ background: colors[1] }} />
+      <span className="w-3.5" style={{ background: colors[1] }} />
     </span>
   );
 }
@@ -360,7 +439,7 @@ function SockGlyph({ id, kit }: { id: string; kit: Kit }) {
   return (
     <span
       aria-hidden="true"
-      className="grid h-10 w-14 place-items-center overflow-hidden rounded-control border border-line bg-surface"
+      className="tile-art grid h-10 w-14 place-items-center overflow-hidden rounded-chip border border-line bg-surface"
     >
       <svg viewBox="0 0 56 40" className="h-10 w-14">
         <path
@@ -388,6 +467,7 @@ function KitOptions({
   action: Action;
 }) {
   const equipped = career.style.equipped;
+  const link = useSaveLink();
   const confirm = useUrlDialog('break-boots');
   const deal = bootsDeal(world);
   const brand = deal ? BRAND_BY_ID[deal.brandId] : undefined;
@@ -400,10 +480,14 @@ function KitOptions({
     kind: 'boots' | 'socks' | 'armband',
     label: string,
     names: Record<string, string>,
+    note?: ReactNode,
   ) => (
-    <div className="mt-5">
-      <h3 className="text-sm font-semibold">{label}</h3>
-      <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-5" aria-label={label}>
+    <div>
+      <h3 className="text-sm font-bold">{label}</h3>
+      <ul
+        className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(7.375rem,1fr))] gap-2"
+        aria-label={label}
+      >
         {COSMETICS.filter(
           (item) =>
             item.kind === kind && (!item.brandId || availability(world, item) === 'sponsor'),
@@ -415,6 +499,7 @@ function KitOptions({
             selected={equipped[kind] === item.id}
             label={names[item.id] ?? item.id}
             action={action}
+            size="kit"
             onSelect={() =>
               kind === 'boots' && deal && !dealBoots.includes(item.id)
                 ? confirm.open(item.id)
@@ -426,24 +511,22 @@ function KitOptions({
             ) : kind === 'socks' ? (
               <SockGlyph id={item.id} kit={kit} />
             ) : null}
-            <span className="text-xs leading-tight font-semibold">{names[item.id]}</span>
+            <span className="text-xs leading-tight font-bold">{names[item.id]}</span>
           </Tile>
         ))}
       </ul>
+      {note}
     </div>
   );
   return (
-    <section aria-labelledby="kit-heading" className={`${ui.panel} lg:col-span-8`}>
-      <h2 id="kit-heading" className={ui.heading}>
-        {W.kit}
-      </h2>
-      <fieldset className="mt-4" disabled={Boolean(action.block)}>
-        <legend className="text-sm font-semibold">{W.sleeves}</legend>
-        <div className="mt-2 grid max-w-sm grid-cols-2 gap-1 rounded-control bg-surface-soft p-1">
+    <Section id="kit-heading" title={W.kit}>
+      <fieldset disabled={Boolean(action.block)} className="min-w-0">
+        <legend className="text-sm font-bold">{W.sleeves}</legend>
+        <div className="mt-2 grid max-w-[22.5rem] grid-cols-2 gap-1 rounded-control bg-surface-soft p-1">
           {(['short', 'long'] as const).map((value) => (
             <label
               key={value}
-              className="flex min-h-11 cursor-pointer items-center justify-center rounded-[0.6rem] text-sm font-bold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
+              className="flex min-h-11 cursor-pointer items-center justify-center rounded-chip font-bold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
             >
               <input
                 type="radio"
@@ -459,9 +542,27 @@ function KitOptions({
           ))}
         </div>
       </fieldset>
-      {group('boots', W.boots, W.bootNames)}
-      {brand && (
-        <p className={`${ui.muted} mt-2 text-xs`}>{format(W.bootsDeal, { brand: brand.name })}</p>
+      {group(
+        'boots',
+        W.boots,
+        W.bootNames,
+        brand && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+            <span
+              aria-hidden="true"
+              className="grid h-5 w-5 place-items-center rounded-[0.3rem] bg-night font-display text-sm leading-none text-mint"
+            >
+              {brand.name.charAt(0)}
+            </span>
+            {format(W.bootsDeal, { brand: brand.name })}
+            <Link
+              to={link('/career/lifestyle')}
+              className="inline-flex min-h-11 items-center font-bold text-accent underline underline-offset-[3px]"
+            >
+              {W.seeDeal}
+            </Link>
+          </p>
+        ),
       )}
       {group('socks', W.socks, W.sockNames)}
       {group('armband', W.armband, W.armbandNames)}
@@ -485,28 +586,43 @@ function KitOptions({
           }}
         />
       )}
-    </section>
+    </Section>
   );
 }
 
-function Celebrations({ world, career, action }: { world: World; career: Career; action: Action }) {
-  const C = l.celebrations;
+function Celebrations({
+  world,
+  career,
+  kit,
+  action,
+}: {
+  world: World;
+  career: Career;
+  kit: Kit;
+  action: Action;
+}) {
+  const token = useMemo(() => [kit.colors[0], kit.colors[1]] as const, [kit]);
   return (
-    <section aria-labelledby="celebrations-heading" className={`${ui.panel} lg:col-span-8`}>
-      <h2 id="celebrations-heading" className={ui.heading}>
-        {C.title}
-      </h2>
-      <p className={`${ui.muted} mt-1 max-w-prose`}>{C.body}</p>
-      <p className="mt-2 text-sm font-semibold">
-        {plural(career.style.signatureUses, C.usesOne, C.uses)}
-      </p>
+    <Section
+      id="celebrations-heading"
+      title={C.title}
+      aside={
+        <span className="inline-flex items-center gap-1.5 text-[0.8125rem] font-bold">
+          <LifeIcon name="star" filled className="h-4 w-4 text-meter-gold" />
+          {plural(career.style.signatureUses, C.usesOne, C.uses)}
+        </span>
+      }
+    >
+      <p className="max-w-[40rem] text-muted">{C.body}</p>
       <ul
-        className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4"
+        className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,9.25rem),1fr))] gap-2.5"
         aria-label={C.title}
       >
         {COSMETICS.filter((item) => item.kind === 'celebration').map((item) => {
           const name = C.names[item.id] ?? item.id;
           const selected = career.style.equipped.celebration === item.id;
+          const count = career.style.signatureUsesBy?.[item.id] ?? 0;
+          const uses = count ? plural(count, l.celebrationUses.one, l.celebrationUses.many) : null;
           return (
             <Tile
               key={item.id}
@@ -514,24 +630,40 @@ function Celebrations({ world, career, action }: { world: World; career: Career;
               world={world}
               selected={selected}
               selectedLabel={C.signature}
-              label={name}
+              signature
+              label={uses ? `${name} · ${uses}` : name}
               action={action}
+              size="celebration"
               onSelect={() =>
                 action.run({ type: 'wardrobe', change: { slot: 'celebration', id: item.id } })
               }
             >
-              <CelebrationPreview
-                motion={item.motion!}
-                label={format(C.preview, { name })}
-                onHover={!selected}
-              />
-              <span className="text-sm leading-tight font-semibold">{name}</span>
+              <span className="tile-art">
+                <CelebrationPreview
+                  id={item.id}
+                  kit={token}
+                  motion={item.motion!}
+                  label={format(C.preview, { name })}
+                  onHover={!selected}
+                  className="h-20 w-[7.5rem]"
+                />
+              </span>
+              <span className="text-sm leading-tight font-bold">{name}</span>
               <span className="text-xs leading-snug text-muted">{C.descriptions[item.id]}</span>
+              {uses && (
+                <span
+                  className="inline-flex items-center gap-1 text-[0.6875rem] font-extrabold text-ink"
+                  data-testid="celebration-uses"
+                >
+                  <LifeIcon name="star" filled className="h-3 w-3 text-meter-gold" />
+                  {uses}
+                </span>
+              )}
             </Tile>
           );
         })}
       </ul>
-    </section>
+    </Section>
   );
 }
 
@@ -554,37 +686,39 @@ function ChallengeRow({
         item: cosmeticName(challenge.rewardCosmeticId),
       })
     : format(l.challenges.reward, { tokens: challenge.rewardTokens });
+  const label = format(
+    challenge.target === 1
+      ? l.challenges.kindsOne[challenge.kind]
+      : l.challenges.kinds[challenge.kind],
+    { target: challenge.target },
+  );
   const ready = done && !challenge.claimed;
   return (
     <li
-      className={`relative flex flex-col gap-2 rounded-control border p-3 ${
-        ready ? 'border-accent bg-accent-soft' : 'border-line bg-surface-soft'
-      }`}
+      className={cx(
+        'relative flex flex-col gap-2 rounded-control border p-3',
+        ready ? 'border-accent bg-accent-soft' : 'border-line bg-surface-soft',
+      )}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm font-semibold">
-          {format(
-            challenge.target === 1
-              ? l.challenges.kindsOne[challenge.kind]
-              : l.challenges.kinds[challenge.kind],
-            { target: challenge.target },
-          )}
-        </span>
-        <span className="shrink-0 text-xs font-bold text-muted">
+        <span className="text-sm font-bold">{label}</span>
+        <span className="shrink-0 text-xs font-extrabold text-muted tabular-nums">
           {format(l.challenges.progress, { progress, target: challenge.target })}
         </span>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <span className="text-xs text-muted">{reward}</span>
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted">
+          <TokenCoin />
+          {reward}
+        </span>
         {challenge.claimed ? (
-          <span className={ui.chip}>
-            <Glyph name="check" className="h-3.5 w-3.5" />
+          <Chip tone="accent" icon="check">
             {l.challenges.claimed}
-          </span>
+          </Chip>
         ) : done ? (
-          <button
-            className="button"
+          <Button
             disabled={Boolean(action.block)}
+            aria-label={format(l.challenges.claimLabel, { reward, challenge: label })}
             onClick={() => {
               if (action.run({ type: 'claim-challenge', id: challenge.id })) {
                 setCelebrate(true);
@@ -593,15 +727,15 @@ function ChallengeRow({
             }}
           >
             {l.challenges.claim}
-          </button>
+          </Button>
         ) : (
-          <span className="text-xs font-bold">
+          <span className="text-xs font-extrabold">
             {plural(left, l.challenges.toGoOne, l.challenges.toGo)}
           </span>
         )}
       </div>
       {!done && (
-        <div className="h-2 overflow-hidden rounded-full bg-line" aria-hidden="true">
+        <div className="h-2 overflow-hidden rounded-full bg-track" aria-hidden="true">
           <span
             className="block h-full rounded-full bg-meter-gold"
             style={{ width: `${(progress / challenge.target) * 100}%` }}
@@ -617,8 +751,9 @@ function ChallengeRow({
             exit={{ opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 18 }}
             onAnimationComplete={() => window.setTimeout(() => setCelebrate(false), 1800)}
-            className="text-sm font-bold text-accent"
+            className="inline-flex items-center gap-1.5 font-extrabold text-accent"
           >
+            <TokenCoin className="h-[1.125rem] w-[1.125rem]" />
             {l.challenges.reward_got}
           </m.p>
         )}
@@ -629,7 +764,7 @@ function ChallengeRow({
 
 function cosmeticName(id: string): string {
   return (
-    l.celebrations.names[id] ??
+    C.names[id] ??
     W.bootNames[id] ??
     W.sockNames[id] ??
     W.armbandNames[id] ??
@@ -642,17 +777,28 @@ function cosmeticName(id: string): string {
 }
 
 function Challenges({ world, action }: { world: World; action: Action }) {
+  const ready = world.challenges.filter(
+    (challenge) => !challenge.claimed && challengeDone(world, challenge),
+  ).length;
   return (
-    <section aria-labelledby="challenges-heading" className={`${ui.panel} lg:col-span-8`}>
-      <h2 id="challenges-heading" className={ui.heading}>
-        {l.challenges.title}
-      </h2>
-      <p className={`${ui.muted} mt-1`}>{l.challenges.body}</p>
-      <div className="grid gap-x-4 xl:grid-cols-2">
+    <Section
+      id="challenges-heading"
+      title={l.challenges.title}
+      aside={
+        ready > 0 && <Chip tone="gold-soft">{format(l.challenges.ready, { count: ready })}</Chip>
+      }
+    >
+      <p className="-mt-1.5 text-muted">{l.challenges.body}</p>
+      <div className="flex flex-wrap gap-4">
         {(['daily', 'weekly'] as const).map((cadence) => (
-          <div key={cadence} className="mt-4">
-            <h3 className="text-sm font-semibold">{l.challenges[cadence]}</h3>
-            <ul className="mt-2 grid gap-2">
+          <div key={cadence} className="min-w-0 flex-[1_1_18.75rem]">
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <h3 className="text-sm font-bold">{l.challenges[cadence]}</h3>
+              <span className="text-xs font-semibold text-muted">
+                {l.challenges.renews[cadence]}
+              </span>
+            </div>
+            <ul className="grid gap-2">
               {world.challenges
                 .filter((challenge) => challenge.cadence === cadence)
                 .map((challenge) => (
@@ -667,6 +813,6 @@ function Challenges({ world, action }: { world: World; action: Action }) {
           </div>
         ))}
       </div>
-    </section>
+    </Section>
   );
 }

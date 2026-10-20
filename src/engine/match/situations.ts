@@ -50,6 +50,16 @@ export interface ChoiceTemplate {
   traitId: string | null;
   /** Choice is only offered to players with this trait (skill tree unlocks, milestone 4). */
   requiredTraitId: string | null;
+  /**
+   * Further skills that improve this choice only (not the same id in other situations), on top
+   * of `traitId` and the shared `TRAIT_BOOSTS` table.
+   */
+  boostedBy?: readonly string[];
+  /**
+   * Offered only by the current engine (`match-15`): appended to a situation's choices so
+   * earlier engines replay as they were and choice indices never move.
+   */
+  latest?: true;
   /** Commentary family: `match.commentary.<commentary>.<success|failure>.<variant>`. */
   commentary: string;
   /** Where the end of the highlight lands, in goal-mouth y coordinates for shots. */
@@ -394,6 +404,20 @@ export const SITUATIONS: readonly Situation[] = [
         conditions: 'technical',
         requiredTraitId: 'last-ditch',
         commentary: 'tackle',
+      }),
+      // Redesign step M5 (engine match-15): follow the runner the carrier is looking for.
+      choice({
+        id: 'track-runner',
+        latest: true,
+        attributes: { workRate: 0.4, pace: 0.3, positioning: 0.3 },
+        base: 0.7,
+        event: 'tackle',
+        family: 'defending',
+        stat: 'tackles',
+        opponent: 'attacker',
+        traitId: 'man-marker',
+        boostedBy: ['engine', 'sprinter', 'defensive-wall'],
+        commentary: 'track',
       }),
     ],
   },

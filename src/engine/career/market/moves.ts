@@ -2,6 +2,7 @@ import type { Contract, ContractTerms, Loan, TransferOffer, World } from '../../
 import { getSeasonWeeks } from '../../world/calendar';
 import { recordEvent } from '../../world/events';
 import { refreshDressingRoom } from '../../world/dressing';
+import { joinSquad } from '../../world/squadNumbers';
 import { refreshMentor } from '../training';
 import { ensureTeammates, syncCliques } from '../social/dressing';
 import { chronicle } from '../honours/chronicle';
@@ -128,6 +129,7 @@ function moveRegistration(world: World, fromId: string, toId: string): void {
   from.playerIds = from.playerIds.filter((id) => id !== player.id);
   if (!to.playerIds.includes(player.id)) to.playerIds.push(player.id);
   player.clubId = to.id;
+  joinSquad(world, player, to);
   refreshDressingRoom(world, from);
   refreshDressingRoom(world, to);
   ensureClubRelationships(world);

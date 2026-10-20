@@ -119,6 +119,73 @@ describe('career match accounting', () => {
     expect(stats.minutes).toBe(sum('minutes'));
   }, 120000);
 
+  it('credits both teams’ minutes from the substitutions (engine match-15)', () => {
+    const base = clone(national);
+    const trial = trialOffers(base, 'country:0', 'minutes')[0]!;
+    const career = createCareer(
+      base,
+      draft({ position: 'ST', archetype: 'finisher' }),
+      trial.id,
+      'minutes',
+    );
+    const league = career.leagues[career.clubs[trial.id]!.leagueId]!;
+    let checked = 0,
+      changes = 0;
+    for (const fixtureId of league.fixtureIds) {
+      const fixture = career.fixtures[fixtureId]!;
+      if (fixture.homeId !== trial.id && fixture.awayId !== trial.id) continue;
+      const world = clone(career);
+      let session: MatchSession = createMatchSession(
+        careerMatchSetup(world, fixture),
+        defaultTactics(world),
+      );
+      while (session.state.match.status !== 'finished')
+        session = applyMatchCommand(session, autoPlayCommand(session));
+      const subs = session.state.match.events.filter((e) => e.kind === 'substitution');
+      changes += subs.length;
+      const before = clone(world);
+      commitCareerMatch(world, session);
+      for (const [club, team] of [
+        [world.clubs[fixture.homeId]!, session.state.match.home],
+        [world.clubs[fixture.awayId]!, session.state.match.away],
+      ] as const) {
+        let minutes = 0,
+          appearances = 0;
+        for (const id of club.playerIds) {
+          const was = before.players[id]!.stats,
+            now = world.players[id]!.stats;
+          minutes += now.minutes - was.minutes;
+          appearances += now.appearances - was.appearances;
+        }
+        // Eleven places for ninety minutes, however they were shared, less the minutes a
+        // side played a man short after a dismissal (match-16).
+        const short = session.state.match.events
+          .filter((e) => e.kind === 'card' && e.card !== 'yellow' && e.teamId === team.teamId)
+          .reduce((sum, e) => sum + 90 - e.minute, 0);
+        expect(minutes + short).toBe(990);
+        const made = subs.filter((e) => e.teamId === team.teamId);
+        expect(appearances).toBe(11 + made.length);
+        for (const sub of made) {
+          const off =
+            world.players[sub.playerId!]!.stats.minutes -
+            before.players[sub.playerId!]!.stats.minutes;
+          const on =
+            world.players[sub.receiverId!]!.stats.minutes -
+            before.players[sub.receiverId!]!.stats.minutes;
+          expect(off).toBe(
+            sub.playerId === world.career!.playerId
+              ? session.state.selectedPlayerMinutes
+              : sub.minute,
+          );
+          expect(on).toBe(90 - sub.minute);
+        }
+      }
+      if (++checked >= 4) break;
+    }
+    expect(checked).toBe(4);
+    expect(changes).toBeGreaterThan(8);
+  }, 120000);
+
   it('keeps explicit assists and never invents one for the interactively played player', () => {
     const world = clone(playmaker);
     const league = Object.values(world.leagues)[0]!;
@@ -229,7 +296,7 @@ describe('career match accounting', () => {
       while (session.state.match.status !== 'finished')
         session = applyMatchCommand(session, autoPlayCommand(session));
       const [home, away] = session.state.match.score;
-      if (home !== away || session.state.substituted) continue;
+      if (home !== away || session.state.substituted || session.state.sentOff) continue;
       const playerId = world.career!.playerId;
       const before = clone(world);
       const { record, final, celebrationFame } = commitCareerMatch(world, session);

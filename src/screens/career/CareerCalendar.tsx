@@ -4,11 +4,17 @@ import type { World } from '../../model/domain';
 import { format } from '../../i18n';
 import { agendaText as a } from '../../i18n/agenda';
 import { careerText as c } from '../../i18n/career';
-import { CareerPage, CrestImage, ui } from './shared';
+import { calendarDate } from '../../engine/world/calendar';
+import { formatGameDate } from '../../i18n/calendar';
+import { CareerPage, CrestImage } from './shared';
+import { ButtonLink, cx } from '../../ui/kit';
+import { Glyph } from './honoursUi';
 import { competitionName } from './selectors';
 import { seasonAgenda, withSave, type AgendaEntry, type AgendaWeek } from './agenda';
 import { priorityLabel } from './HubPriorities';
 import { focusLabel } from './trainingLabels';
+import { SuspendedBadge } from './disciplineUi';
+import { bannedFixtures } from '../../engine/world/discipline';
 
 type View = 'ahead' | 'all';
 const VIEWS: View[] = ['ahead', 'all'];
@@ -18,13 +24,18 @@ const AHEAD_WEEKS = 8;
 
 export default function CareerCalendar() {
   return (
-    <CareerPage title={a.calendar.title} description={a.calendar.description}>
+    <CareerPage
+      title={a.calendar.title}
+      description={a.calendar.description}
+      actions={() => <CalendarViews />}
+    >
       {({ world }) => <CalendarContent world={world} />}
     </CareerPage>
   );
 }
 
-function CalendarContent({ world }: { world: World }) {
+/** The From this week / Whole season switch, in the page header beside the title. */
+function CalendarViews() {
   const [params, setParams] = useSearchParams();
   const view: View = params.get('weeks') === 'all' ? 'all' : 'ahead';
   const select = (next: View) => {
@@ -33,6 +44,36 @@ function CalendarContent({ world }: { world: World }) {
     else search.delete('weeks');
     setParams(search, { replace: true });
   };
+  return (
+    <div className="segmented-tabs" role="tablist" aria-label={a.calendar.views}>
+      {VIEWS.map((entry) => (
+        <button
+          key={entry}
+          type="button"
+          role="tab"
+          id={`weeks-${entry}`}
+          aria-controls="calendar-weeks"
+          aria-selected={view === entry}
+          tabIndex={view === entry ? 0 : -1}
+          onClick={() => select(entry)}
+          onKeyDown={(event) => {
+            if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const next = entry === 'ahead' ? 'all' : 'ahead';
+            select(next);
+            document.getElementById(`weeks-${next}`)?.focus();
+          }}
+        >
+          {a.calendar[entry]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CalendarContent({ world }: { world: World }) {
+  const [params, setParams] = useSearchParams();
+  const view: View = params.get('weeks') === 'all' ? 'all' : 'ahead';
   const agenda = seasonAgenda(world);
   const complete = world.phase === 'complete';
   const upcoming = view === 'all' || complete ? agenda : agenda.filter((week) => !week.past);
@@ -48,34 +89,11 @@ function CalendarContent({ world }: { world: World }) {
   };
   return (
     <div className="grid gap-5">
-      <div className="segmented-tabs" role="tablist" aria-label={a.calendar.views}>
-        {VIEWS.map((entry) => (
-          <button
-            key={entry}
-            type="button"
-            role="tab"
-            id={`weeks-${entry}`}
-            aria-controls="calendar-weeks"
-            aria-selected={view === entry}
-            tabIndex={view === entry ? 0 : -1}
-            onClick={() => select(entry)}
-            onKeyDown={(event) => {
-              if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
-              event.preventDefault();
-              const next = entry === 'ahead' ? 'all' : 'ahead';
-              select(next);
-              document.getElementById(`weeks-${next}`)?.focus();
-            }}
-          >
-            {a.calendar[entry]}
-          </button>
-        ))}
-      </div>
-      {complete && <p className={ui.muted}>{a.calendar.seasonOver}</p>}
+      <Legend />
+      {complete && <SeasonOver />}
       <div id="calendar-weeks" role="tabpanel" aria-labelledby={`weeks-${view}`}>
-        {/* Two balanced columns on wide screens, read down then across: a busy week never
-            stretches its quiet neighbour. */}
-        <ol className="grid gap-3 xl:block xl:columns-2 xl:gap-3 xl:[&>li]:mb-3 xl:[&>li]:break-inside-avoid">
+        {/* Two cards a row on wide screens, in week order, one under another on phones. */}
+        <ol className="flex flex-wrap gap-3">
           {groupQuiet(shown).map((week) =>
             'until' in week ? (
               <QuietWeeks key={week.week} from={week.week} to={week.until} />
@@ -85,13 +103,56 @@ function CalendarContent({ world }: { world: World }) {
           )}
         </ol>
         {bounded && (
-          <button className="text-button -ml-3 mt-1" onClick={toggleRest}>
+          <button className="text-button -ml-3 mt-2" onClick={toggleRest}>
             {expanded
               ? format(a.calendar.fewer, { count: AHEAD_WEEKS })
               : format(a.calendar.more, { count: upcoming.length - AHEAD_WEEKS })}
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** What each marker colour means; every entry also says it in words. */
+function Legend() {
+  const items: [keyof typeof marker, string][] = [
+    ['accent', a.calendar.legend.fixture],
+    ['gold', a.calendar.legend.deadline],
+    ['danger', a.calendar.legend.injury],
+    ['muted', a.calendar.legend.routine],
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted">
+      <span className="font-bold text-ink">{a.calendar.legend.title}</span>
+      {items.map(([tone, label]) => (
+        <span key={tone} className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className={cx('h-2.5 w-2.5 rounded-full', marker[tone])} />
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Once the season is over, the way back to the hub where the next one starts. */
+function SeasonOver() {
+  const [params] = useSearchParams();
+  return (
+    <div className="ui-card flex flex-wrap items-center gap-x-5 gap-y-3 rounded-panel border border-line bg-surface px-5 py-4 shadow-surface sm:px-6 sm:py-5">
+      <span
+        aria-hidden="true"
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-art-gold text-gold-ink"
+      >
+        <Glyph name="trophy" />
+      </span>
+      <div className="min-w-0 flex-[1_1_18rem]">
+        <p className="text-sm">{a.calendar.seasonOver}</p>
+        <p className="text-xs text-muted">{a.calendar.seasonOverNote}</p>
+      </div>
+      <ButtonLink variant="secondary" to={withSave('/career', params.get('save'))}>
+        {a.calendar.goHub}
+      </ButtonLink>
     </div>
   );
 }
@@ -118,13 +179,17 @@ function groupQuiet(weeks: AgendaWeek[]): (AgendaWeek | { week: number; until: n
   return rows;
 }
 
+/** A week card: two to a row on wide screens, its label beside the entries. */
+const card =
+  'flex min-w-0 flex-[1_1_28.75rem] flex-wrap items-start gap-x-5 gap-y-3 rounded-panel px-5 py-4.5';
+
 function QuietWeeks({ from, to }: { from: number; to: number }) {
   return (
-    <li className="grid gap-3 rounded-panel border border-line bg-surface p-4 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-5 sm:p-5">
-      <h2 className="font-display text-2xl leading-none">
+    <li className={cx(card, 'items-center border border-line bg-surface-soft')}>
+      <h2 className="w-28 shrink-0 font-display text-[1.625rem] leading-none">
         {format(a.calendar.weeks, { from, to })}
       </h2>
-      <p className="self-center text-sm text-muted">{a.calendar.empty}</p>
+      <p className="text-[0.8125rem] text-muted">{a.calendar.empty}</p>
     </li>
   );
 }
@@ -134,30 +199,35 @@ function WeekRow({ world, week }: { world: World; week: AgendaWeek }) {
   return (
     <li
       aria-current={week.current ? 'date' : undefined}
-      className={`grid content-start gap-3 rounded-panel border p-4 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-5 sm:p-5 ${
+      className={cx(
+        card,
+        'bg-surface',
         week.current
-          ? 'border-accent bg-surface shadow-surface ring-2 ring-accent/30'
-          : 'border-line bg-surface'
-      }`}
+          ? 'border-2 border-accent shadow-surface ring-4 ring-accent/20'
+          : 'border border-line',
+      )}
     >
-      <div className="flex items-baseline gap-3 sm:block">
-        <h2 className="font-display text-2xl leading-none">
+      <div className="flex w-28 shrink-0 flex-col items-start gap-1.5">
+        <h2 className="font-display text-[1.625rem] leading-none">
           {format(a.calendar.week, { week: week.week })}
         </h2>
+        <p className="text-xs font-semibold text-muted">
+          {formatGameDate(calendarDate(world.date.season, week.week, 1))}
+        </p>
         {week.current && (
-          <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-bold text-on-accent sm:mt-2 sm:inline-block">
+          <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-extrabold text-on-accent">
             {a.calendar.thisWeek}
           </span>
         )}
       </div>
       {week.entries.length ? (
-        <ul className="grid grid-cols-[minmax(0,1fr)] content-start gap-2">
+        <ul className="flex min-w-0 flex-[1_1_16.25rem] flex-col gap-2.5">
           {week.entries.map((entry, index) => (
             <Entry key={index} world={world} entry={entry} showDay={fixtures > 1} />
           ))}
         </ul>
       ) : (
-        <p className="self-center text-sm text-muted">{a.calendar.empty}</p>
+        <p className="self-center text-[0.8125rem] text-muted">{a.calendar.empty}</p>
       )}
     </li>
   );
@@ -167,7 +237,7 @@ const marker = {
   accent: 'bg-accent',
   gold: 'bg-gold',
   danger: 'bg-danger',
-  muted: 'bg-line',
+  muted: 'bg-line shadow-[inset_0_0_0_1px_var(--muted)]',
 };
 function Line({
   tone,
@@ -187,14 +257,17 @@ function Line({
     <li className="flex min-w-0 items-start gap-3">
       <span
         aria-hidden="true"
-        className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${marker[tone]}`}
+        className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${marker[tone]}`}
       />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold leading-snug">{children}</p>
+        <p className="text-sm leading-snug font-bold">{children}</p>
         {detail && <p className="text-xs text-muted">{detail}</p>}
       </div>
       {to && action && (
-        <Link to={withSave(to, params.get('save'))} className="text-button -my-2 shrink-0 text-sm">
+        <Link
+          to={withSave(to, params.get('save'))}
+          className="text-button -my-2.5 shrink-0 px-2 text-[0.8125rem] font-bold"
+        >
           {action}
         </Link>
       )}
@@ -208,6 +281,7 @@ function Entry({ world, entry, showDay }: { world: World; entry: AgendaEntry; sh
   switch (entry.kind) {
     case 'fixture': {
       const { fixture, result } = entry;
+      const ban = result ? undefined : bannedFixtures(world, career.playerId).get(fixture.id);
       const home = fixture.homeId === clubId;
       const opponent = world.clubs[home ? fixture.awayId : fixture.homeId];
       const venue = fixture.neutral ? a.calendar.neutral : home ? a.calendar.home : a.calendar.away;
@@ -248,7 +322,7 @@ function Entry({ world, entry, showDay }: { world: World; entry: AgendaEntry; sh
             />
           )}
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold leading-snug break-words">
+            <p className="text-sm leading-tight font-extrabold break-words">
               {opponent?.name ?? (home ? fixture.awayId : fixture.homeId)}
             </p>
             <p className="text-xs text-muted">
@@ -261,9 +335,13 @@ function Entry({ world, entry, showDay }: { world: World; entry: AgendaEntry; sh
                 .join(' · ')}
             </p>
           </div>
+          {!outcome && ban && (
+            // A ban rules the player out of this match (the discipline phase).
+            <SuspendedBadge matches={ban.of} match={ban.match} />
+          )}
           {outcome && (
             <span
-              className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold tabular-nums ${
+              className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-extrabold tabular-nums ${
                 tone === 'accent'
                   ? 'bg-accent text-on-accent'
                   : tone === 'danger'

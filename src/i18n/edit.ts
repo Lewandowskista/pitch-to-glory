@@ -21,6 +21,7 @@ export const editText = {
   noResults: 'Nothing matches. Try another name or country.',
   edited: 'Edited',
   choose: 'Choose a club, league or player from the list to edit it.',
+  back: 'Back to the list',
   name: 'Name',
   nameHint: 'Up to 40 characters.',
   nameInvalid: 'Enter a name of 1 to 40 characters.',

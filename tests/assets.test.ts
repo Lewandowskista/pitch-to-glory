@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../src/engine/rng';
+import { generateGallery } from '../src/engine/assets/gallery';
 import {
   CREST_SHAPES,
   CREST_SYMBOLS,
@@ -9,11 +11,13 @@ import {
 import { KIT_PATTERNS, generateKits, renderKit } from '../src/engine/assets/kit';
 import {
   AVATAR_OPTIONS,
+  AVATAR_PARTS,
   avatarSkinColor,
+  isAvatar,
   generateAvatar,
   renderAvatar,
 } from '../src/engine/assets/avatar';
-import { renderWardrobeShirt } from '../src/engine/assets/gear';
+import { renderFigure } from '../src/engine/assets/gear';
 import { contrastRatio, PALETTES } from '../src/engine/assets/shared';
 
 describe('procedural SVG artwork', () => {
@@ -24,16 +28,30 @@ describe('procedural SVG artwork', () => {
       const color = avatarSkinColor({ skin });
       expect(renderAvatar({ ...avatar, skin }, 17)).toContain(`fill="${color}"`);
       for (const sleeves of ['short', 'long'] as const) {
-        const shirt = renderWardrobeShirt(kit, sleeves, ['#f1cf58', '#075e45'], color);
+        const shirt = renderFigure({ ...avatar, skin }, 17, {
+          kit,
+          sleeves,
+          armband: ['#f1cf58', '#075e45'],
+          socks: 'socks:classic',
+          boots: ['#1d1d1f', '#ffffff'],
+        });
         expect(shirt).toContain(`<g fill="${color}"`);
         expect(shirt).toContain('data-arm="left"');
         expect(shirt).toContain('data-arm="right"');
         expect(shirt.indexOf('data-arm=')).toBeLessThan(shirt.indexOf('<defs>'));
-        expect(shirt).toContain('>C</text>');
+        expect(shirt).toContain('data-armband');
       }
     }
     expect(() => avatarSkinColor({ skin: 8 })).toThrow('Invalid asset option');
-    expect(() => renderWardrobeShirt(kit, 'short', null, '#invalid')).toThrow();
+    expect(() =>
+      renderFigure(avatar, 17, {
+        kit,
+        sleeves: 'short',
+        armband: null,
+        socks: 'socks:classic',
+        boots: ['#invalid' as `#${string}`, '#ffffff'],
+      }),
+    ).toThrow();
   });
   it('keeps crest symbols readable for every club palette, including edited colours', () => {
     const palettes = [...PALETTES, ['#123456', '#123457', '#123458'] as const];
@@ -64,6 +82,28 @@ describe('procedural SVG artwork', () => {
       );
       expect(new Set(svgs).size).toBe(count);
     }
+  });
+  it('shows every portrait option in the gallery without changing its crests or kits', () => {
+    // Fingerprints of the clubs these seeds generated before the portrait range widened: a
+    // saved gallery seed must keep drawing the same crests and kits.
+    const clubs = {
+      'pitch-to-glory': 'a415f945ec96e799',
+      a11y: '6b08770c9df8bf1e',
+      'reseed-7': '63f2347391274d7b',
+    };
+    for (const [seed, fingerprint] of Object.entries(clubs)) {
+      const gallery = generateGallery(seed);
+      expect(
+        createHash('sha256').update(JSON.stringify(gallery.clubs)).digest('hex').slice(0, 16),
+      ).toBe(fingerprint);
+      expect(generateGallery(seed)).toEqual(gallery);
+      for (const part of AVATAR_PARTS) {
+        const shown = new Set(gallery.players.map((player) => player.avatar[part]));
+        expect(shown.size, `${seed} ${part}`).toBe(AVATAR_OPTIONS[part]);
+      }
+      for (const player of gallery.players) expect(isAvatar(player.avatar)).toBe(true);
+    }
+    expect(generateGallery('a11y').players).not.toEqual(generateGallery('reseed-7').players);
   });
   it('is reproducible and produces complete home, away and third kits', () => {
     const a = createRng('club');
@@ -102,12 +142,14 @@ describe('procedural SVG artwork', () => {
       renderCrest(generateCrest(rng)),
       renderKit(generateKits(rng).home),
       renderAvatar(generateAvatar(rng), 42),
-      renderWardrobeShirt(
-        generateKits(rng).home,
-        'long',
-        null,
-        avatarSkinColor(generateAvatar(rng)),
-      ),
+      renderFigure(generateAvatar(rng), 42, {
+        kit: generateKits(rng).home,
+        crest: generateCrest(rng),
+        sleeves: 'long',
+        armband: null,
+        socks: 'socks:taped',
+        boots: ['#1d1d1f', '#ffffff'],
+      }),
     ]).flat();
     for (const svg of outputs) {
       expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/);

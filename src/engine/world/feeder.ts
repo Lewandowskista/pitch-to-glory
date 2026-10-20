@@ -5,6 +5,7 @@ import { generateKits } from '../assets/kit';
 import { generateManager, generatePlayer } from './generate';
 import { nationalCityName, nationalClubName, nationalStadiumName } from './names';
 import { POSITIONS } from './catalog';
+import { squadNumbersFor } from './squadNumbers';
 import { IDENTITIES, TownPicker, usedTowns } from './identities';
 
 /**
@@ -103,6 +104,7 @@ export function createFeederClub(world: World, countryId: string, region: string
   };
   world.clubs[id] = club;
   world.managers[club.managerId] = generateManager(club.managerId, rng, countryIndex);
+  const numbers = squadNumbersFor(POSITIONS);
   for (const [playerIndex, position] of POSITIONS.entries()) {
     const { player, contract } = generatePlayer(
       `player:${id}:${playerIndex}`,
@@ -111,6 +113,7 @@ export function createFeederClub(world: World, countryId: string, region: string
       rng.int(17, 31),
       world.date,
       rng,
+      numbers[playerIndex]!,
     );
     world.players[player.id] = player;
     world.contracts[contract.id] = contract;

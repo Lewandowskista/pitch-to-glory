@@ -1,11 +1,133 @@
+/** A small ball: white with a dark pentagon, as on the state pages. */
+function Ball({ x, y, r }: { x: number; y: number; r: number }) {
+  const s = r / 17;
+  return (
+    <g
+      className="loading-ball"
+      style={{ transformOrigin: `${x}px ${y}px`, transformBox: 'view-box' }}
+    >
+      <circle cx={x} cy={y} r={r} fill="#ffffff" stroke="#23342a" strokeWidth={2.5 * s} />
+      <path
+        d={`M${x} ${y - 8 * s}L${x + 7 * s} ${y - 3 * s}L${x + 4.5 * s} ${y + 5.5 * s}H${x - 4.5 * s}L${x - 7 * s} ${y - 3 * s}Z`}
+        fill="#23342a"
+      />
+      <path
+        d={`M${x} ${y - 8 * s}V${y - r} M${x + 7 * s} ${y - 3 * s}L${x + r} ${y - 6 * s} M${x + 4.5 * s} ${y + 5.5 * s}L${x + 10 * s} ${y + 14 * s} M${x - 4.5 * s} ${y + 5.5 * s}L${x - 10 * s} ${y + 14 * s} M${x - 7 * s} ${y - 3 * s}L${x - r} ${y - 6 * s}`}
+        stroke="#23342a"
+        strokeWidth={1.8 * s}
+      />
+    </g>
+  );
+}
+
+/**
+ * The full-page state art (Feedback artboard): `loading` rolls a ball along a dotted line,
+ * `error` is a blank scoreboard, `lost` a corner flag with the ball out of play.
+ */
+function StateIllustration({
+  kind,
+  className,
+}: {
+  kind: 'loading' | 'error' | 'lost';
+  className: string;
+}) {
+  if (kind === 'loading')
+    return (
+      <svg
+        viewBox="0 0 120 64"
+        width="120"
+        height="64"
+        aria-hidden="true"
+        focusable="false"
+        className={className}
+      >
+        <path d="M4 58H116" stroke="var(--line)" strokeWidth="3" strokeLinecap="round" />
+        <path
+          d="M8 58H54"
+          stroke="var(--accent)"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray="2 8"
+        />
+        <path
+          d="M42 30H54M38 40H52"
+          stroke="var(--meter-gold)"
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+        <Ball x={80} y={36} r={20} />
+      </svg>
+    );
+  if (kind === 'error')
+    return (
+      <svg
+        viewBox="0 0 260 150"
+        aria-hidden="true"
+        focusable="false"
+        className={`football-illustration ${className}`}
+      >
+        <path d="M10 140H250" stroke="var(--line)" strokeWidth="3" strokeLinecap="round" />
+        <rect x="40" y="22" width="180" height="92" rx="12" fill="#14251e" />
+        <rect x="52" y="34" width="156" height="68" rx="8" fill="#1b2e25" />
+        <path d="M76 68H104M156 68H184" stroke="#354a3d" strokeWidth="8" strokeLinecap="round" />
+        <circle cx="130" cy="60" r="4" fill="#354a3d" />
+        <circle cx="130" cy="76" r="4" fill="#354a3d" />
+        <path
+          d="M92 114V140M168 114V140"
+          stroke="var(--muted)"
+          strokeWidth="6"
+          strokeLinecap="round"
+        />
+        <path
+          d="M196 14L206 4M206 22L220 18M188 8L190 -4"
+          stroke="var(--meter-gold)"
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+        <g>
+          <circle cx="214" cy="128" r="12" fill="#ffffff" stroke="#23342a" strokeWidth="2" />
+          <path d="M214 123L218 126L216.5 131H211.5L210 126Z" fill="#23342a" />
+        </g>
+      </svg>
+    );
+  return (
+    <svg
+      viewBox="0 0 260 150"
+      aria-hidden="true"
+      focusable="false"
+      className={`football-illustration ${className}`}
+    >
+      <rect x="0" y="40" width="170" height="110" rx="12" fill="var(--color-field)" />
+      <rect x="34" y="40" width="34" height="110" fill="var(--color-field-stripe)" />
+      <rect x="102" y="40" width="34" height="110" fill="var(--color-field-stripe)" />
+      <path d="M0 44H166V150" fill="none" stroke="#ffffff" strokeWidth="4" />
+      <path d="M166 62A18 18 0 0 1 148 44" fill="none" stroke="#ffffff" strokeWidth="3" />
+      <path d="M166 44V6" stroke="var(--muted)" strokeWidth="3" strokeLinecap="round" />
+      <path d="M166 6L190 14L166 22Z" fill="var(--color-gold)" />
+      <path
+        d="M176 132Q196 118 212 120"
+        fill="none"
+        stroke="var(--meter-gold)"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeDasharray="3 7"
+      />
+      <circle cx="230" cy="122" r="17" fill="#ffffff" stroke="#23342a" strokeWidth="2.5" />
+      <path d="M230 114L237 119L234.5 127.5H225.5L223 119Z" fill="#23342a" />
+    </svg>
+  );
+}
+
 /** Original, theme-aware SVG illustrations. No raster assets or network requests. */
 export function FootballIllustration({
   kind = 'career',
   className = '',
 }: {
-  kind?: 'career' | 'world' | 'match' | 'honours';
+  kind?: 'career' | 'world' | 'match' | 'honours' | 'loading' | 'error' | 'lost';
   className?: string;
 }) {
+  if (kind === 'loading' || kind === 'error' || kind === 'lost')
+    return <StateIllustration kind={kind} className={className} />;
   return (
     <svg
       viewBox="0 0 240 180"

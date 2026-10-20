@@ -1,3 +1,5 @@
+import { disciplineText } from './discipline';
+
 /** Market copy (milestone 5): contracts, transfers, loans, negotiation, agents and inbox. */
 export const marketText = {
   titles: { transfers: 'Transfers and contract', agent: 'Agent', inbox: 'Inbox' },
@@ -149,6 +151,17 @@ export const marketText = {
     loanTerms: '{role} · {club} pays {share}% of your wage',
     bids: 'Bids: {bids}',
     clause: 'Release clause met',
+    pageBody:
+      'Answer the offers on the table, see who is watching you, and decide when to push for a move.',
+    waiting: '{count} waiting for your answer',
+    waitingOne: '1 waiting for your answer',
+    tierAbove: '{count} tiers above {club}',
+    tierAboveOne: 'One tier above {club}',
+    tierSame: 'Same tier as {club}',
+    tierBelow: '{count} tiers below {club}',
+    tierBelowOne: 'One tier below {club}',
+    abroad: 'Abroad: {country}',
+    openWith: ' with {club}',
   },
   talks: {
     title: 'Talks with {club}',
@@ -176,7 +189,7 @@ export const marketText = {
     patience: '{count} more counter-offers before they lose patience',
     patienceOne: 'One more counter-offer before they lose patience',
     patienceNone: 'Their patience has run out: another demand they cannot meet ends the talks.',
-    agentRead: '{agent} thinks they could go to about {wage} a week.',
+    agentRead: '{agent} thinks they could go to about {wage}.',
     noAgent: 'Without an agent you only see the club’s offer. An agent reads their limits.',
     fee: 'Fee agreed between the clubs: {fee}',
     preContract:
@@ -207,6 +220,17 @@ export const marketText = {
     windowClosed: 'The transfer window has closed.',
     invalid: 'Enter a whole-number wage of at least {floor} Cr and fees of zero or more.',
     summary: 'Wage {wage} · {years} · {role}',
+    round: 'Round {round}',
+    agentReadTitle: 'Your agent’s read',
+    patienceLabel: 'Their patience',
+    currency: 'Cr',
+    perWeekShort: '/ week',
+    wageAbove: 'Wage {amount} above their offer',
+    wageBelow: 'Wage {amount} below their offer',
+    wageSame: 'Wage the same as their offer',
+    agentUnder: '{amount} under your agent’s estimate',
+    agentOver: '{amount} over your agent’s estimate',
+    agentAt: 'right at your agent’s estimate',
   },
   interest: {
     title: 'Scouting interest',
@@ -216,6 +240,8 @@ export const marketText = {
     weeks: '{weeks} weeks observed',
     loan: 'Loan',
     abroad: 'Abroad',
+    count: '{count} clubs',
+    countOne: '1 club',
   },
   moves: {
     title: 'Career moves',
@@ -268,6 +294,11 @@ export const marketText = {
       negotiating: 'Finish your current talks first',
     },
     portrait: 'Portrait of {name}',
+    pageBody:
+      'Who negotiates for you, which clubs hear your name, and what it costs. Better agents take you on as your standing grows.',
+    sorted: 'Sorted by the standing they ask for',
+    ticks: 'Marks show the standing each agent below asks for.',
+    outOf: 'of 100',
   },
   inbox: {
     title: 'Inbox',
@@ -290,6 +321,33 @@ export const marketText = {
     list: 'Messages',
     selectPrompt: 'Choose a message to read it.',
     reader: 'Message',
+    // Redesign (phase 3b): message types, senders and deadlines.
+    description:
+      'Offers, call-ups and news from your club and agent. Messages that need an answer take you straight to it.',
+    keys: 'Up and down arrows move through the list. Opening a message marks it as read.',
+    newestFirst: '{unread} · newest first',
+    kinds: {
+      transfer: 'Transfer',
+      contract: 'Contract',
+      agent: 'Agent',
+      press: 'Press',
+      national: 'National',
+      honours: 'Honours',
+      sponsor: 'Sponsor',
+      lifestyle: 'Lifestyle',
+      club: 'Club',
+      story: 'Story',
+      rival: 'Rival',
+      market: 'Market',
+    },
+    sender: {
+      club: 'Your club · {name}',
+      agent: 'Your agent · {name}',
+      press: '{name} · Press',
+    },
+    deadline: 'Needs your answer by week {week}',
+    deadlineNow: 'Needs your answer this week',
+    offerLine: '{kind} · fee {fee}',
   },
   hub: {
     market: 'Market',
@@ -382,6 +440,8 @@ export const marketText = {
       subject: 'Contract extended by the club',
       body: 'Your contract ran out, so {club} took up their option for one more season, to the end of {season}.',
     },
+    // A ban starts (the discipline phase); `messageText` words the matches, scope and reason.
+    suspended: disciplineText.message,
     dropped: {
       subject: 'Left out against {opponent}',
       body: 'The manager left you out of the side to face {opponent}. Form, fitness and trust decide who plays.',
@@ -431,4 +491,8 @@ export const marketText = {
       body: '{club} have appointed {manager}. You will have to earn their trust.',
     },
   } as Record<string, { subject: string; body: string }>,
+  /** Phase 7 (C5): the sender stored with a message, when it is the manager. */
+  inboxMeta: {
+    manager: '{name} · Manager',
+  },
 };

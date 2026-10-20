@@ -1,4 +1,5 @@
 import {
+  memo,
   useEffect,
   useMemo,
   useRef,
@@ -6,17 +7,29 @@ import {
   useSyncExternalStore,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Club, Hex, League, Player, World } from '../model/domain';
 import { useAppStore } from '../store';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
-import { FootballIllustration } from '../ui/FootballIllustration';
 import { Artwork } from '../ui/Artwork';
-import { renderCrest } from '../engine/assets/crest';
+import { kitArt } from '../ui/kitArt';
+import {
+  Button,
+  ButtonLink,
+  CardTitle,
+  Chip,
+  PageHeader,
+  Panel,
+  StatusLine,
+  buttonClass,
+  cx,
+} from '../ui/kit';
+import { foundedYear, renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
-import { renderAvatar } from '../engine/assets/avatar';
+import { clubDress, renderAvatar } from '../engine/assets/avatar';
 import { chooseMatchKits, safeDifference } from '../engine/assets/clash';
 import { CONFIG } from '../engine/config';
 import {
@@ -33,13 +46,19 @@ import { platform } from '../platform';
 import { format, t } from '../i18n';
 import { careerText as c } from '../i18n/career';
 import { editText as e } from '../i18n/edit';
-import { plural, ui, useEditBlock, useRestoredWorld } from './career/shared';
+import { CrestImage, plural, useEditBlock, useRestoredWorld } from './career/shared';
 
 type Kind = 'clubs' | 'leagues' | 'players';
 const KINDS: Kind[] = ['clubs', 'leagues', 'players'];
 const LIMIT = 60;
+/** Fields share one look; invalid values get the danger outline and tint over the utilities. */
 const field =
-  'min-h-11 w-full rounded-control border border-line bg-surface px-3 text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent';
+  'min-h-11 w-full rounded-control border border-line bg-surface px-3 text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent aria-[invalid=true]:border-2 aria-[invalid=true]:border-danger aria-[invalid=true]:bg-danger-soft';
+const eyebrow = 'text-xs font-extrabold uppercase tracking-[0.14em] text-muted';
+/** A titled block inside the club editor, set off by a hairline. */
+const SECTION = 'flex flex-col gap-3 border-t border-line pt-5';
+const fieldLabel = 'text-[0.8125rem] font-bold';
+const rowId = (id: string) => `edit-row-${id}`;
 
 /** Apply an edit to the loaded world; the autosave writes it like any other change. */
 function useEdit() {
@@ -64,40 +83,53 @@ export default function EditMode() {
   const { loading, error } = useRestoredWorld();
   return (
     <Page>
-      <header className="page-heading">
-        <h1>{t.app.edit}</h1>
-        <p>{e.description}</p>
-      </header>
+      <PageHeader title={t.app.edit} description={e.description} />
       {error && (
-        <p role="alert" className="inline-error">
+        <StatusLine tone="error" className="mb-5">
           {error}
-        </p>
+        </StatusLine>
       )}
       {loading ? (
-        <p role="status" className={ui.muted}>
+        <p role="status" className="text-muted">
           {c.common.loading}
         </p>
       ) : world ? (
         <Editor world={world} />
       ) : (
-        <section className={`${ui.panel} illustrated-empty max-w-4xl bg-art-green`}>
-          <div className="grid justify-items-start gap-4">
-            <h2 className="font-display text-[2.2rem] leading-none">{e.empty.title}</h2>
-            <p className="max-w-prose text-muted">{e.empty.body}</p>
-            <div className="flex flex-wrap gap-2">
-              <Link className="button" to="/world">
-                {e.empty.world}
-                <Icon name="arrow" />
-              </Link>
-              <Link className="button secondary" to="/saves">
-                {e.empty.saves}
-              </Link>
-            </div>
-          </div>
-          <FootballIllustration kind="world" />
-        </section>
+        <NoWorld />
       )}
     </Page>
+  );
+}
+
+function NoWorld() {
+  return (
+    <Panel
+      tone="green"
+      aria-labelledby="edit-no-world"
+      className="flex max-w-4xl flex-wrap items-center gap-x-6 gap-y-4 sm:p-7"
+    >
+      <span
+        aria-hidden="true"
+        className="grid h-18 w-18 shrink-0 place-items-center rounded-panel bg-surface text-accent"
+      >
+        <Icon name="edit" className="h-9 w-9" />
+      </span>
+      <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-1.5">
+        <h2 id="edit-no-world" className="font-display text-[2.25rem] leading-none font-normal">
+          {e.empty.title}
+        </h2>
+        <p>{e.empty.body}</p>
+        <div className="mt-1.5 flex flex-wrap gap-2.5">
+          <ButtonLink to="/world" iconEnd="arrow">
+            {e.empty.world}
+          </ButtonLink>
+          <ButtonLink to="/saves" variant="secondary">
+            {e.empty.saves}
+          </ButtonLink>
+        </div>
+      </div>
+    </Panel>
   );
 }
 
@@ -122,6 +154,9 @@ interface Row {
   meta: string;
   countryId: string;
   edited: boolean;
+  club?: Club;
+  player?: Player;
+  age?: number;
 }
 
 function rows(world: World, kind: Kind): Row[] {
@@ -135,6 +170,7 @@ function rows(world: World, kind: Kind): Row[] {
         meta: `${world.leagues[club.leagueId]?.name ?? ''} · ${country(club.countryId)}`,
         countryId: club.countryId,
         edited: Boolean(edits?.clubs[club.id]),
+        club,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   if (kind === 'leagues')
@@ -160,20 +196,53 @@ function rows(world: World, kind: Kind): Row[] {
         }),
         countryId: club?.countryId ?? player.nationalityId,
         edited: Boolean(edits?.players[player.id]),
+        player,
+        club,
+        age: world.date.season - player.birthSeason,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** The picture at the start of a list row: the crest, the portrait or the league's cup. */
+const RowArt = memo(function RowArt({ row }: { row: Row }) {
+  const portrait = useMemo(
+    () =>
+      row.player
+        ? renderAvatar(
+            row.player.avatar,
+            Math.max(16, Math.min(60, row.age ?? 16)),
+            clubDress(row.club),
+            'row',
+          )
+        : '',
+    [row.player, row.age, row.club],
+  );
+  if (row.player) return <Artwork svg={portrait} alt="" className="h-9 w-9 shrink-0" />;
+  if (row.club)
+    return (
+      <CrestImage crest={row.club.crest} alt="" className="h-[2.125rem] w-[1.875rem] shrink-0" />
+    );
+  return (
+    <span
+      aria-hidden="true"
+      className="grid h-9 w-9 shrink-0 place-items-center rounded-control bg-art-blue text-info"
+    >
+      <Icon name="history" className="h-5 w-5" />
+    </span>
+  );
+});
+
 function Editor({ world }: { world: World }) {
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const kind = (KINDS.find((k) => k === params.get('kind')) ?? 'clubs') as Kind;
   // Typed and ticked values live in local state (the URL updates in a transition, which
   // would make controlled inputs lag); the URL mirrors them for back, forward and refresh.
   const [query, setQuery] = useState(() => params.get('q') ?? '');
   const country = params.get('country') ?? '';
   const [editedOnly, setEditedOnly] = useState(() => params.get('edited') === '1');
-  const { block } = useEdit();
+  const { block: blocked } = useEdit();
   // Beside the list (wide screens), open the first result instead of an empty pane.
   const wide = useWide();
   const set = (patch: Record<string, string | null>, push = false) => {
@@ -203,6 +272,30 @@ function Editor({ world }: { world: World }) {
       setParams(next, { replace: true });
     }
   }, [wide, pinned, firstId, params, setParams]);
+  // On narrower screens the list and the editor take turns. Opening an item adds a history
+  // entry, so Back (the button or the browser's) returns to the list; focus follows the swap.
+  const opened = useRef(false);
+  const pushed = useRef(false);
+  const returnTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (selected && opened.current) document.getElementById('edit-back')?.focus();
+    if (!selected && returnTo.current) document.getElementById(rowId(returnTo.current))?.focus();
+    opened.current = false;
+    if (!selected) {
+      returnTo.current = null;
+      pushed.current = false;
+    }
+  }, [selected]);
+  const open = (id: string) => {
+    opened.current = !wide;
+    pushed.current = true;
+    set({ id }, true);
+  };
+  const back = () => {
+    returnTo.current = selected;
+    if (pushed.current) navigate(-1);
+    else set({ id: null });
+  };
   const tabs = useRef<HTMLDivElement>(null);
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -226,16 +319,17 @@ function Editor({ world }: { world: World }) {
           ? world.players[selected]
           : undefined;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-      {block && (
-        <p role="status" className="inline-error xl:col-span-2">
-          {block}
-        </p>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] xl:items-start">
+      {blocked && (
+        <StatusLine tone="warning" className="xl:col-span-2">
+          {blocked}
+        </StatusLine>
       )}
       <EditFile world={world} />
-      <section
+      <Panel
         aria-labelledby="edit-list-heading"
-        className={`${ui.panel} flex min-w-0 flex-col gap-4`}
+        padding="none"
+        className={cx('flex flex-col gap-3.5 p-5', entity && 'max-xl:hidden')}
       >
         <h2 id="edit-list-heading" className="sr-only">
           {e.kindsLabel}
@@ -249,6 +343,7 @@ function Editor({ world }: { world: World }) {
           {KINDS.map((k) => (
             <button
               key={k}
+              type="button"
               role="tab"
               id={`edit-tab-${k}`}
               aria-selected={kind === k}
@@ -262,23 +357,38 @@ function Editor({ world }: { world: World }) {
           ))}
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 xl:grid-cols-1">
-          <label className="grid gap-1 text-sm font-semibold">
+          <label className={cx('grid gap-1', fieldLabel)}>
             {e.search}
-            <input
-              type="search"
-              className={field}
-              value={query}
-              placeholder={e.searchPlaceholder}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                set({ q: event.target.value || null });
-              }}
-            />
+            <span className="relative block">
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-3.5 h-4.5 w-4.5 -translate-y-1/2 text-muted"
+              >
+                <path
+                  d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14ZM16 16L20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <input
+                type="search"
+                className={cx(field, 'pl-10 font-normal')}
+                value={query}
+                placeholder={e.searchPlaceholder}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  set({ q: event.target.value || null });
+                }}
+              />
+            </span>
           </label>
-          <label className="grid gap-1 text-sm font-semibold">
+          <label className={cx('grid gap-1', fieldLabel)}>
             {e.country}
             <select
-              className={field}
+              className={cx(field, 'font-semibold')}
               value={country}
               onChange={(event) => set({ country: event.target.value || null })}
             >
@@ -291,7 +401,7 @@ function Editor({ world }: { world: World }) {
             </select>
           </label>
         </div>
-        <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
+        <label className={cx('flex min-h-11 cursor-pointer items-center gap-2.5', fieldLabel)}>
           <input
             type="checkbox"
             className="h-5 w-5 accent-[var(--accent)]"
@@ -303,40 +413,69 @@ function Editor({ world }: { world: World }) {
           />
           {e.editedOnly}
         </label>
-        <div id="edit-results" role="tabpanel" aria-labelledby={`edit-tab-${kind}`}>
-          <p className="mb-2 text-xs text-muted" aria-live="polite">
+        <div
+          id="edit-results"
+          role="tabpanel"
+          aria-labelledby={`edit-tab-${kind}`}
+          className="flex flex-col gap-2"
+        >
+          <p className="text-xs text-muted" aria-live="polite">
             {matches.length > LIMIT
               ? format(e.resultsMore, { shown: LIMIT, total: matches.length })
               : format(e.results, { shown: matches.length, total: all.length })}
           </p>
           {shown.length ? (
-            <ul className="grid max-h-[32rem] gap-1.5 overflow-y-auto pr-1">
-              {shown.map((row) => (
-                <li key={row.id}>
-                  <button
-                    aria-current={row.id === selected ? 'true' : undefined}
-                    onClick={() => set({ id: row.id }, true)}
-                    className={`flex min-h-12 w-full min-w-0 items-center gap-2 rounded-control border px-3 py-2 text-left ${ui.focus} ${
-                      row.id === selected
-                        ? 'border-accent bg-accent-soft'
-                        : 'border-line bg-surface-soft hover:border-accent'
-                    }`}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <strong className="block truncate text-sm">{row.name}</strong>
-                      <span className="block truncate text-xs text-muted">{row.meta}</span>
-                    </span>
-                    {row.edited && <span className={ui.chip}>{e.edited}</span>}
-                  </button>
-                </li>
-              ))}
+            <ul className="flex flex-col gap-1.5 xl:max-h-[38.75rem] xl:overflow-y-auto xl:pr-1">
+              {shown.map((row) => {
+                const current = row.id === selected;
+                return (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      id={rowId(row.id)}
+                      aria-current={current ? 'true' : undefined}
+                      onClick={() => open(row.id)}
+                      className={cx(
+                        'flex min-h-13 w-full min-w-0 items-center gap-2.5 rounded-control px-3 py-1.5 text-left text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                        current
+                          ? 'border-2 border-accent bg-accent-soft'
+                          : 'border border-line bg-surface-soft hover:border-accent',
+                      )}
+                    >
+                      <RowArt row={row} />
+                      <span className="min-w-0 flex-1">
+                        <strong className="block truncate text-sm">{row.name}</strong>
+                        <span className="block truncate text-xs text-muted">{row.meta}</span>
+                      </span>
+                      {row.edited && (
+                        <Chip tone="gold-soft" className="shrink-0">
+                          {e.edited}
+                        </Chip>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
-            <p className={ui.muted}>{e.noResults}</p>
+            <p className="rounded-control border border-dashed border-line px-3.5 py-3 text-muted">
+              {e.noResults}
+            </p>
           )}
         </div>
-      </section>
-      <div className="order-first min-w-0 xl:order-none">
+      </Panel>
+      <div className={cx('flex min-w-0 flex-col gap-3', !entity && 'max-xl:hidden')}>
+        {entity && (
+          <button
+            type="button"
+            id="edit-back"
+            className={cx(buttonClass('secondary'), 'self-start xl:hidden')}
+            onClick={back}
+          >
+            <Icon name="chevron" className="rotate-180" />
+            {e.back}
+          </button>
+        )}
         {entity && kind === 'clubs' ? (
           <ClubEditor key={entity.id} world={world} club={entity as Club} />
         ) : entity && kind === 'leagues' ? (
@@ -344,11 +483,49 @@ function Editor({ world }: { world: World }) {
         ) : entity ? (
           <NameEditor key={entity.id} world={world} kind="players" entity={entity as Player} />
         ) : (
-          <section className={`${ui.panel} hidden xl:block`}>
-            <p className={ui.muted}>{e.choose}</p>
-          </section>
+          <div className="flex items-center gap-3.5 rounded-panel border border-dashed border-line bg-surface p-7 text-muted">
+            <Icon name="chevron" className="h-7 w-7 shrink-0 rotate-180" />
+            <p>{e.choose}</p>
+          </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** The editor's title row: a picture, the kind as an eyebrow, the name and one line of facts. */
+function EditorHeading({
+  art,
+  kind,
+  name,
+  meta,
+  edited,
+  large = false,
+}: {
+  art: ReactNode;
+  kind: Kind;
+  name: string;
+  meta: string;
+  edited: boolean;
+  large?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4 sm:gap-4.5">
+      {art}
+      <div className="min-w-0 flex-[1_1_13.75rem]">
+        <p className={eyebrow}>{e.kinds[kind]}</p>
+        <h2
+          id="editor-heading"
+          className={cx(
+            'mt-0.5 font-display leading-[0.95] font-normal break-words',
+            large ? 'text-[2.5rem] sm:text-[3rem]' : 'text-[2.25rem] sm:text-[2.5rem]',
+          )}
+        >
+          {name}
+        </h2>
+        <p className="mt-0.5 text-muted">{meta}</p>
+      </div>
+      {edited && <Chip tone="gold-soft">{e.edited}</Chip>}
     </div>
   );
 }
@@ -384,14 +561,14 @@ function NameForm({
     setStatus(error ?? e.savedName);
   };
   return (
-    <form onSubmit={submit} noValidate className="grid gap-2">
-      <label htmlFor={id} className="text-sm font-semibold">
+    <form onSubmit={submit} noValidate className="flex flex-col gap-1.5">
+      <label htmlFor={id} className={fieldLabel}>
         {e.name}
       </label>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2.5">
         <input
           id={id}
-          className={`${field} flex-1 basis-56`}
+          className={cx(field, 'min-h-12 flex-[1_1_15rem] text-[0.9375rem] font-semibold')}
           value={name}
           maxLength={NAME_LIMIT}
           autoComplete="off"
@@ -399,24 +576,27 @@ function NameForm({
           aria-describedby={`${id}-hint`}
           onChange={(event) => setName(event.target.value)}
         />
-        <button className="button" disabled={disabled || name === value}>
+        <Button type="submit" disabled={disabled || name === value}>
           {e.rename}
-        </button>
+        </Button>
       </div>
       <p id={`${id}-hint`} className="text-xs text-muted">
         {original ? format(e.original, { name: original }) : e.nameHint}
       </p>
-      <p role="status" className="text-sm font-semibold text-accent empty:hidden">
-        {status}
-      </p>
+      <StatusLine tone={invalid ? 'error' : 'success'}>{status}</StatusLine>
     </form>
   );
 }
 
 function RevertButton({ onRevert, disabled }: { onRevert: () => void; disabled: boolean }) {
   return (
-    <button className="button secondary" disabled={disabled} onClick={onRevert}>
-      <Icon name="refresh" />
+    <button
+      type="button"
+      className={buttonClass('secondary')}
+      disabled={disabled}
+      onClick={onRevert}
+    >
+      <Icon name="refresh" className="-scale-x-100" />
       {e.revert}
     </button>
   );
@@ -437,35 +617,43 @@ function NameEditor({
   const player = kind === 'players' ? (entity as Player) : undefined;
   const league = kind === 'leagues' ? (entity as League) : undefined;
   const age = player ? world.date.season - player.birthSeason : 0;
+  const club = player?.clubId ? world.clubs[player.clubId] : undefined;
   const portrait = useMemo(
-    () => (player ? renderAvatar(player.avatar, Math.max(16, Math.min(60, age))) : ''),
-    [player, age],
+    () =>
+      player ? renderAvatar(player.avatar, Math.max(16, Math.min(60, age)), clubDress(club)) : '',
+    [player, age, club],
   );
+  const meta = player
+    ? `${format(e.player.meta, {
+        position: c.positions[player.primaryPosition] ?? '',
+        club: player.clubId ? (world.clubs[player.clubId]?.name ?? '') : e.player.free,
+      })} · ${format(e.player.age, { age })}`
+    : league
+      ? `${format(e.league.country, {
+          country: world.countries[league.countryId]?.name ?? '',
+          tier: league.tier,
+        })} · ${format(e.league.clubs, { count: league.clubIds.length })}`
+      : '';
   return (
-    <section aria-labelledby="editor-heading" className={`${ui.panel} flex flex-col gap-5`}>
-      <div className="flex flex-wrap items-center gap-4">
-        {player && <Artwork svg={portrait} alt="" className="h-20 w-20 rounded-full bg-art-blue" />}
-        <div className="min-w-0 flex-1">
-          <p className={ui.eyebrow}>{e.kinds[kind]}</p>
-          <h2 id="editor-heading" className={`${ui.heading} break-words`}>
-            {entity.name}
-          </h2>
-          <p className="text-sm text-muted">
-            {player
-              ? `${format(e.player.meta, {
-                  position: c.positions[player.primaryPosition] ?? '',
-                  club: player.clubId ? (world.clubs[player.clubId]?.name ?? '') : e.player.free,
-                })} · ${format(e.player.age, { age })}`
-              : league
-                ? `${format(e.league.country, {
-                    country: world.countries[league.countryId]?.name ?? '',
-                    tier: league.tier,
-                  })} · ${format(e.league.clubs, { count: league.clubIds.length })}`
-                : ''}
-          </p>
-        </div>
-        {edit && <span className={ui.chip}>{e.edited}</span>}
-      </div>
+    <Panel aria-labelledby="editor-heading" className="flex flex-col gap-5">
+      <EditorHeading
+        kind={kind}
+        name={entity.name}
+        meta={meta}
+        edited={Boolean(edit)}
+        art={
+          player ? (
+            <Artwork svg={portrait} alt="" className="h-20 w-20 shrink-0" />
+          ) : (
+            <span
+              aria-hidden="true"
+              className="grid h-16 w-16 shrink-0 place-items-center rounded-panel bg-art-blue text-info"
+            >
+              <Icon name="history" className="h-8 w-8" />
+            </span>
+          )
+        }
+      />
       <NameForm
         id={`name-${entity.id}`}
         value={entity.name}
@@ -487,12 +675,10 @@ function NameEditor({
               setStatus(error ?? e.reverted);
             }}
           />
-          <span role="status" className="text-sm font-semibold text-accent">
-            {status}
-          </span>
         </div>
       )}
-    </section>
+      <StatusLine tone="success">{status}</StatusLine>
+    </Panel>
   );
 }
 
@@ -523,30 +709,33 @@ function ClubEditor({ world, club }: { world: World; club: Club }) {
     };
   }, [club, valid?.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const changed = valid && valid.join() !== club.kits.home.colors.join();
-  const crestSvg = useMemo(() => renderCrest(preview.crest), [preview.crest]);
+  const founded = foundedYear(club);
+  const crestSvg = useMemo(() => renderCrest(preview.crest, { founded }), [preview.crest, founded]);
   const kitSvgs = useMemo(
-    () => (['home', 'away', 'third'] as const).map((k) => [k, renderKit(preview.kits[k])] as const),
-    [preview.kits],
+    () =>
+      (['home', 'away', 'third'] as const).map(
+        (k) => [k, renderKit(preview.kits[k], kitArt(preview.kits[k], preview.crest))] as const,
+      ),
+    [preview.kits, preview.crest],
   );
   return (
-    <section aria-labelledby="editor-heading" className={`${ui.panel} flex flex-col gap-6`}>
-      <div className="flex flex-wrap items-center gap-4">
-        <Artwork
-          svg={crestSvg}
-          alt={format(e.crestAlt, { club: club.name })}
-          className="h-24 w-24 shrink-0"
-        />
-        <div className="min-w-0 flex-1">
-          <p className={ui.eyebrow}>{e.kinds.clubs}</p>
-          <h2 id="editor-heading" className={`${ui.heading} break-words`}>
-            {club.name}
-          </h2>
-          <p className="text-sm text-muted">
-            {club.city} · {world.leagues[club.leagueId]?.name}
-          </p>
-        </div>
-        {edit && <span className={ui.chip}>{e.edited}</span>}
-      </div>
+    <Panel aria-labelledby="editor-heading" className="flex flex-col gap-6 sm:px-6.5">
+      <EditorHeading
+        kind="clubs"
+        name={club.name}
+        meta={`${club.city} · ${world.leagues[club.leagueId]?.name ?? ''}`}
+        edited={Boolean(edit)}
+        large
+        art={
+          <span className="shrink-0 rounded-panel bg-surface-soft px-3.5 py-2.5">
+            <Artwork
+              svg={crestSvg}
+              alt={format(e.crestAlt, { club: club.name })}
+              className="aspect-[160/180] w-24"
+            />
+          </span>
+        }
+      />
       <NameForm
         id={`name-${club.id}`}
         value={club.name}
@@ -554,16 +743,16 @@ function ClubEditor({ world, club }: { world: World; club: Club }) {
         disabled={Boolean(block)}
         onSave={(name) => run({ type: 'rename-club', id: club.id, name })}
       />
-      <div className="grid gap-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted">{e.colours}</h3>
-        <p className="text-sm text-muted">{e.coloursBody}</p>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3">
+      <div className={SECTION}>
+        <h3 className={eyebrow}>{e.colours}</h3>
+        <p className="text-[0.8125rem] text-muted">{e.coloursBody}</p>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,11.875rem),1fr))] gap-3">
           {colors.map((color, index) => {
             const label = e.colourNames[index]!;
             const ok = /^#[0-9a-f]{6}$/i.test(color);
             return (
-              <div key={label} className="grid gap-1">
-                <label htmlFor={`colour-${index}`} className="text-sm font-semibold">
+              <div key={label} className="flex flex-col gap-1">
+                <label htmlFor={`colour-${index}`} className={fieldLabel}>
                   {label}
                 </label>
                 <div className="flex items-center gap-2">
@@ -571,14 +760,14 @@ function ClubEditor({ world, club }: { world: World; club: Club }) {
                     id={`colour-${index}`}
                     type="color"
                     value={ok ? color.toLowerCase() : '#000000'}
-                    className={`h-11 w-14 shrink-0 cursor-pointer rounded-control border border-line bg-surface p-1 ${ui.focus}`}
+                    className="h-11 w-14 shrink-0 cursor-pointer rounded-control border border-line bg-surface p-1 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     onChange={(event) =>
                       setColors(colors.map((c2, i) => (i === index ? event.target.value : c2)))
                     }
                   />
                   <input
                     aria-label={format(e.colourHex, { name: label })}
-                    className={`${field} min-w-0 font-mono`}
+                    className={cx(field, 'min-w-0 flex-1 font-mono text-sm')}
                     value={color}
                     maxLength={7}
                     spellCheck={false}
@@ -592,55 +781,49 @@ function ClubEditor({ world, club }: { world: World; club: Club }) {
             );
           })}
         </div>
-        {!valid && (
-          <p role="alert" className="inline-error">
-            {e.coloursInvalid}
-          </p>
-        )}
-        <div>
-          <button
-            className="button"
-            disabled={Boolean(block) || !valid || !changed}
-            onClick={() => {
-              if (!valid) return;
-              setStatus(
-                run({ type: 'recolour-club', id: club.id, colors: valid as [Hex, Hex, Hex] }) ??
-                  e.coloursSaved,
-              );
-            }}
-          >
-            {e.applyColours}
-          </button>
-        </div>
+        {!valid && <StatusLine tone="error">{e.coloursInvalid}</StatusLine>}
+        <Button
+          className="self-start"
+          disabled={Boolean(block) || !valid || !changed}
+          onClick={() => {
+            if (!valid) return;
+            setStatus(
+              run({ type: 'recolour-club', id: club.id, colors: valid as [Hex, Hex, Hex] }) ??
+                e.coloursSaved,
+            );
+          }}
+        >
+          {e.applyColours}
+        </Button>
       </div>
-      <div className="grid gap-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted">{e.kits}</h3>
-        <ul className="grid grid-cols-3 gap-3">
+      <div className={SECTION}>
+        <h3 className={eyebrow}>{e.kits}</h3>
+        <ul className="grid grid-cols-3 gap-2 sm:gap-3">
           {kitSvgs.map(([k, svg]) => (
             <li
               key={k}
-              className="grid justify-items-center gap-1 rounded-control bg-surface-soft p-3"
+              className="flex min-w-0 flex-col items-center gap-1 rounded-control bg-surface-soft px-2 pt-3 pb-2.5"
             >
               <Artwork
                 svg={svg}
                 alt={format(e.kitAlt, { club: club.name, kit: e.kitNames[k].toLowerCase() })}
-                className="h-20 w-20"
+                className="aspect-square w-full max-w-24"
               />
-              <span className="text-xs font-semibold">{e.kitNames[k]}</span>
+              <span className="text-xs font-bold">{e.kitNames[k]}</span>
             </li>
           ))}
         </ul>
         <ClashCheck world={world} club={preview} />
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          className="button secondary"
+      <div className="flex flex-wrap items-center gap-2.5 border-t border-line pt-5">
+        <Button
+          variant="secondary"
+          icon="refresh"
           disabled={Boolean(block)}
           onClick={() => setStatus(run({ type: 'regenerate-crest', id: club.id }) ?? e.crestSaved)}
         >
-          <Icon name="refresh" />
           {e.regenerate}
-        </button>
+        </Button>
         {edit && (
           <RevertButton
             disabled={Boolean(block)}
@@ -652,10 +835,28 @@ function ClubEditor({ world, club }: { world: World; club: Club }) {
           />
         )}
       </div>
-      <p role="status" className="text-sm font-semibold text-accent empty:hidden">
+      <StatusLine tone="success" className="-mt-2">
         {status}
-      </p>
-    </section>
+      </StatusLine>
+    </Panel>
+  );
+}
+
+/** One line of the clash check: a tick or an exclamation mark in a disc, then the words. */
+function ClashLine({ ok, children }: { ok: boolean; children: ReactNode }) {
+  return (
+    <p className={cx('flex items-start gap-2.5 text-[0.8125rem]', !ok && 'font-bold text-danger')}>
+      <span
+        aria-hidden="true"
+        className={cx(
+          'grid h-5.5 w-5.5 shrink-0 place-items-center rounded-full text-[0.8125rem] font-extrabold',
+          ok ? 'bg-accent-soft text-accent' : 'bg-danger text-on-danger',
+        )}
+      >
+        {ok ? '✓' : '!'}
+      </span>
+      <span className="min-w-0">{children}</span>
+    </p>
   );
 }
 
@@ -669,26 +870,28 @@ function ClashCheck({ world, club }: { world: World; club: Club }) {
     .filter((other) => chooseMatchKits(club, other).clash || chooseMatchKits(other, club).clash);
   const ownSafe = own.difference >= CONFIG.accessibility.kitClash;
   return (
-    <div className="grid gap-2 rounded-control border border-line p-4">
-      <h4 className="text-sm font-bold">{e.clash.title}</h4>
+    <div className="flex flex-col gap-2 rounded-control border border-line p-4">
+      <h4 className="text-sm font-extrabold">{e.clash.title}</h4>
       <p className="text-xs text-muted">{e.clash.body}</p>
-      <p className={`text-sm ${ownSafe ? '' : 'font-semibold text-danger'}`}>
-        <span aria-hidden="true">{ownSafe ? '✓ ' : '! '}</span>
+      <ClashLine ok={ownSafe}>
         {ownSafe
           ? e.clash.ownSafe
           : format(e.clash.ownClash, { vision: e.clash.visions[own.vision] })}
-      </p>
-      <p className={`text-sm ${clashes.length ? 'font-semibold text-danger' : ''}`}>
-        <span aria-hidden="true">{clashes.length ? '! ' : '✓ '}</span>
+      </ClashLine>
+      <ClashLine ok={!clashes.length}>
         {clashes.length
           ? format(e.clash.leagueClash, { count: clashes.length })
           : e.clash.leagueSafe}
-      </p>
+      </ClashLine>
       {clashes.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5">
+        <ul className="ml-8 flex flex-wrap gap-1.5">
           {clashes.slice(0, 8).map((other) => (
-            <li key={other.id} className={ui.chip}>
-              {other.name}
+            <li
+              key={other.id}
+              className="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-danger-soft py-0.5 pr-2.5 pl-1 text-xs font-bold text-danger"
+            >
+              <CrestImage crest={other.crest} alt="" className="h-5 w-[1.125rem] shrink-0" />
+              <span className="truncate">{other.name}</span>
             </li>
           ))}
         </ul>
@@ -710,15 +913,20 @@ function EditFile({ world }: { world: World }) {
   const any = counts.clubs + counts.leagues + counts.players > 0;
   return (
     // Before any edit this is a compact strip, so the editor starts in the first view.
-    <section
+    <Panel
       aria-labelledby="edit-file-heading"
-      className={`${any ? ui.panel : ui.panelCompact} flex flex-wrap items-center gap-4 xl:col-span-2`}
+      padding={any ? 'normal' : 'compact'}
+      className="flex flex-wrap items-center gap-x-6 gap-y-3.5 xl:col-span-2"
     >
-      <div className="min-w-0 flex-1 basis-72">
-        <h2 id="edit-file-heading" className={any ? ui.heading : 'text-base font-bold'}>
+      <div className="min-w-0 flex-[1_1_23.75rem]">
+        <CardTitle
+          id="edit-file-heading"
+          size={any ? 'md' : 'sm'}
+          className={any ? undefined : 'text-[1.375rem]'}
+        >
           {e.file.title}
-        </h2>
-        <p className="mt-1 text-sm font-semibold">
+        </CardTitle>
+        <p className="mt-1 font-bold">
           {any
             ? format(e.file.summary, {
                 list: [
@@ -729,12 +937,13 @@ function EditFile({ world }: { world: World }) {
               })
             : e.file.none}
         </p>
-        <p className="mt-1 max-w-prose text-xs text-muted">{e.file.body}</p>
+        <p className="mt-1 max-w-[38.75rem] text-[0.8125rem] text-muted">{e.file.body}</p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2.5">
         {any && (
-          <button
-            className="button secondary"
+          <Button
+            variant="secondary"
+            icon="download"
             onClick={async () => {
               const slug = world.seed
                 .replace(/[^a-z0-9]+/gi, '-')
@@ -749,12 +958,15 @@ function EditFile({ world }: { world: World }) {
               setStatus(e.file.exported);
             }}
           >
-            <Icon name="download" />
             {e.file.export}
-          </button>
+          </Button>
         )}
         <label
-          className={`button secondary ${block ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}
+          className={cx(
+            buttonClass('secondary'),
+            'relative focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-accent',
+            block ? 'pointer-events-none opacity-60' : 'cursor-pointer',
+          )}
           aria-disabled={block ? true : undefined}
         >
           <Icon name="upload" />
@@ -792,12 +1004,9 @@ function EditFile({ world }: { world: World }) {
           />
         </label>
       </div>
-      <p
-        role={failed ? 'alert' : 'status'}
-        className={`basis-full text-sm font-semibold empty:hidden ${failed ? 'text-danger' : 'text-accent'}`}
-      >
+      <StatusLine tone={failed ? 'error' : 'success'} className="basis-full">
         {status}
-      </p>
-    </section>
+      </StatusLine>
+    </Panel>
   );
 }

@@ -15,6 +15,7 @@ import { ageCategory, isKeeperKey, type AnyAttribute } from '../ageing';
 import { getSeasonWeeks } from '../world/calendar';
 import { attributeValue, trainableAttributes } from './progression';
 import { chronicle } from './honours/chronicle';
+import { recordEvent } from '../world/events';
 import { cultureFit } from './social/rules';
 import { assetEffects } from './lifestyle/catalogue';
 import { playingShare, seedAvailability } from './availability';
@@ -182,6 +183,15 @@ export function injure(world: World, cause: Injury['cause'], rng: Rng, kind?: st
   player.injuryId = injury.id;
   if (injury.weeksRemaining >= 4)
     chronicle(world, 'injury', { kind: injury.kind, weeks: injury.weeksRemaining });
+  // Anything longer than a knock makes the world's news (phase 7, C7).
+  if (injury.weeksRemaining >= 2) {
+    const club = player.clubId ? world.clubs[player.clubId] : undefined;
+    recordEvent(world, 'injury', club ? [player.id, club.id] : [player.id], {
+      name: player.name,
+      club: club?.name ?? '',
+      weeks: injury.weeksRemaining,
+    });
+  }
   return injury;
 }
 /** Injury chance multiplier from fatigue, injury proneness, the Iron Man skill and a physio. */
