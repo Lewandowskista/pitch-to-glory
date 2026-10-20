@@ -1,5 +1,6 @@
 import {
   Suspense,
+  type ComponentProps,
   useCallback,
   useEffect,
   useMemo,
@@ -35,7 +36,6 @@ import { Icon } from '../ui/Icon';
 import { FootballIllustration } from '../ui/FootballIllustration';
 import { Selection } from './match/Selection';
 import { Preview } from './match/Preview';
-import { Report } from './match/Report';
 import { DecisionPanel, DecisionReplay } from './match/DecisionPanel';
 import { CareerFixture, CareerNoMatch, CareerReportActions } from './match/CareerMatchday';
 import {
@@ -72,6 +72,22 @@ import { Tutorial } from '../ui/Tutorial';
 import { tutorialText as tt } from '../i18n/tutorial';
 import { StakeLine } from './career/stakesUi';
 const Pitch = lazyPage(() => import('./match/Pitch'));
+/** The report is needed only at the final whistle: loaded then, or fetched ahead during play. */
+const loadReport = () => import('./match/Report');
+const LazyReport = lazyPage(() => loadReport().then((module) => ({ default: module.Report })));
+function Report(props: ComponentProps<typeof LazyReport>) {
+  return (
+    <Suspense
+      fallback={
+        <p className="match-pitch-loading" role="status">
+          {m.reportLoading}
+        </p>
+      }
+    >
+      <LazyReport {...props} />
+    </Suspense>
+  );
+}
 /** Real milliseconds per simulated minute at 1× speed. */
 const MINUTE_MS = 2200;
 /**
@@ -101,6 +117,11 @@ export default function MatchScreen() {
   const world = useAppStore((store) => store.world);
   const job = useAppStore((store) => store.worldJob);
   const session = useAppStore((store) => store.matchSession);
+  // Fetch the report's code while the match is played, so the final whistle never waits.
+  const hasSession = Boolean(session);
+  useEffect(() => {
+    if (hasSession) void loadReport().catch(() => undefined);
+  }, [hasSession]);
   const active = useAppStore((store) => store.activeSave);
   const settings = useAppStore((store) => store.settings);
   const systemReduced = useMediaQuery('(prefers-reduced-motion: reduce)');

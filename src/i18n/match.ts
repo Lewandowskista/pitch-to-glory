@@ -100,6 +100,7 @@ export const matchText = {
   simulationBody:
     'Follow the commentary and make every decision without loading the pitch renderer.',
   pitchLoading: 'Preparing the pitch…',
+  reportLoading: 'Preparing the match report…',
   commentary: 'Live commentary',
   opening: 'The teams are ready. Your next chapter starts at kickoff.',
   score: 'Score',
