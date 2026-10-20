@@ -22,7 +22,7 @@ import {
   addWeeks,
 } from './rules';
 import { ensureClubRelationships, nextId, postMessage } from './records';
-import { endLoan, executeTransfer, extendContract, payWeek } from './moves';
+import { bridgeWage, endLoan, executeTransfer, extendContract, payWeek } from './moves';
 import {
   expireOffers,
   makeLoanOffer,
@@ -33,7 +33,8 @@ import {
   openOffers,
   triedRecently,
   windowForOffers,
-  freeTransfer,
+  contractExpiring,
+  freeAgentOffers,
 } from './offers';
 
 const S = M.scouting;
@@ -406,6 +407,21 @@ function pruneOffers(world: World): void {
 }
 
 /**
+ * The season's end on an expiring contract (option used, no move agreed): interested clubs
+ * open talks, and the inbox explains the decision and its default, the club's bridge deal.
+ */
+export function marketSeasonEnd(world: World): void {
+  if (!contractExpiring(world)) return;
+  const offers = freeAgentOffers(world);
+  const contract = careerContract(world);
+  postMessage(world, 'contract-decision', {
+    club: world.clubs[contract.clubId]!.name,
+    wage: bridgeWage(world),
+    offers: offers.length,
+  });
+}
+
+/**
  * Season rollover for the career, after the new season's date is set: loans end (a loan
  * club may take up its purchase option), agreed pre-contracts complete, an expired contract
  * is extended by the club's option, and lapsed talks close.
@@ -446,10 +462,9 @@ export function marketRollover(world: World): void {
     executeTransfer(world, agreed, terms);
   } else if (contract.end.season < world.date.season) {
     if (agreed) agreed.status = 'collapsed';
-    // The club's option runs once; after that the player is free to leave.
-    if (contract.optionTaken && freeTransfer(world)) {
-      // Moved on a free.
-    } else extendContract(world);
+    // Without an agreed move the player stays: the club's option, then the bridge deal. Only
+    // the player's acceptance ever takes them to another club.
+    extendContract(world);
   }
   market.selection = {
     season: world.date.season,

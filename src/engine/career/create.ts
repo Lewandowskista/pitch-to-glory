@@ -17,6 +17,7 @@ import { refreshDressingRoom } from '../world/dressing';
 import { getSeasonWeeks } from '../world/calendar';
 import { ARCHETYPE_BY_ID } from './catalogue';
 import { grantStartingSkill } from './progression';
+import { planConditioning } from './longevity';
 import { defaultTrainingPlan } from './training';
 import { initialMarket } from './market/records';
 import { bonusesFor, marketWage } from './market/rules';
@@ -168,7 +169,10 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
     style: initialStyle(player),
     honours: initialHonours(playerAbility(player), draft.parentLegacyId ?? null),
     coaching: emptyCoaching(),
+    developmentRules: 2,
+    availability: [],
   };
+  career.conditioning = planConditioning(player, career.training);
   grantStartingSkill(career, player, archetype.startingSkill);
   world.career = career;
   attachMarket(world);

@@ -534,7 +534,7 @@ Constants live in `CONFIG.world.continental` and `CONFIG.career.honours`.
 **Retirement and legacy.**
 
 - Retirement is optional from 32 once the season is complete, and forced at 40.
-- Hall of Fame score: `0.5 × appearances + 2 × goals + 1 × assists + 1 × caps + 15 × trophies + 10 × awards + 40 × Golden Balls`. Players without a legacy are scored on their club numbers; a former career player is compared by their legacy's saved score, which includes honours. Rank is among all active, retired and archived players, each counted once.
+- Hall of Fame score: `0.5 × appearances + 2 × goals + 1 × assists + 1 × caps + 15 × trophies + 10 × awards + 40 × Golden Balls`. (Superseded by the shared achievement record; see below.) Players without a legacy are scored on their club numbers; a former career player is compared by their legacy's saved score, which includes honours. Rank is among all active, retired and archived players, each counted once.
 - A child gets +3 potential, `min(30, round(0.1 × parent fame))` fame and 10% of the parent's savings.
 - A retired former teammate aged 34 or over takes a vacant manager's job with chance 0.4.
 
@@ -618,11 +618,11 @@ The [game design review](GAME-DESIGN-REVIEW.md) found money without stakes (comp
 
 **Talks.** The club's wage limit is its opening offer × (1.12 + agent stretch × skill + desire); its hidden walk-away point is drawn once per negotiation between 1.2× and 1.35× the opening (always at least 1.1 × the limit, so there is room to haggle). A counter moves the club a third of the gap toward the ask, never past its limit; asking above the limits on three or more items at once risks a 20% walk-away; every counter in renewal talks costs 2 trust. Agents stretch limits by personality (aggressive 0.004 a skill point, connected 0.0025, economical 0.001), pitch rarely (0.001 × network a week) but a connected one reaches abroad (`1 + network/60`), and take commission on wages, signing-on and loyalty money, never on sponsors.
 
-**Contracts.** At expiry without a deal the club takes up its one-season option once (`Contract.optionTaken`); at the next expiry the player leaves on a free to the most reputable club that has been scouting them, on that club's opening terms, or stays at the market wage if nobody has. A key player's selection floor (0.75) applies only while they are at most one place outside the eleven; a promise breaks below 80% of matchdays (rotation 50%) and halves the release clause.
+**Contracts.** At expiry without a deal the club takes up its one-season option once (`Contract.optionTaken`); at the next expiry the player leaves on a free to the most reputable club that has been scouting them, on that club's opening terms, or stays at the market wage if nobody has. (Superseded: see contract expiry under the late-career section below. No move happens without the player's acceptance.) A key player's selection floor (0.75) applies only while they are at most one place outside the eleven; a promise breaks below 80% of matchdays (rotation 50%) and halves the release clause.
 
 **Relationships.** Manager trust and fan affection drift 3% of the way toward 60 every week, so standing has to be kept up. A stance to the press is judged by the next result: confident then a loss costs 2 fame and 3 affection (a win +2 fame); provocative then a loss −3 fame, −4 affection, −2 trust; humble then a win +3 trust. Chemistry with teammates scales what a chance made for them is worth (`1 + (chemistry − 60) × 0.004`, 0.85–1.15, engine `match-10`); culture fit multiplies training gains by `0.8 + 0.4 × fit/100`; morale's match effect is `1 + (morale − 65) × 0.004` within 0.88–1.12; form keeps 75% of itself and takes 25% of the rating, so it swings. The manager's challenge also moves fan affection (+5 / −3), and its targets are real: 140 passes or 10 tackles in six weeks, +3 on an attribute; the season goal asks 600 passes or +6.
 
-**Honours.** Young Player of the Year and the Golden Ball weigh a season by the scouting visibility of its tier (1, 0.85, 0.7, 0.55, 0.45, 0.4), so a tier-6 season does not beat a tier-1 one. The Hall of Fame weighs awards by kind (month 2, team of the season 3, season honours 10, Golden Ball 40) and counts other players' awards too. At youth levels the career player is judged as a prospect (potential on the age curve); the senior score counts fame up to 14 at 0.03 a point. Retirement is forced at 38, or from 33 once ability falls below 78% of its peak. Fame above 100 fades by 10% at each new season.
+**Honours.** Young Player of the Year and the Golden Ball weigh a season by the scouting visibility of its tier (1, 0.85, 0.7, 0.55, 0.45, 0.4), so a tier-6 season does not beat a tier-1 one. The Hall of Fame weighs awards by kind (month 2, team of the season 3, season honours 10, Golden Ball 40) and counts other players' awards too. At youth levels the career player is judged as a prospect (potential on the age curve); the senior score counts fame up to 14 at 0.03 a point. Retirement is forced at 38, or from 33 once ability falls below 78% of its peak (superseded by the late-career pass below: only age forces it now). Fame above 100 fades by 10% at each new season.
 
 **Things worth buying (`lifestyle/catalogue.ts`).** Cars, homes and experiences are priced in weeks of wages (hatchback 25, coupé 60, grand tourer 120, hypercar 200; flat 60, townhouse 150, family home 250, villa 400; a week away 4, a family visit 1), at least their old floors, with upkeep of price ÷ 250 a week fixed at purchase; a better home rests 1–3 fatigue a week. Personal staff charge a share of the wage (physio 15%: injuries × 0.8; nutritionist 10%: 2 fatigue a week; coach 20%: training × 1.15; analyst 15%: +2 XP per key decision that comes off) and four weeks' salary to hire. A foundation (10% of the wage) or a youth camp (15%) earns fan affection every week (0.4 / 0.6) and fame every month (1 / 2). Experiences are felt at once (a holiday shakes off 20 fatigue). Living beyond half of wage plus sponsor income costs morale. The property fund now dips (± 1.2% a week) and a start-up swings ± 8% and can fold (0.04% a week). A failed sponsorship costs fame by level and claws back 25% of the fees, and closes the category for two seasons; a completed one is offered again at 1.25× the fee.
 
@@ -679,3 +679,87 @@ From the [engagement review](ENGAGEMENT-REVIEW-2026-10-09.md). Match constants (
 **Legacy projects (`lifestyle`, kind `legacy`).** At the club where the career began: a stake (fame level 6, 300 weeks' wages, at least 50,000) puts half its price into the club's transfer budget and adds 1 reputation each season it is held; an academy (fame level 7, 400 weeks, at least 80,000) adds 6 potential to every youngster the club brings through, for as long as the world lasts (`Club.academy`). Fans there +8.
 
 **Playing counts.** Bonus XP for key decisions (4 a success, 8 against the odds) is earned only in matches the player plays; simulated matches earn match XP alone.
+
+## Late career: decline and longevity (October 2026)
+
+From the [October 20 review](APP-REVIEW-2026-10-20.md) (R9) and the [plan](REVIEW-PLAN-2026-10-20.md), step 1.4. Constants are in `CONFIG.career.longevity`; formulas in `src/engine/career/longevity.ts`.
+
+**Retirement.** Only age forces it (38). Decline no longer ends a career, and there is no path around the forced age: rollover retires through the same `retirementState` the hub reads. Playing on is discouraged by faster decline instead.
+
+**Development rules 2 (`career.developmentRules`).** New careers start with it. Careers saved before adopt it when their next season starts (schema 21). Conditioning is taken from their current training plan, and availability from their last eight appearances, all counted as played. Nothing changes part-way through a season.
+
+**Playing time (rules 2, `career/availability.ts`).** Each week the career club's fixtures are recorded from the player's side: played (with minutes), benched while fit, injured, or not yet registered. The last 16 are kept. Passive growth's playing share is `Σ min(90, minutes) / (90 × n)` over the last `n ≤ 8` fixtures that were played or benched within a season's length of weeks.
+
+- Injuries and registration gaps are skipped, and weeks without fixtures add nothing.
+- With nothing to count, the share is 0.5.
+- The growth rate is unchanged: `0.35 × (0.5 + 0.5 × share) × professionalism factor`, so the half that does not depend on minutes remains the floor.
+
+The original rules counted the last eight appearances however long ago they were, so a benched player kept the full bonus.
+
+**Longevity (0–1)** is the sum of four parts:
+
+- Skills, up to 0.5: Engine 0.08, Powerhouse 0.04, Iron Man 0.08, Second Wind 0.08, Professional 0.04, Evergreen 0.18. Evergreen is a tier-4 physical capstone (Iron Man and Second Wind first, +1 stamina) with no match effect.
+- Conditioning, up to 0.25: a running share of training spent on conditioning, moved 1/120 of the way toward each week's plan. Physical work counts 1 and recovery 0.5 (1 for keepers, whose outfield physique is untrained). Scored linearly from a share of 0.15 to 0.6. The default outfield plan (technical, physical, mental) sits at 0.33.
+- Physique, up to 0.15: average stamina and strength, scored from 50 to 85. Keepers count as half.
+- Character, up to 0.1: `(professionalism − injury proneness + 100) / 200`. The profile shows it only once both hidden attributes are revealed.
+
+**Onset** is `33 + 3 × longevity`, plus 2 for keepers. Late seasons are `max(0, age + 1 − onset)`.
+
+**Effects.** In each late season `n`:
+
+- The career player's soft cap for an attribute is multiplied by `1 − min(0.5, drop × (1 − 0.4 × longevity) × n^1.5)`. `drop` is 0.05 for pace, 0.045 physical, 0.03 technical, 0.035 goalkeeping and 0.012 mental. The same soft cap governs passive growth, training and point costs.
+- The decline rate is multiplied by `(1.5 − 0.25 × longevity)^n`.
+
+**Measured (`tests/longevity.test.ts`).** A centre-back with potential 84, at prime caps from 31, with no injuries and average character:
+
+| Age | No conditioning (longevity 0.05) | Conditioning skills + physical plan (0.71) | Original rules |
+| --- | -------------------------------: | -----------------------------------------: | -------------: |
+| 34  |                             82.0 |                                       82.5 |           82.5 |
+| 35  |                             78.7 |                                       81.2 |           81.4 |
+| 36  |                             70.5 |                                       79.3 |           79.8 |
+| 37  |                             62.2 |                                       75.4 |           78.2 |
+| 38  |                             54.4 |                                       69.9 |           76.4 |
+
+This is one controlled probe, not a career distribution. Plan step 2.4 measures retirement ages across policies.
+
+## Contract expiry: the player's decision (October 2026)
+
+From the [October 20 review](APP-REVIEW-2026-10-20.md) (R3), plan step 1.6. Constants are in `CONFIG.career.market.expiry`.
+
+- **The club option.** Every contract includes one: at its first expiry without a new deal, the club keeps the player one more season on the same terms. Contract talks and the contract card now say so.
+- **Once the option is used.** When the season ends on that contract with no move agreed, up to 3 clubs scouting the player (past watching, active, no open talks) open ordinary pre-contract talks, the most reputable first. The inbox explains the decision, the hub lists it under Needs you, and the contract card shows the offers and the default.
+- **The default.** Accepting a club's terms agrees the free move, which completes when the season changes. Starting the next season without agreeing anything asks for confirmation, then keeps the player at the club on a one-season bridge deal at `max(current wage, market wage)`. The same applies when a season is simulated.
+- **What changed.** Nothing moves the player without their acceptance. The previous rule moved them automatically to the most reputable scouting club.
+
+## Hall of Fame: one record for every player (October 2026)
+
+From the [October 20 review](APP-REVIEW-2026-10-20.md) (R1), plan step 1.7. Constants are in `CONFIG.career.honours.hallOfFame`; formulas in `src/engine/career/honours/achievements.ts`.
+
+Every player, the career included, earns Hall of Fame points by the same rules. Points are kept on the player (`hallOfFame`), copied to `ArchivedPlayer` when pruned, and become the legacy's score at retirement. So archiving never changes a rank, and identical records score identically.
+
+**Sources of points:**
+
+- **Club contribution, at each season's end.** Taken from the complete season statistics, per competition line: `0.5 × apps + goals × g + assists × a + clean sheets × c`.
+  - By line, `g` is 2 everywhere; `a` is 1.5 for keepers, defenders and midfielders and 1 for attackers; `c` is 2.75 for keepers, 2.5 for defenders, 0.5 for midfielders and 0 for attackers.
+  - Each line is weighted by its level: league tiers 1–6 count 1, 0.75, 0.55, 0.4, 0.3 and 0.25; continental cups count 1; domestic cups and playoffs count at the club's league tier.
+  - While a season runs, rankings add its contribution so far.
+- **Trophies, when each title is decided.** Everyone who played for the winner in the campaign earns `15 × weight`. Leagues use their tier's weight, domestic cups 0.75, the Champions cup 1.5 and the second continental cup 0.9. Each title is credited once.
+- **Awards, when given.** Golden Ball 40, MVP, golden boot and young player 10, team of the season 3. Player of the month counts nothing. Golden boot, MVP and team of the season are now given in every top-two-tier league, and young player of the year in every country, so these points are available everywhere.
+- **Caps, 1 each.** The career player earns them by playing. Each home nation's first eleven at every level (each player at their highest level only) earns the window's two matches, and each tournament match it plays.
+
+**Calibration.** Elite careers of 573 top-tier appearances score close together:
+
+| Line | Example output                           | Points |
+| ---- | ---------------------------------------- | -----: |
+| GK   | 220 clean sheets                         |    892 |
+| CB   | 27 goals, 9 assists, 194 clean sheets    |    839 |
+| ST   | 260 goals, 80 assists                    |    887 |
+| CM   | 100 goals, 120 assists, 170 clean sheets |    752 |
+
+`tests/achievements.test.ts` asserts that they stay within 25% of each other.
+
+**Older worlds** adopt the record at their next season start (schema 21, `world.achievements.since`):
+
+- Players are seeded from their kept statistics at their current club's tier weight, plus awards still on record.
+- Archived players and older legacies use the tier-3 weight, because their level was never kept. Legacies are rescored by the same rules from their saved record.
+- Other players' trophies and caps were never recorded, so they count from that season. The Hall of Fame panel says so.

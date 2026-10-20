@@ -167,6 +167,19 @@ export function validateCareer(w: Record<string, unknown>): void {
     ref(captaincy.clubId, object(w.clubs));
     date(captaincy.since);
   }
+  if (career.developmentRules !== undefined) requireValue(career.developmentRules === 2);
+  if (career.conditioning !== undefined) number(career.conditioning, 0, 1);
+  if (career.availability !== undefined) {
+    const entries = array(career.availability, CONFIG.career.development.availability.limit);
+    for (const value of entries) {
+      const entry = object(value);
+      number(entry.season, 1800, Number(current.season), true);
+      number(entry.week, 1, 200, true);
+      text(entry.fixtureId, 120);
+      requireValue(['played', 'benched', 'injured', 'unregistered'].includes(String(entry.status)));
+      number(entry.minutes, 0, 130, true);
+    }
+  }
 }
 
 /** Story arcs (schema 20): known kinds and choices, one open at a time, ids unique. */

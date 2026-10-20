@@ -246,6 +246,8 @@ export const honoursText = {
     title: 'Retirement',
     young: 'Retirement can wait: you can choose to retire from age {age}.',
     season: 'You can retire when this season is complete.',
+    declining:
+      'Your body is slowing down: your attributes now fall faster every season. When to stop is your call.',
     available: 'You can retire now, at the end of the season, or keep playing until {age}.',
     forced: 'At {age}, this is your last season.',
     retire: 'Retire',

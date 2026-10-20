@@ -54,6 +54,16 @@ export const marketText = {
     loyalty: 'Loyalty bonus',
     loyaltyBody:
       'Paid when the contract runs its course, or if you are sold without asking to leave.',
+    option: 'Club option',
+    optionOpen:
+      'when the contract ends, {club} can keep you for one more season on the same terms.',
+    optionUsed: 'already used. When this contract ends, the choice is yours.',
+    decisionTitle: 'Your contract ends with this season',
+    decisionOffers: '{count} interested clubs have opened talks: see the offers above.',
+    decisionOffersOne: 'One interested club has opened talks: see the offer above.',
+    decisionNoOffers: 'No club has opened talks yet.',
+    decisionDefault:
+      'If you agree nothing before the next season starts, you stay at {club} on a one-season deal at {wage}.',
     value: 'Market value',
     onLoan: 'On loan at {club} until the end of {season}',
     loanRole: 'Loan role promised',
@@ -144,6 +154,8 @@ export const marketText = {
     title: 'Talks with {club}',
     back: 'Back to offers',
     clubTerms: 'Their offer',
+    clubOption:
+      'Every contract includes a club option: when it ends, {club} can keep you for one more season on the same terms.',
     yourTerms: 'Your counter-offer',
     wage: 'Weekly wage',
     years: 'Length',
@@ -361,6 +373,10 @@ export const marketText = {
     'free-transfer': {
       subject: 'A free transfer to {club}',
       body: 'Your contract ran out and the club had used its option, so you were free to go. {club} had been watching you and you joined them on their terms.',
+    },
+    'contract-decision': {
+      subject: 'Your contract is ending',
+      body: '{club} have used their option, so your contract ends with this season and the choice is yours. Interested clubs have opened talks: answer them under Transfers. If you agree nothing, you stay at {club} on a one-season deal at {wage} a week.',
     },
     'contract-extended': {
       subject: 'Contract extended by the club',

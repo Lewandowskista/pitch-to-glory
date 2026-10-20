@@ -410,6 +410,7 @@ export function archiveAndPrune(world: World, completedSeason: number): void {
         assists: player.stats.assists,
         cleanSheets: player.stats.cleanSheets,
       },
+      ...(player.hallOfFame ? { hallOfFame: player.hallOfFame } : {}),
     };
     archive.players[player.id] = record;
     delete world.players[player.id];

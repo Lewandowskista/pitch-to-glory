@@ -284,8 +284,55 @@ export const CONFIG = {
       growthPerSeason: 0.35,
       /** Share of that growth that depends on recent minutes; the rest comes regardless. */
       playingWeight: 0.5,
-      /** Matches counted for recent playing time. */
+      /** Matches counted for recent playing time (original rules). */
       recentMatches: 8,
+      /**
+       * Development rules 2: playing time is minutes over the last `fixtures` club fixtures the
+       * player was available for (played or left out while fit), within a season's length of
+       * weeks; injuries and registration gaps are skipped. `fallback` with none to count;
+       * `limit` fixtures are kept.
+       */
+      availability: { fixtures: 8, fallback: 0.5, limit: 16 },
+    },
+    /**
+     * Late career (development rules 2): from an onset age the career player's soft caps fall
+     * and decline speeds up every season, so playing on is a real trade-off. Longevity (0-1)
+     * postpones the onset and softens both. See docs/BALANCING.md.
+     */
+    longevity: {
+      /** Age at which decline starts to accelerate for a player with no longevity. */
+      onsetAge: 33,
+      /** Keepers last longer: their onset is this much later. */
+      keeperOnset: 2,
+      /** Seasons full longevity postpones the onset. */
+      onsetShift: 3,
+      /** Longevity from skills; together they make up half the score. */
+      skills: {
+        engine: 0.08,
+        powerhouse: 0.04,
+        'iron-man': 0.08,
+        'second-wind': 0.08,
+        professional: 0.04,
+        evergreen: 0.18,
+      } as Record<string, number>,
+      /**
+       * Conditioning: a running share of training given to physical work (recovery counts
+       * `recoveryShare`; for keepers, whose physical attributes are untrained, it counts fully).
+       * Each week moves the share `weekly` of the way toward that week's plan. Scored linearly
+       * from `from` to `to`.
+       */
+      conditioning: { weight: 0.25, weekly: 1 / 120, recoveryShare: 0.5, from: 0.15, to: 0.6 },
+      /** Physique: average stamina and strength, scored from `from` to `to`; keepers neutral. */
+      physique: { weight: 0.15, from: 50, to: 85 },
+      /** Character: professionalism up, injury proneness down; 0.5 of this weight on average. */
+      character: { weight: 0.1 },
+      /** Each late season multiplies the decline rate by this (less `rateSoftening` × longevity). */
+      rate: 1.5,
+      rateSoftening: 0.25,
+      /** Soft-cap share lost by category, times late seasons ^ 1.5, less capSoftening × longevity. */
+      capDrop: { pace: 0.05, physical: 0.045, technical: 0.03, keeper: 0.035, mental: 0.012 },
+      capSoftening: 0.4,
+      maxDrop: 0.5,
     },
     start: {
       ageRange: [16, 18] as const,
@@ -379,6 +426,11 @@ export const CONFIG = {
     historyLimit: 2000,
     /** Contracts, agents, transfers and loans (milestone 5). See docs/BALANCING.md. */
     market: {
+      /**
+       * Contract expiry once the club's option is used: up to `offers` scouting clubs open
+       * pre-contract talks when the season ends; the club's one-season bridge is the default.
+       */
+      expiry: { offers: 3 },
       /** Transfer windows as [first, last] fractions of the season's weeks. */
       windows: [
         [0, 0.13],
@@ -792,8 +844,11 @@ export const CONFIG = {
         maxRecords: 2000,
         fame: { month: 3, season: 6, goldenBall: 25, shortlist: 5 },
       },
-      /** Retirement is forced at the age, or from declineAge once ability falls below this
-       * share of its peak. */
+      /**
+       * Retirement is optional from optionalAge and forced at forcedAge. Before development rules
+       * 2 it was also forced from declineAge below declineShare of peak; now that only prompts
+       * advice, and late decline itself discourages playing on (career.longevity).
+       */
       retirement: { optionalAge: 32, forcedAge: 38, declineAge: 33, declineShare: 0.78 },
       moments: { limit: 40, lateMinute: 85, wonderProbability: 0.2 },
       /** Hall of Fame score. */
@@ -831,6 +886,7 @@ export const CONFIG = {
         award: 10,
         /** By kind: routine awards are worth less than season honours. */
         awardWeights: {
+          /** Shown in the live ranking before record 1; the record itself leaves months out. */
           month: 2,
           'team-season': 3,
           'young-player': 10,
@@ -838,6 +894,27 @@ export const CONFIG = {
           mvp: 10,
         },
         goldenBall: 40,
+        /**
+         * Achievement record 1 (`career/honours/achievements.ts`): the same rules for every
+         * player. A season's club contribution is `appearance × apps + goals, assists and clean
+         * sheets by line`, weighted by the level it came at (`tiers`, tier 1 first; continental
+         * cups at `continental`). Clean sheets credit the back line, so keepers and defenders can
+         * match forwards. Trophies are weighted by level too; monthly awards do not count.
+         */
+        contribution: {
+          goal: { GK: 2, DEF: 2, MID: 2, ATT: 2 },
+          assist: { GK: 1.5, DEF: 1.5, MID: 1.5, ATT: 1 },
+          cleanSheet: { GK: 2.75, DEF: 2.5, MID: 0.5, ATT: 0 },
+        },
+        tiers: [1, 0.75, 0.55, 0.4, 0.3, 0.25],
+        continental: 1,
+        domesticCup: 0.75,
+        continentalTrophy: { 'continental:champions': 1.5, 'continental:shield': 0.9 } as Record<
+          string,
+          number
+        >,
+        /** Records from before the achievement record, whose level was never kept. */
+        untrackedTier: 3,
       },
       child: { potential: 3, fameShare: 0.1, fameCap: 30, inheritance: 0.1 },
       /** Retired former teammates may become managers. */
@@ -855,7 +932,7 @@ export const CONFIG = {
     unfamiliarFactor: 0.8,
   },
   saves: {
-    schemaVersion: 20,
+    schemaVersion: 21,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,

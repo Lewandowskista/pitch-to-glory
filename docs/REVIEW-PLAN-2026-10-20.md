@@ -68,7 +68,7 @@ Decided 20 October: playing on gets harder because ability falls quickly, not be
   - hidden professionalism and injury proneness.
 - **A new skill.** Add a capstone, for example `evergreen`, to the physical branch. It adds a large amount of longevity but gives no immediate match bonus, so choosing it is a trade-off.
 - **Shown on the Profile.** A "Longevity" panel shows the expected age at which decline speeds up and what feeds it. It explains this in the same way the game explains key-moment choices.
-- **Rollout.** Adopt this through the same `developmentVersion: 3` season-start switch as 1.5.
+- **Rollout.** Adopt this through `career.developmentRules: 2`, switched on at season start (1.5 reuses it). `world.developmentVersion` already means AI potential recalibration, so it is not reused.
   - Existing saves start the conditioning record from the current training plan, not from history that doesn't exist.
   - AI ageing curves don't change.
   - All constants go in `config.ts` and `BALANCING.md`.
@@ -90,7 +90,7 @@ Decided 20 October: playing on gets harder because ability falls quickly, not be
   - Injured, unregistered and suspended fixtures are left out. They do not count against the player.
   - Weeks with no fixture (winter break, off-season) add nothing, so normal breaks have no effect.
   - The existing 0.5 floor stays as the minimum growth rate.
-- **Rollout.** Adopt this through `developmentVersion: 3` at the next season start. Existing saves begin with an availability list built from this season's `career.matches`.
+- **Rollout.** Adopt this through `career.developmentRules` (see 1.4) at the next season start. Existing saves begin with an availability list built from this season's `career.matches`.
 - **Test.** Use a real benched state: a career at a club where selection actually leaves the player out, run through the weekly pipeline. Do not use synthetic zero-minute records.
 
 **Acceptance:**

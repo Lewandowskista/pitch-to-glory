@@ -11,12 +11,21 @@ import type {
 } from '../../model/domain';
 import { CONFIG } from '../config';
 import { createRng, type Rng } from '../rng';
-import { ageCategory, careerCap, isKeeperKey, type AnyAttribute } from '../ageing';
+import { ageCategory, isKeeperKey, type AnyAttribute } from '../ageing';
 import { getSeasonWeeks } from '../world/calendar';
 import { attributeValue, trainableAttributes } from './progression';
 import { chronicle } from './honours/chronicle';
 import { cultureFit } from './social/rules';
 import { assetEffects } from './lifestyle/catalogue';
+import { playingShare, seedAvailability } from './availability';
+import {
+  careerSoftCap,
+  conditioningWeek,
+  lateCareer,
+  lateRate,
+  planConditioning,
+  usesLateDecline,
+} from './longevity';
 
 const T = CONFIG.career.training;
 const I = CONFIG.career.injuries;
@@ -126,7 +135,7 @@ function addProgress(
   const age = world.date.season - player.birthSeason;
   for (const key of keys) {
     const value = attributeValue(player, key);
-    const cap = careerCap(player, key, age);
+    const cap = careerSoftCap(world, player, key, age);
     if (value >= 99 || value >= cap + CONFIG.career.costs.capMargin) continue;
     const share = (amount / keys.length) * (value >= cap ? T.beyondCapFactor : 1);
     const progress = (career.trainingProgress[key] ?? 0) + share;
@@ -203,13 +212,17 @@ export function developCareer(
 ): void {
   const career = world.career!;
   const recent = career.matches.slice(-GROWTH.recentMatches);
-  const share = recent.length
-    ? Math.min(
-        1,
-        recent.reduce((sum, match) => sum + Math.min(90, match.minutes), 0) /
-          (GROWTH.recentMatches * 90),
-      )
-    : 0.5;
+  // Rules 2 count the fixtures the player was available for; the original rules counted the
+  // last eight appearances however long ago they were.
+  const share = usesLateDecline(career)
+    ? playingShare(world)
+    : recent.length
+      ? Math.min(
+          1,
+          recent.reduce((sum, match) => sum + Math.min(90, match.minutes), 0) /
+            (GROWTH.recentMatches * 90),
+        )
+      : 0.5;
   const rate =
     GROWTH.growthPerSeason *
     (1 - GROWTH.playingWeight + GROWTH.playingWeight * share) *
@@ -217,7 +230,7 @@ export function developCareer(
   const seasonWeeks = getSeasonWeeks(world);
   for (const key of trainableAttributes(player)) {
     const value = attributeValue(player, key);
-    const gap = careerCap(player, key, age) - value;
+    const gap = careerSoftCap(world, player, key, age) - value;
     if (gap <= 0 || value >= 99) continue;
     if (rng.next() < Math.min(0.9, (gap * rate) / seasonWeeks)) {
       if (isKeeperKey(key)) player.keeperAttributes[key] = value + 1;
@@ -337,19 +350,23 @@ export function careerWeek(world: World): void {
         report.injuryId = injure(world, 'training', rng).id;
     }
     developCareer(world, player, age, rng, report);
+    if (usesLateDecline(career)) conditioningWeek(career, player);
   }
   // A good home and a nutritionist take the week's strain off.
   report.fatigue = Math.round(report.fatigue - assetEffects(career.style?.assets ?? []).rest);
   player.fatigue = Math.max(0, Math.min(100, player.fatigue + report.fatigue));
   player.fitness = Math.max(0, Math.min(100, Math.round(100 - player.fatigue * 0.2)));
-  // Ageing: past a category's peak, attributes above the age-adjusted cap fall back toward it.
+  // Ageing: past a category's peak, attributes above the age-adjusted cap fall back toward it,
+  // faster every late season under the late-decline rules.
   const seasonWeeks = getSeasonWeeks(world);
+  const late = lateCareer(world, player, age);
+  const decline = DEV.declinePerSeason * (late ? lateRate(late.late, late.score) : 1);
   for (const key of trainableAttributes(player)) {
     const category = ageCategory(key);
     if (age <= DEV.peakEnd[category]) continue;
     const value = attributeValue(player, key);
-    const gap = value - careerCap(player, key, age);
-    if (gap > 0 && rng.next() < Math.min(0.9, (gap * DEV.declinePerSeason) / seasonWeeks)) {
+    const gap = value - careerSoftCap(world, player, key, age);
+    if (gap > 0 && rng.next() < Math.min(0.9, (gap * decline) / seasonWeeks)) {
       if (isKeeperKey(key)) player.keeperAttributes[key] = value - 1;
       else player.attributes[key] = value - 1;
       report.declined.push(key);
@@ -357,6 +374,20 @@ export function careerWeek(world: World): void {
   }
   revealHidden(player);
   career.lastTraining = report;
+}
+
+/**
+ * Season change: careers saved under the original development rules adopt rules 2 (late-career
+ * decline, availability-based playing time) with the new season, never part-way through one.
+ * Conditioning starts from the current plan and availability from recent appearances, since
+ * earlier training and benching were not recorded.
+ */
+export function adoptDevelopmentRules(world: World): void {
+  const career = world.career!;
+  if (usesLateDecline(career)) return;
+  career.developmentRules = 2;
+  career.conditioning = planConditioning(world.players[career.playerId]!, career.training);
+  career.availability = seedAvailability(world);
 }
 
 /** Keep the extra session's mentor a current teammate, re-picking or dropping it if not. */

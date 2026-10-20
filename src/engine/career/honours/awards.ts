@@ -14,6 +14,7 @@ import { trophyName } from './trophies';
 import { nextId, postMessage } from '../market/records';
 import { today } from '../market/rules';
 import { chronicle } from './chronicle';
+import { creditAward } from './achievements';
 import {
   allCompetitionTotals,
   competitionTotals,
@@ -120,8 +121,11 @@ function candidates(world: World): Player[] {
   const player = world.players[career.playerId]!;
   const own = careerLeague(world);
   const ids = new Set<string>([career.playerId, ...world.rivalries.map((r) => r.rivalPlayerId)]);
+  // With complete statistics every country's top two tiers are considered, so awards (and the
+  // Hall of Fame points they carry) are given by the same rules in every country.
+  const wide = hasSeasonStatistics(world);
   for (const league of Object.values(world.leagues)) {
-    const domestic = league.countryId === player.nationalityId && league.tier <= 2;
+    const domestic = (wide || league.countryId === player.nationalityId) && league.tier <= 2;
     if (league.tier === 1 || league.id === own?.id || domestic)
       for (const clubId of league.clubIds)
         for (const id of world.clubs[clubId]!.playerIds) ids.add(id);
@@ -154,6 +158,8 @@ export function trackPlayers(world: World, players: Player[]): void {
 function addAward(world: World, award: Omit<Award, 'id'>): Award {
   const full: Award = { id: nextId(world, 'award'), ...award };
   world.awards.push(full);
+  // The record keeps the points even when an old award is trimmed.
+  creditAward(world, full);
   trimAwards(world);
   return full;
 }
@@ -362,7 +368,14 @@ export function seasonAwards(world: World): void {
     const index = table ? table.findIndex((row) => row.clubId === clubId) : -1;
     return { rank: index + 1, tier };
   };
-  if (league) {
+  // League awards: every top-two-tier league with complete statistics, otherwise the
+  // career player's league only (its members, before complete statistics).
+  const awarded = totals
+    ? Object.values(world.leagues).filter((entry) => entry.tier <= 2 || entry.id === league?.id)
+    : league
+      ? [league]
+      : [];
+  for (const league of awarded) {
     // League awards: the league's own matches, or (before complete statistics) its members.
     const members = totals
       ? leagueEntries(world, league)
@@ -432,32 +445,39 @@ export function seasonAwards(world: World): void {
         A.fame.season,
       );
   }
+  // Young Player of the Year: every country with complete statistics, else the player's own.
   const nationality = world.players[career.playerId]!.nationalityId;
-  const young = qualified
-    .filter(
-      (entry) =>
-        entry.player.nationalityId === nationality &&
-        season - entry.player.birthSeason <= A.youngAge,
-    )
-    .sort(
-      (a, b) =>
-        score(b) * visibilityOf(world, b.player) - score(a) * visibilityOf(world, a.player) ||
-        (a.player.id < b.player.id ? -1 : 1),
-    );
-  if (young[0])
-    celebrate(
-      world,
-      addAward(world, {
-        kind: 'young-player',
-        season,
-        month: null,
-        competitionId: null,
-        winnerIds: [young[0].player.id],
-        shortlist: [],
-        value: Math.round(score(young[0]) * visibilityOf(world, young[0].player) * 10) / 10,
-      }),
-      A.fame.season,
-    );
+  const nations = totals
+    ? Object.keys(world.countries).sort((a, b) =>
+        a === nationality ? -1 : b === nationality ? 1 : a < b ? -1 : 1,
+      )
+    : [nationality];
+  for (const country of nations) {
+    const young = qualified
+      .filter(
+        (entry) =>
+          entry.player.nationalityId === country && season - entry.player.birthSeason <= A.youngAge,
+      )
+      .sort(
+        (a, b) =>
+          score(b) * visibilityOf(world, b.player) - score(a) * visibilityOf(world, a.player) ||
+          (a.player.id < b.player.id ? -1 : 1),
+      );
+    if (young[0])
+      celebrate(
+        world,
+        addAward(world, {
+          kind: 'young-player',
+          season,
+          month: null,
+          competitionId: null,
+          winnerIds: [young[0].player.id],
+          shortlist: [],
+          value: Math.round(score(young[0]) * visibilityOf(world, young[0].player) * 10) / 10,
+        }),
+        A.fame.season,
+      );
+  }
   // Golden Ball: top-division players (and the career player and rival) with team success.
   const lastTournament = world.international?.tournaments.at(-1);
   const compared = new Set([career.playerId, ...world.rivalries.map((r) => r.rivalPlayerId)]);

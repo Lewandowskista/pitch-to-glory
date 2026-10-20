@@ -17,6 +17,7 @@ import { pendingCareerFixture } from '../../engine/career/fixtures';
 import { nextOfferDeadline } from '../../engine/career/deadlines';
 import { windowWeeks } from '../../engine/career/honours/international';
 import { compareDates, windowState } from '../../engine/career/market/rules';
+import { contractExpiring } from '../../engine/career/market/offers';
 import { getSeasonWeeks } from '../../engine/world/calendar';
 
 /** The live match session, as the store holds it: none, in play, or finished and unrecorded. */
@@ -28,6 +29,7 @@ export type PriorityKind =
   | 'report'
   | 'play'
   | 'offer'
+  | 'contract'
   | 'press'
   | 'promise'
   | 'story'
@@ -164,6 +166,16 @@ export function hubPriorities(world: World, session: SessionState): Priority[] {
       });
   }
   items.push(...deadlineItems(world));
+  // The contract ends with the season: decide before the next one starts.
+  if (world.phase === 'complete' && contractExpiring(world))
+    items.push({
+      id: 'contract',
+      kind: 'contract',
+      group: 'deadline',
+      deadline: null,
+      to: '/career/transfers#contract-decision',
+      params: {},
+    });
   if (career.attributePoints > 0)
     items.push({
       id: 'attributes',

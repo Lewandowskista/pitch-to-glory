@@ -309,18 +309,28 @@ export function signRenewal(world: World, offer: TransferOffer, terms: ContractT
   });
 }
 
-/** At expiry without a new deal, the club takes up its one-season option on current terms. */
+/**
+ * The weekly wage of a one-season deal at the current club once its option is used: the
+ * current wage, or the market rate if that is higher. It is the safety net at expiry.
+ */
+export function bridgeWage(world: World): number {
+  const contract = careerContract(world);
+  const player = world.players[world.career!.playerId]!;
+  return Math.max(
+    contract.weeklyWage,
+    marketWage(world.clubs[contract.clubId]!, player, contract.role),
+  );
+}
+
+/**
+ * At expiry without a new deal the player stays one more season: the first time on current
+ * terms (the club's option, part of every contract), afterwards on the bridge wage. Never a
+ * move: only an agreed deal takes the player to another club.
+ */
 export function extendContract(world: World): void {
   const contract = careerContract(world);
   if (contract.loyaltyBonus > 0) pay(world, contract.loyaltyBonus);
-  // A second extension (nobody came in for the player) at least pays the market rate.
-  if (contract.optionTaken) {
-    const player = world.players[world.career!.playerId]!;
-    contract.weeklyWage = Math.max(
-      contract.weeklyWage,
-      marketWage(world.clubs[contract.clubId]!, player, contract.role),
-    );
-  }
+  if (contract.optionTaken) contract.weeklyWage = bridgeWage(world);
   contract.optionTaken = true;
   contract.end = { season: world.date.season, week: getSeasonWeeks(world), day: 7 };
   recordMove(world, {

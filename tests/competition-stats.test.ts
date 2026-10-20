@@ -70,7 +70,13 @@ function rerunAwards(world: World) {
   const season = world.date.season;
   world.awards = world.awards.filter((award) => award.season !== season || award.kind === 'month');
   seasonAwards(world);
-  return world.awards.find((award) => award.season === season && award.kind === 'golden-boot')!;
+  // Every top-two-tier league has its own golden boot: this is the career player's league's.
+  const player = world.players[world.career!.playerId]!;
+  const leagueId = world.clubs[player.clubId!]!.leagueId;
+  return world.awards.find(
+    (award) =>
+      award.season === season && award.kind === 'golden-boot' && award.competitionId === leagueId,
+  )!;
 }
 function move(world: World, playerId: Id, clubId: Id) {
   const player = world.players[playerId]!;
@@ -258,7 +264,7 @@ describe('season competition statistics', () => {
       schemaVersion: 13,
     };
     const migrated = migrateSave(JSON.parse(JSON.stringify(old)));
-    expect(migrated.schemaVersion).toBe(20);
+    expect(migrated.schemaVersion).toBe(21);
     if (migrated.payload.kind !== 'world') throw new Error('Expected a world save');
     const loaded = migrated.payload.world;
     expect(hasSeasonStatistics(loaded)).toBe(false);

@@ -39,6 +39,8 @@ export const ambitionsText = {
     next: '{points} points to pass {name}',
     top: 'No one in the world ranks higher.',
     unranked: 'Not ranked yet: every appearance, goal and honour counts.',
+    since:
+      'Other players’ trophies and caps count from {season}, when this world began keeping a full record.',
     score: '{score} points',
   },
   messages: {

@@ -28,6 +28,7 @@ export type InboxKind =
   | 'renewal-signed'
   | 'contract-extended'
   | 'free-transfer'
+  | 'contract-decision'
   | 'sponsor-clawback'
   | 'sponsor-renewal'
   | 'investment-lost'

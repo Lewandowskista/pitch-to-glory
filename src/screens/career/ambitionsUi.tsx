@@ -46,6 +46,13 @@ function HallOfFameLine({ world }: { world: World }) {
               })
             : a.hallOfFame.top}
       </p>
+      {/* Worlds that adopted the shared record later say from when it is complete. */}
+      {world.achievements &&
+        world.achievements.since > (world.history[0]?.season ?? world.achievements.since) && (
+          <p className="mt-1 text-xs text-muted">
+            {format(a.hallOfFame.since, { season: world.achievements.since })}
+          </p>
+        )}
     </div>
   );
 }

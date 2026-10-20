@@ -171,9 +171,8 @@ describe('career ambitions', () => {
     expect(standing.next).not.toBeNull();
     expect(standing.next!.score).toBeGreaterThan(standing.score);
     expect(standing.next!.name.length).toBeGreaterThan(0);
-    // A great career climbs.
-    player(world).stats.goals = 400;
-    player(world).stats.appearances = 600;
+    // A great career climbs: the record, not the raw totals, is what counts.
+    player(world).hallOfFame = (player(world).hallOfFame ?? 0) + 1500;
     expect(liveHallOfFame(world).rank).toBeLessThan(standing.rank);
     // The Hall of Fame ambition is met once inside the target.
     const set = setAmbitions(world, { ids: ['hall-of-fame'] });

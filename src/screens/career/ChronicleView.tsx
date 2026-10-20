@@ -5,6 +5,7 @@ import { renderAvatar } from '../../engine/assets/avatar';
 import { renderCrest } from '../../engine/assets/crest';
 import { Artwork } from '../../ui/Artwork';
 import { momentLink } from '../../engine/career/honours/clip';
+import { careerTotals } from '../../engine/career/honours/retirement';
 import { platform } from '../../platform';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
@@ -36,7 +37,8 @@ const escape = (text: string) =>
   );
 
 /** A shareable poster of the career: portrait, numbers and highlights, as SVG. */
-function posterSvg(world: World, player: Player, entries: ChronicleEntry[]): string {
+export function posterSvg(world: World, player: Player, entries: ChronicleEntry[]): string {
+  const totals = careerTotals(world, player.id);
   const age = Math.min(60, world.date.season - player.birthSeason);
   const portrait = `data:image/svg+xml,${encodeURIComponent(renderAvatar(player.avatar, age))}`;
   const nation = world.countries[player.nationalityId]?.name ?? '';
@@ -47,7 +49,7 @@ function posterSvg(world: World, player: Player, entries: ChronicleEntry[]): str
         `<text x="96" y="${760 + index * 56}" font-size="30" fill="#f9f5e9">${escape(`${entry.date.season} · ${chronicleSentence(world, entry)}`).slice(0, 120)}</text>`,
     )
     .join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><rect width="1080" height="1350" fill="#0b3d2c"/><rect x="40" y="40" width="1000" height="1270" rx="40" fill="#075e45"/><image href="${portrait}" x="96" y="96" width="300" height="300"/><text x="440" y="200" font-family="sans-serif" font-size="76" font-weight="800" fill="#f1cf58">${escape(player.name)}</text><text x="440" y="260" font-family="sans-serif" font-size="34" fill="#f9f5e9">${escape(`${c.positions[player.primaryPosition]} · ${nation}`)}</text><text x="440" y="330" font-family="sans-serif" font-size="34" fill="#f9f5e9">${escape(format(h.chronicle.poster.stats, { apps: counted(player.stats.appearances, h.chronicle.counts.apps), goals: counted(player.stats.goals, h.chronicle.counts.goals), caps: counted(entries.filter((e) => e.kind === 'cap').length, h.chronicle.counts.caps) }))}</text><text x="96" y="690" font-family="sans-serif" font-size="40" font-weight="800" fill="#f1cf58">${escape(h.chronicle.poster.highlights)}</text><g font-family="sans-serif">${lines}</g><text x="96" y="1270" font-family="sans-serif" font-size="30" fill="#f1cf58">${escape(h.chronicle.poster.footer)}</text></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><rect width="1080" height="1350" fill="#0b3d2c"/><rect x="40" y="40" width="1000" height="1270" rx="40" fill="#075e45"/><image href="${portrait}" x="96" y="96" width="300" height="300"/><text x="440" y="200" font-family="sans-serif" font-size="76" font-weight="800" fill="#f1cf58">${escape(player.name)}</text><text x="440" y="260" font-family="sans-serif" font-size="34" fill="#f9f5e9">${escape(`${c.positions[player.primaryPosition]} · ${nation}`)}</text><text x="440" y="330" font-family="sans-serif" font-size="34" fill="#f9f5e9">${escape(format(h.chronicle.poster.stats, { apps: counted(totals.appearances, h.chronicle.counts.apps), goals: counted(totals.goals, h.chronicle.counts.goals), caps: counted(totals.caps, h.chronicle.counts.caps) }))}</text><text x="96" y="690" font-family="sans-serif" font-size="40" font-weight="800" fill="#f1cf58">${escape(h.chronicle.poster.highlights)}</text><g font-family="sans-serif">${lines}</g><text x="96" y="1270" font-family="sans-serif" font-size="30" fill="#f1cf58">${escape(h.chronicle.poster.footer)}</text></svg>`;
 }
 
 async function posterPng(svg: string): Promise<Blob> {

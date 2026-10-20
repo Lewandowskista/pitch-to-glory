@@ -190,6 +190,12 @@ export function validateEntities(
   feederClubIds: readonly string[] = [],
 ): void {
   if (w.developmentVersion !== undefined) requireValue(w.developmentVersion === 2);
+  if (w.achievements !== undefined) {
+    const achievements = object(w.achievements);
+    requireValue(achievements.version === 1);
+    number(achievements.since, 1800, Number(object(w.date).season), true);
+    for (const title of array(achievements.titles, 2000)) text(title, 200);
+  }
   if (w.selectionVersion !== undefined) requireValue(w.selectionVersion === 1);
   if (w.identityVersion !== undefined) requireValue(w.identityVersion === 2);
   const currentDate = object(w.date);
@@ -297,6 +303,7 @@ export function validateEntities(
       number(stats[key], 0, 1e7, true);
     number(stats.ratingTotal, 0, 1e8);
     ids(stats.trophies, 1000);
+    if (player.hallOfFame !== undefined) number(player.hallOfFame, 0, 1e7);
   }
   // A loaned player is registered with the loan club while contracted to the parent club;
   // marketValidation checks the loan itself.
@@ -359,6 +366,7 @@ export function validateEntities(
       const stats = object(record.stats);
       for (const key of ['appearances', 'minutes', 'goals', 'assists', 'cleanSheets'])
         number(stats[key], 0, 1e7, true);
+      if (record.hallOfFame !== undefined) number(record.hallOfFame, 0, 1e7);
     }
   }
   for (const room of Object.values(dressingRooms)) {

@@ -28,6 +28,7 @@ import {
 } from './rules';
 import { adjustRelationship, nextId, postMessage } from './records';
 import { executeTransfer, signRenewal, startLoan } from './moves';
+import { isActiveClub } from '../../world/dressing';
 
 const N = M.negotiation;
 const ROLE_UP: Record<Role, Role> = {
@@ -473,24 +474,46 @@ export function triedRecently(world: World, interest: ScoutingInterest): boolean
   return false;
 }
 /**
- * At the end of a contract the club has already extended once, the player leaves on a free
- * to the most reputable club that has been scouting them, on that club's opening terms. With
- * nobody scouting, the club keeps them on at the market wage.
+ * Whether the contract runs out at the end of this season with the club's option already
+ * used, and no move agreed: the player decides where to play next.
  */
-export function freeTransfer(world: World): boolean {
-  const interests = world.scouting
-    .filter((interest) => interest.kind === 'transfer' && interest.stage !== 'watching')
-    .map((interest) => ({ interest, club: world.clubs[interest.clubId]! }))
-    .filter(({ club }) => club)
-    .sort((a, b) => b.club.reputation - a.club.reputation || (a.club.id < b.club.id ? -1 : 1));
-  const best = interests[0];
-  if (!best) return false;
-  const offer = newOffer(world, 'pre-contract', best.club, false);
-  const negotiation = openTerms(world, offer, best.club, best.interest.confidence);
-  negotiation.status = 'accepted';
-  offer.status = 'agreed';
-  const terms = negotiation.rounds[0]!.terms;
-  executeTransfer(world, offer, terms);
-  postMessage(world, 'free-transfer', { club: best.club.name });
-  return true;
+export function contractExpiring(world: World): boolean {
+  const contract = careerContract(world);
+  return (
+    contract.end.season === world.date.season &&
+    Boolean(contract.optionTaken) &&
+    !world.offers.some((offer) => offer.kind === 'pre-contract' && offer.status === 'agreed')
+  );
+}
+
+/**
+ * When the season ends on an expiring contract, clubs seriously scouting the player (past
+ * watching, active, without open talks) open pre-contract talks, the most reputable first.
+ * None is agreed until the player accepts; the club's bridge deal remains the default.
+ */
+export function freeAgentOffers(world: World): TransferOffer[] {
+  const current = careerContract(world).clubId;
+  const busy = new Set(
+    world.offers
+      .filter((offer) => offer.status === 'terms' || offer.status === 'agreed')
+      .map((offer) => offer.clubId),
+  );
+  return world.scouting
+    .filter(
+      (interest) =>
+        interest.kind === 'transfer' &&
+        interest.stage !== 'watching' &&
+        interest.clubId !== current &&
+        !busy.has(interest.clubId),
+    )
+    .map((interest) => ({ interest, club: world.clubs[interest.clubId] }))
+    .filter((entry): entry is { interest: ScoutingInterest; club: Club } =>
+      Boolean(entry.club && isActiveClub(world, entry.club)),
+    )
+    .sort((a, b) => b.club.reputation - a.club.reputation || (a.club.id < b.club.id ? -1 : 1))
+    .slice(0, M.expiry.offers)
+    .map(({ interest, club }) => {
+      interest.lastOffer = today(world);
+      return makePreContractOffer(world, club, interest.confidence);
+    });
 }

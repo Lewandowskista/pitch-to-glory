@@ -280,15 +280,16 @@ describe('things worth buying', () => {
 });
 
 describe('honours with stakes', () => {
-  it('forces retirement when ability has fallen well below its peak', () => {
+  it('leaves retirement to the player after a decline, forcing it only by age', () => {
+    // Late-career decline makes playing on costly; it no longer ends the career by itself.
     const world = clone(career);
     const me = player(world);
     me.birthSeason = world.date.season - 34;
     world.career!.honours.peakAbility = 80;
     world.phase = 'complete';
-    expect(retirementState(world)).toBe('forced');
-    world.career!.honours.peakAbility = 30;
     expect(retirementState(world)).toBe('available');
+    me.birthSeason = world.date.season - CONFIG.career.honours.retirement.forcedAge;
+    expect(retirementState(world)).toBe('forced');
   });
   it('weighs routine awards below season honours in the Hall of Fame', () => {
     expect(awardWeight('month')).toBeLessThan(awardWeight('golden-boot'));

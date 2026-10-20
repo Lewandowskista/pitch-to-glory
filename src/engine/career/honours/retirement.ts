@@ -1,10 +1,11 @@
-import type { Legacy, World } from '../../../model/domain';
+import type { Career, Legacy, World } from '../../../model/domain';
 import { CONFIG } from '../../config';
 import { playerAbility } from '../../strength';
 import { refreshDressingRoom } from '../../world/dressing';
 import { today } from '../market/rules';
 import { adjustRelationship, postMessage } from '../market/records';
 import { chronicle } from './chronicle';
+import { achievementScore, seasonContributions, usesAchievements } from './achievements';
 
 /**
  * Retirement and legacy (AGENTS.md §8, §9.2). The player chooses when to retire from age 32
@@ -74,20 +75,14 @@ export function retirementAge(world: World): number {
   return world.date.season - player.birthSeason;
 }
 export type RetirementState = 'young' | 'season' | 'available' | 'forced';
-/** Whether the player may (or must) retire now. */
+/**
+ * Whether the player may (or must) retire now. Only age forces it. Decline no longer ends a
+ * career by itself: under development rules 2, late-career decline makes playing on costly
+ * instead, and the player decides when to stop.
+ */
 export function retirementState(world: World): RetirementState {
   const age = retirementAge(world);
   if (age >= H.retirement.forcedAge) return 'forced';
-  // Decline forces it too: past the decline age, a player well below their peak is done.
-  const career = world.career!;
-  const player = world.players[career.playerId]!;
-  if (
-    age >= H.retirement.declineAge &&
-    world.phase === 'complete' &&
-    career.honours.peakAbility > 0 &&
-    playerAbility(player) < career.honours.peakAbility * H.retirement.declineShare
-  )
-    return 'forced';
   if (age < H.retirement.optionalAge) return 'young';
   return world.phase === 'complete' ? 'available' : 'season';
 }
@@ -156,7 +151,17 @@ export function hallOfFameStanding(
   };
   for (const legacy of world.legacies)
     compare(legacy.playerId, legacy.hallOfFame.score, () => legacy.name);
-  // Other players count their awards too (their trophies are not recorded).
+  if (usesAchievements(world)) {
+    // One record for everyone: the same rules for active, retired and archived players.
+    const season =
+      world.phase === 'active' ? seasonContributions(world) : new Map<string, number>();
+    for (const player of Object.values(world.players))
+      compare(player.id, achievementScore(world, player, season), () => player.name);
+    for (const [id, record] of Object.entries(world.archive?.players ?? {}))
+      compare(id, Math.round(record.hallOfFame ?? 0), () => record.name);
+    return { rank: better + 1, of, next };
+  }
+  // Before the record: other players count their awards too (their trophies were not recorded).
   const awards = new Map<string, number>();
   for (const award of world.awards)
     for (const id of award.winnerIds)
@@ -190,10 +195,37 @@ export function hallOfFameRank(
   const { rank, of } = hallOfFameStanding(world, score, excludeId);
   return { rank, of };
 }
+/** Caps at every national level (U19, U21 and senior): the count legacies and the Hall of Fame use. */
+export const totalCaps = (career: Career) =>
+  Object.values(career.honours.caps).reduce((sum, value) => sum + value, 0);
+
+/**
+ * Headline numbers for a player's story, from the authoritative record: the active career's
+ * honours, a retired career's legacy, or club statistics alone for anyone else. Chronicle
+ * entries are landmarks (one cap entry per national level), never totals.
+ */
+export function careerTotals(
+  world: World,
+  playerId: string,
+): { appearances: number; goals: number; caps: number } {
+  const legacy = world.legacies.find((entry) => entry.playerId === playerId);
+  if (legacy) {
+    const { appearances, goals, caps } = legacy.stats;
+    return { appearances, goals, caps };
+  }
+  const stats = world.players[playerId]?.stats;
+  const career = world.career?.playerId === playerId ? world.career : undefined;
+  return {
+    appearances: stats?.appearances ?? 0,
+    goals: stats?.goals ?? 0,
+    caps: career ? totalCaps(career) : 0,
+  };
+}
 /** The career player's Hall of Fame score as it stands, honours included, as retirement adds it. */
 export function careerHallOfFameScore(world: World): number {
   const career = world.career!;
   const player = world.players[career.playerId]!;
+  if (usesAchievements(world)) return achievementScore(world, player);
   const trophies = world.trophies.filter((trophy) => trophy.playerIds.includes(player.id)).length;
   const awardIds = world.awards
     .filter((award) => award.winnerIds.includes(player.id))
@@ -201,10 +233,8 @@ export function careerHallOfFameScore(world: World): number {
   const goldenBalls = world.awards.filter(
     (award) => award.kind === 'golden-ball' && award.winnerIds[0] === player.id,
   ).length;
-  // Caps at every level count, as the legacy's statistics record them.
-  const caps = Object.values(career.honours.caps).reduce((sum, value) => sum + value, 0);
   return hallOfFameScore(player.stats, {
-    caps,
+    caps: totalCaps(career),
     trophies,
     awards: awardPoints(world, awardIds, player.id),
     goldenBalls,
@@ -236,7 +266,7 @@ export function retireCareer(world: World): Legacy {
   const awardIds = world.awards
     .filter((award) => award.winnerIds.includes(player.id))
     .map((award) => award.id);
-  const caps = Object.values(career.honours.caps).reduce((sum, value) => sum + value, 0);
+  const caps = totalCaps(career);
   const internationalGoals = Object.values(career.honours.internationalGoals).reduce(
     (sum, value) => sum + value,
     0,
@@ -301,7 +331,8 @@ export function retireCareer(world: World): Legacy {
   player.clubId = null;
   player.retired = true;
   player.injuryId = null;
-  for (const room of Object.values(world.dressingRooms)) room.cliques = [];
+  // Only rooms with cliques were copied by the caller; the rest are shared and already empty.
+  for (const room of Object.values(world.dressingRooms)) if (room.cliques.length) room.cliques = [];
   world.agents = {};
   world.scouting = [];
   world.offers = [];

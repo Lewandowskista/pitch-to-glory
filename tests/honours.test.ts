@@ -22,7 +22,6 @@ import {
   encodeClip,
   formerTeammates,
   hallOfFameRank,
-  hallOfFameScore,
   momentLink,
   parseMomentLink,
   playTournament,
@@ -30,7 +29,9 @@ import {
   windowWeeks,
   type Clip,
 } from '../src/engine/career/honours';
-import { awardPoints } from '../src/engine/career/honours/retirement';
+import { careerTotals } from '../src/engine/career/honours/retirement';
+import { achievementScore } from '../src/engine/career/honours/achievements';
+import { posterSvg } from '../src/screens/career/ChronicleView';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { validateNationalWorld } from '../src/persistence/nationalWorldSchema';
@@ -360,17 +361,9 @@ describe('retirement and legacy', () => {
     expect(legacy.playerId).toBe(id);
     expect(legacy.age).toBe(34);
     expect(legacy.stats.appearances).toBe(before.players[id]!.stats.appearances);
-    expect(legacy.hallOfFame.score).toBe(
-      hallOfFameScore(legacy.stats, {
-        caps: legacy.stats.caps,
-        trophies: legacy.trophyIds.length,
-        // Awards count by kind, as retirement weighs them.
-        awards: awardPoints(world, legacy.awardIds, id),
-        goldenBalls: world.awards.filter(
-          (a) => a.kind === 'golden-ball' && legacy.awardIds.includes(a.id),
-        ).length,
-      }),
-    );
+    // The legacy keeps the career's record, scored as every other player's is.
+    expect(legacy.hallOfFame.score).toBe(achievementScore(before, before.players[id]!));
+    expect(legacy.hallOfFame.score).toBeGreaterThan(0);
     expect(legacy.hallOfFame).toMatchObject(hallOfFameRank(world, legacy.hallOfFame.score, id));
     expect(world.players[id]).toMatchObject({ retired: true, clubId: null, contractId: null });
     expect(world.chronicle.at(-1)!.kind).toBe('retirement');
@@ -403,6 +396,37 @@ describe('retirement and legacy', () => {
     });
     expect(() => validateDraft(world, child)).toThrow();
     valid(world);
+  }, 120000);
+
+  it('shares cap totals from the career record, not from Chronicle landmarks', () => {
+    const before = aged(season, 34);
+    const id = before.career!.playerId;
+    before.career!.honours.caps = { U19: 12, U21: 18, senior: 74 };
+    // The Chronicle records only the first cap at each level.
+    expect(
+      before.chronicle.filter((e) => e.playerId === id && e.kind === 'cap').length,
+    ).toBeLessThan(4);
+    const own = (world: World) => world.chronicle.filter((entry) => entry.playerId === id);
+    expect(careerTotals(before, id).caps).toBe(104);
+    expect(posterSvg(before, before.players[id]!, own(before))).toContain('104 caps');
+    const retired = applyHonoursAction(before, { type: 'retire' });
+    expect(careerTotals(retired, id)).toEqual({
+      appearances: before.players[id]!.stats.appearances,
+      goals: before.players[id]!.stats.goals,
+      caps: 104,
+    });
+    // A retired parent keeps their totals once their child's career begins.
+    const trial = trialOffers(retired, 'country:0', 'honours-poster')[0]!;
+    const legacyId = retired.legacies.at(-1)!.id;
+    const child = createCareer(
+      retired,
+      { ...draft, name: 'Sam Vale', parentLegacyId: legacyId },
+      trial.id,
+      'honours-poster',
+    );
+    expect(careerTotals(child, id).caps).toBe(104);
+    expect(posterSvg(child, child.players[id]!, own(child))).toContain('104 caps');
+    expect(careerTotals(child, child.career!.playerId).caps).toBe(0);
   }, 120000);
 
   it('offers retired former teammates as managers', () => {
@@ -454,7 +478,7 @@ describe('persistence', () => {
         settings: DEFAULT_SETTINGS,
       },
     });
-    expect(migrated.schemaVersion).toBe(20);
+    expect(migrated.schemaVersion).toBe(21);
     const next = (migrated.payload as { world: World }).world;
     expect(next.career!.honours.caps).toEqual({ U19: 0, U21: 0, senior: 0 });
     expect(next.international!.nations.length).toBeGreaterThan(6);
@@ -540,14 +564,14 @@ describe('club trophies', () => {
 });
 
 describe('Hall of Fame comparisons', () => {
-  /** Every person once: a legacy by its saved score, everyone else by club numbers. */
+  /** Every person once: a legacy by its saved score, everyone else by their record. */
   function expectedRank(world: World, score: number, excludeId: string) {
     const scores = new Map<string, number>();
     for (const legacy of world.legacies) scores.set(legacy.playerId, legacy.hallOfFame.score);
     for (const player of Object.values(world.players))
-      if (!scores.has(player.id)) scores.set(player.id, hallOfFameScore(player.stats));
+      if (!scores.has(player.id)) scores.set(player.id, achievementScore(world, player));
     for (const [id, record] of Object.entries(world.archive?.players ?? {}))
-      if (!scores.has(id)) scores.set(id, hallOfFameScore(record.stats));
+      if (!scores.has(id)) scores.set(id, Math.round(record.hallOfFame ?? 0));
     scores.delete(excludeId);
     return {
       rank: 1 + [...scores.values()].filter((value) => value > score).length,
@@ -561,7 +585,7 @@ describe('Hall of Fame comparisons', () => {
     // The retired player stays in the world; their club numbers alone are far lower.
     expect(world.players[legacy.playerId]).toBeDefined();
     legacy.hallOfFame.score = 10000;
-    expect(hallOfFameScore(world.players[legacy.playerId]!.stats)).toBeLessThan(1000);
+    expect(achievementScore(world, world.players[legacy.playerId]!)).toBeLessThan(1000);
     const newcomer = Object.keys(world.players).find((id) => id !== legacy.playerId)!;
     const ranked = hallOfFameRank(world, 1000, newcomer);
     expect(ranked).toEqual(expectedRank(world, 1000, newcomer));

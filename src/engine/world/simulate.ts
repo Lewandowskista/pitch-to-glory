@@ -21,9 +21,16 @@ import {
   type FinalizedFixture,
   type PlayedFixture,
 } from './finalize';
-import { careerWeek, refreshMentor } from '../career/training';
+import { adoptDevelopmentRules, careerWeek, refreshMentor } from '../career/training';
+import { recordAvailability } from '../career/availability';
+import { accrueSeason, adoptAchievements, creditTitles } from '../career/honours/achievements';
 import { pendingCareerFixture } from '../career/fixtures';
-import { benchedCareerFixtures, marketRollover, marketWeek } from '../career/market/week';
+import {
+  benchedCareerFixtures,
+  marketRollover,
+  marketSeasonEnd,
+  marketWeek,
+} from '../career/market/week';
 import { postMessage, recordMove } from '../career/market/records';
 import { socialRollover, socialWeek } from '../career/social/week';
 import { lifestyleRollover, lifestyleWeek } from '../career/lifestyle/week';
@@ -550,8 +557,10 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   if (world.format === 'national-v1') advanceNationalPyramid(world);
   // Trophies are earned when each title is decided, before anyone moves this week.
   if (world.career) recordCareerTrophies(world);
+  creditTitles(world);
   developPlayers(world, rng);
   if (world.career) {
+    recordAvailability(world, benched);
     careerWeek(world);
     marketWeek(world, benched);
     socialWeek(world);
@@ -570,7 +579,11 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   updateFinances(world);
   if (world.date.week === getSeasonWeeks(world)) {
     archiveSeason(world);
-    if (world.career) honoursSeasonEnd(world);
+    accrueSeason(world);
+    if (world.career) {
+      honoursSeasonEnd(world);
+      marketSeasonEnd(world);
+    }
   }
   world.date.week++;
   world.rng = rng.snapshot();
@@ -585,6 +598,8 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
   for (const movement of summary.movements)
     world.clubs[movement.clubId]!.leagueId = movement.toLeagueId;
   world.date = { season: world.date.season + 1, week: 1, day: 1 };
+  // Worlds saved before the shared Hall of Fame record adopt it with the new season.
+  adoptAchievements(world);
   // Worlds saved before formation-aware selection adopt it with the new season, so no
   // season changes selection rules part-way.
   world.selectionVersion = CONFIG.selection.version;
@@ -592,6 +607,7 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
     if (movement.fromLeagueId.startsWith('feeder:') && world.leagues[movement.toLeagueId])
       refreshReturningClub(world, world.clubs[movement.clubId]!);
   if (world.career) {
+    adoptDevelopmentRules(world);
     marketRollover(world);
     coachingRollover(world);
     lifestyleRollover(world);

@@ -113,6 +113,11 @@ const migrations: Readonly<Record<number, Migration>> = {
   // v20 adds story arcs (optional `career.stories`) and the captaincy (`career.captaincy`),
   // with their inbox messages and Chronicle entry. Careers saved before start without either.
   19: (old) => ({ ...old, schemaVersion: 20 }),
+  // v21 adds the career's development rules (optional `career.developmentRules`) and running
+  // conditioning share (`career.conditioning`). Careers saved before keep the original rules
+  // until their next season, then adopt late-career decline with conditioning taken from
+  // their current training plan.
+  20: (old) => ({ ...old, schemaVersion: 21 }),
 };
 function withLevelXp(payload: unknown): unknown {
   try {

@@ -4,12 +4,12 @@ import {
   ATTRIBUTE_KEYS,
   KEEPER_KEYS,
   ageCategory,
-  careerCap,
   isKeeperKey,
   isUntrained,
   type AnyAttribute,
 } from '../ageing';
 import { SKILL_BY_ID } from './catalogue';
+import { careerSoftCap } from './longevity';
 
 const C = CONFIG.career;
 
@@ -78,7 +78,7 @@ export function attributeCost(world: World, key: AnyAttribute): number | null {
   const value = attributeValue(player, key);
   if (value >= 99) return null;
   const age = careerAge(world);
-  const cap = careerCap(player, key, age);
+  const cap = careerSoftCap(world, player, key, age);
   if (age < C.costs.hardCapAge && value >= cap + C.costs.hardCapMargin) return null;
   const beyond = value - (cap + C.costs.capMargin);
   const base =

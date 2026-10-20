@@ -232,6 +232,7 @@ export function generateWorld(
       : {}),
     developmentVersion: 2,
     selectionVersion: 1,
+    achievements: { version: 1, since: year, titles: [] },
     ...(national ? { identityVersion: 2 as const } : {}),
     id: `world:${hashSeed(seed)}`,
     seed,

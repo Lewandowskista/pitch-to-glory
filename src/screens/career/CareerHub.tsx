@@ -33,7 +33,12 @@ import {
 } from './selectors';
 import { continueToMatchday, simulateCareerSeason, startNextCareerSeason } from './actions';
 import { useUrlDialog } from './useUrlDialog';
-import { careerContract, windowState } from '../../engine/career/market';
+import {
+  bridgeWage,
+  careerContract,
+  contractExpiring,
+  windowState,
+} from '../../engine/career/market';
 import { marketText as m } from '../../i18n/market';
 import { messageText, money, roleName, weekly } from './marketUi';
 import { rivalOf, seasonLines } from '../../engine/career/social';
@@ -278,6 +283,9 @@ function NextMatch({
   const kind = fixture ? fixtureKind(world, fixture) : null;
   const awaitingRecovery = Boolean(career.injury && career.injury.recovery === null);
   const complete = world.phase === 'complete';
+  // An expiring contract with nothing agreed: the next season starts on the bridge deal, so
+  // say so before it does.
+  const expiring = complete && contractExpiring(world);
   const busy = Boolean(job);
   const action = session ? (
     <Link className="button play min-w-48" to="/match">
@@ -285,7 +293,11 @@ function NextMatch({
       <Icon name="arrow" />
     </Link>
   ) : complete ? (
-    <button className="button play min-w-48" disabled={busy} onClick={startNextCareerSeason}>
+    <button
+      className="button play min-w-48"
+      disabled={busy}
+      onClick={() => (expiring ? dialog.open('next-season') : startNextCareerSeason())}
+    >
       {c.hub.nextSeason}
       <Icon name="arrow" />
     </button>
@@ -402,6 +414,22 @@ function NextMatch({
           <JobProgress />
         </div>
       </div>
+      {dialog.value === 'next-season' && expiring && (
+        <Dialog
+          title={c.hub.bridgeTitle}
+          body={format(c.hub.bridgeBody, {
+            club: world.clubs[careerContract(world).clubId]!.name,
+            wage: weekly(bridgeWage(world)),
+          })}
+          confirmLabel={c.hub.bridgeConfirm}
+          busy={busy}
+          onClose={dialog.close}
+          onConfirm={() => {
+            dialog.close();
+            startNextCareerSeason();
+          }}
+        />
+      )}
       {dialog.value === 'autoplay' && (
         <Dialog
           title={c.hub.autoTitle}

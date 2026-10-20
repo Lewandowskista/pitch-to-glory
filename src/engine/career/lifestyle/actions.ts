@@ -17,19 +17,19 @@ export type LifestyleAction =
   | { type: 'claim-challenge'; id: string };
 
 /**
- * The player's lifestyle decisions from the UI, with structural sharing. Only a look change
- * touches the player; everything else lives in the career, sponsorships and challenges.
- * Returns the input unchanged when refreshing challenges finds nothing new.
+ * The player's lifestyle decisions from the UI, with structural sharing. A look change and an
+ * experience (morale, a holiday's rest) touch the player; everything else lives in the career,
+ * sponsorships and challenges. Returns the input unchanged when refreshing challenges finds
+ * nothing new.
  */
 export function applyLifestyleAction(input: World, action: LifestyleAction): World {
   if (!input.career) throw new Error('No career in this world');
   // A legacy project changes the first club, which is copied before it is touched.
-  const legacyClub =
-    action.type === 'buy-asset' && LIFESTYLE_BY_ID[action.itemId]?.kind === 'legacy'
-      ? firstClubOf(input)
-      : null;
+  const kind = action.type === 'buy-asset' ? LIFESTYLE_BY_ID[action.itemId]?.kind : undefined;
+  const legacyClub = kind === 'legacy' ? firstClubOf(input) : null;
+  const touchesPlayer = action.type === 'wardrobe' || kind === 'experience';
   const world = draftWorld(input, {
-    players: action.type === 'wardrobe' ? [input.career.playerId] : [],
+    players: touchesPlayer ? [input.career.playerId] : [],
     clubs: legacyClub ? [legacyClub] : [],
   });
   switch (action.type) {

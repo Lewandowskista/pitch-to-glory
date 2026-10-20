@@ -181,6 +181,8 @@ export const SKILLS: readonly Skill[] = [
   skill('aerial-threat', 'physical', 1, [], { jumping: 2, heading: 1 }, 'outfield'),
   skill('iron-man', 'physical', 3, ['powerhouse'], { stamina: 1, strength: 1 }, 'all'),
   skill('second-wind', 'physical', 3, ['sprinter'], { stamina: 2 }, 'all'),
+  // A capstone with no match effect: it postpones late-career decline (see longevity.ts).
+  skill('evergreen', 'physical', 4, ['iron-man', 'second-wind'], { stamina: 1 }, 'all'),
   // Mentality
   skill('composed', 'mentality', 1, [], { composure: 2 }, 'all'),
   skill('professional', 'mentality', 2, ['composed'], { workRate: 1, decisions: 1 }, 'all'),
@@ -250,6 +252,7 @@ export const SYSTEMIC_SKILLS = {
   professional: 'training',
   'second-wind': 'fatigue',
   'iron-man': 'injury',
+  evergreen: 'longevity',
   'big-game-player': 'importance',
   'captains-voice': 'leadership',
   leader: 'leadership',

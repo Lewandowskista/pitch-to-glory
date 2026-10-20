@@ -62,6 +62,8 @@ function priorityDetail(item: Priority): string | null {
       return format(a.priorities.details.offer, {
         offer: m.kinds[p.offer as keyof typeof m.kinds] ?? p.offer,
       });
+    case 'contract':
+      return a.priorities.details.contract;
     case 'press':
       return a.priorities.details.press;
     case 'promise':

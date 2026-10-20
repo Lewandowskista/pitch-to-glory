@@ -6,6 +6,7 @@ import {
   retirementAge,
   retirementState,
 } from '../../engine/career/honours/retirement';
+import { lateCareer } from '../../engine/career/longevity';
 import { Dialog } from '../../ui/Dialog';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
@@ -41,6 +42,10 @@ export function HonoursSummary({
   const state = retirementState(world);
   const age = retirementAge(world);
   const canRetire = state === 'available' || (state === 'forced' && world.phase === 'complete');
+  // Past the onset, playing on costs more every season: say so, but leave the choice.
+  const declining =
+    (lateCareer(world, world.players[career.playerId]!, age)?.late ?? 0) > 0 &&
+    (state === 'available' || state === 'season');
   const farewell = canAnnounceFarewell(world);
   const announced = career.farewell?.season === world.date.season;
   const message = announced
@@ -85,12 +90,15 @@ export function HonoursSummary({
       {(state !== 'young' || farewell || announced) && (
         <div
           className={`flex flex-wrap items-center gap-3 rounded-control border p-4 ${
-            state === 'forced' ? 'border-gold bg-art-gold' : 'border-line bg-surface-soft'
+            state === 'forced' || declining
+              ? 'border-gold bg-art-gold'
+              : 'border-line bg-surface-soft'
           }`}
         >
           <div className="min-w-0 flex-1 basis-48">
             <strong className="block text-sm">{h.retirement.title}</strong>
             <p className="text-sm text-muted">{message}</p>
+            {declining && <p className="mt-1 text-sm font-semibold">{h.retirement.declining}</p>}
           </div>
           {farewell && (
             <button

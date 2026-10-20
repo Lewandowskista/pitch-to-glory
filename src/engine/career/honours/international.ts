@@ -18,6 +18,7 @@ import { addXp } from '../progression';
 import { postMessage } from '../market/records';
 import { today } from '../market/rules';
 import { chronicle } from './chronicle';
+import { addAchievement, creditCaps, usesAchievements } from './achievements';
 
 /**
  * International football (AGENTS.md §8): the world's countries pick squads from their own
@@ -150,8 +151,14 @@ function selectionScore(world: World, player: Player, level: NationalLevel): num
 }
 
 /** A country's squad for a level: the best available players of each line. */
-export function selectSquad(world: World, countryId: string, level: NationalLevel): Player[] {
-  const pool = Object.values(world.players).filter(
+export function selectSquad(
+  world: World,
+  countryId: string,
+  level: NationalLevel,
+  /** The country's players, when the caller has already grouped them. */
+  nationals: readonly Player[] = Object.values(world.players),
+): Player[] {
+  const pool = nationals.filter(
     (player) =>
       player.nationalityId === countryId &&
       !player.retired &&
@@ -169,6 +176,42 @@ export function selectSquad(world: World, countryId: string, level: NationalLeve
         .slice(0, I.squad[line]),
     );
   return squad;
+}
+
+/** A squad's first eleven: the best of each line, as `nationRating` picks them. */
+function starters(squad: readonly Player[]): Player[] {
+  return (['GK', 'DEF', 'MID', 'ATT'] as const).flatMap((line) =>
+    squad.filter((player) => LINE[player.primaryPosition] === line).slice(0, I.starterSlots[line]),
+  );
+}
+
+/**
+ * Caps for the world's other internationals in a window: every home nation's first eleven at
+ * each level plays the window's matches, each player at their highest level only. The career
+ * player's own matches are played and credited in full.
+ */
+function windowCaps(world: World, squads: Map<string, Player[]>): void {
+  if (!usesAchievements(world)) return;
+  const byCountry = new Map<string, Player[]>();
+  for (const player of Object.values(world.players)) {
+    const list = byCountry.get(player.nationalityId);
+    if (list) list.push(player);
+    else byCountry.set(player.nationalityId, [player]);
+  }
+  for (const nation of world.international!.nations) {
+    if (!nation.countryId) continue;
+    const capped = new Set<string>();
+    const nationals = byCountry.get(nation.countryId) ?? [];
+    for (const level of LEVELS) {
+      const key = `${nation.countryId}:${level}`;
+      if (!squads.has(key)) squads.set(key, selectSquad(world, nation.countryId, level, nationals));
+      const ids = starters(squads.get(key)!)
+        .map((player) => player.id)
+        .filter((id) => !capped.has(id));
+      for (const id of ids) capped.add(id);
+      creditCaps(world, ids, I.matchesPerWindow);
+    }
+  }
 }
 
 /** A nation's strength at a level: its squad's first-eleven ability, or a guest's rating. */
@@ -295,6 +338,8 @@ function credit(world: World, match: InternationalMatch, nationName: string): vo
   const honours = career.honours;
   const first = honours.caps[match.level] === 0;
   honours.caps[match.level]++;
+  if (usesAchievements(world))
+    addAchievement(world, career.playerId, CONFIG.career.honours.hallOfFame.cap);
   honours.internationalGoals[match.level] += part.goals;
   const senior = match.level === 'senior';
   career.fame += (senior ? I.fame.cap : 0) + part.goals * (senior ? I.fame.goal : 1);
@@ -341,10 +386,12 @@ export function internationalWindow(world: World): void {
   const call = careerCallUp(world);
   const nation = state.nations.find((entry) => entry.countryId === player.nationalityId);
   if (!nation) return;
+  const named = new Map<string, Player[]>();
   for (const level of LEVELS) {
     const id = `national:${player.nationalityId}:${level}`;
     const squad =
       call?.level === level ? call.squad : selectSquad(world, player.nationalityId, level);
+    named.set(`${player.nationalityId}:${level}`, squad);
     world.nationalTeams[id] = {
       id,
       countryId: player.nationalityId,
@@ -352,6 +399,7 @@ export function internationalWindow(world: World): void {
       playerIds: squad.map((member) => member.id),
     };
   }
+  windowCaps(world, named);
   if (!call) return;
   const firstEver = !career.honours.lastCallUp;
   career.honours.lastCallUp = { level: call.level, date: today(world) };
@@ -458,6 +506,15 @@ export function playTournament(world: World): Tournament | null {
     );
     matchIds.push(match.id);
     if (careerNation) credit(world, match, careerNation.name);
+    for (const nationId of [a, b]) {
+      const countryId = side(nationId).nation.countryId;
+      const squad = countryId ? squads.get(`${countryId}:senior`) : undefined;
+      if (squad)
+        creditCaps(
+          world,
+          starters(squad).map((p) => p.id),
+        );
+    }
     return match;
   };
   const standings = groups.map((group) => {

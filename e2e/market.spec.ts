@@ -1,9 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import { careerTabs, isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
 import { readFileSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
-import { makeTransferBid } from '../src/engine/career/market';
+import { careerContract, makeTransferBid, marketSeasonEnd } from '../src/engine/career/market';
+import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
 
@@ -57,7 +59,9 @@ async function accessibilityViolations(page: Page): Promise<string[]> {
  * A saved career, built with the real engine: a club has had a bid accepted and its
  * contract offer is waiting, so the journey can negotiate without simulating a season.
  */
-function marketSave(): { json: string; buyer: string; parent: string } {
+function marketSave(
+  options: { buyerName?: string; settings?: Partial<typeof DEFAULT_SETTINGS> } = {},
+): { json: string; buyer: string; parent: string; offerId: string } {
   const base = generateWorld('market-browser', { format: 'legacy' });
   const trial = trialOffers(base, 'country:0', 'market-browser')[0]!;
   const world: World = createCareer(
@@ -88,23 +92,19 @@ function marketSave(): { json: string; buyer: string; parent: string } {
     .filter((club) => club.id !== parent.id && club.reputation > parent.reputation)
     .sort((a, b) => a.reputation - b.reputation || (a.id < b.id ? -1 : 1))[0]!;
   buyer.finances.transferBudget = 1e9;
+  if (options.buyerName) buyer.name = options.buyerName;
   const offer = makeTransferBid(world, buyer, 80);
   if (offer?.status !== 'terms') throw new Error('The prepared bid was not accepted');
   const save = createSave(1, 'Market career', {
     kind: 'world',
     world,
     gallery: { seed: 'market-browser', generation: 0 },
-    settings: DEFAULT_SETTINGS,
+    settings: { ...DEFAULT_SETTINGS, ...options.settings },
   });
-  return { json: JSON.stringify(save), buyer: buyer.name, parent: parent.name };
+  return { json: JSON.stringify(save), buyer: buyer.name, parent: parent.name, offerId: offer.id };
 }
 
-test('negotiates a transfer from the inbox, hires an agent and survives a refresh', async ({
-  page,
-  browserName,
-}) => {
-  test.setTimeout(180000);
-  const { json, buyer, parent } = marketSave();
+async function importSave(page: Page, json: string): Promise<void> {
   await page.goto('/saves');
   await page
     .locator('.slot-card')
@@ -116,6 +116,163 @@ test('negotiates a transfer from the inbox, hires an agent and survives a refres
       buffer: Buffer.from(json),
     });
   await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Market career');
+}
+
+// Phone talks keep the club's name readable and the terms close: no overflow is not enough,
+// because a squeezed heading can wrap word by word while staying inside the viewport.
+for (const phone of [
+  { width: 360, height: 640, fontScale: 1 },
+  { width: 360, height: 640, fontScale: 1.3 },
+  { width: 390, height: 844, fontScale: 1 },
+  { width: 390, height: 844, fontScale: 1.3 },
+]) {
+  const name = `${phone.width}x${phone.height} at ${Math.round(phone.fontScale * 100)}% text`;
+  test(`transfer talks stay readable on a phone · ${name}`, async ({ page, browserName }) => {
+    test.setTimeout(120000);
+    const { json, buyer, offerId } = marketSave({
+      buyerName: 'Oakfield Athletic Wanderers',
+      settings: { fontScale: phone.fontScale },
+    });
+    await page.setViewportSize({ width: phone.width, height: phone.height });
+    await importSave(page, json);
+    await page.goto(`/career/transfers?save=1&offer=${encodeURIComponent(offerId)}`);
+    const heading = page.getByRole('heading', { name: `Talks with ${buyer}` });
+    await expect(heading).toBeVisible();
+    const geometry = await heading.evaluate((element) => {
+      const section = element.closest('section')!;
+      const panel = section.getBoundingClientRect();
+      const box = element.getBoundingClientRect();
+      const lineHeight = parseFloat(getComputedStyle(element).lineHeight);
+      // A word split across lines has more than one client rect.
+      const broken: string[] = [];
+      for (const node of [element, ...section.querySelectorAll('dl dd')]) {
+        const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+        for (let text = walker.nextNode(); text; text = walker.nextNode())
+          for (const match of (text.textContent ?? '').matchAll(/\S+/g)) {
+            const range = document.createRange();
+            range.setStart(text, match.index);
+            range.setEnd(text, match.index + match[0].length);
+            if (range.getClientRects().length > 1) broken.push(match[0]);
+          }
+      }
+      const back = [...section.querySelectorAll('button')]
+        .find((button) => button.textContent?.trim() === 'Back to offers')!
+        .getBoundingClientRect();
+      const terms = section.querySelector('dl')!.getBoundingClientRect();
+      return {
+        share: box.width / panel.width,
+        lines: Math.round(box.height / lineHeight),
+        broken,
+        backAbove: back.bottom <= box.top,
+        termsTop: terms.top + window.scrollY,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    await mkdir('artifacts/market-layout', { recursive: true });
+    await page.screenshot({
+      path: `artifacts/market-layout/talks-${phone.width}-${Math.round(phone.fontScale * 100)}-${browserName}.png`,
+      fullPage: true,
+    });
+    expect(geometry.share, 'heading width share').toBeGreaterThanOrEqual(0.6);
+    expect(geometry.lines, 'heading lines').toBeLessThanOrEqual(3);
+    expect(geometry.broken, 'words broken across lines').toEqual([]);
+    expect(geometry.backAbove, 'Back sits above the club identity').toBe(true);
+    expect(geometry.overflow).toBeLessThanOrEqual(0);
+    // The club's terms start within one screen of scrolling.
+    expect(geometry.termsTop, 'first contract term').toBeLessThan(phone.height * 2);
+  });
+}
+
+/** A finished season whose contract ends with it, the club's option used, and two suitors. */
+function expirySave(): { json: string; club: string } {
+  const base = generateWorld('expiry-browser', { format: 'legacy' });
+  const trial = trialOffers(base, 'country:0', 'expiry-browser')[0]!;
+  let world: World = createCareer(
+    base,
+    {
+      name: 'Robin Vale',
+      avatar: {
+        face: 1,
+        skin: 2,
+        hair: 3,
+        hairColor: 4,
+        facialHair: 0,
+        eyebrows: 1,
+        eyes: 2,
+        accessory: 3,
+      },
+      nationalityId: 'country:0',
+      position: 'ST',
+      foot: 'left',
+      age: 17,
+      archetype: 'finisher',
+    },
+    trial.id,
+    'expiry-browser',
+  );
+  while (world.phase === 'active')
+    world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  const contract = careerContract(world);
+  contract.end = { ...contract.end, season: world.date.season };
+  contract.optionTaken = true;
+  world.offers = [];
+  world.negotiations = {};
+  world.scouting = Object.values(world.clubs)
+    .filter((club) => club.id !== contract.clubId && club.playerIds.length > 0)
+    .sort((a, b) => b.reputation - a.reputation)
+    .slice(0, 2)
+    .map((club, index) => ({
+      id: `interest:browser:${index}`,
+      clubId: club.id,
+      playerId: world.career!.playerId,
+      kind: 'transfer' as const,
+      started: { ...world.date, week: 1 },
+      weeksObserved: 10,
+      confidence: 80,
+      stage: 'offer' as const,
+      lastOffer: null,
+    }));
+  marketSeasonEnd(world);
+  const save = createSave(1, 'Market career', {
+    kind: 'world',
+    world,
+    gallery: { seed: 'expiry-browser', generation: 0 },
+    settings: DEFAULT_SETTINGS,
+  });
+  return { json: JSON.stringify(save), club: world.clubs[contract.clubId]!.name };
+}
+
+test('an expiring contract asks the player to decide before the next season', async ({ page }) => {
+  test.setTimeout(120000);
+  const { json, club } = expirySave();
+  await importSave(page, json);
+  await page.goto('/career?save=1');
+  const priority = page.getByRole('link', { name: /Decide where you play next season/ });
+  await expect(priority).toBeVisible();
+
+  // Starting the season without a decision states the default and can be cancelled.
+  await page.getByRole('button', { name: 'Start next season' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText(`you stay at ${club} on a one-season deal`);
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+
+  // The decision lives with the contract, beside the clubs' offers.
+  await priority.click();
+  await expect(page).toHaveURL(/\/career\/transfers/);
+  const decision = page.locator('#contract-decision');
+  await expect(decision).toContainText('2 interested clubs have opened talks');
+  await expect(decision).toContainText(`you stay at ${club} on a one-season deal`);
+  await expect(page.getByText(/Club option: already used/)).toBeVisible();
+});
+
+test('negotiates a transfer from the inbox, hires an agent and survives a refresh', async ({
+  page,
+  browserName,
+}) => {
+  test.setTimeout(180000);
+  const { json, buyer, parent } = marketSave();
+  await importSave(page, json);
 
   // The inbox shows the club's accepted bid; opening a message marks it read.
   await page.goto('/career/inbox?save=1');

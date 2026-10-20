@@ -59,6 +59,9 @@ const UNLOCKED_CHOICES: Readonly<Record<string, string[]>> = (() => {
   return result;
 })();
 
+/** A skill's longevity contribution, in points out of 100. */
+const longevityPoints = (id: string) => Math.round((CONFIG.career.longevity.skills[id] ?? 0) * 100);
+
 function systemicText(id: string): string | null {
   const kind = SYSTEMIC_SKILLS[id as keyof typeof SYSTEMIC_SKILLS];
   if (!kind) return null;
@@ -72,7 +75,9 @@ function systemicText(id: string): string | null {
           ? percent(1 - CONFIG.career.injuries.ironManSkill)
           : kind === 'importance'
             ? percent(CONFIG.match.decision.bigGame.skill)
-            : 0;
+            : kind === 'longevity'
+              ? longevityPoints(id)
+              : 0;
   return format(c.skills.systemic[kind], { value });
 }
 
@@ -491,6 +496,10 @@ function SkillDetail({
               </p>
             ))}
             {systemic && <p>{systemic}</p>}
+            {longevityPoints(skill.id) > 0 &&
+              SYSTEMIC_SKILLS[skill.id as keyof typeof SYSTEMIC_SKILLS] !== 'longevity' && (
+                <p>{format(c.skills.longevity, { value: longevityPoints(skill.id) })}</p>
+              )}
           </dd>
         </div>
         <div>

@@ -6,7 +6,7 @@ import { chronicle } from './chronicle';
 import { captureMoments } from './moments';
 import { createInternational, internationalWindow, playTournament } from './international';
 import { monthlyAward, recordCareerTrophies, seasonAwards, startAwardSeason } from './awards';
-import { retireCareer, retirementAge, testimonialCheck } from './retirement';
+import { retireCareer, retirementAge, retirementState, testimonialCheck } from './retirement';
 import { ambitionsCheck } from './ambitions';
 import { CONFIG } from '../../config';
 
@@ -99,7 +99,7 @@ export function honoursRollover(world: World): boolean {
   playTournament(world);
   // Forced by age, or the farewell season announced last season is over.
   if (
-    retirementAge(world) >= H.retirement.forcedAge ||
+    retirementState(world) === 'forced' ||
     world.career?.farewell?.season === world.date.season - 1
   ) {
     retireCareer(world);

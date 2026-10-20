@@ -6,13 +6,16 @@ import { CONFIG } from '../../engine/config';
 import { nextCareerFixture } from '../../engine/career/fixtures';
 import {
   activeLoan,
+  bridgeWage,
   careerContract,
   careerSelection,
+  contractExpiring,
   contractAskState,
   canRequestLoan,
   lineOf,
   managerTrust,
   marketValue,
+  openOffers,
   relationshipValue,
   validTerms,
   windowState,
@@ -105,6 +108,9 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
   const parent = world.clubs[contract.clubId]!;
   const loan = activeLoan(world, player.id);
   const final = contract.end.season <= world.date.season;
+  // Option used and the season over: where to play next is the player's decision.
+  const deciding = world.phase === 'complete' && contractExpiring(world);
+  const talks = openOffers(world).filter((offer) => offer.kind === 'pre-contract').length;
   return (
     <section aria-labelledby="contract-heading" className={`${ui.panel} order-1 lg:order-none`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -113,6 +119,25 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
         </h2>
         {final && <span className={ui.chip}>{m.contract.finalSeason}</span>}
       </div>
+      {deciding && (
+        <div
+          id="contract-decision"
+          className="mt-4 rounded-control border border-gold bg-art-gold p-4 text-sm"
+        >
+          <p className="font-semibold">{m.contract.decisionTitle}</p>
+          <p className="mt-1">
+            {talks
+              ? plural(talks, m.contract.decisionOffersOne, m.contract.decisionOffers)
+              : m.contract.decisionNoOffers}
+          </p>
+          <p className="mt-1">
+            {format(m.contract.decisionDefault, {
+              club: parent.name,
+              wage: weekly(bridgeWage(world)),
+            })}
+          </p>
+        </div>
+      )}
       <div className="mt-4 flex items-center gap-3">
         <CrestImage crest={parent.crest} alt="" className="h-12 w-12 shrink-0" />
         <div className="min-w-0">
@@ -173,6 +198,12 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
       {/* Notes sit under the grid, so one long note never stretches a row of figures. */}
       <p className="mt-2 text-xs text-muted">
         {m.contract.loyalty}: {m.contract.loyaltyBody}
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        {m.contract.option}:{' '}
+        {contract.optionTaken
+          ? m.contract.optionUsed
+          : format(m.contract.optionOpen, { club: parent.name })}
       </p>
       <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-muted">
         {m.contract.bonuses}
@@ -713,8 +744,9 @@ function clubTerms(negotiation: Negotiation): ContractTerms {
 }
 
 function TermsList({ terms }: { terms: ContractTerms }) {
+  // Two tiles a row while values fit whole; one when enlarged text would split words.
   return (
-    <dl className="grid grid-cols-2 gap-3">
+    <dl className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,8rem),1fr))] gap-3">
       <Stat label={m.talks.wage} value={weekly(terms.weeklyWage)} />
       <Stat
         label={m.talks.years}
@@ -752,28 +784,42 @@ function Talks({
     ? world.agents[world.career!.market.agentId]
     : undefined;
   return (
-    <section aria-labelledby="talks-heading" className={`${ui.panel} flex flex-col gap-5`}>
-      <div className="flex flex-wrap items-center gap-4">
-        <CrestImage crest={club.crest} alt="" className="h-16 w-16 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <p className={ui.eyebrow}>
-            {m.kinds[offer.kind]} · {m.statuses[offer.status]}
-          </p>
-          <h2 id="talks-heading" className="font-display text-[2.2rem] leading-none break-words">
-            {format(m.talks.title, { club: club.name })}
-          </h2>
-          {offer.fee > 0 && (
-            <p className="mt-1 text-sm">{format(m.talks.fee, { fee: money(offer.fee) })}</p>
-          )}
-          <p className="mt-1 text-sm">
+    <section
+      aria-labelledby="talks-heading"
+      className={`${ui.panel} @container flex flex-col gap-5`}
+    >
+      {/* On a narrow panel Back takes its own row, so the club's name keeps the full width. */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 @lg:flex-row @lg:items-start @lg:gap-4">
+          <button className="button secondary self-start @lg:order-last" onClick={onClose}>
+            {m.talks.back}
+          </button>
+          {/* Narrow: crest beside the label, the title below at full width. Wide: crest beside both. */}
+          <div className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 @lg:gap-x-4 @lg:gap-y-1">
+            <CrestImage
+              crest={club.crest}
+              alt=""
+              className="h-11 w-11 shrink-0 @lg:row-span-2 @lg:h-16 @lg:w-16"
+            />
+            <p className={`${ui.eyebrow} @lg:self-end`}>
+              {m.kinds[offer.kind]} · {m.statuses[offer.status]}
+            </p>
+            <h2
+              id="talks-heading"
+              className="col-span-2 font-display text-[1.9rem] leading-none text-balance break-words @lg:col-span-1 @lg:col-start-2 @lg:self-start @lg:text-[2.2rem]"
+            >
+              {format(m.talks.title, { club: club.name })}
+            </h2>
+          </div>
+        </div>
+        <div className="space-y-1 text-sm">
+          {offer.fee > 0 && <p>{format(m.talks.fee, { fee: money(offer.fee) })}</p>}
+          <p>
             {format(socialText.fit.talks, { club: club.name })}:{' '}
             <strong>{cultureFit(world, world.players[world.career!.playerId]!, club).value}</strong>{' '}
             · {cultureTraits(club).join(' · ')}
           </p>
         </div>
-        <button className="button secondary" onClick={onClose}>
-          {m.talks.back}
-        </button>
       </div>
       <BlockNote block={block} />
       <ActionError error={error} />
@@ -802,6 +848,11 @@ function Talks({
                 {m.talks.clubTerms}
               </h3>
               <TermsList terms={clubTerms(negotiation)} />
+              {offer.kind !== 'renewal' || !careerContract(world).optionTaken ? (
+                <p className="text-xs text-muted">
+                  {format(m.talks.clubOption, { club: club.name })}
+                </p>
+              ) : null}
               {agent && negotiation.agentEstimate !== null ? (
                 <p className="text-sm">
                   {format(m.talks.agentRead, {

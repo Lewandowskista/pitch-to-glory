@@ -107,7 +107,7 @@ describe('the level curve', () => {
     const raw = JSON.parse(JSON.stringify(save)) as { payload: { world: World } };
     delete raw.payload.world.career!.levelXp;
     const migrated = migrateSave(raw);
-    expect(migrated.schemaVersion).toBe(20);
+    expect(migrated.schemaVersion).toBe(21);
     expect(migrated.payload.kind).toBe('world');
     const world = (migrated.payload as { world: World }).world;
     expect(world.career!.level).toBe(20);
@@ -169,6 +169,15 @@ describe('development from playing', () => {
       cleanSheet: true,
       xp: 100,
       auto: true,
+    }));
+    // Development rules 2 read the club's fixtures from the player's side: the same eight,
+    // played or left out (tests/playing-time.test.ts drives a real benched career).
+    world.career!.availability = world.career!.matches.map((match) => ({
+      season: match.season,
+      week: match.week,
+      fixtureId: match.fixtureId,
+      status: minutes > 0 ? ('played' as const) : ('benched' as const),
+      minutes,
     }));
     const start = JSON.stringify(player(world).attributes);
     let improved = 0;

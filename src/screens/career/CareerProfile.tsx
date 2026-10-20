@@ -2,7 +2,8 @@ import { useRef, useState } from 'react';
 import { m, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '../../store';
 import { CONFIG } from '../../engine/config';
-import { careerCap, type AnyAttribute } from '../../engine/ageing';
+import { type AnyAttribute } from '../../engine/ageing';
+import { careerSoftCap, lateCareer, lateRate } from '../../engine/career/longevity';
 import { attributeCost, attributeValue, raiseAttribute } from '../../engine/career/progression';
 import type { Career, CareerMatchRecord, Club, Player, World } from '../../model/domain';
 import { format, t } from '../../i18n';
@@ -24,7 +25,10 @@ export default function CareerProfile() {
           <Summary {...context} />
           <Positions player={context.player} />
           <Attributes {...context} />
-          <Hidden player={context.player} />
+          <div className="grid content-start gap-5 xl:col-start-2 xl:row-start-3">
+            <Hidden player={context.player} />
+            <Longevity {...context} />
+          </div>
           <History world={context.world} career={context.career} />
         </div>
       )}
@@ -130,7 +134,7 @@ function Attributes({
             <ul className="grid gap-1.5">
               {keys.map((key) => {
                 const value = attributeValue(player, key);
-                const cap = careerCap(player, key, age);
+                const cap = careerSoftCap(world, player, key, age);
                 const cost = attributeCost(world, key);
                 const affordable = cost !== null && cost <= career.attributePoints;
                 const reason =
@@ -380,10 +384,7 @@ function Positions({ player }: { player: Player }) {
 function Hidden({ player }: { player: Player }) {
   const { appearances, order } = CONFIG.career.reveal;
   return (
-    <section
-      aria-labelledby="hidden-heading"
-      className={`${ui.panel} xl:col-start-2 xl:row-start-3 xl:self-start`}
-    >
+    <section aria-labelledby="hidden-heading" className={ui.panel}>
       <h2 id="hidden-heading" className={ui.heading}>
         {c.profile.hidden}
       </h2>
@@ -408,6 +409,99 @@ function Hidden({ player }: { player: Player }) {
           );
         })}
       </ul>
+    </section>
+  );
+}
+
+/**
+ * How long the body will last: the age decline starts to accelerate and what pushes it back.
+ * Character stays hidden until both of its hidden attributes are revealed.
+ */
+function Longevity({ world, career, player }: { world: World; career: Career; player: Player }) {
+  const L = CONFIG.career.longevity;
+  const age = world.date.season - player.birthSeason;
+  const state = lateCareer(world, player, age);
+  const T = c.profile.longevity;
+  const characterKnown =
+    player.hidden.revealed.includes('professionalism') &&
+    player.hidden.revealed.includes('injuryProneness');
+  const points = (value: number) => Math.round(value * 100);
+  const parts = state
+    ? [
+        {
+          key: 'skills',
+          value: points(state.parts.skills),
+          max: points(Object.values(L.skills).reduce((sum, v) => sum + v, 0)),
+        },
+        {
+          key: 'conditioning',
+          value: points(state.parts.conditioning),
+          max: points(L.conditioning.weight),
+          note: format(T.conditioningShare, { value: points(career.conditioning ?? 0) }),
+        },
+        { key: 'physique', value: points(state.parts.physique), max: points(L.physique.weight) },
+        {
+          key: 'character',
+          value: characterKnown ? points(state.parts.character) : null,
+          max: points(L.character.weight),
+        },
+      ]
+    : [];
+  return (
+    <section aria-labelledby="longevity-heading" className={ui.panel}>
+      <h2 id="longevity-heading" className={ui.heading}>
+        {T.title}
+      </h2>
+      {!state ? (
+        <p className={`${ui.muted} mt-1`}>{T.nextSeason}</p>
+      ) : (
+        <>
+          <p className="mt-1 text-sm">{format(T.onset, { age: Math.round(state.onset) })}</p>
+          {state.late > 0 && (
+            <p className="mt-2 rounded-control border border-gold bg-art-gold p-3 text-sm font-semibold">
+              {format(T.accelerating, { rate: lateRate(state.late, state.score).toFixed(1) })}
+            </p>
+          )}
+          <div className="mt-4 flex items-baseline justify-between gap-3">
+            <span className="text-sm font-semibold">{T.score}</span>
+            <span className="font-display text-2xl leading-none">
+              {format(T.outOf, { value: points(state.score), max: 100 })}
+            </span>
+          </div>
+          <div
+            role="meter"
+            aria-label={T.score}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={points(state.score)}
+            className="mt-1 h-2 overflow-hidden rounded-full bg-surface-soft"
+          >
+            <span
+              className="block h-full rounded-full bg-accent"
+              style={{ width: `${points(state.score)}%` }}
+            />
+          </div>
+          <ul className="mt-4 grid gap-2">
+            {parts.map((part) => (
+              <li
+                key={part.key}
+                className="flex min-h-11 items-center justify-between gap-3 rounded-control bg-surface-soft px-3 py-2"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{T.parts[part.key]}</span>
+                  {part.note && <span className="block text-xs text-muted">{part.note}</span>}
+                </span>
+                <span className="shrink-0 text-sm tabular-nums">
+                  {part.value === null
+                    ? T.hidden
+                    : format(T.outOf, { value: part.value, max: part.max })}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className={`${ui.muted} mt-3`}>{T.advice}</p>
+        </>
+      )}
     </section>
   );
 }

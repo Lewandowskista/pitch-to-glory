@@ -59,6 +59,7 @@ export const INBOX_KINDS = [
   'sponsor-clawback',
   'sponsor-renewal',
   'free-transfer',
+  'contract-decision',
   'experience',
   'investment-lost',
   'asset-sold',

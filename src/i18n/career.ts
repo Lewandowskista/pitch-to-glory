@@ -199,6 +199,10 @@ export const careerText = {
     seasonComplete: 'Season complete',
     seasonCompleteBody: 'The tables are final. Start the next season when you are ready.',
     nextSeason: 'Start next season',
+    bridgeTitle: 'Start the season without a new contract?',
+    bridgeBody:
+      'Your contract ends with this season and you have agreed nothing new. If you start now you stay at {club} on a one-season deal at {wage}. Offers from interested clubs are under Transfers until then.',
+    bridgeConfirm: 'Stay on the one-season deal',
     simulateSeason: 'Simulate the season',
     autoTitle: 'Auto-play the rest of the season?',
     autoBody:
@@ -322,6 +326,25 @@ export const careerText = {
     learnPosition: 'Learn a new position in training.',
     hidden: 'Hidden attributes',
     hiddenBody: 'Revealed as you play more matches.',
+    longevity: {
+      title: 'Longevity',
+      onset: 'From about age {age}, your attributes will decline faster every season.',
+      accelerating: 'Your decline is accelerating: attributes now fall {rate}× as fast as normal.',
+      nextSeason:
+        'Late-career decline applies from next season. Conditioning work and physical skills will push it back.',
+      score: 'Longevity',
+      outOf: '{value}/{max}',
+      conditioningShare: '{value}% of recent training was conditioning',
+      hidden: 'Revealed later',
+      parts: {
+        skills: 'Physical and mental skills',
+        conditioning: 'Conditioning training',
+        physique: 'Stamina and strength',
+        character: 'Character',
+      } as Record<string, string>,
+      advice:
+        'Physical and recovery sessions, skills such as Engine, Iron Man and Evergreen, and built-up stamina and strength all delay the decline.',
+    },
     revealAt: 'Revealed after {count} appearances',
     hiddenNames: {
       professionalism: 'Professionalism',
@@ -397,10 +420,12 @@ export const careerText = {
     effects: 'In matches',
     boosts: 'Success odds improved by {value}% for: {choices}',
     unlocksChoice: 'Unlocks a new key-moment choice: {choice}',
+    longevity: 'Longevity +{value}: decline arrives later in your career.',
     systemic: {
       training: 'Training gains +{value}%.',
       fatigue: 'Training fatigue −{value}%.',
       injury: 'Injury risk −{value}%.',
+      longevity: 'Late-career decline starts later and is gentler (longevity +{value}).',
       importance: 'Better odds at every key moment in cup ties, playoffs and finals (+{value}%).',
       leadership: 'Leadership decides who wears the armband and leads the team talk.',
     },
@@ -465,6 +490,7 @@ export const careerText = {
     'aerial-threat': 'Aerial Threat',
     'iron-man': 'Iron Man',
     'second-wind': 'Second Wind',
+    evergreen: 'Evergreen',
     composed: 'Composed',
     professional: 'Professional',
     leader: 'Leader',
@@ -516,6 +542,7 @@ export const careerText = {
     'aerial-threat': 'A menace whenever the ball is in the air.',
     'iron-man': 'Built to withstand knocks and strains.',
     'second-wind': 'Recovers faster from heavy weeks.',
+    evergreen: 'Looks after the body so it keeps going into the late thirties.',
     composed: 'Never rushed, never flustered.',
     professional: 'Lives right and trains with purpose.',
     leader: 'Organises and lifts teammates.',

@@ -352,6 +352,11 @@ export interface Player {
   stats: PlayerStats;
   /** Season in which an unattached player was released; absent while under contract. */
   releasedSeason?: number;
+  /**
+   * Hall of Fame points earned so far (achievement record 1): club contributions weighted by
+   * level, trophies, awards and caps, by the same rules for every player. Absent at zero.
+   */
+  hallOfFame?: number;
 }
 /** Compact record of a retired player, kept for history after their full entity is pruned. */
 export interface ArchivedPlayer {
@@ -363,6 +368,8 @@ export interface ArchivedPlayer {
   avatar: Avatar;
   retiredSeason: number;
   stats: Omit<PlayerStats, 'trophies' | 'ratingTotal'>;
+  /** Hall of Fame points kept through archiving (achievement record 1). */
+  hallOfFame?: number;
 }
 export interface WorldArchive {
   players: Record<Id, ArchivedPlayer>;
@@ -501,6 +508,27 @@ export interface Career {
   farewell?: { season: number; announced: GameDate } | null;
   /** Clubs that have granted the player a testimonial, after long service (schema 20). */
   testimonials?: Id[];
+  /**
+   * Development rules (schema 21). 2: late-career decline with longevity, and growth from
+   * minutes in fixtures the player was available for. Absent means the original rules; older
+   * careers adopt 2 when a new season starts, never part-way.
+   */
+  developmentRules?: 2;
+  /** Running share (0-1) of training given to physical conditioning, for longevity (schema 21). */
+  conditioning?: number;
+  /** The club's recent fixtures and whether the player was available for them (schema 21). */
+  availability?: AvailabilityEntry[];
+}
+/**
+ * One of the career club's fixtures from the player's side: played (with minutes), left out
+ * while fit, unavailable through injury or not yet registered after a move.
+ */
+export interface AvailabilityEntry {
+  season: number;
+  week: number;
+  fixtureId: Id;
+  status: 'played' | 'benched' | 'injured' | 'unregistered';
+  minutes: number;
 }
 export type StoryKind =
   | 'senior-dispute'
@@ -1335,6 +1363,11 @@ export interface World {
   format?: 'legacy' | 'national-v1';
   /** 2: potential is peak overall ability and development follows age curves. */
   developmentVersion?: 2;
+  /**
+   * One Hall of Fame record for every player (schema 21), from season `since`. `titles` are
+   * the titles already credited this season. Absent until the world adopts it at a season start.
+   */
+  achievements?: { version: 1; since: number; titles: Id[] };
   /** Formation-aware team selection (Phase 5.1); absent before the world adopts it. */
   selectionVersion?: 1;
   /**
@@ -1503,7 +1536,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 20;
+  schemaVersion: 21;
   engineVersion: string;
   slot: SlotId;
   name: string;
