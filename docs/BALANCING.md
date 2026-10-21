@@ -807,4 +807,6 @@ From the [October 20 review](APP-REVIEW-2026-10-20.md) (R5, R6, R7), plan steps 
 
 Decisions recorded before schema 22 count only for the bad-luck note.
 
+**Training shapes growth (2.4, development rules 3).** Passive growth multiplies each attribute's rate by its focus weight. The attributes the week's sessions (and extra session) focus on get `focusRatio` (2) times the weight of the rest. Weights are normalised to average 1 over the attributes still below their soft cap, so total growth is unchanged. A plan with no attribute focus, or one covering every attribute (the balanced default), leaves every weight at 1. Careers on rules 2 adopt rules 3 at their next season start.
+
 **Growth by source (2.4).** `career.growth` counts whole attribute points per season from playing (passive growth), training, spent points and skills, and points lost to age (the last 25 seasons are kept). The profile's season card shows it, and the career profile records it per season with a `--policy` (default, focused, recovery, no-points, loyal, mover, minutes).

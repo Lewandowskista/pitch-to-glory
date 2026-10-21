@@ -74,7 +74,7 @@ Before pushing, `main` turned out to hold 94 commits (release 0.2.0, dated 16 Oc
 
 ## Phase 2 — Make every system describe the same footballer
 
-Status: implemented. Match engine **match-17**; save schema 22 (optional fields only).
+Status: implemented and released as **0.4.0**. Match engine **match-17**; save schema 22 (optional fields only); development rules 3.
 
 | Step | Finding | Outcome                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ---- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -108,4 +108,21 @@ Whole attribute points over a career, by source:
 - The loyal centre-back never left tiers 4–6 and ranks 911th in the Hall of Fame, against 34th for the default career. Level weighting works as intended.
 - Strikers rank 1st or 2nd under most policies, on about 0.6 goals a game and 20+ awards. A centre-back with a comparable career ranks in the top 0.1%.
 
-**Proposed tuning (not applied; for confirmation).** Passive growth should favour the attributes the training plan focuses on (for example ×1.5 for focused attributes and ×0.75 for the rest, the same total). Training then visibly shapes the build without changing how fast a career climbs. Re-measure with the same policies across several seeds before settling the factors.
+**Tuning applied (development rules 3, confirmed 21 October).** Passive growth now favours the attributes the training plan focuses on: twice the rate of the rest (`focusRatio`). The weights are normalised over the attributes still below their cap, so the total is unchanged and nothing is wasted once a focused attribute reaches its cap.
+
+- A balanced plan covering all three groups changes nothing, so default careers develop exactly as before.
+- Careers adopt rules 3 at their next season start.
+- A first version normalised over every attribute. Focused careers then lost growth once their focus attributes hit their caps (centre-back peak 80.2). It was fixed before release.
+
+Peak ability after the retune (seed A, before → after; seed B, after only):
+
+| Career            | Seed A      | Seed B |
+| ----------------- | ----------- | -----: |
+| CB default        | 81.5 → 81.5 |   84.2 |
+| CB focused        | 80.8 → 80.3 |   83.4 |
+| CB recovery-heavy | 79.2 → 80.0 |   83.8 |
+| ST default        | 81.1 → 81.1 |   85.8 |
+| ST focused        | 80.4 → 80.3 |   84.2 |
+| ST recovery-heavy | 79.2 → 79.8 |   84.2 |
+
+The climb's pace is preserved within about a point, which is normal career-to-career variation. All career-profile gates pass. `tests/growth.test.ts` shows the focus attributes growing faster than under rules 2. The profile does not yet record attribute shape (focused against unfocused attributes at 25); adding that is the next measurement for step 2.4.
