@@ -71,3 +71,41 @@ Before pushing, `main` turned out to hold 94 commits (release 0.2.0, dated 16 Oc
 - The full Playwright suite passes in Chromium, Firefox and WebKit (271 passed, 5 skipped); its only failures were the phone talks test, since fixed. The transfer, accessibility and layout specs were rerun and pass.
 
 **Risk.** The Match route's initial JavaScript is 299.8 KB of its 300 KB gzip budget. Upstream alone was 294.5 KB; shared engine chunks grew with Phase 1. The next change that touches the match route needs a bundle-size reduction first.
+
+## Phase 2 — Make every system describe the same footballer
+
+Status: implemented. Match engine **match-17**; save schema 22 (optional fields only).
+
+| Step | Finding | Outcome                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prep | Budget  | The Match route was at 299.8 of 300 KB. The post-match report now loads lazily, fetched in the background once a match exists: 284.6 KB.                                                                                                                                                                                                                                                                                                  |
+| 2.1  | R6      | One effective role: the slot the player starts in (their best fit in the manager's formation, `selectedSlotIndex`) sets role choices, objectives, involvement, shares, half-time role change, back-line rating credit and clean-sheet fame. The hub preview and the manager's plan name the same slot. Role promises come from the competition for that slot. Transfer talks show the slot, fit, who is ahead and the chance of starting. |
+| 2.2  | R5      | Skills on choices likely by nature stack on what they lead to (×1.1 per skill, ×1.3 limit). The path stays tied to a choice's base odds, pinned by a test. The skill sheet shows, choice by choice, what a skill adds to the current build. Capstones that unlock new choices are deferred to a content pass: some skills (Maestro) already unlock one, and new choices need animation and commentary.                                    |
+| 2.3  | R7      | Advice no longer reads luck. Decisions record what the attributes did to the odds and the expected value given up against the best option. Training is recommended only where attributes cost clear odds; poor choices and bad luck are noted separately.                                                                                                                                                                                 |
+| 2.4  | R9      | Growth is recorded by source per season and shown on the profile. The career profile takes seven policies; a 14-career study is below.                                                                                                                                                                                                                                                                                                    |
+| Fix  | —       | A match crashed when a first-minute shot was drawn before the pending kickoff (also on match-16). The usual taker now kicks off. Found by the policy study.                                                                                                                                                                                                                                                                               |
+
+### Policy study (seed `policy-a`, centre-back and striker)
+
+Whole attribute points over a career, by source:
+
+| Policy                                | CB playing | CB training | CB points | CB peak | ST playing | ST training | ST points | ST peak |
+| ------------------------------------- | ---------: | ----------: | --------: | ------: | ---------: | ----------: | --------: | ------: |
+| default                               |        632 |         278 |       345 |    81.5 |        599 |         285 |       375 |    81.1 |
+| focused (high intensity)              |        747 |         141 |       308 |    80.8 |        724 |         122 |       356 |    80.4 |
+| recovery-heavy                        |        776 |          50 |       335 |    79.2 |        704 |          38 |       432 |    79.2 |
+| no points                             |        856 |         356 |         0 |    78.2 |        878 |         350 |         0 |    78.2 |
+| loyal (one club)                      |        596 |         265 |       386 |    81.3 |        576 |         258 |       411 |    81.5 |
+| minutes-first loans                   |        629 |         282 |       340 |    81.7 |        611 |         269 |       378 |    81.4 |
+| mover (any move, asks to leave at 20) |        632 |         278 |       345 |    81.5 |        587 |         288 |       384 |    81.0 |
+
+**Findings.**
+
+- Passive growth from playing supplies about half of all gains, training about a fifth, spent points about a quarter and skills about 5%.
+- Training barely changes the destination. Almost no training (the recovery-heavy policy) costs about 2 peak points. A narrow high-intensity focus delivers _fewer_ trained points than the balanced default: focus attributes reach their caps, and passive growth fills the rest.
+- Points matter more: never spending them costs about 3 peak points.
+- Moving more changes little: the default player already takes every move to a better club, so the centre-back's mover career is identical, and the striker's has 8 clubs instead of 6 with the same development.
+- The loyal centre-back never left tiers 4–6 and ranks 911th in the Hall of Fame, against 34th for the default career. Level weighting works as intended.
+- Strikers rank 1st or 2nd under most policies, on about 0.6 goals a game and 20+ awards. A centre-back with a comparable career ranks in the top 0.1%.
+
+**Proposed tuning (not applied; for confirmation).** Passive growth should favour the attributes the training plan focuses on (for example ×1.5 for focused attributes and ×0.75 for the rest, the same total). Training then visibly shapes the build without changing how fast a career climbs. Re-measure with the same policies across several seeds before settling the factors.

@@ -2,6 +2,30 @@
 
 Player-facing notes for every release of Pitch to Glory, newest first. Generated from `src/i18n/patchNotes.ts` by `npm run changelog`; do not edit by hand. See [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.4.0 — One player, one job
+
+_2026-10-21_
+
+Your match role follows the position you are actually played in, skills add up, the coach stops blaming bad luck, and you can see where your development comes from.
+
+### New
+
+- Transfer talks show the position you would play, your fit there, who is ahead of you and how often you can expect to start.
+- The skill tree shows, choice by choice, what a skill adds to the skills you already have.
+- Your profile shows where this season’s development came from: playing, training, points and skills, and what age took away.
+
+### Improved
+
+- Fielded out of position, your role choices, objectives, involvement and half-time options follow the position you actually play.
+- Squad role promises follow the competition for your place in the manager’s formation.
+- Several skills covering the same likely choice now add up, instead of only the first counting.
+- The coach recommends training only where your attributes hold you back, notes when other choices would have been better, and calls a run of misses at good odds what it is: bad luck.
+- The post-match report loads in the background while you play, so the match screen opens faster.
+
+### Fixed
+
+- A match could fail to start when a shot came before the opening kick-off.
+
 ## 0.3.0 — Careers on your terms
 
 _2026-10-20_

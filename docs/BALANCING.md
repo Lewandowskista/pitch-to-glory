@@ -785,3 +785,26 @@ Every player, the career included, earns Hall of Fame points by the same rules. 
 - Players are seeded from their kept statistics at their current club's tier weight, plus awards still on record.
 - Archived players and older legacies use the tier-3 weight, because their level was never kept. Legacies are rescored by the same rules from their saved record.
 - Other players' trophies and caps were never recorded, so they count from that season. The Hall of Fame panel says so.
+
+## One footballer: role, skills and coaching (October 2026)
+
+From the [October 20 review](APP-REVIEW-2026-10-20.md) (R5, R6, R7), plan steps 2.1–2.3. Match engine **match-17**. Sessions saved on match-16 replay unchanged; `tests/match-outcome-snapshot.test.ts` keeps both paths.
+
+**Effective role (2.1).** The slot the career player starts in sets their role choices, objectives, involvement (moment count), shares, half-time role change, back-line rating credit and clean-sheet fame. The primary position no longer does.
+
+- That slot is their best-fit slot in the manager's formation (`selectedSlotIndex`), so it depends only on the player and the formation.
+- The hub's objective preview, the manager's plan and kickoff all use it, so they agree.
+- Role promises (`deservedRole`) come from the competition for that slot under the club's formation, the same measure selection uses: in the eleven is a key player, one place outside is rotation, further is backup (youth when young). An injured player is judged as if fit. Worlds without formations keep the 4-3-3 line ranks.
+- Transfer talks show the slot, the fit, who is ahead and the chance of starting (`prospectSelection`). It uses the selection formula (`startChance`), the role offered and a new manager's trust (50).
+
+**Skills (2.2).** A choice likely by nature (base odds ≥ 0.75, not direct) takes its covering skills on what it leads to. On match-17 these stack like odds do: `1.1 × 1.1^(n−1)`, to 1.3 (`traitImpactMaximum`). Before, any one skill gave 1.1 however many covered it. The path depends on the choice's base odds, not this match's team-scaled odds, so it never changes with who plays. The skill sheet shows, choice by choice, what a skill adds to the skills already held (`skillEffects`).
+
+**Coaching (2.3).** Outcomes are drawn at the odds shown, so a shortfall against them is luck and never prompts training. Each decision records what the attributes did to its odds (`attributeEffect`, probability points against the match level) and the expected goal difference given up against the best option (`regret`). With at least 4 judged decisions of a kind:
+
+- attributes costing 3 points or more on average recommend training the attribute behind most of the cost (the strongest governing attribute counts double);
+- regret of 0.015 goals or more a decision is noted as a matter of choosing;
+- 1.5 or more successes below what the odds predicted are noted as bad luck.
+
+Decisions recorded before schema 22 count only for the bad-luck note.
+
+**Growth by source (2.4).** `career.growth` counts whole attribute points per season from playing (passive growth), training, spent points and skills, and points lost to age (the last 25 seasons are kept). The profile's season card shows it, and the career profile records it per season with a `--policy` (default, focused, recovery, no-points, loyal, mover, minutes).

@@ -474,7 +474,9 @@ export const GATES: Gate[] = [
     // and honours come at the right level.
     name: 'offers: at most 60 declined over a career',
     check: (profiles) => {
+      // The default player only: a loyal policy declines every offer by design.
       const off = profiles
+        .filter((p) => (p.policy ?? 'default') === 'default')
         .map((p) => ({ p, declined: p.seasons.reduce((sum, s) => sum + s.declined, 0) }))
         .filter(({ declined }) => declined > 60)
         .map(({ p, declined }) => `${p.seed} ${declined}`);
