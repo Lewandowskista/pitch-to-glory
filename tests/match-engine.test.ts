@@ -199,6 +199,22 @@ describe('match engine', () => {
     expect(wideUpsets / 2000).toBeLessThan(0.2);
     expect(wideUpsets).toBeLessThan(closeUpsets);
   }, 360000);
+  it('kicks off with the usual taker when a pending kickoff has lost its carrier', () => {
+    // A shot drawn before the opening kickoff was taken used to clear the carrier and crash
+    // the kickoff (found by the career profile, seed policy-a).
+    for (const seed of ['kickoff-a', 'kickoff-b', 'kickoff-c']) {
+      let session = step(createMatchSession(selectedAt('ST', seed), tactics));
+      session = {
+        ...session,
+        state: { ...session.state, play: { ...session.state.play, carrierId: null } },
+      };
+      expect(session.state.play.restart).toBe('kickoff');
+      for (let i = 0; i < 20 && session.state.match.status !== 'finished'; i++)
+        session = step(session);
+      expect(session.state.match.minute).toBeGreaterThan(0);
+    }
+  });
+
   it('retains half-time recovery and requires captain instruction', () => {
     const chosen = structuredClone(setup);
     chosen.players[chosen.selectedPlayerId]!.attributes.leadership = 99;

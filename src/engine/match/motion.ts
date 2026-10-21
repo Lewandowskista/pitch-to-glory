@@ -1126,7 +1126,9 @@ class Director {
     });
   }
   kickoff(): void {
-    const kicker = this.carrier()!;
+    // The carrier normally stands over the ball. A shot drawn before a pending kickoff was
+    // taken clears it; the side's usual taker kicks off instead (this used to crash).
+    const kicker = this.carrier() ?? this.kickoffMarks(this.play.side).kicker;
     const team = this.teammates(kicker.side).filter((actor) => actor.id !== kicker.id);
     const receiver =
       byRole(team, 'pivot', 'left-mid', 'attacking-mid') ?? team.find((a) => !a.keeper)!;
