@@ -457,8 +457,15 @@ export const CONFIG = {
       minimumDecisions: 10,
       /** A kind of decision needs this many attempts before advice speaks to it. */
       minimumAttempts: 4,
-      /** Successes this far below what the decisions' chances predicted count as a pattern. */
+      /**
+       * Successes this far below what the decisions' chances predicted are noted as bad luck
+       * (outcomes are drawn at the odds shown, so this never asks for training).
+       */
       shortfall: 1.5,
+      /** Attributes costing this much success chance a decision (0.03 = 3 points) call for training. */
+      execution: 0.03,
+      /** Choices giving up this much expected goal difference a decision are noted. */
+      regret: 0.015,
       /** At or above this fatigue, recovery comes first. */
       fatigue: 60,
       goals: {

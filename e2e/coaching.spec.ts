@@ -44,7 +44,8 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
   for (let guard = 0; guard < 6 && !pendingCareerFixture(world); guard++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
-  // A clear pattern: passes that kept failing despite good chances.
+  // A clear pattern: passes the player's passing held back eight points each (training can
+  // help), which also failed more than their chances suggested (bad luck, noted apart).
   const failing: DecisionSample[] = Array.from({ length: 10 }, (_, index) => ({
     season: world.date.season,
     week: 1,
@@ -52,6 +53,8 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
     success: index < 2,
     probability: 0.75,
     attributes: ['passing', 'vision'],
+    attributeEffect: -0.08,
+    regret: 0,
   }));
   world.career!.coaching!.recent = failing;
   const player = world.players[world.career!.playerId]!;
@@ -127,7 +130,12 @@ test('advice fills a draft that only saving applies, and a goal stays once taken
   await page.goto('/career/training?save=1');
   const advice = page.getByRole('region', { name: 'Coach’s advice' });
   await expect(advice).toContainText('From your last 10 key decisions.', { timeout: 30000 });
+  await expect(advice).toContainText(
+    'Passes: your Passing cost about 8 points of success chance a decision',
+  );
+  // The misses beyond the odds are called bad luck, not a weakness.
   await expect(advice).toContainText('Passes worked 2 of 10 times');
+  await expect(advice).toContainText('That was bad luck');
   const first = page.locator('#focus-0');
   const saved = await first.inputValue();
   await advice.getByRole('button', { name: 'Plan these sessions' }).click();

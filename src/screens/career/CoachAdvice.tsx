@@ -7,6 +7,7 @@ import {
   declineGoal,
   goalOffer,
   goalProgress,
+  type CoachNote,
   type Recommendation,
 } from '../../engine/career/coaching';
 import { useAppStore } from '../../store';
@@ -22,15 +23,27 @@ import { samePlan } from './selectors';
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
 
+/** A note on what training cannot change: bad luck, or the choices made. */
+function noteText(note: CoachNote): string {
+  const family = k.families[note.family];
+  return note.kind === 'variance'
+    ? format(k.notes.variance, {
+        family,
+        successes: note.successes!,
+        attempts: note.attempts,
+        expected: note.expected!,
+      })
+    : format(k.notes.choices, { family, attempts: note.attempts, regret: note.regret! });
+}
+
 function evidence(world: World, recommendation: Recommendation): string {
   const player = world.players[world.career!.playerId]!;
   switch (recommendation.reason) {
     case 'decisions':
       return format(k.evidence.decisions, {
         family: k.families[recommendation.family!],
-        successes: recommendation.successes!,
         attempts: recommendation.attempts!,
-        expected: recommendation.expected!,
+        points: recommendation.cost!,
         attribute: attributeName(recommendation.focus),
       });
     case 'fatigue':
@@ -112,6 +125,18 @@ export function CoachAdvice({
           </li>
         ))}
       </ol>
+      {advice.notes.length > 0 && !compact && (
+        <ul className="grid gap-1.5" aria-label={k.notes.title}>
+          {advice.notes.map((note) => (
+            <li
+              key={`${note.kind}:${note.family}`}
+              className="rounded-control bg-surface-soft px-3 py-2 text-[0.8125rem]"
+            >
+              {noteText(note)}
+            </li>
+          ))}
+        </ul>
+      )}
       {advice.basis === 'decisions' && !compact && (
         <p className="border-l-3 border-line pl-2.5 text-xs text-muted">{k.caveat}</p>
       )}

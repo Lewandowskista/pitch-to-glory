@@ -18,6 +18,7 @@ import type {
 import { CONFIG } from '../config';
 import type { AnyAttribute } from '../ageing';
 import { SITUATION_BY_ID } from '../match/situations';
+import { expectedImpact } from '../match/decisions';
 import type { MatchSession } from '../match/types';
 import { currentRole } from './market/rules';
 import { attributeCost, attributeValue, trainableAttributes } from './progression';
@@ -58,6 +59,11 @@ export function matchDecisions(
         )
       : undefined;
     if (!moment || !choice || !template) continue;
+    // What the attributes did to the chosen odds, and what a better choice would have been worth.
+    const attributeEffect =
+      choice.factors.find((factor) => factor.labelKey === 'match.factor.attribute')?.contribution ??
+      0;
+    const best = Math.max(...moment.choices.map((entry) => expectedImpact(entry).net));
     samples.push({
       season: date.season,
       week: date.week,
@@ -65,6 +71,8 @@ export function matchDecisions(
       success: outcome.success,
       probability: Math.round(outcome.probability * 1000) / 1000,
       attributes: choice.attributes.slice(0, 3),
+      attributeEffect: Math.round(attributeEffect * 1000) / 1000,
+      regret: Math.round(Math.max(0, best - expectedImpact(choice).net) * 1e4) / 1e4,
     });
   }
   return samples;
@@ -81,11 +89,27 @@ export type AdviceReason = 'injury' | 'fatigue' | 'decisions' | 'position';
 export interface Recommendation {
   focus: TrainingFocus;
   reason: AdviceReason;
-  /** For advice from decisions: the kind, how often it worked and what its chances predicted. */
+  /**
+   * For advice from decisions: the kind, how many were judged, and the success chance the
+   * player's attributes cost each one on average (percentage points against the match level).
+   */
   family?: DecisionFamily;
   attempts?: number;
+  cost?: number;
+}
+/**
+ * What recent decisions say that training cannot fix: misses beyond what the chances
+ * predicted (bad luck: the odds already counted the attributes), or choices that gave up
+ * expected value against the best option offered.
+ */
+export interface CoachNote {
+  kind: 'variance' | 'choices';
+  family: DecisionFamily;
+  attempts: number;
   successes?: number;
   expected?: number;
+  /** Expected goal difference given up per decision. */
+  regret?: number;
 }
 export interface CoachAdvice {
   /** What the advice rests on: recovery, recent decisions, or the position alone. */
@@ -93,6 +117,7 @@ export interface CoachAdvice {
   /** Decisions considered. */
   sample: number;
   recommendations: Recommendation[];
+  notes: CoachNote[];
 }
 
 /** An attribute the player can usefully train now: right for their position, below their cap. */
@@ -103,49 +128,82 @@ function useful(world: World, key: string): boolean {
     attributeCost(world, key as AnyAttribute) === CONFIG.career.costs.belowCap
   );
 }
+const mean = (values: readonly number[]) =>
+  values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
 /**
- * Up to two training recommendations. Recovery comes first while injured or heavily
- * fatigued. Otherwise, kinds of decision that worked clearly less often than their chances
- * predicted point to the attribute that most often governed the failures. With too few
- * decisions, or nothing standing out, the advice is the position's balanced plan.
+ * Up to two training recommendations, and notes on what training cannot change (review phase
+ * 2, step 2.3). Every outcome is drawn at the odds shown, so fewer successes than predicted is
+ * luck, never a reason to train. Recovery comes first while injured or heavily fatigued.
+ * Otherwise:
+ * - execution: kinds of decision where the player's attributes cost the chosen odds a clear
+ *   amount against the match level point to the attribute that cost the most;
+ * - choices: kinds where the chosen option gave up expected value against the best offered
+ *   are noted, as a matter of choosing, not training;
+ * - variance: kinds that worked clearly less often than their chances predicted are noted as
+ *   bad luck.
+ * Decisions recorded before schema 22 carry neither cost nor choice value, so they count only
+ * for the variance note. With nothing to train, the advice is the position's balanced plan.
  */
 export function coachAdvice(world: World): CoachAdvice {
   const career = world.career!;
   const player = world.players[career.playerId]!;
   const recent = career.coaching?.recent ?? [];
   const recommendations: Recommendation[] = [];
+  const notes: CoachNote[] = [];
   if (career.injury)
     return {
       basis: 'recovery',
       sample: recent.length,
       recommendations: [{ focus: 'recovery', reason: 'injury' }],
+      notes,
     };
   if (player.fatigue >= K.fatigue) recommendations.push({ focus: 'recovery', reason: 'fatigue' });
   if (recent.length >= K.minimumDecisions) {
     const families = new Map<DecisionFamily, DecisionSample[]>();
     for (const sample of recent)
       families.set(sample.family, [...(families.get(sample.family) ?? []), sample]);
-    const ranked = [...families.entries()]
-      .map(([family, samples]) => {
-        const successes = samples.filter((sample) => sample.success).length;
-        const expected = samples.reduce((sum, sample) => sum + sample.probability, 0);
-        return { family, samples, successes, expected, shortfall: expected - successes };
-      })
-      .filter(
-        (entry) => entry.samples.length >= K.minimumAttempts && entry.shortfall >= K.shortfall,
-      )
-      .sort((a, b) => b.shortfall - a.shortfall || (a.family < b.family ? -1 : 1));
+    const execution: { family: DecisionFamily; samples: DecisionSample[]; cost: number }[] = [];
+    for (const [family, samples] of [...families.entries()].sort((a, b) =>
+      a[0] < b[0] ? -1 : 1,
+    )) {
+      if (samples.length < K.minimumAttempts) continue;
+      const successes = samples.filter((sample) => sample.success).length;
+      const expected = samples.reduce((sum, sample) => sum + sample.probability, 0);
+      if (expected - successes >= K.shortfall)
+        notes.push({
+          kind: 'variance',
+          family,
+          attempts: samples.length,
+          successes,
+          expected: Math.round(expected * 10) / 10,
+        });
+      const judged = samples.filter((sample) => sample.attributeEffect !== undefined);
+      if (judged.length < K.minimumAttempts) continue;
+      const regret = mean(judged.map((sample) => sample.regret ?? 0));
+      if (regret >= K.regret)
+        notes.push({
+          kind: 'choices',
+          family,
+          attempts: judged.length,
+          regret: Math.round(regret * 1000) / 1000,
+        });
+      const cost = -mean(judged.map((sample) => sample.attributeEffect!));
+      if (cost >= K.execution) execution.push({ family, samples: judged, cost });
+    }
     const chosen = new Set<string>();
-    for (const entry of ranked) {
+    for (const entry of execution.sort((a, b) => b.cost - a.cost)) {
       if (recommendations.length >= 2) break;
-      // The attribute that most often governed the failures (the strongest counts double).
+      // The attribute behind the cost: governing attributes of the decisions it held back,
+      // weighted by how much (the strongest attribute counts double).
       const weight = new Map<string, number>();
-      for (const sample of entry.samples)
-        if (!sample.success)
-          sample.attributes.forEach((key, index) =>
-            weight.set(key, (weight.get(key) ?? 0) + (index === 0 ? 2 : 1)),
-          );
+      for (const sample of entry.samples) {
+        const held = -(sample.attributeEffect ?? 0);
+        if (held <= 0) continue;
+        sample.attributes.forEach((key, index) =>
+          weight.set(key, (weight.get(key) ?? 0) + held * (index === 0 ? 2 : 1)),
+        );
+      }
       const key = [...weight.entries()]
         .filter(([attribute]) => !chosen.has(attribute) && useful(world, attribute))
         .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0];
@@ -156,14 +214,13 @@ export function coachAdvice(world: World): CoachAdvice {
         reason: 'decisions',
         family: entry.family,
         attempts: entry.samples.length,
-        successes: entry.successes,
-        expected: Math.round(entry.expected * 10) / 10,
+        cost: Math.round(entry.cost * 1000) / 10,
       });
     }
     if (recommendations.some((entry) => entry.reason === 'decisions'))
-      return { basis: 'decisions', sample: recent.length, recommendations };
+      return { basis: 'decisions', sample: recent.length, recommendations, notes };
   }
-  // Nothing to point at: the position's balanced plan, said plainly.
+  // Nothing to train: the position's balanced plan, said plainly.
   for (const session of defaultTrainingPlan(player.primaryPosition).sessions) {
     if (recommendations.length >= 2) break;
     if (!recommendations.some((entry) => entry.focus === session.focus))
@@ -178,6 +235,7 @@ export function coachAdvice(world: World): CoachAdvice {
           : 'position',
     sample: recent.length,
     recommendations,
+    notes,
   };
 }
 

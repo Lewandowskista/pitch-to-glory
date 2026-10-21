@@ -259,6 +259,8 @@ function validateCoaching(value: unknown, current: Record<string, unknown>): voi
     requireValue(typeof sample.success === 'boolean');
     number(sample.probability, 0, 1);
     for (const key of array(sample.attributes, 3)) text(key, 40);
+    if (sample.attributeEffect !== undefined) number(sample.attributeEffect, -1, 1);
+    if (sample.regret !== undefined) number(sample.regret, 0, 10);
   }
   const kinds = ['appearances', 'passing', 'defending', 'attribute'];
   if (coaching.goal !== null) {

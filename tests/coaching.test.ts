@@ -57,6 +57,8 @@ const samples = (
   successes: number,
   attempts: number,
   probability = 0.7,
+  /** What the attributes did to the odds, and the value given up (schema 22); absent: older. */
+  judged: { attributeEffect: number; regret: number } | null = null,
 ): DecisionSample[] =>
   Array.from({ length: attempts }, (_, index) => ({
     season: 2026,
@@ -65,7 +67,12 @@ const samples = (
     success: index < successes,
     probability,
     attributes,
+    ...(judged ?? {}),
   }));
+/** Decisions where the attributes cost eight points of success chance each. */
+const weak = { attributeEffect: -0.08, regret: 0 };
+/** Sound decisions: attributes at the match level, the best option taken. */
+const sound = { attributeEffect: 0, regret: 0 };
 const withRecent = (world: World, recent: DecisionSample[]) => {
   const next = clone(world);
   next.career!.coaching!.recent = recent;
@@ -86,6 +93,9 @@ describe('recording decisions', () => {
       expect(sample.probability).toBeGreaterThanOrEqual(0);
       expect(sample.probability).toBeLessThanOrEqual(1);
       expect(sample.attributes.length).toBeLessThanOrEqual(3);
+      // What the attributes did and the value given up are recorded for advice.
+      expect(typeof sample.attributeEffect).toBe('number');
+      expect(sample.regret).toBeGreaterThanOrEqual(0);
     }
     for (const match of played.career!.matches) {
       expect(match.passes![0]).toBeLessThanOrEqual(match.passes![1]);
@@ -107,10 +117,10 @@ describe('advice', () => {
     expect(advice.recommendations.every((entry) => entry.reason === 'position')).toBe(true);
   });
 
-  it('points a clear shortfall to the attribute that governed the failures, deterministically', () => {
+  it('points odds the attributes cost to the attribute behind them, deterministically', () => {
     const world = withRecent(striker, [
-      ...samples('passing', ['passing', 'vision'], 2, 8),
-      ...samples('shooting', ['finishing', 'composure'], 4, 6, 0.6),
+      ...samples('passing', ['passing', 'vision'], 2, 8, 0.7, weak),
+      ...samples('shooting', ['finishing', 'composure'], 4, 6, 0.6, sound),
     ]);
     player(world).attributes.passing = 30;
     const advice = coachAdvice(world);
@@ -120,16 +130,50 @@ describe('advice', () => {
       reason: 'decisions',
       family: 'passing',
       attempts: 8,
-      successes: 2,
-      expected: 5.6,
+      cost: 8,
     });
     expect(coachAdvice(world)).toEqual(advice);
-    // Shooting went as its chances predicted (3.6 expected, 4 scored): no advice about it.
+    // Shooting's attributes were at the match level: nothing to train there.
     expect(advice.recommendations.some((entry) => entry.family === 'shooting')).toBe(false);
   });
 
+  it('calls misses at sound odds bad luck, never a reason to train (the review’s probe)', () => {
+    // Ten correctly chosen 80% actions that worked five times.
+    const world = withRecent(striker, samples('shooting', ['finishing'], 5, 10, 0.8, sound));
+    player(world).attributes.finishing = 30;
+    const advice = coachAdvice(world);
+    expect(advice.recommendations.some((entry) => entry.reason === 'decisions')).toBe(false);
+    expect(advice.basis).toBe('steady');
+    expect(advice.notes).toEqual([
+      { kind: 'variance', family: 'shooting', attempts: 10, successes: 5, expected: 8 },
+    ]);
+  });
+
+  it('notes poor choices as a matter of choosing, not training', () => {
+    const world = withRecent(
+      striker,
+      samples('passing', ['passing'], 6, 10, 0.6, { attributeEffect: 0, regret: 0.05 }),
+    );
+    const advice = coachAdvice(world);
+    expect(advice.recommendations.some((entry) => entry.reason === 'decisions')).toBe(false);
+    expect(advice.notes).toContainEqual({
+      kind: 'choices',
+      family: 'passing',
+      attempts: 10,
+      regret: 0.05,
+    });
+  });
+
+  it('uses decisions recorded before schema 22 only to note bad luck', () => {
+    const world = withRecent(striker, samples('passing', ['passing'], 1, 10));
+    player(world).attributes.passing = 30;
+    const advice = coachAdvice(world);
+    expect(advice.recommendations.every((entry) => entry.reason === 'position')).toBe(true);
+    expect(advice.notes.map((note) => note.kind)).toEqual(['variance']);
+  });
+
   it('never recommends a capped attribute', () => {
-    const world = withRecent(striker, samples('passing', ['passing', 'vision'], 2, 10));
+    const world = withRecent(striker, samples('passing', ['passing', 'vision'], 2, 10, 0.7, weak));
     player(world).attributes.passing = 99;
     player(world).attributes.vision = 30;
     const advice = coachAdvice(world);
@@ -150,7 +194,7 @@ describe('advice', () => {
   });
 
   it('puts recovery first when tired, and only recovery when injured', () => {
-    const tired = withRecent(striker, samples('passing', ['passing'], 1, 10));
+    const tired = withRecent(striker, samples('passing', ['passing'], 1, 10, 0.7, weak));
     player(tired).attributes.passing = 30;
     player(tired).fatigue = K.fatigue + 5;
     const advice = coachAdvice(tired);
@@ -161,11 +205,12 @@ describe('advice', () => {
       basis: 'recovery',
       sample: 10,
       recommendations: [{ focus: 'recovery', reason: 'injury' }],
+      notes: [],
     });
   });
 
   it('drafts a plan to review and leaves the saved plan alone', () => {
-    const world = withRecent(striker, samples('passing', ['passing'], 1, 10));
+    const world = withRecent(striker, samples('passing', ['passing'], 1, 10, 0.7, weak));
     player(world).attributes.passing = 30;
     const saved = clone(world).career!.training;
     const advice = coachAdvice(world);
@@ -179,6 +224,7 @@ describe('advice', () => {
       basis: 'recovery',
       sample: 0,
       recommendations: [{ focus: 'recovery', reason: 'injury' }],
+      notes: [],
     });
     expect(injured.sessions.every((session) => session.focus === 'recovery')).toBe(true);
   });

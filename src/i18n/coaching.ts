@@ -4,7 +4,7 @@ export const coachingText = {
   basis: {
     decisions: 'From your last {count} key decisions.',
     steady:
-      'Your last {count} key decisions went about as their chances suggested, so here is a balanced plan for a {position}.',
+      'Nothing in your last {count} key decisions calls for special training, so here is a balanced plan for a {position}.',
     position:
       'Not enough key decisions yet ({count} so far), so here is a balanced plan for a {position}.',
     injury: 'You are injured: recovery sessions only, until you are fit.',
@@ -12,7 +12,7 @@ export const coachingText = {
   },
   evidence: {
     decisions:
-      '{family} worked {successes} of {attempts} times; their chances suggested about {expected}. {attribute} governed most of the misses.',
+      '{family}: your {attribute} cost about {points} points of success chance a decision at this level ({attempts} decisions).',
     position: 'Part of a balanced plan for your position.',
     fatigue: 'Your fatigue is {fatigue}. A recovery session brings it down.',
     injury: 'Recovery sessions while you are out.',
@@ -25,6 +25,13 @@ export const coachingText = {
     goalkeeping: 'Saves and keeper decisions',
   },
   caveat: 'Advice follows a pattern, never a single moment: one missed chance proves nothing.',
+  notes: {
+    title: 'What training will not change',
+    variance:
+      '{family} worked {successes} of {attempts} times, where their chances suggested about {expected}. That was bad luck: the odds already counted your attributes.',
+    choices:
+      '{family}: your choices gave up about {regret} goals of expected value a decision against the best option ({attempts} decisions). Compare the chances shown before you choose.',
+  },
   apply: 'Plan these sessions',
   already: 'Your saved plan already follows this advice.',
   applied: 'The sessions are in your plan below. Save it to use them from next week.',

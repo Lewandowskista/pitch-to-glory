@@ -620,6 +620,16 @@ export interface DecisionSample {
   probability: number;
   /** Governing attributes, strongest first (at most three). */
   attributes: string[];
+  /**
+   * Probability points the player's attributes added to the choice against the match's level
+   * (negative when they made it harder), from schema 22. What training can change.
+   */
+  attributeEffect?: number;
+  /**
+   * Expected goal difference given up against the best choice offered (0 when the best was
+   * taken), from schema 22. What a better choice could have changed.
+   */
+  regret?: number;
 }
 export type SeasonGoalKind = 'appearances' | 'passing' | 'defending' | 'attribute';
 /** A development goal the player accepted for a season; it never changes once accepted. */
