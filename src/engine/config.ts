@@ -398,6 +398,11 @@ export const CONFIG = {
        * `limit` fixtures are kept.
        */
       availability: { fixtures: 8, fallback: 0.5, limit: 16 },
+      /**
+       * Development rules 3: passive growth favours the attributes the training plan focuses
+       * on, this many times as fast as the rest, with the same average over all attributes.
+       */
+      focusRatio: 2,
     },
     /**
      * Late career (development rules 2): from an onset age the career player's soft caps fall

@@ -174,7 +174,8 @@ export function validateCareer(w: Record<string, unknown>): void {
     ref(captaincy.clubId, object(w.clubs));
     date(captaincy.since);
   }
-  if (career.developmentRules !== undefined) requireValue(career.developmentRules === 2);
+  if (career.developmentRules !== undefined)
+    requireValue(career.developmentRules === 2 || career.developmentRules === 3);
   if (career.conditioning !== undefined) number(career.conditioning, 0, 1);
   if (career.growth !== undefined)
     for (const value of array(career.growth, CONFIG.career.growthSeasons)) {

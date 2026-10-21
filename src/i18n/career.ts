@@ -801,7 +801,7 @@ export const careerText = {
   training: {
     eyebrow: 'Training',
     title: 'Your week on the training pitch.',
-    body: 'Three sessions a week plus an optional mentor session, with gains that build up into whole points.',
+    body: 'Three sessions a week plus an optional mentor session, with gains that build up into whole points. The attributes you focus on also grow faster from playing.',
     session: 'Session {number}',
     focus: 'Focus',
     intensity: 'Intensity',

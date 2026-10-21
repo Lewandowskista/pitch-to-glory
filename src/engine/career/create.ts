@@ -179,7 +179,7 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
     style: initialStyle(player),
     honours: initialHonours(playerAbility(player), draft.parentLegacyId ?? null),
     coaching: emptyCoaching(),
-    developmentRules: 2,
+    developmentRules: 3,
     availability: [],
   };
   career.conditioning = planConditioning(player, career.training);

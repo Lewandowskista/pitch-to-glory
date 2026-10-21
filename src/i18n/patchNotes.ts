@@ -40,6 +40,7 @@ export const PATCH_NOTES: readonly ReleaseNotes[] = [
       'Fielded out of position, your role choices, objectives, involvement and half-time options follow the position you actually play.',
       'Squad role promises follow the competition for your place in the manager’s formation.',
       'Several skills covering the same likely choice now add up, instead of only the first counting.',
+      'Training now shapes your player: the attributes your sessions focus on also grow faster from playing, and the rest a little slower. This starts with your next season.',
       'The coach recommends training only where your attributes hold you back, notes when other choices would have been better, and calls a run of misses at good odds what it is: bad luck.',
       'The post-match report loads in the background while you play, so the match screen opens faster.',
     ],

@@ -211,6 +211,34 @@ export function trainingAgeFactor(age: number): number {
 }
 
 /**
+ * How much passive growth each attribute gets from the training plan (rules 3): the attributes
+ * its sessions focus on `focusRatio` times as much as the rest, normalised so the average over
+ * `growing` (by default every trainable attribute) is 1. Passing only the attributes still below
+ * their cap keeps the total the same once focused attributes reach theirs. A plan with no
+ * attribute focus (all recovery or position work), or one covering everything, changes nothing.
+ */
+export function focusWeights(
+  player: Player,
+  plan: TrainingPlan,
+  growing: readonly AnyAttribute[] = trainableAttributes(player),
+): Map<AnyAttribute, number> {
+  const trainable = growing;
+  const focused = new Set<AnyAttribute>();
+  for (const focus of [
+    ...plan.sessions.map((session) => session.focus),
+    ...(plan.extra ? [plan.extra.focus] : []),
+  ])
+    for (const key of focusAttributes(player, focus)) focused.add(key);
+  const n = trainable.length;
+  const k = trainable.filter((key) => focused.has(key)).length;
+  if (!k || k === n) return new Map(trainable.map((key) => [key, 1]));
+  const other = n / (k * GROWTH.focusRatio + n - k);
+  return new Map(
+    trainable.map((key) => [key, focused.has(key) ? GROWTH.focusRatio * other : other]),
+  );
+}
+
+/**
  * Passive development: each trained attribute below its age-adjusted cap moves one point
  * toward it with a probability proportional to the gap, so about `growthPerSeason` of the
  * gap closes in a season at full playing time, less for a player who is not playing.
@@ -240,11 +268,21 @@ export function developCareer(
     (1 - GROWTH.playingWeight + GROWTH.playingWeight * share) *
     ((DEV.professionalismBase + player.hidden.professionalism / 100) / 1.1);
   const seasonWeeks = getSeasonWeeks(world);
+  // Rules 3: the plan's focus attributes grow faster, the rest slower, the same on average over
+  // the attributes still below their cap.
+  const growing = trainableAttributes(player).filter(
+    (key) =>
+      attributeValue(player, key) < 99 &&
+      careerSoftCap(world, player, key, age) > attributeValue(player, key),
+  );
+  const weights =
+    (career.developmentRules ?? 0) >= 3 ? focusWeights(player, career.training, growing) : null;
   for (const key of trainableAttributes(player)) {
     const value = attributeValue(player, key);
     const gap = careerSoftCap(world, player, key, age) - value;
     if (gap <= 0 || value >= 99) continue;
-    if (rng.next() < Math.min(0.9, (gap * rate) / seasonWeeks)) {
+    const weight = weights?.get(key) ?? 1;
+    if (rng.next() < Math.min(0.9, (gap * rate * weight) / seasonWeeks)) {
       if (isKeeperKey(key)) player.keeperAttributes[key] = value + 1;
       else player.attributes[key] = value + 1;
       recordGrowth(career, world.date.season, 'playing', 1);
@@ -391,17 +429,21 @@ export function careerWeek(world: World): void {
 }
 
 /**
- * Season change: careers saved under the original development rules adopt rules 2 (late-career
- * decline, availability-based playing time) with the new season, never part-way through one.
- * Conditioning starts from the current plan and availability from recent appearances, since
- * earlier training and benching were not recorded.
+ * Season change: careers saved under earlier development rules adopt rules 3 (late-career
+ * decline, availability-based playing time, focus-weighted passive growth) with the new season,
+ * never part-way through one. From the original rules, conditioning starts from the current
+ * plan and availability from recent appearances, since earlier training and benching were not
+ * recorded.
  */
 export function adoptDevelopmentRules(world: World): void {
   const career = world.career!;
-  if (usesLateDecline(career)) return;
-  career.developmentRules = 2;
-  career.conditioning = planConditioning(world.players[career.playerId]!, career.training);
-  career.availability = seedAvailability(world);
+  if ((career.developmentRules ?? 0) >= 3) return;
+  // From the original rules, conditioning and availability start now; from rules 2 they run on.
+  if (!usesLateDecline(career)) {
+    career.conditioning = planConditioning(world.players[career.playerId]!, career.training);
+    career.availability = seedAvailability(world);
+  }
+  career.developmentRules = 3;
 }
 
 /** Keep the extra session's mentor a current teammate, re-picking or dropping it if not. */

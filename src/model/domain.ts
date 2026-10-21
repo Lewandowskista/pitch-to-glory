@@ -530,10 +530,11 @@ export interface Career {
   testimonials?: Id[];
   /**
    * Development rules (schema 21). 2: late-career decline with longevity, and growth from
-   * minutes in fixtures the player was available for. Absent means the original rules; older
-   * careers adopt 2 when a new season starts, never part-way.
+   * minutes in fixtures the player was available for. 3 (schema 22): passive growth also
+   * favours the attributes the training plan focuses on. Absent means the original rules;
+   * older careers adopt the latest when a new season starts, never part-way.
    */
-  developmentRules?: 2;
+  developmentRules?: 2 | 3;
   /** Running share (0-1) of training given to physical conditioning, for longevity (schema 21). */
   conditioning?: number;
   /** The club's recent fixtures and whether the player was available for them (schema 21). */

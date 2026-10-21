@@ -17,7 +17,7 @@ const A = CONFIG.career.development.availability;
  */
 export function recordAvailability(world: World, benched: readonly Fixture[]): void {
   const career = world.career;
-  if (career?.developmentRules !== 2) return;
+  if (!career || (career.developmentRules ?? 0) < 2) return;
   const player = world.players[career.playerId]!;
   const clubId = player.clubId;
   if (!clubId) return;

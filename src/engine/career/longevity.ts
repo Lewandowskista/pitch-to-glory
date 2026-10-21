@@ -19,7 +19,7 @@ const L = CONFIG.career.longevity;
 
 /** Whether this career plays under the late-decline rules. */
 export const usesLateDecline = (career: Pick<Career, 'developmentRules'>): boolean =>
-  career.developmentRules === 2;
+  (career.developmentRules ?? 0) >= 2;
 
 const unit = (value: number, from: number, to: number) =>
   Math.max(0, Math.min(1, (value - from) / (to - from)));

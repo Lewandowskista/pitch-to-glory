@@ -186,7 +186,7 @@ describe('retirement under late decline', () => {
     expect(parseSave(JSON.stringify(save))).toEqual(save);
     const next = startNextSeason(world);
     const player = next.players[next.career!.playerId]!;
-    expect(next.career!.developmentRules).toBe(2);
+    expect(next.career!.developmentRules).toBe(3);
     expect(next.career!.conditioning).toBe(planConditioning(player, next.career!.training));
     // Availability starts from the recent appearances, all played; benching was never recorded.
     const recent = world.career!.matches.slice(-CONFIG.career.development.availability.fixtures);
@@ -201,7 +201,7 @@ describe('retirement under late decline', () => {
   }, 120000);
 
   it('starts new careers under the late-decline rules', () => {
-    expect(career.career!.developmentRules).toBe(2);
+    expect(career.career!.developmentRules).toBe(3);
     expect(career.career!.conditioning).toBeGreaterThan(0);
   });
 });
