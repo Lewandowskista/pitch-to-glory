@@ -53,6 +53,40 @@ export const available = (player: Player | undefined): player is Player =>
   Boolean(player && !player.retired && !player.injuryId && player.fitness > 0);
 
 /**
+ * The slot the career (selected) player is given in a formation: a keeper in goal, anyone else
+ * their best slot by fit; among equals (a winger in a formation without wingers), one in the
+ * line they naturally play in, so nobody is sent to centre-back for want of a fit. It depends
+ * only on the player and the formation, so the hub, the market and kickoff agree on it.
+ */
+export function selectedSlotIndex(player: Player, formation: Formation): number {
+  if (player.primaryPosition === 'GK') return 0;
+  const slots = FORMATION_SLOTS[formation];
+  const natural = NATURAL_LINE[player.primaryPosition];
+  const value = (index: number) => effectiveAbility(player, slots[index]!.position);
+  let best = 1;
+  for (let index = 2; index < slots.length; index++)
+    if (
+      value(index) > value(best) ||
+      (value(index) === value(best) &&
+        slots[index]!.line === natural &&
+        slots[best]!.line !== natural)
+    )
+      best = index;
+  return best;
+}
+
+/**
+ * The position of the slot the selected player starts in, for a formation: the effective role
+ * of the current match engine (match-17). A keeper never takes an outfield slot or the reverse.
+ */
+export function slotPosition(player: Player, formation: Formation): Position {
+  const slot = FORMATION_SLOTS[formation][selectedSlotIndex(player, formation)]?.position;
+  return slot && (slot === 'GK') === (player.primaryPosition === 'GK')
+    ? slot
+    : player.primaryPosition;
+}
+
+/**
  * The eleven a club fields in a formation. `selected` is placed in their best slot first (the
  * interactive career player); `exclude` leaves players out (a benched career player).
  * Deterministic: ties go to better fit, then the earlier slot, then the lower id.
@@ -95,25 +129,7 @@ export function selectLineup(
     taken.add(id);
   };
   const selected = options.selected ? pool.find((player) => player.id === options.selected) : null;
-  if (selected) {
-    if (selected.primaryPosition === 'GK') place(0, selected.id);
-    else {
-      // Their best slot by fit; among equals (a winger in a formation without wingers), one in
-      // the line they naturally play in, so nobody is sent to centre-back for want of a fit.
-      const natural = NATURAL_LINE[selected.primaryPosition];
-      const value = (index: number) => effectiveAbility(selected, slots[index]!.position);
-      let best = 1;
-      for (let index = 2; index < slots.length; index++)
-        if (
-          value(index) > value(best) ||
-          (value(index) === value(best) &&
-            slots[index]!.line === natural &&
-            slots[best]!.line !== natural)
-        )
-          best = index;
-      place(best, selected.id);
-    }
-  }
+  if (selected) place(selectedSlotIndex(selected, formation), selected.id);
   if (!filled[0]) {
     const keeper = pool.filter((player) => player.primaryPosition === 'GK').sort(byAbility)[0];
     if (keeper) place(0, keeper.id);

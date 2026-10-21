@@ -22,9 +22,17 @@ export type { Tactics } from '../../model/domain';
  * cosmetic yellow cards, AI substitutions with a bench of seven, and weather intensity with a
  * pitch state as separate odds factors. `match-16` (the discipline phase, decision 5) adds full
  * discipline: second yellows and straight reds, sides playing on with fewer men, the career
- * player's own dismissal and a booking risk on defending choices.
+ * player's own dismissal and a booking risk on defending choices. `match-17` (review phase 2,
+ * step 2.1) gives the selected player one effective role: the formation slot they start in sets
+ * their role choices, objectives, involvement, half-time role change and back-line credit, not
+ * their primary position.
  */
-export const MATCH_ENGINE_VERSION = 'match-16';
+export const MATCH_ENGINE_VERSION = 'match-17';
+/**
+ * The engine before the effective role: the primary position set role choices, objectives and
+ * involvement. A setup with `discipline` but without `roleSlot` still replays as it was.
+ */
+export const DISCIPLINE_MATCH_ENGINE = 'match-16';
 /**
  * The engine before full discipline (redesign phase 6): yellow cards are cosmetic. A setup with
  * `occasions` but without `discipline` still replays as it was, so sessions saved by match-15
@@ -57,7 +65,7 @@ export const LEGACY_MATCH_ENGINE = 'match-10-lines';
 export const engineFor = (
   setup: Pick<
     MatchSetup,
-    'formations' | 'slotMoments' | 'dramaMoments' | 'occasions' | 'discipline'
+    'formations' | 'slotMoments' | 'dramaMoments' | 'occasions' | 'discipline' | 'roleSlot'
   >,
 ): string =>
   !setup.formations
@@ -68,7 +76,9 @@ export const engineFor = (
         ? SLOT_MATCH_ENGINE
         : setup.occasions
           ? setup.discipline
-            ? MATCH_ENGINE_VERSION
+            ? setup.roleSlot
+              ? MATCH_ENGINE_VERSION
+              : DISCIPLINE_MATCH_ENGINE
             : OCCASIONS_MATCH_ENGINE
           : DRAMA_MATCH_ENGINE;
 
@@ -109,6 +119,11 @@ export interface MatchSetup {
    * saved before, which replay with cosmetic yellow cards.
    */
   discipline?: true;
+  /**
+   * The effective role (`match-17`): the slot the selected player starts in, not their primary
+   * position, sets their role choices, objectives, involvement and back-line credit.
+   */
+  roleSlot?: true;
   /** Players serving a suspension in this fixture's competition, never picked (`match-16`). */
   suspended?: string[];
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */

@@ -25,7 +25,7 @@ import {
   strengthFromAbility,
   teamStrength,
 } from '../strength';
-import { available, lineupAbility, selectLineup } from '../selection/lineup';
+import { available, lineupAbility, selectLineup, slotPosition } from '../selection/lineup';
 import { FORMATION_SLOTS, type Formation } from '../selection/formations';
 import { clubFormation, usesFormations } from '../selection/world';
 import {
@@ -323,6 +323,7 @@ export function createMatchSetup(
           dramaMoments: true as const,
           occasions: true as const,
           discipline: true as const,
+          roleSlot: true as const,
           ...(options.suspended?.some((id) => id !== selectedPlayerId)
             ? { suspended: options.suspended.filter((id) => id !== selectedPlayerId) }
             : {}),
@@ -336,6 +337,26 @@ export function createMatchSetup(
 }
 const selectedSide = (setup: MatchSetup) =>
   setup.players[setup.selectedPlayerId]!.clubId === setup.home.id ? 0 : 1;
+/**
+ * The selected player's effective position (`match-17`): the formation slot they start in, as
+ * the shared selection places them (`selectedSlotIndex`), so role choices, objectives,
+ * involvement and back-line credit follow the job they are given. A keeper never swaps with an
+ * outfield slot. Earlier engines, and setups without formations, use the primary position.
+ */
+export function rolePosition(
+  setup: Pick<
+    MatchSetup,
+    'roleSlot' | 'discipline' | 'occasions' | 'formations' | 'players' | 'selectedPlayerId' | 'home'
+  >,
+): Position {
+  const player = setup.players[setup.selectedPlayerId]!;
+  // Only on the current engine chain: an earlier engine replays by its own rules.
+  if (!setup.roleSlot || !setup.occasions || !setup.discipline || !setup.formations)
+    return player.primaryPosition;
+  const side = player.clubId === setup.home.id ? 0 : 1;
+  return slotPosition(player, setup.formations[side]);
+}
+export { slotPosition };
 /**
  * The current engine path (`match-15`, redesign phase 6): key moments name their cast and
  * each choice's target, a pass reaches the teammate named before the choice, and the rules of
@@ -461,7 +482,9 @@ function updatePossession(session: MatchSession): void {
 export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSession {
   validateSetup(setup);
   const selected = setup.players[setup.selectedPlayerId]!;
-  validateTactics(tactics, selected.primaryPosition);
+  // The job they are given (match-17), or their primary position on earlier engines.
+  const position = rolePosition(setup);
+  validateTactics(tactics, position);
   const formations = setup.formations;
   const bench = latest(setup);
   const suspended = full(setup) ? (setup.suspended ?? []) : [];
@@ -512,9 +535,9 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   );
   const rng = createRng(`${setup.seed}:preview`);
   const involvement =
-    selected.primaryPosition === 'GK'
+    position === 'GK'
       ? C.involvement.keeper
-      : ATTACKERS.includes(selected.primaryPosition)
+      : ATTACKERS.includes(position)
         ? C.involvement.attack
         : C.involvement.other;
   const count = clamp(
@@ -545,7 +568,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   // Objectives have their own stream on the current engine (match-15, decision 3), so the hub
   // can show them before matchday; earlier engines draw them here from the preview stream.
   const objectives = latest(setup)
-    ? objectivesFor(setup.seed, selected)
+    ? objectivesFor(setup.seed, selected, position)
     : matchObjectives(selected, rng);
   const consistencyShift = Math.round(
     (rng.next() * 2 - 1) * (1 - selected.hidden.consistency / 100) * C.decision.consistencySpread,
@@ -602,7 +625,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       strength,
       matchLevel,
       expectedGoals: rates(setup, strength, tactics),
-      shares: shares(selected.primaryPosition, tactics.role, setup.dramaMoments),
+      shares: shares(position, tactics.role, setup.dramaMoments),
       stats: {
         homeShots: 0,
         awayShots: 0,
@@ -1189,7 +1212,7 @@ function report(session: MatchSession): MatchReport {
   // The team's result and, for the back line, a clean sheet count toward the rating.
   const own = selectedSide(session.setup);
   const margin = m.score[own]! - m.score[1 - own]!;
-  const back = ['GK', 'CB', 'LB', 'RB'].includes(session.setup.players[id]!.primaryPosition);
+  const back = ['GK', 'CB', 'LB', 'RB'].includes(rolePosition(session.setup));
   addRating(
     session,
     'team',
@@ -1238,7 +1261,7 @@ function report(session: MatchSession): MatchReport {
                     : s.stats.shots,
   }));
   m.objectives = objectives;
-  const backLine = ['GK', 'CB', 'LB', 'RB'].includes(session.setup.players[id]!.primaryPosition);
+  const backLine = ['GK', 'CB', 'LB', 'RB'].includes(rolePosition(session.setup));
   if (session.setup.dramaMoments) {
     // The story of the match decides the headline; the result and the rating the reactions.
     const copy = reportCopy(session, rating);
@@ -2059,9 +2082,10 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
       };
     } else state.talkOdds = command.response === 'complain' ? talk.complain : 1;
     if (command.response === 'role') {
-      m.tactics.role = halftimeRole(player.primaryPosition, m.tactics.role);
+      const position = rolePosition(setup);
+      m.tactics.role = halftimeRole(position, m.tactics.role);
       state.expectedGoals = currentRates(next, m.tactics);
-      state.shares = shares(player.primaryPosition, m.tactics.role, setup.dramaMoments);
+      state.shares = shares(position, m.tactics.role, setup.dramaMoments);
     }
     state.stats.fatigue = round6(Math.max(0, state.stats.fatigue - C.halftimeRecovery));
     // Ends are switched and the away side kicks off the second half.

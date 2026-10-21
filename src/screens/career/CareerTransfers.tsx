@@ -14,6 +14,7 @@ import {
   managerTrust,
   marketValue,
   openOffers,
+  prospectSelection,
   relationshipValue,
   windowState,
 } from '../../engine/career/market';
@@ -1079,6 +1080,30 @@ function Talks({
 }
 
 /** A note on what kind of talks these are, or why they cannot move. */
+/**
+ * What a move would mean for minutes: the slot under the club's manager, the fit there, who is
+ * ahead, and the chance of starting with the role offered (the selection formula).
+ */
+function prospectLine(world: World, club: Club, role: ContractTerms['role']): string {
+  const player = world.players[world.career!.playerId]!;
+  const { competition, probability } = prospectSelection(world, club, player, role);
+  const params = {
+    position: c.positions[competition.position] ?? competition.position,
+    fit: Math.round(competition.fit),
+    chance: Math.round(probability * 100),
+    ahead: competition.aheadIds
+      .map((id) => world.players[id]?.name)
+      .filter(Boolean)
+      .join(m.talks.prospect.and),
+  };
+  return competition.inTeam
+    ? format(m.talks.prospect.inTeam, params)
+    : format(
+        competition.placesOutside === 1 ? m.talks.prospect.oneOutside : m.talks.prospect.outside,
+        { ...params, places: competition.placesOutside },
+      );
+}
+
 function TalksNote({
   label,
   strong = false,
@@ -1180,6 +1205,11 @@ function TheirOffer({
           {format(m.talks.clubOption, { club: world.clubs[offer.clubId]!.name })}
         </p>
       ) : null}
+      {offer.kind !== 'renewal' && (
+        <TalksNote label={m.talks.prospect.title}>
+          {prospectLine(world, world.clubs[offer.clubId]!, clubTerms(negotiation).role)}
+        </TalksNote>
+      )}
       {agent && negotiation.agentEstimate !== null ? (
         <div className="flex items-center gap-3.5 rounded-control bg-art-gold px-4 py-3.5">
           <AgentPortrait avatar={agent.avatar} name={agent.name} className="h-14 w-14 shrink-0" />
@@ -1255,6 +1285,9 @@ function LoanTerms({
         />
       </dl>
       <p className="text-[0.8125rem] text-muted">{m.roleBodies[loan.role]}</p>
+      <TalksNote label={m.talks.prospect.title}>
+        {prospectLine(world, world.clubs[offer.clubId]!, loan.role)}
+      </TalksNote>
       <div className="flex flex-wrap gap-2.5 border-t border-line pt-4">
         <Button disabled={disabled} onClick={onAccept}>
           {m.talks.acceptLoan}

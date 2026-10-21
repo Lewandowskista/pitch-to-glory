@@ -296,6 +296,9 @@ test('negotiates a transfer from the inbox, hires an agent and survives a refres
   await page.getByRole('link', { name: 'Go to the talks' }).click();
   await expect(page).toHaveURL(/\/career\/transfers\?.*offer=/);
   await expect(page.getByRole('heading', { name: `Talks with ${buyer}` })).toBeVisible();
+  // What the move means for minutes: the slot under their manager and the chance of starting.
+  await expect(page.getByText('Playing time there')).toBeVisible();
+  await expect(page.getByText(/start about \d+% of matches/)).toBeVisible();
   const wage = page.getByLabel('Weekly wage', { exact: true });
   const opening = Number(await wage.inputValue());
   const ask = Math.round(opening * 1.25);

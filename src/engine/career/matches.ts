@@ -18,6 +18,7 @@ import {
   applyMatchCommand,
   createMatchSession,
   createMatchSetup,
+  rolePosition,
   validateMatchSession,
   type MatchCommand,
   type MatchSession,
@@ -92,8 +93,11 @@ export function shootoutLeadOf(world: World, fixture: Fixture): { shootoutLead?:
   }
   return isKnockoutFixture(world, fixture) ? { shootoutLead: 0 } : {};
 }
-export function defaultTactics(world: World): Tactics {
-  const position = world.players[world.career!.playerId]!.primaryPosition;
+/** The opening tactics: the first role for the job the setup gives the player (match-17). */
+export function defaultTactics(world: World, setup?: MatchSetup): Tactics {
+  const position = setup
+    ? rolePosition(setup)
+    : world.players[world.career!.playerId]!.primaryPosition;
   return { role: rolesForPosition(position)[0]!, risk: 'balanced', mentality: 'balanced' };
 }
 
@@ -260,7 +264,7 @@ export function commitCareerMatch(
     objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
   });
   // The same terms as the report's fame, from the finalized contributions.
-  const backLine = ['GK', 'CB', 'LB', 'RB'].includes(player.primaryPosition);
+  const backLine = ['GK', 'CB', 'LB', 'RB'].includes(rolePosition(session.setup));
   // A dismissal (match-16) costs fame and the clean sheet's, as the report shows.
   const dismissed = state.sentOff;
   const fame =
@@ -441,7 +445,8 @@ export function autoPlayCommand(session: MatchSession): MatchCommand {
 }
 /** Play the pending career fixture with the headless policy and commit it. */
 export function autoPlayCareerFixture(world: World, fixture: Fixture): CareerMatchOutcome {
-  let session = createMatchSession(careerMatchSetup(world, fixture), defaultTactics(world));
+  const setup = careerMatchSetup(world, fixture);
+  let session = createMatchSession(setup, defaultTactics(world, setup));
   while (session.state.match.status !== 'finished')
     session = applyMatchCommand(session, autoPlayCommand(session));
   return commitCareerMatch(world, session, { auto: true });

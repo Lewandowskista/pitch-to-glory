@@ -173,11 +173,25 @@ export function lineRank(world: World, club: Club, player: Player): number {
     );
   }).length;
 }
-/** The squad role a club can honestly promise, from where the player would rank. */
+/**
+ * The squad role a club can honestly promise, from where the player would rank. With
+ * formations, from the competition for their slot under the club's manager (the measure
+ * selection uses): in the eleven a key player, one place outside rotation. An injured player is
+ * judged as if fit. Worlds before formations rank the line in a 4-3-3.
+ */
 export function deservedRole(world: World, club: Club, player: Player): Role {
+  const young = ageOf(world, player) <= M.youngAge - 1;
+  if (usesFormations(world)) {
+    const fit = player.injuryId
+      ? { ...world, players: { ...world.players, [player.id]: { ...player, injuryId: null } } }
+      : world;
+    const competition = slotCompetition(fit, club, fit.players[player.id]!);
+    if (competition.inTeam) return 'key';
+    if (competition.placesOutside <= 1) return 'rotation';
+    return young ? 'youth' : 'backup';
+  }
   const slots = M.slots[lineOf(player.primaryPosition)];
   const rank = lineRank(world, club, player);
-  const young = ageOf(world, player) <= M.youngAge - 1;
   if (slots === 1) return rank === 0 ? 'key' : young ? 'youth' : 'backup';
   if (rank < slots - 1) return 'key';
   if (rank < slots + 1) return 'rotation';
@@ -308,20 +322,16 @@ export interface Selection {
   reasons: SelectionReason[];
 }
 /**
- * Whether the manager picks the career player for a fixture: a seeded draw against a
- * probability set by the role promised, the competition for a place, form, fatigue and the
- * manager's trust. A key-player promise all but guarantees a start. The reasons are the
- * same numbers the probability adds up, so explanations always match the calculation.
+ * The chance of starting a match, and its parts: the role promised, the competition for the
+ * slot, form, the manager's trust and fatigue, bounded, with a key player's floor.
  */
-export function careerSelection(world: World, fixture: Fixture): Selection {
-  const career = world.career!;
-  const player = world.players[career.playerId]!;
-  const club = world.clubs[player.clubId!]!;
-  const registered = compareDates(world.date, career.market.registeredFrom) >= 0;
+export function startChance(
+  role: Role,
+  competition: SlotCompetition,
+  player: Pick<Player, 'form' | 'fatigue'>,
+  trust: number,
+): { probability: number; reasons: SelectionReason[] } {
   const S = M.selection;
-  const role = currentRole(world);
-  const competition = slotCompetition(world, club, player);
-  const trust = managerTrust(world);
   const reasons: SelectionReason[] = [
     { kind: 'role', contribution: S.base[role], detail: role },
     {
@@ -343,6 +353,40 @@ export function careerSelection(world: World, fixture: Fixture): Selection {
   if (role === 'key' && competition.placesOutside <= S.keyFloorPlaces)
     probability = Math.max(probability, S.keyFloor);
   if (probability !== raw) reasons.push({ kind: 'limit', contribution: probability - raw });
+  return { probability, reasons };
+}
+
+/**
+ * What a move would mean for playing time (review phase 2, step 2.1): the slot the player would
+ * fill under the club's manager, their fit there, who is ahead, and the chance of starting a
+ * match with the role offered and a new manager's trust, on today's form and fitness.
+ */
+export function prospectSelection(
+  world: World,
+  club: Club,
+  player: Player,
+  role: Role,
+): { competition: SlotCompetition; probability: number } {
+  const competition = slotCompetition(world, club, player);
+  const { probability } = startChance(role, competition, player, M.relationships.newManager);
+  return { competition, probability };
+}
+
+/**
+ * Whether the manager picks the career player for a fixture: a seeded draw against a
+ * probability set by the role promised, the competition for a place, form, fatigue and the
+ * manager's trust. A key-player promise all but guarantees a start. The reasons are the
+ * same numbers the probability adds up, so explanations always match the calculation.
+ */
+export function careerSelection(world: World, fixture: Fixture): Selection {
+  const career = world.career!;
+  const player = world.players[career.playerId]!;
+  const club = world.clubs[player.clubId!]!;
+  const registered = compareDates(world.date, career.market.registeredFrom) >= 0;
+  const competition = slotCompetition(world, club, player);
+  const start = startChance(currentRole(world), competition, player, managerTrust(world));
+  const reasons = start.reasons;
+  let probability = start.probability;
   if (!registered) reasons.push({ kind: 'registration', contribution: null });
   // A suspended player cannot be picked (the discipline phase): the ban takes the whole
   // chance, so the parts still add up to it.

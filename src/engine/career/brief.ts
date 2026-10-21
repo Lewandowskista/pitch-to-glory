@@ -5,6 +5,7 @@ import { FORMATION_SLOTS, type SlotRole } from '../selection/formations';
 import { clubLineup, clubStarters } from '../selection/world';
 import { expectedGoals, managerStrengthBonus, playerAbility, teamStrength } from '../strength';
 import { careerSelection } from './market/rules';
+import { slotPosition } from '../selection/lineup';
 
 /**
  * The manager's pre-match plan (phase 7, C2): one line on the hub's next-match card, such as
@@ -160,7 +161,12 @@ export function matchPlan(world: World, fixture: Fixture): MatchPlan | null {
   // This week's selection is settled; a later fixture is the manager's current intention.
   const picked = thisWeek ? selection.selected : selection.probability >= B.startChance;
   const role: PlanRole = !selection.registered ? 'unregistered' : picked ? 'start' : 'bench';
-  const position = selection.competition.position;
+  // When they start, the slot kickoff gives them (match-17), so the plan and the match agree.
+  const formation = selection.competition.formation;
+  const position =
+    role === 'start' && formation
+      ? slotPosition(player, formation)
+      : selection.competition.position;
   const group = GROUPS[position];
   const style: PlanStyle = (STYLES as readonly string[]).includes(club.playingStyle)
     ? (club.playingStyle as PlanStyle)

@@ -6,9 +6,11 @@ import {
   applyMatchCommand,
   createMatchSession,
   createMatchSetup,
+  rolePosition,
   rolesForPosition,
   MATCH_ENGINE_VERSION,
   OCCASIONS_MATCH_ENGINE,
+  DISCIPLINE_MATCH_ENGINE,
   type MatchCommand,
   type MatchSession,
   type MatchSetup,
@@ -79,7 +81,23 @@ const MATCH_15: Record<string, { hash: string; goals: number; moments: number }>
   ST: { hash: '16c89f360f61c603d4bd76f2', goals: 71, moments: 301 },
 };
 /** The current engine (match-16, full discipline). */
+/**
+ * The current engine (match-17). Only players who start away from their primary position
+ * differ from match-16 (here the AM and CM samples): their role, objectives and involvement
+ * follow the slot.
+ */
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
+  GK: { hash: '6782a66059b5c58a160b2809', goals: 61, moments: 214 },
+  CB: { hash: '01246285b1223dc007d2afbf', goals: 62, moments: 231 },
+  LB: { hash: 'c8c9e7ab04ae4331827154b3', goals: 51, moments: 234 },
+  DM: { hash: 'ed5cd8ec8e9d3303e757e596', goals: 61, moments: 207 },
+  CM: { hash: '60a4a740f8cfd9510c84dbc3', goals: 72, moments: 242 },
+  AM: { hash: '2b62ae7e41db27afbe26c5ef', goals: 73, moments: 266 },
+  RW: { hash: '7d02b929574bfc69064a0c60', goals: 54, moments: 293 },
+  ST: { hash: 'f6fa6d790df559145438e97f', goals: 71, moments: 301 },
+};
+/** The match-16 path (no effective role), unchanged by match-17. */
+const MATCH_16: Record<string, { hash: string; goals: number; moments: number }> = {
   GK: { hash: '6782a66059b5c58a160b2809', goals: 61, moments: 214 },
   CB: { hash: '01246285b1223dc007d2afbf', goals: 62, moments: 231 },
   LB: { hash: 'c8c9e7ab04ae4331827154b3', goals: 51, moments: 234 },
@@ -109,7 +127,8 @@ const STAT_KEYS = [
   'fatigue',
 ] as const;
 
-function setupFor(position: Position, index: number, previous = false): MatchSetup {
+type Path = 'current' | 'match-16' | 'match-15';
+function setupFor(position: Position, index: number, path: Path = 'current'): MatchSetup {
   const pair = index % 4 < 2 ? [clubs[0]!, clubs[1]!] : [clubs[2]!, clubs[3]!];
   const [home, away] = index % 2 ? [pair[1]!, pair[0]!] : [pair[0]!, pair[1]!];
   const club = pair[0]!;
@@ -150,12 +169,15 @@ function setupFor(position: Position, index: number, previous = false): MatchSet
     delete setup.dramaMoments;
     delete setup.occasions;
   }
-  // Variants 0 and 1 never carry discipline; the match-15 run plays the rest without it.
-  if (previous || variant < 2) delete setup.discipline;
+  // Variants 0 and 1 never carry discipline or the effective role; the match-15 run plays the
+  // rest without either, the match-16 run without the effective role.
+  if (path === 'match-15' || variant < 2) delete setup.discipline;
+  if (path !== 'current' || variant < 2) delete setup.roleSlot;
   return setup;
 }
-function tacticsFor(position: Position, index: number): Tactics {
-  const roles = rolesForPosition(position);
+/** Tactics for the job the setup gives the player: the starting slot from match-17. */
+function tacticsFor(setup: MatchSetup, index: number): Tactics {
+  const roles = rolesForPosition(rolePosition(setup));
   return {
     role: roles[index % roles.length]!,
     risk: (['balanced', 'low', 'high'] as const)[index % 3]!,
@@ -247,17 +269,22 @@ function outcomes(session: MatchSession, current = MATCH_ENGINE_VERSION): unknow
   };
 }
 
-function snapshot(previous: boolean) {
+function snapshot(path: Path) {
   const found: Record<string, { hash: string; goals: number; moments: number }> = {};
   for (const position of POSITIONS) {
     const hash = createHash('sha256');
     let goals = 0,
       moments = 0;
     for (let index = 0; index < PER_POSITION; index++) {
-      const session = play(setupFor(position, index, previous), tacticsFor(position, index), index);
-      hash.update(
-        JSON.stringify(outcomes(session, previous ? OCCASIONS_MATCH_ENGINE : MATCH_ENGINE_VERSION)),
-      );
+      const setup = setupFor(position, index, path);
+      const session = play(setup, tacticsFor(setup, index), index);
+      const current =
+        path === 'match-15'
+          ? OCCASIONS_MATCH_ENGINE
+          : path === 'match-16'
+            ? DISCIPLINE_MATCH_ENGINE
+            : MATCH_ENGINE_VERSION;
+      hash.update(JSON.stringify(outcomes(session, current)));
       goals += session.state.match.score[0] + session.state.match.score[1];
       moments += session.state.match.keyMoments.length;
     }
@@ -269,9 +296,12 @@ function snapshot(previous: boolean) {
 
 describe('match outcome snapshot', { timeout: 300000 }, () => {
   it('keeps every outcome byte-identical per seed', () => {
-    expect(snapshot(false)).toEqual(EXPECTED);
+    expect(snapshot('current')).toEqual(EXPECTED);
+  });
+  it('keeps the match-16 path (primary-position roles) byte-identical', () => {
+    expect(snapshot('match-16')).toEqual(MATCH_16);
   });
   it('keeps the match-15 path (cosmetic cards) byte-identical', () => {
-    expect(snapshot(true)).toEqual(MATCH_15);
+    expect(snapshot('match-15')).toEqual(MATCH_15);
   });
 });

@@ -1,14 +1,20 @@
-import type { Objective, Player } from '../../model/domain';
+import type { Objective, Player, Position } from '../../model/domain';
 import { createRng, type Rng } from '../rng';
 import { CONFIG } from '../config';
 
 const C = CONFIG.match;
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
-/** The match's personal objectives: a rating target and one drawn for the position. */
-export function matchObjectives(selected: Player, rng: Rng): Objective[] {
+/**
+ * The match's personal objectives: a rating target and one drawn for the position played
+ * (the effective slot from match-17, otherwise the primary position).
+ */
+export function matchObjectives(
+  selected: Player,
+  rng: Rng,
+  position: Position = selected.primaryPosition,
+): Objective[] {
   const O = C.objectives;
-  const position = selected.primaryPosition;
   const P = C.routinePass;
   const passing = clamp(
     Math.round((P.base + selected.attributes.passing * P.passing) * 100) + O.passingMargin,
@@ -67,6 +73,10 @@ export function matchObjectives(selected: Player, rng: Rng): Objective[] {
  * names the fixture) and the player's position, never by the preview stream, so the hub can
  * show days ahead exactly what kickoff will set.
  */
-export function objectivesFor(seed: string, player: Player): Objective[] {
-  return matchObjectives(player, createRng(`${seed}:objectives:${player.primaryPosition}`));
+export function objectivesFor(
+  seed: string,
+  player: Player,
+  position: Position = player.primaryPosition,
+): Objective[] {
+  return matchObjectives(player, createRng(`${seed}:objectives:${position}`), position);
 }

@@ -545,11 +545,10 @@ export default function MatchScreen() {
                 if (!current || useAppStore.getState().worldJob) return;
                 const fixture = pendingCareerFixture(current);
                 if (!fixture) return;
+                const setup = careerMatchSetup(current, fixture);
                 useAppStore
                   .getState()
-                  .setMatchSession(
-                    createMatchSession(careerMatchSetup(current, fixture), defaultTactics(current)),
-                  );
+                  .setMatchSession(createMatchSession(setup, defaultTactics(current, setup)));
                 setError('');
               } catch {
                 setError(m.unavailable);

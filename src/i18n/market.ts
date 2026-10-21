@@ -167,6 +167,16 @@ export const marketText = {
     title: 'Talks with {club}',
     back: 'Back to offers',
     clubTerms: 'Their offer',
+    prospect: {
+      title: 'Playing time there',
+      inTeam:
+        'You would start at {position} ({fit}% fit) under their manager, and start about {chance}% of matches.',
+      oneOutside:
+        'You would compete at {position} ({fit}% fit), one place outside the eleven behind {ahead}. Expect to start about {chance}% of matches.',
+      outside:
+        'You would compete at {position} ({fit}% fit), {places} places outside the eleven behind {ahead}. Expect to start about {chance}% of matches.',
+      and: ' and ',
+    },
     clubOption:
       'Every contract includes a club option: when it ends, {club} can keep you for one more season on the same terms.',
     yourTerms: 'Your counter-offer',

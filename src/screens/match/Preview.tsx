@@ -2,6 +2,7 @@ import {
   conditionsEffect,
   pitchEffect,
   positionFamily,
+  rolePosition,
   rolesForPosition,
   weatherEffect,
   type MatchSession,
@@ -192,14 +193,16 @@ export function Preview({
     () => (manager ? renderAvatar(manager.avatar, manager.age) : null),
     [manager],
   );
-  const roleIds = rolesForPosition(player.primaryPosition);
-  const family = positionFamily(player.primaryPosition);
+  // The job this match gives them (match-17): their starting slot, else the primary position.
+  const position = rolePosition(setup);
+  const roleIds = rolesForPosition(position);
+  const family = positionFamily(position);
   const instruction =
     family === 'keeper'
       ? 'keeper'
       : family === 'defence'
         ? 'defend'
-        : ['CM', 'AM'].includes(player.primaryPosition)
+        : ['CM', 'AM'].includes(position)
           ? 'midfield'
           : 'attack';
   const signed = (value: number) =>
@@ -255,7 +258,7 @@ export function Preview({
               </p>
               <p className="match-card-note">
                 {matchFormat(u.footballerLine, {
-                  position: player.primaryPosition,
+                  position,
                   age,
                   club: ownClub.name,
                 })}
