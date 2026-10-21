@@ -6,6 +6,8 @@ import {
   expectedImpact,
   momentBudget,
   situationWeights,
+  skillEffects,
+  traitCount,
   traitMultiplier,
   type DecisionContext,
 } from '../src/engine/match/decisions';
@@ -177,5 +179,46 @@ describe('skills in key moments', () => {
     }
     expect(assists).toBeGreaterThan(0);
     expect(tagged).toBe(assists);
+  });
+
+  it('stacks every covering skill on a likely choice, to a limit (match-17)', () => {
+    // The review's probe: a short pass, likely by nature, takes its skills on what it leads to.
+    const context = contexts('CM', []).find((c) =>
+      c.situation.choices.some((choice) => choice.id === 'short-pass'),
+    )!;
+    const pass = (traits: string[], stack: boolean) =>
+      buildChoices({ ...context, player: player(traits), stackImpact: stack }).find(
+        (choice) => choice.id === 'short-pass',
+      )!;
+    const one = ['playmaker'];
+    const three = ['playmaker', 'maestro', 'tempo-setter'];
+    for (const traits of [one, three])
+      expect(traitCount(traits, { id: 'short-pass', traitId: null })).toBe(traits.length);
+    // Odds are unchanged on this path; the created chance grows with each covering skill.
+    expect(pass(three, true).probability).toBe(pass([], true).probability);
+    const none = pass([], true).stakes.successGoal;
+    const single = pass(one, true).stakes.successGoal;
+    const stacked = pass(three, true).stakes.successGoal;
+    expect(single).toBeGreaterThan(none);
+    expect(stacked).toBeGreaterThan(single);
+    expect(stacked / none).toBeLessThanOrEqual(CONFIG.match.decision.traitImpactMaximum + 1e-9);
+    // On earlier engines one skill or three give the same flat bonus, so saved matches replay.
+    expect(pass(three, false).stakes.successGoal).toBe(pass(one, false).stakes.successGoal);
+  });
+
+  it('tells a build what the next skill adds, on the path each choice takes', () => {
+    const D = CONFIG.match.decision;
+    // Maestro after Playmaker: the short pass is likely, so the gain is on what it leads to.
+    const next = skillEffects(['playmaker'], 'maestro').find((e) => e.choiceId === 'short-pass')!;
+    expect(next.path).toBe('impact');
+    expect(next.before).toBeCloseTo(D.traitImpact, 6);
+    expect(next.after).toBeCloseTo(Math.min(D.traitImpactMaximum, D.traitImpact * D.traitStack), 6);
+    // An owned skill is measured against the build without it.
+    const owned = skillEffects(['playmaker', 'maestro'], 'maestro');
+    expect(owned.find((e) => e.choiceId === 'short-pass')).toEqual(next);
+    // A choice on the odds path starts from no bonus for a first covering skill.
+    const first = skillEffects([], 'trickster').find((e) => e.path === 'odds')!;
+    expect(first.before).toBe(1);
+    expect(first.after).toBeCloseTo(D.traitMultiplier, 6);
   });
 });

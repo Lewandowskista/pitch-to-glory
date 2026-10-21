@@ -22,7 +22,7 @@ import {
 } from '../../engine/career/catalogue';
 import { skillState, unlockSkill, type SkillState } from '../../engine/career/progression';
 import { SITUATIONS } from '../../engine/match/situations';
-import { TRAIT_BOOSTS } from '../../engine/match/decisions';
+import { skillEffects } from '../../engine/match/decisions';
 import type { Career, Player, Skill, SkillBranch, World } from '../../model/domain';
 import { format, t } from '../../i18n';
 import { matchLabel } from '../../i18n/match';
@@ -669,8 +669,11 @@ function SkillDetail({
   onUnlock: () => void;
 }) {
   const state = skillState(world, skill.id);
-  const boosts = TRAIT_BOOSTS[skill.id] ?? [];
   const unlocks = UNLOCKED_CHOICES[skill.id] ?? [];
+  // What it adds to this build, choice by choice, with the skills already held.
+  const boosts = skillEffects(career.skills, skill.id).filter((effect) =>
+    unlocks.every((choice) => choice !== effect.choiceId),
+  );
   const systemic = systemicText(skill.id);
   const missing = skill.prerequisites.filter((id) => !career.skills.includes(id));
   const reasons: string[] = [];
@@ -740,10 +743,21 @@ function SkillDetail({
             <dt className="text-[0.8125rem] font-bold text-muted">{c.skills.effects}</dt>
             {boosts.length > 0 && (
               <dd className="mt-1">
-                {format(c.skills.boosts, {
-                  value: percent(CONFIG.match.decision.traitMultiplier - 1),
-                  choices: boosts.map(choiceName).join(', '),
-                })}
+                {career.skills.includes(skill.id) ? c.skills.boostsOwned : c.skills.boostsNext}
+                <ul className="mt-1 grid gap-0.5">
+                  {boosts.map((effect) => (
+                    <li key={effect.choiceId} className="tabular-nums">
+                      {format(
+                        effect.path === 'odds' ? c.skills.effectOdds : c.skills.effectImpact,
+                        {
+                          choice: choiceName(effect.choiceId),
+                          before: effect.before.toFixed(2),
+                          after: effect.after.toFixed(2),
+                        },
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </dd>
             )}
             {unlocks.map((choice) => (

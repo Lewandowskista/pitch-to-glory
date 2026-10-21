@@ -144,6 +144,8 @@ export const CONFIG = {
       /** A choice already this likely takes its trait bonus on impact instead of odds. */
       traitImpactThreshold: 0.75,
       traitImpact: 1.1,
+      /** Impact skills stack by traitStack too (match-17), to this limit. */
+      traitImpactMaximum: 1.3,
       /** In a fixture of importance above 1: base + temperament × slope, plus the Big Game
        * Player skill. */
       bigGame: { base: 0.9, slope: 0.002, skill: 0.1 },

@@ -609,6 +609,10 @@ export const careerText = {
     bonuses: 'Attribute bonuses',
     effects: 'In matches',
     boosts: 'Success odds improved by {value}% for: {choices}',
+    boostsNext: 'With the skills you have, unlocking it changes:',
+    boostsOwned: 'What it adds to your other skills:',
+    effectOdds: '{choice}: success odds ×{before} → ×{after}',
+    effectImpact: '{choice}: what it leads to ×{before} → ×{after}',
     unlocksChoice: 'Unlocks a new key-moment choice: {choice}',
     longevity: 'Longevity +{value}: decline arrives later in your career.',
     systemic: {

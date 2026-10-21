@@ -366,6 +366,9 @@ const latest = (setup: Pick<MatchSetup, 'occasions'>) => Boolean(setup.occasions
 /** Full discipline (`match-16`): second yellows, reds, ten men and booking risks. */
 const full = (setup: Pick<MatchSetup, 'occasions' | 'discipline'>) =>
   Boolean(setup.occasions && setup.discipline);
+/** The current engine (`match-17`): one effective role, and skills that stack everywhere. */
+const current = (setup: Pick<MatchSetup, 'occasions' | 'discipline' | 'roleSlot'>) =>
+  Boolean(setup.occasions && setup.discipline && setup.roleSlot);
 const F = C.cards;
 /** The players of a line-up on the pitch: its starters, less anyone sent off (match-16). */
 const onPitch = (team: Lineup): string[] =>
@@ -1427,6 +1430,8 @@ function contextFor(
     chemistry: setup.chemistry ?? 60,
     positionPenalty: round6((100 - slot.familiarity) * C.decision.positionPenalty),
     ...(latest(setup) ? { latest: true } : {}),
+    // Skills stack on the impact path too (match-17).
+    ...(current(setup) ? { stackImpact: true } : {}),
   };
 }
 /**

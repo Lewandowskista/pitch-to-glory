@@ -68,6 +68,11 @@ export interface DecisionContext {
   positionPenalty?: number;
   /** The current engine (`match-15`): its appended choices are offered. */
   latest?: boolean;
+  /**
+   * Skills stack on the impact path as they do on the odds path (`match-17`): before, any one
+   * covering skill gave the same flat impact however many more covered the choice.
+   */
+  stackImpact?: boolean;
 }
 
 export function governingValue(
@@ -163,6 +168,23 @@ export function traitOdds(count: number): number {
   return count ? Math.min(D.traitStackMaximum, D.traitMultiplier * D.traitStack ** (count - 1)) : 1;
 }
 /**
+ * Impact multiplier from skills on an already likely choice: each further skill stacks, to a
+ * limit (match-17), or one flat bonus on earlier engines.
+ */
+export function traitImpactOf(count: number, stack = true): number {
+  if (!count) return 1;
+  return stack
+    ? Math.min(D.traitImpactMaximum, D.traitImpact * D.traitStack ** (count - 1))
+    : D.traitImpact;
+}
+/**
+ * Whether skills on a choice sharpen its impact rather than its odds: a choice that is likely
+ * by its nature (its base odds, not this match's team-scaled odds), so a choice always takes
+ * the same path whoever plays it.
+ */
+export const onImpactPath = (template: Pick<ChoiceTemplate, 'direct' | 'base'>): boolean =>
+  !template.direct && template.base >= D.traitImpactThreshold;
+/**
  * Odds multiplier for the occasion: in a fixture that matters, big-match temperament (hidden)
  * decides whether the player rises or shrinks, and the Big Game Player skill adds to it.
  */
@@ -177,6 +199,42 @@ export function occasionMultiplier(
     temperament * D.bigGame.slope +
     (traits.includes('big-game-player') ? D.bigGame.skill : 0)
   );
+}
+/** What one skill adds to a choice for a build: its path, and the multiplier without and with it. */
+export interface SkillEffect {
+  choiceId: string;
+  path: 'odds' | 'impact';
+  before: number;
+  after: number;
+}
+/**
+ * What a skill does for the player's current skills, choice by choice (the current engine):
+ * a choice it boosts takes the stacked multiplier with the other skills covering it, on its
+ * odds or, for a choice already likely, on what it leads to. `traits` are the skills held;
+ * an owned skill is measured against the build without it.
+ */
+export function skillEffects(traits: readonly string[], skillId: string): SkillEffect[] {
+  const without = traits.filter((trait) => trait !== skillId);
+  const effects = new Map<string, SkillEffect>();
+  for (const situation of SITUATIONS)
+    for (const template of situation.choices) {
+      if (effects.has(template.id)) continue;
+      const covers =
+        template.traitId === skillId ||
+        TRAIT_BOOSTS[skillId]?.includes(template.id) ||
+        template.boostedBy?.includes(skillId);
+      if (!covers) continue;
+      const impact = onImpactPath(template);
+      const measure = (count: number) => (impact ? traitImpactOf(count) : traitOdds(count));
+      const count = traitCount(without, template);
+      effects.set(template.id, {
+        choiceId: template.id,
+        path: impact ? 'impact' : 'odds',
+        before: round6(measure(count)),
+        after: round6(measure(count + 1)),
+      });
+    }
+  return [...effects.values()];
 }
 /** Odds multiplier from the player's skills for one choice, with the occasion. */
 export function traitMultiplier(
@@ -247,8 +305,8 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
       const conversion = (n: number) => round6(clamp(n, 0, D.maximumConversion));
       // Skills on an already likely choice sharpen what it leads to instead of its odds.
       const skills = traitCount(player.traits, t);
-      const traitOnImpact = !t.direct && t.base >= D.traitImpactThreshold;
-      const traitImpact = traitOnImpact && skills ? D.traitImpact : 1;
+      const traitOnImpact = onImpactPath(t);
+      const traitImpact = traitOnImpact ? traitImpactOf(skills, Boolean(context.stackImpact)) : 1;
       // A chance made for a teammate is worth more when they finish better than the player
       // would, and less when they do not.
       const CH = CONFIG.career.social.chemistry;
