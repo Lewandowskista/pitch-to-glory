@@ -404,6 +404,8 @@ export const CONFIG = {
      * and decline speeds up every season, so playing on is a real trade-off. Longevity (0-1)
      * postpones the onset and softens both. See docs/BALANCING.md.
      */
+    /** Seasons of growth-by-source kept on the career (`career.growth`). */
+    growthSeasons: 25,
     longevity: {
       /** Age at which decline starts to accelerate for a player with no longevity. */
       onsetAge: 33,

@@ -538,6 +538,17 @@ export interface Career {
   conditioning?: number;
   /** The club's recent fixtures and whether the player was available for them (schema 21). */
   availability?: AvailabilityEntry[];
+  /** Whole attribute points by source, per season (schema 22); the latest seasons are kept. */
+  growth?: GrowthSeason[];
+}
+/** A season's attribute points: gained by source, and lost to age (`decline`). */
+export interface GrowthSeason {
+  season: number;
+  playing: number;
+  training: number;
+  points: number;
+  skills: number;
+  decline: number;
 }
 /**
  * One of the career club's fixtures from the player's side: played (with minutes), left out

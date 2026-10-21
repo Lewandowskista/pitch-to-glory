@@ -11,6 +11,7 @@
  * Writes artifacts/soak/<mode>-<seed>.json and exits non-zero on any violation, recording the
  * seed, season, week and last completed action.
  */
+import { playingShare } from '../src/engine/career/availability';
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { Id, World } from '../src/model/domain';
@@ -128,7 +129,30 @@ export const freshPolicy = (): PolicyState => ({
   requestedTransfer: false,
   moved: false,
 });
-export function decide(input: World, state: PolicyState, note: (action: string) => void): World {
+/**
+ * How the headless player plays the career (the career profile's policies, review phase 2,
+ * step 2.4). Defaults are the soak policy: spend points, move to a better club, request a
+ * transfer from 21, and ask for loans.
+ */
+export interface DecideOptions {
+  /** Spend attribute and skill points (false: never). */
+  spendPoints?: boolean;
+  /** Which transfer or free-transfer offers to accept: a better club, any, or none. */
+  moves?: 'better' | 'any' | 'never';
+  /** Hand in a transfer request once, from this age (null: never). */
+  requestTransferAt?: number | null;
+  /** Ask for loans: whenever allowed, only while short of minutes, or never. */
+  loans?: 'always' | 'minutes' | 'never';
+}
+export function decide(
+  input: World,
+  state: PolicyState,
+  note: (action: string) => void,
+  options: DecideOptions = {},
+): World {
+  const moves = options.moves ?? 'better';
+  const transferAt = options.requestTransferAt === undefined ? 21 : options.requestTransferAt;
+  const loans = options.loans ?? 'always';
   let world = input;
   const career = world.career!;
   const player = world.players[career.playerId]!;
@@ -157,10 +181,11 @@ export function decide(input: World, state: PolicyState, note: (action: string) 
     const better = Boolean(suitor && suitor.reputation > club.reputation);
     const needsWindow = offer.kind === 'transfer' || offer.kind === 'loan';
     if (needsWindow && !window) continue;
+    const permanent = offer.kind === 'transfer' || offer.kind === 'pre-contract';
     const accept =
       offer.kind === 'renewal' ||
-      (offer.kind === 'loan' && state.requestedLoan) ||
-      ((offer.kind === 'transfer' || offer.kind === 'pre-contract') && better);
+      (offer.kind === 'loan' && state.requestedLoan && loans !== 'never') ||
+      (permanent && (moves === 'any' || (moves === 'better' && better)));
     world = applyMarketAction(world, {
       type: accept ? 'accept' : 'decline',
       offerId: offer.id,
@@ -168,12 +193,26 @@ export function decide(input: World, state: PolicyState, note: (action: string) 
     note(`${accept ? 'accept' : 'decline'}-${offer.kind}`);
     if (accept && offer.kind !== 'renewal') state.moved = true;
   }
-  if (window && !state.requestedLoan && !activeLoanOf(world) && canRequestLoan(world)) {
+  const shortOfMinutes = loans !== 'minutes' || playingShare(world) < 0.5;
+  if (
+    window &&
+    loans !== 'never' &&
+    shortOfMinutes &&
+    !state.requestedLoan &&
+    !activeLoanOf(world) &&
+    canRequestLoan(world)
+  ) {
     world = applyMarketAction(world, { type: 'loan-request' }).world;
     state.requestedLoan = true;
     note('loan-request');
   }
-  if (window && !state.requestedTransfer && !state.moved && age >= 21) {
+  if (
+    window &&
+    transferAt !== null &&
+    !state.requestedTransfer &&
+    !state.moved &&
+    age >= transferAt
+  ) {
     const result = applyMarketAction(world, { type: 'transfer-request' });
     world = result.world;
     state.requestedTransfer = true;
@@ -189,6 +228,7 @@ export function decide(input: World, state: PolicyState, note: (action: string) 
     world = acceptPromise(world);
     note('promise');
   }
+  if (options.spendPoints === false) return world;
   // Spend points the way a player might: the cheapest useful attribute, then any skill.
   for (let guard = 0; guard < 50 && world.career!.attributePoints > 0; guard++) {
     const target = world.players[world.career!.playerId]!;

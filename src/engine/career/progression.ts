@@ -9,6 +9,7 @@ import {
   type AnyAttribute,
 } from '../ageing';
 import { SKILL_BY_ID } from './catalogue';
+import { recordGrowth } from './growth';
 import { careerSoftCap } from './longevity';
 
 const C = CONFIG.career;
@@ -109,7 +110,9 @@ export function raiseAttribute(world: World, key: AnyAttribute): World {
     throw new Error('Not enough attribute points');
   return withCareerChange(world, (career, player) => {
     career.attributePoints -= cost;
-    setAttribute(player, key, attributeValue(player, key) + 1);
+    const before = attributeValue(player, key);
+    setAttribute(player, key, before + 1);
+    recordGrowth(career, world.date.season, 'points', attributeValue(player, key) - before);
   });
 }
 
@@ -128,18 +131,24 @@ export function skillState(world: World, id: string): SkillState {
     ? 'available'
     : 'locked';
 }
-function grantSkill(career: Career, player: Player, id: string): void {
+/** Grant a skill and its attribute bonuses; returns the points the bonuses added. */
+function grantSkill(career: Career, player: Player, id: string): number {
   const skill = SKILL_BY_ID[id]!;
   career.skills.push(id);
   player.traits = [...career.skills];
-  for (const [key, bonus] of Object.entries(skill.attributeBonuses) as [AnyAttribute, number][])
-    setAttribute(player, key, attributeValue(player, key) + bonus);
+  let added = 0;
+  for (const [key, bonus] of Object.entries(skill.attributeBonuses) as [AnyAttribute, number][]) {
+    const before = attributeValue(player, key);
+    setAttribute(player, key, before + bonus);
+    added += attributeValue(player, key) - before;
+  }
+  return added;
 }
 export function unlockSkill(world: World, id: string): World {
   if (skillState(world, id) !== 'available') throw new Error('Skill unavailable');
   return withCareerChange(world, (career, player) => {
     career.skillPoints -= SKILL_BY_ID[id]!.pointCost;
-    grantSkill(career, player, id);
+    recordGrowth(career, world.date.season, 'skills', grantSkill(career, player, id));
   });
 }
 /** The archetype's first skill is granted free at creation. */

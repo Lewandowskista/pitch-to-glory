@@ -19,6 +19,7 @@ import { recordEvent } from '../world/events';
 import { cultureFit } from './social/rules';
 import { assetEffects } from './lifestyle/catalogue';
 import { playingShare, seedAvailability } from './availability';
+import { recordGrowth } from './growth';
 import {
   careerSoftCap,
   conditioningWeek,
@@ -146,6 +147,7 @@ function addProgress(
     if (whole > 0) {
       if (isKeeperKey(key)) player.keeperAttributes[key] = Math.min(99, value + whole);
       else player.attributes[key] = Math.min(99, value + whole);
+      recordGrowth(career, world.date.season, 'training', Math.min(99, value + whole) - value);
       if (!report.improved.includes(key)) report.improved.push(key);
     }
   }
@@ -245,6 +247,7 @@ export function developCareer(
     if (rng.next() < Math.min(0.9, (gap * rate) / seasonWeeks)) {
       if (isKeeperKey(key)) player.keeperAttributes[key] = value + 1;
       else player.attributes[key] = value + 1;
+      recordGrowth(career, world.date.season, 'playing', 1);
       if (!report.improved.includes(key)) report.improved.push(key);
     }
   }
@@ -379,6 +382,7 @@ export function careerWeek(world: World): void {
     if (gap > 0 && rng.next() < Math.min(0.9, (gap * decline) / seasonWeeks)) {
       if (isKeeperKey(key)) player.keeperAttributes[key] = value - 1;
       else player.attributes[key] = value - 1;
+      recordGrowth(career, world.date.season, 'decline', 1);
       report.declined.push(key);
     }
   }

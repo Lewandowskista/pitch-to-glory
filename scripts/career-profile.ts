@@ -13,12 +13,21 @@
  */
 import { CALIBRATION_GATE, calibrationProblems } from './calibration';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import type { Id, Player, Position, World } from '../src/model/domain';
+import type {
+  GrowthSeason,
+  Id,
+  Player,
+  Position,
+  TrainingFocus,
+  TrainingPlan,
+  World,
+} from '../src/model/domain';
 import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
-import { decide, freshPolicy } from './soak-career';
+import { decide, freshPolicy, type DecideOptions } from './soak-career';
+import { growthOf } from '../src/engine/career/growth';
 import { playerAbility } from '../src/engine/strength';
 import { retirementState } from '../src/engine/career/honours/retirement';
 import { applyHonoursAction } from '../src/engine/career/honours/actions';
@@ -90,12 +99,59 @@ export interface SeasonProfile {
   championXI: number[];
   players85: number;
   players90: number;
+  /** Whole attribute points this season by source (review phase 2, step 2.4). */
+  growth?: Omit<GrowthSeason, 'season'>;
+}
+/**
+ * The ways the headless player plays (review phase 2, step 2.4): `default` is the soak
+ * policy; the others change one lever each.
+ */
+export const POLICIES = {
+  default: {},
+  /** Every session on the position's most valued attributes, at high intensity. */
+  focused: {},
+  /** Two recovery sessions a week, the third on the position's most valued attribute. */
+  recovery: {},
+  /** Never spends attribute or skill points. */
+  'no-points': { spendPoints: false },
+  /** Stays: no transfers, no transfer request, no loans; renewals accepted. */
+  loyal: { moves: 'never', requestTransferAt: null, loans: 'never' },
+  /** Accepts any move and asks to leave from 20. */
+  mover: { moves: 'any', requestTransferAt: 20 },
+  /** Asks for a loan only while short of minutes, and takes it. */
+  minutes: { loans: 'minutes' },
+} as const satisfies Record<string, DecideOptions>;
+export type Policy = keyof typeof POLICIES;
+
+/** A training plan for the policy, or null to keep the career's own plan. */
+function policyPlan(policy: Policy, player: Player): TrainingPlan | null {
+  if (policy !== 'focused' && policy !== 'recovery') return null;
+  const weights = ABILITY_WEIGHTS[player.primaryPosition] as Record<string, number>;
+  const valued = trainableAttributes(player)
+    .filter((key) => (weights[key] ?? 0) > 0)
+    .sort((a, b) => (weights[b] ?? 0) - (weights[a] ?? 0) || (a < b ? -1 : 1));
+  const focus = (index: number) =>
+    (valued[index % Math.max(1, valued.length)] ?? 'technical') as TrainingFocus;
+  return policy === 'focused'
+    ? {
+        sessions: [0, 1, 2].map((index) => ({ focus: focus(index), intensity: 'high' as const })),
+        extra: null,
+      }
+    : {
+        sessions: [
+          { focus: 'recovery', intensity: 'low' },
+          { focus: 'recovery', intensity: 'low' },
+          { focus: focus(0), intensity: 'normal' },
+        ],
+        extra: null,
+      };
 }
 export interface CareerProfile {
   seed: string;
   position: Position;
   archetype: string;
   specialise: boolean;
+  policy?: Policy;
   seasons: SeasonProfile[];
   legacy: Record<string, unknown> | null;
   calibration: Record<string, { n: number; stated: number; actual: number }>;
@@ -182,6 +238,7 @@ export function runProfile(
   position: Position,
   specialise: boolean,
   log: (line: string) => void = () => {},
+  policy: Policy = 'default',
 ): CareerProfile {
   const archetype = ARCHETYPES[position] ?? 'box-to-box';
   const draft: CareerDraft = {
@@ -211,6 +268,7 @@ export function runProfile(
     position,
     archetype,
     specialise,
+    policy,
     seasons: [],
     legacy: null,
     calibration: {},
@@ -228,8 +286,10 @@ export function runProfile(
     let injuries = 0;
     while (world.phase === 'active') {
       if (world.career) {
-        if (specialise) world = specialisedSpend(world, position);
-        world = decide(world, state, note);
+        const plan = policyPlan(policy, world.players[world.career.playerId]!);
+        if (plan) world.career.training = plan;
+        if (specialise && policy !== 'no-points') world = specialisedSpend(world, position);
+        world = decide(world, state, note, POLICIES[policy]);
       }
       for (const offer of world.offers) offers.add(offer.id);
       if (world.career) spent += shop(world, (next) => (world = next));
@@ -335,6 +395,10 @@ export function runProfile(
         }),
       players85: abilities.filter((v) => v >= 85).length,
       players90: abilities.filter((v) => v >= 90).length,
+      growth: (() => {
+        const { playing, training, points, skills, decline } = growthOf(career, world.date.season);
+        return { playing, training, points, skills, decline };
+      })(),
     };
     profile.seasons.push(season);
     log(
@@ -484,9 +548,11 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/career-profile.ts')) 
     const seed = argument('seed') ?? 'profile';
     const position = (argument('position') ?? 'ST') as Position;
     const specialise = process.argv.includes('--specialise');
-    const profile = runProfile(seed, position, specialise, (line) => console.log(line));
+    const policy = (argument('policy') ?? 'default') as Policy;
+    if (!(policy in POLICIES)) throw new Error(`Unknown policy ${policy}`);
+    const profile = runProfile(seed, position, specialise, (line) => console.log(line), policy);
     mkdirSync(OUT_DIR, { recursive: true });
-    const path = `${OUT_DIR}/${seed}-${position}${specialise ? '-specialised' : ''}.json`;
+    const path = `${OUT_DIR}/${seed}-${position}${specialise ? '-specialised' : ''}${policy === 'default' ? '' : `-${policy}`}.json`;
     writeFileSync(path, JSON.stringify(profile, null, 2));
     console.log(`Profile: ${path}`);
   }

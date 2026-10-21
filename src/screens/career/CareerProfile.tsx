@@ -5,6 +5,7 @@ import { useAppStore } from '../../store';
 import { CONFIG } from '../../engine/config';
 import { type AnyAttribute } from '../../engine/ageing';
 import { careerSoftCap, lateCareer, lateRate } from '../../engine/career/longevity';
+import { growthOf } from '../../engine/career/growth';
 import {
   attributeCost,
   attributeValue,
@@ -712,6 +713,7 @@ function SeasonCard({ world, career, player }: { world: World; career: Career; p
         ))}
       </dl>
       {!line.apps && <p className="mt-2 text-xs text-night-muted">{c.profile.seasonEmpty}</p>}
+      <SeasonGrowth career={career} season={world.date.season} />
       {/* The disciplinary record (the discipline phase): this season and the career. */}
       <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-night-muted">
         <CardMark red={line.red > 0} />
@@ -724,6 +726,25 @@ function SeasonCard({ world, career, player }: { world: World; career: Career; p
         </span>
       </p>
     </Panel>
+  );
+}
+
+/**
+ * Where this season's attribute points came from: playing, training, spent points and skills,
+ * and what age took away, so the player sees what each lever does.
+ */
+function SeasonGrowth({ career, season }: { career: Career; season: number }) {
+  const growth = growthOf(career, season);
+  const G = c.profile.growth;
+  const parts = (['playing', 'training', 'points', 'skills'] as const)
+    .filter((key) => growth[key] > 0)
+    .map((key) => format(G[key], { count: growth[key] }));
+  if (growth.decline > 0) parts.push(format(G.decline, { count: growth.decline }));
+  return (
+    <p className="mt-3 text-xs text-night-muted">
+      <span className="font-bold text-night-ink">{G.title}</span>{' '}
+      {parts.length ? parts.join(' · ') : G.none}
+    </p>
   );
 }
 

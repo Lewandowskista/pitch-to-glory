@@ -482,6 +482,15 @@ export const careerText = {
     learnPosition: 'Learn a new position in training.',
     hidden: 'Hidden attributes',
     hiddenBody: 'Revealed as you play more matches.',
+    growth: {
+      title: 'Development this season:',
+      playing: '+{count} from playing',
+      training: '+{count} from training',
+      points: '+{count} from points',
+      skills: '+{count} from skills',
+      decline: '−{count} to age',
+      none: 'no whole points yet.',
+    },
     longevity: {
       title: 'Longevity',
       onset: 'From about age {age}, your attributes will decline faster every season.',

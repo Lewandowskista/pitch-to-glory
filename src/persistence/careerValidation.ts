@@ -176,6 +176,13 @@ export function validateCareer(w: Record<string, unknown>): void {
   }
   if (career.developmentRules !== undefined) requireValue(career.developmentRules === 2);
   if (career.conditioning !== undefined) number(career.conditioning, 0, 1);
+  if (career.growth !== undefined)
+    for (const value of array(career.growth, CONFIG.career.growthSeasons)) {
+      const line = object(value);
+      number(line.season, 1800, Number(current.season), true);
+      for (const key of ['playing', 'training', 'points', 'skills', 'decline'])
+        number(line[key], 0, 5000, true);
+    }
   if (career.availability !== undefined) {
     const entries = array(career.availability, CONFIG.career.development.availability.limit);
     for (const value of entries) {
