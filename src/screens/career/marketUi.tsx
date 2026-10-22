@@ -1,3 +1,4 @@
+import { preseasonText } from '../../i18n/preseason';
 import { useMemo, useState } from 'react';
 import { storiesText } from '../../i18n/stories';
 import { ambitionsText } from '../../i18n/ambitions';
@@ -87,6 +88,10 @@ export function messageText(message: InboxMessage): { subject: string; body: str
   if (typeof params.role === 'string' && params.role in m.roles)
     params.role = roleName(params.role as Contract['role']);
   // A ban (the discipline phase): its length, where it is served and why, in words.
+  // A season's ambition (review phase 5), in words.
+  if (message.subjectKey.startsWith('season-ambition') && typeof params.goal === 'string')
+    params.goal =
+      preseasonText.goals[params.goal as keyof typeof preseasonText.goals] ?? params.goal;
   if (message.subjectKey === 'suspended') {
     if (typeof params.matches === 'number') params.matches = matchesLabel(params.matches);
     if (typeof params.scope === 'string') params.scope = scopeLabel(params.scope);

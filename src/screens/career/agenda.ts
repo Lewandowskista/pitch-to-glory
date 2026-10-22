@@ -3,6 +3,7 @@
  * Continue will do and what happened while it ran. Pure derivations from the saved world, so
  * the hub, the calendar and their tests agree, and nothing predicts an unrevealed outcome.
  */
+import { preseasonDue } from '../../engine/career/preseason';
 import type {
   BackgroundResult,
   ChronicleEntry,
@@ -35,7 +36,8 @@ export type PriorityKind =
   | 'story'
   | 'sponsor'
   | 'attributes'
-  | 'skills';
+  | 'skills'
+  | 'preseason';
 /** Recovery first, then the match, then anything with a deadline, then unspent points. */
 export type PriorityGroup = 'recovery' | 'match' | 'deadline' | 'progress';
 const GROUP_ORDER: PriorityGroup[] = ['recovery', 'match', 'deadline', 'progress'];
@@ -160,6 +162,16 @@ export function hubPriorities(world: World, session: SessionState): Priority[] {
       group: 'deadline',
       deadline: null,
       to: '/career/transfers#contract-decision',
+      params: {},
+    });
+  // A new season's briefing (review phase 5): early in the season, until done.
+  if (preseasonDue(world))
+    items.push({
+      id: 'preseason',
+      kind: 'preseason',
+      group: 'progress',
+      deadline: null,
+      to: '/career/preseason',
       params: {},
     });
   if (career.attributePoints > 0)

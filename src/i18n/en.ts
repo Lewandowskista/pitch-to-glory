@@ -27,6 +27,7 @@ export const en = {
       '/career/lifestyle': 'Lifestyle',
       '/career/wardrobe': 'Wardrobe and celebrations',
       '/career/national': 'National team',
+      '/career/preseason': 'Preseason',
       '/career/trophies': 'Trophy cabinet',
       '/career/chronicle': 'Career Chronicle',
       '/career/moments': 'Moments',

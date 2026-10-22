@@ -48,6 +48,14 @@ export const storiesText = {
       subject: 'Challenge called off',
       body: 'The challenge no longer applies. Nothing is held against you.',
     },
+    'season-ambition-met': {
+      subject: 'Season ambition met',
+      body: 'You set out to {goal} this season, and you did it ({value} of {target}).',
+    },
+    'season-ambition-missed': {
+      subject: 'Season ambition missed',
+      body: 'You set out to {goal} this season, and fell short ({value} of {target}).',
+    },
     'mentee-manager': {
       subject: '{manager} is the new manager',
       body: '{manager} learned the game under {mentor}, and starts out with real faith in you.',

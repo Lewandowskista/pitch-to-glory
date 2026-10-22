@@ -1,3 +1,4 @@
+import { preseasonSeasonEnd } from '../career/preseason';
 import { commitmentsWeek } from '../career/commitments';
 import { setSeasonCosts, usesEconomy } from './economy';
 import type { Club, League, Player, SeasonSummary, World } from '../../model/domain';
@@ -646,6 +647,8 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
     if (world.career) {
       honoursSeasonEnd(world);
       marketSeasonEnd(world);
+      // The season's ambition, judged (review phase 5).
+      preseasonSeasonEnd(world);
     }
   }
   world.date.week++;

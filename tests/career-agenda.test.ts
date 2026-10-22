@@ -158,7 +158,8 @@ describe('hub priorities', () => {
     offer(world, 'offer:soon', week);
     injure(world, 3, null);
     const kinds = hubPriorities(world, null).map((item) => item.kind);
-    expect(kinds).toEqual(['recovery', 'offer', 'press', 'attributes', 'skills']);
+    // Early in a season the preseason briefing waits too (review phase 5), with the points.
+    expect(kinds).toEqual(['recovery', 'offer', 'press', 'attributes', 'preseason', 'skills']);
     // A match in progress outranks every deadline, but not the recovery choice.
     expect(
       hubPriorities(world, 'live')

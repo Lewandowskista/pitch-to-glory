@@ -24,6 +24,7 @@ export const agendaText = {
       attributes_one: 'Spend 1 attribute point',
       skills: 'Spend {count} skill points',
       skills_one: 'Spend 1 skill point',
+      preseason: 'Hear the preseason briefing',
     },
     details: {
       recovery: '{injury} · {weeks} weeks out',

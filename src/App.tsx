@@ -28,6 +28,7 @@ const CareerRival = lazyPage(() => import('./screens/career/CareerRival'));
 const CareerLifestyle = lazyPage(() => import('./screens/career/CareerLifestyle'));
 const CareerWardrobe = lazyPage(() => import('./screens/career/CareerWardrobe'));
 const CareerNational = lazyPage(() => import('./screens/career/CareerNational'));
+const CareerPreseason = lazyPage(() => import('./screens/career/CareerPreseason'));
 const CareerTrophies = lazyPage(() => import('./screens/career/CareerTrophies'));
 const CareerChronicle = lazyPage(() => import('./screens/career/CareerChronicle'));
 const CareerMoments = lazyPage(() => import('./screens/career/CareerMoments'));
@@ -70,6 +71,7 @@ export default function App() {
               <Route path="career/lifestyle" element={<CareerLifestyle />} />
               <Route path="career/wardrobe" element={<CareerWardrobe />} />
               <Route path="career/national" element={<CareerNational />} />
+              <Route path="career/preseason" element={<CareerPreseason />} />
               <Route path="career/trophies" element={<CareerTrophies />} />
               <Route path="career/chronicle" element={<CareerChronicle />} />
               <Route path="career/moments" element={<CareerMoments />} />

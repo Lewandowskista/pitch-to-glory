@@ -18,6 +18,7 @@ export const navigationText = {
     '/career/skills': 'Skills',
     '/career/training': 'Training',
     '/career/national': 'National team',
+    '/career/preseason': 'Preseason',
     '/career/club': 'Club life',
     '/career/transfers': 'Transfers',
     '/career/agent': 'Agent',

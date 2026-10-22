@@ -556,6 +556,16 @@ export interface Career {
    * last and bounded. Stories and decisions read it. Absent until the first is recorded.
    */
   facts?: CareerFact[];
+  /**
+   * This season's preseason (review phase 5, step 5.3): the ambition chosen for it, a
+   * late-career step taken, and whether the briefing is done. Absent until the first.
+   */
+  preseason?: {
+    season: number;
+    done: boolean;
+    ambition: SeasonAmbition | null;
+    late: LateCareerStep | null;
+  };
   /** The club the player captains, and since when (schema 20). */
   captaincy?: { clubId: Id; since: GameDate } | null;
   /** A farewell season announced (schema 20): the career ends when it is complete. */
@@ -611,6 +621,21 @@ export type StoryKind =
   | 'derby-promise'
   | 'contract-envy';
 export type StoryStatus = 'offered' | 'waiting' | 'resolved';
+/**
+ * The player's ambition for a season, judged at its end: a regular place (`place`, matches
+ * started), goals and assists or clean sheets (`output`), or ability (`growth`, the ability to
+ * reach; held for a veteran).
+ */
+export interface SeasonAmbition {
+  kind: 'place' | 'output' | 'growth';
+  target: number;
+  /** The measure when chosen (ability for growth, the counter for output). */
+  baseline: number;
+  /** Set at the season's end. */
+  met?: boolean;
+}
+/** A late-career step (review phase 5, step 5.3), at most one a season. */
+export type LateCareerStep = 'smaller-role' | 'new-position' | 'mentor' | 'closer-to-home';
 export type FactKind =
   | 'promise-kept'
   | 'promise-broken'

@@ -92,6 +92,21 @@ export function validateCareer(w: Record<string, unknown>): void {
     ref(extra.mentorId, players);
     requireValue(extra.mentorId !== career.playerId);
   }
+  // This season's preseason (review phase 5).
+  if (career.preseason !== undefined) {
+    const preseason = object(career.preseason);
+    number(preseason.season, 1800, 9999, true);
+    requireValue(typeof preseason.done === 'boolean');
+    if (preseason.ambition !== null) {
+      const ambition = object(preseason.ambition);
+      options(ambition.kind, ['place', 'output', 'growth']);
+      number(ambition.target, 0, 1000);
+      number(ambition.baseline, 0, 1000);
+      if (ambition.met !== undefined) requireValue(typeof ambition.met === 'boolean');
+    }
+    if (preseason.late !== null)
+      options(preseason.late, ['smaller-role', 'new-position', 'mentor', 'closer-to-home']);
+  }
   // Lasting story facts (review phase 5).
   if (career.facts !== undefined)
     for (const value of array(career.facts, CONFIG.career.facts.limit)) {

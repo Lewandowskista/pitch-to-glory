@@ -348,6 +348,30 @@ export const CONFIG = {
      * season; the last `limit` are kept. The rest are the thresholds and sizes of each story.
      */
     /**
+     * Preseason (review phase 5, step 5.3): the briefing is offered in the season's first
+     * `weeks`. Ambitions: a regular place is `placeShare` of the club's league fixtures
+     * started; output targets by line (goals and assists, or clean sheets for the back line);
+     * growth is `growth` ability points, or holding ability from `holdAge`. Met: `reward`;
+     * missed: `penalty` morale. Late-career steps from `lateAge`: a smaller role earns
+     * `smallerTrust` trust; a new position starts at `retrain` familiarity more; home clubs show
+     * `homeConfidence` interest.
+     */
+    preseason: {
+      weeks: 6,
+      placeShare: 0.6,
+      output: { ATT: 14, MID: 9, DEF: 3, GK: 0 },
+      cleanSheets: { DEF: 9, GK: 11 },
+      growth: 3,
+      holdAge: 29,
+      reward: { xp: 300, fame: 8, morale: 6 },
+      penalty: -4,
+      lateAge: 31,
+      smallerTrust: 8,
+      retrain: 25,
+      homeClubs: 2,
+      homeConfidence: 70,
+    },
+    /**
      * Lasting story facts (review phase 5, step 5.2). Each grievance a manager holds (a
      * challenge missed, public criticism, a transfer request under them) lowers the most they
      * can trust the player by `grievance`, to `trustFloor`. A club renews `loyalty` times as

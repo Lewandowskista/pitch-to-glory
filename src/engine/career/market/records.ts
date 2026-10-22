@@ -75,6 +75,8 @@ export type InboxKind =
   | 'promise-missed'
   | 'promise-cancelled'
   | 'mentee-manager'
+  | 'season-ambition-met'
+  | 'season-ambition-missed'
   | 'ambition-achieved'
   | 'story-offer'
   | 'story-outcome'
