@@ -138,6 +138,7 @@ export const CHRONICLE_GLYPH: Record<ChronicleEntry['kind'], GlyphName> = {
   cap: 'flag',
   'international-goal': 'ball',
   tournament: 'trophy',
+  qualifying: 'flag',
   rival: 'rival',
   fame: 'fame',
   record: 'record',
@@ -212,6 +213,8 @@ export function chronicleSentence(world: World, entry: ChronicleEntry): string {
           ? 'startChild'
           : entry.kind === 'rival' && p.cleanSheets !== undefined
             ? 'rival-defence'
-            : entry.kind;
+            : entry.kind === 'qualifying'
+              ? `qualifying-${p.outcome}`
+              : entry.kind;
   return format(h.chronicle.entries[key] ?? '', p);
 }

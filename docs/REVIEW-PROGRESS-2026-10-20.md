@@ -142,6 +142,14 @@ The climb's pace is preserved within about a point, which is normal career-to-ca
 - Every fixture has its own seed, so a tournament simulated at once and one played round by round agree on every match the player does not play.
 - A match in progress survives a refresh: the save accepts a tournament session only when it matches the sides this world fields for the waiting match.
 - Found during testing: a tournament finished between seasons belongs to the coming season, and the save validator rejected it. Fixed, with a unit test that fails without the fix.
-- Not done: a setting to play qualifiers and friendlies (they stay simulated). It belongs with 3.3.
+- Not done: a setting to play qualifiers and friendlies in the match engine (they stay simulated).
+
+**3.3 Lightweight qualification.**
+
+- The season before a tournament carries a qualifying campaign: 24 nations in six groups of four, home and away, two matchdays per window. Winners, runners-up and the four best thirds (16) go to the tournament, so a world nation can miss it.
+- A senior international's window matches are their nation's qualifiers. Scores come from ratings and a per-fixture seed, so they are the same with or without the call-up.
+- The National screen shows the group table (qualifying places marked), the rule and the six matches. Qualifying or missing out goes into the Chronicle and the inbox.
+- Sixteen guest nations were added for the pools (real names in real-name worlds, fictional otherwise). Old saves gain them when their first campaign opens at a season start.
+- Tests: `tests/qualifying.test.ts` plays a full campaign through the season simulation (groups, fixtures, the table, the tournament field, a called-up player's qualifiers matching the fixtures, the story, save validity). `e2e/tournament.spec.ts` checks the National screen part-way through.
 
 **Verification.** `tests/honours.test.ts` (round-by-round play, determinism, single credit, season-end opening and closing, save validity), `tests/tournament-match.test.ts` (sides, guest squads at rating, commit once), `tests/worker.test.ts` (the tournament job) and `e2e/tournament.spec.ts` (hub → play → refresh → report → continue → simulate the rest → next season) pass in Chromium, Firefox and WebKit, with the match, career and honours flows. Match route 290.7 KB gzip (budget 300 KB): the nations' squad builder loads only when a tournament match is prepared.

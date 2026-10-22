@@ -66,6 +66,8 @@ export const INBOX_KINDS = [
   'fame-level',
   'call-up',
   'tournament',
+  'qualified',
+  'missed-qualification',
   'award',
   'golden-ball',
   'trophy',

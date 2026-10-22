@@ -63,6 +63,8 @@ export type InboxKind =
   | 'fame-level'
   | 'call-up'
   | 'tournament'
+  | 'qualified'
+  | 'missed-qualification'
   | 'award'
   | 'golden-ball'
   | 'trophy'

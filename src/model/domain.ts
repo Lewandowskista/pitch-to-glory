@@ -1231,6 +1231,8 @@ export type ChronicleKind =
   | 'cap'
   | 'international-goal'
   | 'tournament'
+  // Qualifying for a tournament, or missing it (review phase 3, step 3.3).
+  | 'qualifying'
   | 'rival'
   | 'fame'
   | 'record'
@@ -1725,6 +1727,32 @@ export interface InternationalState {
    * none is under way.
    */
   live?: LiveTournament | null;
+  /**
+   * Qualification for the next tournament (review phase 3, step 3.3), played in the season
+   * before it. Kept until the next campaign starts. Absent in worlds saved before it, whose
+   * tournaments keep the fixed field.
+   */
+  qualifying?: Qualifying | null;
+}
+/** A qualifying campaign: groups of four, home and away, over the season's windows. */
+export interface Qualifying {
+  /** The tournament it qualifies for. */
+  tournamentId: Id;
+  year: number;
+  kind: 'continental' | 'world';
+  groups: Id[][];
+  fixtures: QualifyingFixture[];
+  /** The matchdays played so far (0–6). */
+  played: number;
+  /** The nations through, once every matchday is played. */
+  qualified: Id[] | null;
+}
+export interface QualifyingFixture {
+  id: Id;
+  matchday: number;
+  homeId: Id;
+  awayId: Id;
+  score: [number, number] | null;
 }
 /** A match of a tournament under way, with its result once played. */
 export interface TournamentFixture {

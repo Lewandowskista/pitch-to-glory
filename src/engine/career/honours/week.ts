@@ -7,6 +7,7 @@ import { captureMoments } from './moments';
 import {
   createInternational,
   internationalWindow,
+  openQualifying,
   openTournament,
   playTournament,
   tournamentYear,
@@ -120,6 +121,8 @@ export function honoursSeasonEnd(world: World): void {
  */
 export function honoursRollover(world: World): boolean {
   playTournament(world);
+  // A season before a tournament is played with its qualification (review phase 3).
+  openQualifying(world);
   // Forced by age, or the farewell season announced last season is over.
   if (
     retirementState(world) === 'forced' ||

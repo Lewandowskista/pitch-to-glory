@@ -22,6 +22,8 @@ import { Glyph, type GlyphName } from './honoursUi';
 
 /** The two-pane inbox, with the list and the reader side by side (Tailwind `lg`). */
 const WIDE = '(min-width: 1024px)';
+/** Messages about the national team, which link to its page. */
+const NATIONAL = new Set(['call-up', 'tournament', 'qualified', 'missed-qualification']);
 function useWide(): boolean {
   return useSyncExternalStore(
     (change) => {
@@ -71,7 +73,7 @@ export function messageLink(
       ),
       label: m.inbox.goTrophies,
     };
-  if (message.subjectKey === 'call-up' || message.subjectKey === 'tournament')
+  if (NATIONAL.has(message.subjectKey))
     return { to: join('/career/national'), label: m.inbox.goNational };
   if (message.subjectKey === 'fame-level')
     return { to: join('/career/wardrobe'), label: m.inbox.goWardrobe };
@@ -90,7 +92,7 @@ export type MessageKind = keyof typeof m.inbox.kinds;
 export function messageKind(subjectKey: string): MessageKind {
   if (subjectKey.startsWith('agent-')) return 'agent';
   if (subjectKey === 'press-request') return 'press';
-  if (subjectKey === 'call-up' || subjectKey === 'tournament') return 'national';
+  if (NATIONAL.has(subjectKey)) return 'national';
   if (subjectKey.startsWith('sponsor-')) return 'sponsor';
   if (subjectKey.startsWith('story-')) return 'story';
   if (subjectKey === 'rival-transfer') return 'rival';

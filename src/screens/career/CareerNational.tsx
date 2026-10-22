@@ -12,6 +12,7 @@ import { renderFlag } from '../../engine/assets/flags';
 import { Artwork } from '../../ui/Artwork';
 import { Icon } from '../../ui/Icon';
 import { CardTitle, Panel, cx } from '../../ui/kit';
+import { QualifyingPanel } from './QualifyingPanel';
 
 const I = CONFIG.career.honours.international;
 const LEVELS: NationalLevel[] = ['senior', 'U21', 'U19'];
@@ -262,6 +263,7 @@ function NationalContent({
       </div>
       {/* Squad and results on the wider side; the stacks never share row heights. */}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:col-span-7">
+        {nation && <QualifyingPanel world={world} nationId={nation.id} />}
         <Squad world={world} player={player} squadIds={squad?.playerIds ?? []} level={short} />
         {matches.length ? (
           <Panel aria-labelledby="internationals-heading">

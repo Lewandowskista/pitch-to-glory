@@ -36,6 +36,7 @@ const CHRONICLE = [
   'cap',
   'international-goal',
   'tournament',
+  'qualifying',
   'rival',
   'fame',
   'record',
@@ -97,7 +98,7 @@ export function validateHonours(w: Record<string, unknown>): void {
   const nationIds = new Set<string>();
   if (w.international !== undefined) {
     const state = object(w.international);
-    for (const value of array(state.nations, 40)) {
+    for (const value of array(state.nations, 60)) {
       const nation = object(value);
       id(nation.id);
       requireValue(!nationIds.has(String(nation.id)));
@@ -152,6 +153,37 @@ export function validateHonours(w: Record<string, unknown>): void {
         options(part.stage, ['group', 'quarter', 'semi', 'final', 'winner']);
         requireValue(typeof part.inSquad === 'boolean');
       }
+    }
+    // Qualification for the next tournament (review phase 3, step 3.3).
+    if (state.qualifying !== undefined && state.qualifying !== null) {
+      const qualifying = object(state.qualifying);
+      id(qualifying.tournamentId);
+      number(qualifying.year, 1800, Number(current.season) + 1, true);
+      options(qualifying.kind, ['continental', 'world']);
+      const groups = array(qualifying.groups, 12);
+      const members = new Set<string>();
+      for (const group of groups)
+        for (const nationId of ids(group, 4)) {
+          requireValue(nationIds.has(nationId) && !members.has(nationId));
+          members.add(nationId);
+        }
+      const fixtureIds = new Set<string>();
+      for (const value of array(qualifying.fixtures, 72)) {
+        const fixture = object(value);
+        text(fixture.id, 80);
+        requireValue(!fixtureIds.has(String(fixture.id)));
+        fixtureIds.add(String(fixture.id));
+        number(fixture.matchday, 1, 6, true);
+        requireValue(members.has(String(fixture.homeId)) && members.has(String(fixture.awayId)));
+        if (fixture.score !== null) {
+          const score = array(fixture.score, 2);
+          requireValue(score.length === 2);
+          score.forEach((goals) => number(goals, 0, 30, true));
+        }
+      }
+      number(qualifying.played, 0, 6, true);
+      if (qualifying.qualified !== null)
+        ids(qualifying.qualified, 16).forEach((nationId) => requireValue(members.has(nationId)));
     }
     // The tournament under way between seasons (review phase 3, step 3.2).
     if (state.live !== undefined && state.live !== null) {

@@ -4,6 +4,8 @@ import type {
   InternationalState,
   LiveTournament,
   Nation,
+  Qualifying,
+  QualifyingFixture,
   NationalLevel,
   Player,
   Position,
@@ -69,6 +71,27 @@ const WORLD_REAL: [string, number, Hex, Hex][] = [
   ['Senegal', 72, '#00853f', '#fdef42'],
   ['South Korea', 70, '#cd2e3a', '#0047a0'],
 ];
+/** Guests who join the qualifying pools (review phase 3, step 3.3): eight for each tournament. */
+const EUROPE_MORE: [string, number, Hex, Hex][] = [
+  ['Norway', 72, '#ba0c2f', '#ffffff'],
+  ['Turkey', 72, '#e30a17', '#ffffff'],
+  ['Serbia', 71, '#c6363c', '#0c4076'],
+  ['Ukraine', 71, '#ffd500', '#005bbb'],
+  ['Hungary', 69, '#cd2a3e', '#436f4d'],
+  ['Wales', 68, '#c8102e', '#00b140'],
+  ['Greece', 67, '#0d5eaf', '#ffffff'],
+  ['Republic of Ireland', 67, '#169b62', '#ffffff'],
+];
+const WORLD_MORE: [string, number, Hex, Hex][] = [
+  ['Nigeria', 71, '#008751', '#ffffff'],
+  ['Ecuador', 71, '#ffd100', '#034ea2'],
+  ['Canada', 70, '#d80621', '#ffffff'],
+  ['Australia', 69, '#ffcd00', '#00843d'],
+  ['Chile', 69, '#d52b1e', '#0039a6'],
+  ['Iran', 69, '#ffffff', '#239f40'],
+  ['Egypt', 68, '#c8102e', '#000000'],
+  ['Peru', 68, '#ffffff', '#d91023'],
+];
 const FICTIONAL = [
   'Ostrava',
   'Kelderland',
@@ -90,6 +113,23 @@ const FICTIONAL = [
   'Praxos',
   'Ruvenna',
   'Solmere',
+  // Qualifying pools (review phase 3, step 3.3).
+  'Varneth',
+  'Ostmarra',
+  'Calvaro',
+  'Brisolde',
+  'Thornvale',
+  'Kessaly',
+  'Mirandel',
+  'Hollowmere',
+  'Zantara',
+  'Pellucia',
+  'Grevholm',
+  'Auremont',
+  'Sarvona',
+  'Dravik',
+  'Lunaro',
+  'Westmarch',
 ];
 const COUNTRY_COLORS: Record<string, [Hex, Hex]> = {
   England: ['#ffffff', '#1d2951'],
@@ -118,16 +158,24 @@ export function createInternational(world: World): InternationalState {
         ['#264653', '#e9c46a'],
       ][index % 6]) as [Hex, Hex],
   }));
-  [...EUROPE_REAL, ...WORLD_REAL].forEach(([name, rating, primary, secondary], index) => {
-    nations.push({
+  nations.push(...guestNations(real));
+  return { nations, matches: [], tournaments: [] };
+}
+
+/**
+ * The guest nations: twenty tournament guests, then (from review phase 3, step 3.3) eight
+ * more for each tournament's qualifying pool.
+ */
+function guestNations(real: boolean): Nation[] {
+  return [...EUROPE_REAL, ...WORLD_REAL, ...EUROPE_MORE, ...WORLD_MORE].map(
+    ([name, rating, primary, secondary], index) => ({
       id: `nation:guest:${index}`,
       countryId: null,
       name: real ? name : FICTIONAL[index]!,
       rating,
       colors: [primary, secondary],
-    });
-  });
-  return { nations, matches: [], tournaments: [] };
+    }),
+  );
 }
 
 const ageAt = (world: World, player: Player) => world.date.season - player.birthSeason;
@@ -375,6 +423,17 @@ export function internationalWindow(world: World): void {
   const career = world.career;
   const state = world.international;
   if (!career || !state || !windowWeeks(world).includes(world.date.week)) return;
+  // The window's qualifiers (review phase 3, step 3.3): the career player's nation's, when
+  // they are called up to its senior side, then everyone else's.
+  const qualifiers = windowQualifiers(world);
+  careerWindow(world, qualifiers);
+  if (qualifiers.length) playQualifiers(world, qualifiers);
+}
+
+/** The career player's window: squads named, their call-up and their matches. */
+function careerWindow(world: World, qualifiers: readonly QualifyingFixture[]): void {
+  const career = world.career!;
+  const state = world.international!;
   const rng = createRng(`${world.seed}:international:${world.date.season}:${world.date.week}`);
   const player = world.players[career.playerId]!;
   const call = careerCallUp(world);
@@ -405,7 +464,30 @@ export function internationalWindow(world: World): void {
   const squads = new Map<string, Player[]>([[`${player.nationalityId}:${call.level}`, call.squad]]);
   const opponents = state.nations.filter((entry) => entry.id !== nation.id);
   let played = false;
-  for (let index = 0; index < I.matchesPerWindow; index++) {
+  const own =
+    call.level === 'senior'
+      ? qualifiers.filter((fixture) => fixture.homeId === nation.id || fixture.awayId === nation.id)
+      : [];
+  const qualifierSquads = new Map<string, Player[]>();
+  for (const fixture of own) {
+    // Drawn exactly as the simulation draws it, so the score is the same with them or without.
+    const [home, away] = qualifierSides(world, fixture, qualifierSquads);
+    const match = playMatch(
+      world,
+      createRng(`${world.seed}:${fixture.id}`),
+      home,
+      away,
+      'senior',
+      'qualifier',
+      null,
+      fixture.homeId === nation.id ? 0 : 1,
+      call.starts,
+    );
+    fixture.score = [match.score[0], match.score[1]];
+    if (match.career) played = true;
+    credit(world, match, nation.name);
+  }
+  for (let index = 0; index < (own.length ? 0 : I.matchesPerWindow); index++) {
     const opponent = rng.pick(opponents);
     const home = index % 2 === 0;
     const own: Side = {
@@ -441,6 +523,171 @@ export function internationalWindow(world: World): void {
   postMessage(world, 'call-up', { level: call.level, nation: nation.name });
 }
 
+/**
+ * Qualification (review phase 3, step 3.3): in the season before a tournament, twenty-four
+ * nations (the world's six and eighteen guests) play home and away in six seeded groups of
+ * four, two matchdays a window. The group winners, the runners-up and the four best
+ * third-placed nations go through.
+ */
+const Q = I.qualifying;
+const POOL: Record<Tournament['kind'], readonly [number, number][]> = {
+  continental: [
+    [0, 10],
+    [20, 28],
+  ],
+  world: [
+    [10, 20],
+    [28, 36],
+  ],
+};
+
+/** Open the campaign for next season's tournament, when one is due. */
+export function openQualifying(world: World): Qualifying | null {
+  const state = world.international;
+  const year = world.date.season + 1;
+  if (!state || !tournamentYear(year)) return null;
+  const tournamentId = `tournament:${year}`;
+  if (state.qualifying?.tournamentId === tournamentId) return null;
+  // Worlds from before qualification gain its guests now.
+  for (const guest of guestNations(world.identityVersion === 2))
+    if (!state.nations.some((nation) => nation.id === guest.id)) state.nations.push(guest);
+  const kind: Tournament['kind'] = year % 4 === 0 ? 'continental' : 'world';
+  const guests = new Set(
+    POOL[kind].flatMap(([from, to]) =>
+      Array.from({ length: to - from }, (_, offset) => `nation:guest:${from + offset}`),
+    ),
+  );
+  const pool = state.nations.filter((nation) => nation.countryId || guests.has(nation.id));
+  const squads = new Map<string, Player[]>();
+  const ratings = new Map(
+    pool.map((nation) => [nation.id, nationRating(world, nation, 'senior', squads)]),
+  );
+  const seeded = [...pool].sort(
+    (a, b) => ratings.get(b.id)! - ratings.get(a.id)! || (a.id < b.id ? -1 : 1),
+  );
+  const rng = createRng(`${world.seed}:qualifying:${year}`);
+  const groups: string[][] = Array.from({ length: Q.groups }, () => []);
+  seeded.forEach((nation, index) => {
+    const pot = Math.floor(index / Q.groups);
+    const open = groups.flatMap((group, g) => (group.length === pot ? [g] : []));
+    groups[rng.pick(open)]!.push(nation.id);
+  });
+  const fixtures: QualifyingFixture[] = [];
+  for (let matchday = 1; matchday <= GROUP_ROUNDS.length * 2; matchday++) {
+    const second = matchday > GROUP_ROUNDS.length;
+    const pairs = GROUP_ROUNDS[(matchday - 1) % GROUP_ROUNDS.length]!;
+    groups.forEach((group, g) =>
+      pairs.forEach(([a, b]) => {
+        const [home, away] = second ? [b, a] : [a, b];
+        fixtures.push({
+          id: `qualifying:${year}:${g}:${matchday}:${home}${away}`,
+          matchday,
+          homeId: group[home]!,
+          awayId: group[away]!,
+          score: null,
+        });
+      }),
+    );
+  }
+  state.qualifying = {
+    tournamentId,
+    year,
+    kind,
+    groups,
+    fixtures,
+    played: 0,
+    qualified: null,
+  };
+  return state.qualifying;
+}
+
+/** This window's qualifiers, still to play: two matchdays a window. */
+function windowQualifiers(world: World): QualifyingFixture[] {
+  const qualifying = world.international?.qualifying;
+  if (!qualifying || qualifying.qualified || qualifying.year !== world.date.season + 1) return [];
+  const window = windowWeeks(world).indexOf(world.date.week);
+  if (window < 0) return [];
+  const days = new Set([window * 2 + 1, window * 2 + 2]);
+  return qualifying.fixtures.filter((fixture) => days.has(fixture.matchday) && !fixture.score);
+}
+
+/**
+ * A qualifier's two sides, the home side's rating raised by the home bonus. The same with or
+ * without the career player, so a qualifier's score does not depend on who was called up.
+ */
+function qualifierSides(
+  world: World,
+  fixture: QualifyingFixture,
+  squads: Map<string, Player[]>,
+): [Side, Side] {
+  const home = nationOf(world, fixture.homeId);
+  const away = nationOf(world, fixture.awayId);
+  return [
+    { nation: home, rating: nationRating(world, home, 'senior', squads) + Q.homeBonus },
+    { nation: away, rating: nationRating(world, away, 'senior', squads) },
+  ];
+}
+
+/** The window's other qualifiers: their scores, then the table once every matchday is played. */
+function playQualifiers(world: World, fixtures: readonly QualifyingFixture[]): void {
+  const qualifying = world.international!.qualifying!;
+  const squads = new Map<string, Player[]>();
+  for (const fixture of fixtures) {
+    if (fixture.score) continue;
+    const rng = createRng(`${world.seed}:${fixture.id}`);
+    const [home, away] = qualifierSides(world, fixture, squads);
+    const gap = (home.rating - away.rating) * I.strengthScale;
+    fixture.score = [
+      poisson(rng, Math.max(0.2, I.baseGoals + gap / 2)),
+      poisson(rng, Math.max(0.2, I.baseGoals - gap / 2)),
+    ];
+  }
+  qualifying.played = qualifying.fixtures.reduce(
+    (played, fixture) => (fixture.score ? Math.max(played, fixture.matchday) : played),
+    qualifying.played,
+  );
+  if (qualifying.fixtures.every((fixture) => fixture.score)) closeQualifying(world, qualifying);
+}
+
+/** The nations through: group winners and runners-up, then the best third-placed. */
+export function qualifiedNations(qualifying: Qualifying): string[] {
+  const tables = qualifying.groups.map((group) => tableOf(qualifying.fixtures, group));
+  const thirds = tables
+    .map((table) => table[2]!)
+    .sort(byStanding)
+    .slice(0, Q.bestThirds)
+    .map((row) => row.nationId);
+  return [
+    ...tables.map((table) => table[0]!.nationId),
+    ...tables.map((table) => table[1]!.nationId),
+    ...thirds,
+  ];
+}
+
+/** A qualifying group's table. */
+export const qualifyingStandings = (qualifying: Qualifying, group: readonly string[]) =>
+  tableOf(qualifying.fixtures, group);
+
+function closeQualifying(world: World, qualifying: Qualifying): void {
+  qualifying.qualified = qualifiedNations(qualifying);
+  const career = world.career;
+  const player = career ? world.players[career.playerId] : undefined;
+  const nation = player
+    ? world.international!.nations.find((entry) => entry.countryId === player.nationalityId)
+    : undefined;
+  if (!career || !nation || !qualifying.groups.some((group) => group.includes(nation.id))) return;
+  // The story is the player's when they have played for their nation's senior side.
+  if (!career.honours.caps.senior) return;
+  const outcome = qualifying.qualified.includes(nation.id) ? 'qualified' : 'missed';
+  const params = {
+    name: tournamentName(world, qualifying.kind),
+    year: qualifying.year,
+    nation: nation.name,
+  };
+  chronicle(world, 'qualifying', { ...params, outcome });
+  postMessage(world, outcome === 'qualified' ? 'qualified' : 'missed-qualification', params);
+}
+
 /** Group matchdays: who meets whom among a group's four, by seeding order. */
 const GROUP_ROUNDS: readonly (readonly [number, number])[][] = [
   [
@@ -461,7 +708,7 @@ const KNOCKOUT: Record<number, TournamentFixture['stage']> = {
   5: 'semi',
   6: 'final',
 };
-const tournamentName = (world: World, kind: Tournament['kind']) =>
+export const tournamentName = (world: World, kind: Tournament['kind']): string =>
   kind === 'continental'
     ? world.identityVersion === 2
       ? 'European Nations Championship'
@@ -486,10 +733,14 @@ export function openTournament(world: World, year = world.date.season + 1): Live
   const rng = createRng(`${world.seed}:tournament:${year}`);
   const home = state.nations.filter((nation) => nation.countryId);
   const guests = state.nations.filter((nation) => !nation.countryId);
-  const field = [
-    ...home,
-    ...(kind === 'continental' ? guests.slice(0, 10) : guests.slice(10, 20)),
-  ].slice(0, 16);
+  // The qualifiers when the world played a campaign; the fixed field before it.
+  const qualified = state.qualifying?.tournamentId === id ? state.qualifying.qualified : null;
+  const field = qualified
+    ? qualified.map((nationId) => nationOf(world, nationId))
+    : [...home, ...(kind === 'continental' ? guests.slice(0, 10) : guests.slice(10, 20))].slice(
+        0,
+        16,
+      );
   const squads = new Map<string, Player[]>();
   const ratings = new Map(
     field.map((nation) => [nation.id, nationRating(world, nation, 'senior', squads)]),
@@ -669,12 +920,25 @@ export interface GroupRow {
   scored: number;
 }
 /** A group's table from its played matches: points, goal difference, goals, then id. */
-export function groupStandings(live: LiveTournament, group: readonly string[]): GroupRow[] {
+export const groupStandings = (live: LiveTournament, group: readonly string[]): GroupRow[] =>
+  tableOf(
+    live.fixtures.filter((fixture) => fixture.stage === 'group'),
+    group,
+  );
+const byStanding = (p: GroupRow, q: GroupRow) =>
+  q.points - p.points ||
+  q.difference - p.difference ||
+  q.scored - p.scored ||
+  (p.nationId < q.nationId ? -1 : 1);
+function tableOf(
+  fixtures: readonly { homeId: string; awayId: string; score: [number, number] | null }[],
+  group: readonly string[],
+): GroupRow[] {
   const rows = new Map<string, GroupRow>(
     group.map((id) => [id, { nationId: id, played: 0, points: 0, difference: 0, scored: 0 }]),
   );
-  for (const fixture of live.fixtures) {
-    if (fixture.stage !== 'group' || !fixture.score || !rows.has(fixture.homeId)) continue;
+  for (const fixture of fixtures) {
+    if (!fixture.score || !rows.has(fixture.homeId)) continue;
     const [x, y] = fixture.score;
     const home = rows.get(fixture.homeId)!;
     const away = rows.get(fixture.awayId)!;
@@ -687,13 +951,7 @@ export function groupStandings(live: LiveTournament, group: readonly string[]): 
     home.scored += x;
     away.scored += y;
   }
-  return [...rows.values()].sort(
-    (p, q) =>
-      q.points - p.points ||
-      q.difference - p.difference ||
-      q.scored - p.scored ||
-      (p.nationId < q.nationId ? -1 : 1),
-  );
+  return [...rows.values()].sort(byStanding);
 }
 const groupTable = (live: LiveTournament, group: readonly string[]): string[] =>
   groupStandings(live, group).map((row) => row.nationId);

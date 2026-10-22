@@ -822,3 +822,15 @@ From the [October 20 review](APP-REVIEW-2026-10-20.md) (R9), plan step 3.2. Matc
 - **Stakes.** Fixture importance: group 1.15, knockout 1.3, final 1.5 (`international.tournament.importance`). A level knockout match plays extra time and a shootout in the session.
 - **Rewards.** A played match counts like a simulated one: a cap, goals and assists from the session, the cap and goal rewards above. Each home nation's first eleven earns a cap per tournament match.
 - **Season change.** Starting the next season plays out whatever remains, the career player's matches simulated. Worlds saved before this step, and worlds without a career, play the tournament at the season change at once, as before.
+
+## Qualification (October 2026)
+
+Plan step 3.3. Constants in `international.qualifying`.
+
+- **Who.** In the season before a tournament, 24 nations: the world's six and 18 guests of the tournament's kind (the ten tournament guests and eight more). The world's nations can fail to qualify.
+- **Draw.** Six groups of four (`groups`), seeded in four pots of six by senior rating, from the seed `qualifying:<year>`.
+- **Matches.** Home and away, six matchdays, two in each of the season's three windows. Goals as for any international, with the home side at `homeBonus` (1) above its rating. Each fixture draws from its own seed, from the ratings alone, so a score is the same whether or not the career player was called up.
+- **The career player.** Called up to the senior side, their window matches are their nation's two qualifiers (credited as before). At youth level, windows are unchanged.
+- **Through.** Group winners, runners-up and the `bestThirds` (4) best third-placed nations: 16. Ties break on points, goal difference, goals scored, then id. The tournament draws its groups from them.
+- **Story.** A player with a senior cap gets a Chronicle entry and an inbox message when the campaign ends, qualified or not.
+- **Old saves.** The campaign opens at a season start, so a world saved part-way through a season keeps the fixed tournament field until its next campaign. Its nations gain the sixteen new guests then.

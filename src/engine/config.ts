@@ -940,6 +940,12 @@ export const CONFIG = {
         tournamentLimit: 30,
         /** Tournaments played round by round (review phase 3): fixture importance by stage. */
         tournament: { importance: { group: 1.15, knockout: 1.3, final: 1.5 } },
+        /**
+         * Qualification (review phase 3, step 3.3): six groups of four, home and away; the
+         * winners, runners-up and best thirds go through. The home side plays a point above
+         * its rating.
+         */
+        qualifying: { groups: 6, bestThirds: 4, homeBonus: 1 },
       },
       awards: {
         monthWeeks: 5,

@@ -21,6 +21,28 @@ export const honoursText = {
   /** Short level names for headings and tiles; they read well in uppercase display type. */
   levelShort: { U19: 'U19', U21: 'U21', senior: 'Senior' },
   national: {
+    qualifying: {
+      name: '{name} {year} qualifying',
+      progress: '{played} of {total} matchdays played',
+      qualified: '{nation} have qualified.',
+      missed: '{nation} have not qualified.',
+      group: 'Group {group}',
+      nation: 'Nation',
+      played: 'P',
+      playedLong: 'Played',
+      difference: 'GD',
+      differenceLong: 'Goal difference',
+      points: 'Pts',
+      pointsLong: 'Points',
+      throughLabel: '(qualifying place)',
+      rule: 'Group winners and runners-up qualify, with the {thirds} best third-placed nations.',
+      matches: 'Qualifying matches',
+      window: 'Window {window}',
+      home: 'Home',
+      away: 'Away',
+      toPlay: 'To play',
+      versus: 'v {nation}',
+    },
     status: 'Your international career',
     statusIn: 'In the {level} squad',
     statusOut: 'Not in the latest {level} squad',
@@ -278,6 +300,8 @@ export const honoursText = {
       cap: 'Wins a first cap for the {level} of {nation}.',
       'international-goal': 'Scores a first goal for the {level} of {nation}.',
       tournament: '{name} {year}: {stage}.',
+      'qualifying-qualified': 'Qualifies with {nation} for the {name} {year}.',
+      'qualifying-missed': 'Misses out on the {name} {year} as {nation} fail to qualify.',
       rival: 'Finishes season {season} ahead of {rival}: {goals} to {rivalGoals}.',
       'rival-defence':
         'Finishes season {season} ahead of {rival}: {cleanSheets} to {rivalCleanSheets}.',
@@ -475,6 +499,14 @@ export const honoursText = {
     tournament: {
       subject: '{name}: {stage}',
       body: 'Your tournament with {nation} is over.',
+    },
+    qualified: {
+      subject: '{nation} qualify for the {name}',
+      body: '{nation} have qualified for the {name} {year}, played before next season. Keep your place in the side to be part of it.',
+    },
+    'missed-qualification': {
+      subject: '{nation} miss the {name}',
+      body: '{nation} have failed to qualify for the {name} {year}. There is no tournament for you next summer.',
     },
     award: {
       subject: 'Award: {kind}',

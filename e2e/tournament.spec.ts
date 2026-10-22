@@ -175,3 +175,74 @@ test('plays a tournament match for the nation, then the rest before the next sea
   await next.click();
   await expect(page.getByText('A new season begins.')).toBeVisible({ timeout: 120000 });
 });
+
+/** The season before a tournament, after its first international window. */
+let qualifyingCached: string | undefined;
+function qualifyingSave(): string {
+  if (qualifyingCached) return qualifyingCached;
+  const base = generateWorld('qualifying-browser', { format: 'legacy' });
+  const trial = trialOffers(base, 'country:0', 'qualifying-browser')[0]!;
+  let world: World = createCareer(
+    base,
+    {
+      name: 'Robin Vale',
+      avatar: {
+        face: 1,
+        skin: 2,
+        hair: 3,
+        hairColor: 4,
+        facialHair: 0,
+        eyebrows: 1,
+        eyes: 2,
+        accessory: 3,
+      },
+      nationalityId: 'country:0',
+      position: 'ST',
+      foot: 'left',
+      age: 17,
+      archetype: 'finisher',
+    },
+    trial.id,
+    'qualifying-browser',
+  );
+  while (world.phase === 'active')
+    world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  world = startNextSeason(world, { inPlace: true });
+  while (!world.international!.qualifying!.played)
+    world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  qualifyingCached = JSON.stringify(
+    createSave(1, 'Qualifying career', {
+      kind: 'world',
+      world,
+      gallery: { seed: 'qualifying-browser', generation: 0 },
+      settings: DEFAULT_SETTINGS,
+    }),
+  );
+  return qualifyingCached;
+}
+
+test('shows the nation’s qualifying group and matches on the national page', async ({ page }) => {
+  test.setTimeout(180000);
+  await page.goto('/saves');
+  await page
+    .locator('.slot-card')
+    .nth(0)
+    .getByLabel('Import backup — Slot 1')
+    .setInputFiles({
+      name: 'qualifying.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(qualifyingSave()),
+    });
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText(
+    'Qualifying career',
+  );
+  await page.goto('/career/national?save=1');
+  const panel = page.getByTestId('qualifying');
+  await expect(panel.getByRole('heading')).toContainText(/qualifying/);
+  await expect(panel).toContainText('2 of 6 matchdays played');
+  await expect(panel.getByRole('table').getByRole('row')).toHaveCount(5);
+  await expect(
+    panel.getByRole('list', { name: 'Qualifying matches' }).getByRole('listitem'),
+  ).toHaveCount(6);
+  await expect(panel.getByText('To play')).toHaveCount(4);
+});
