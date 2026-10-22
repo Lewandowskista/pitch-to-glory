@@ -12,10 +12,15 @@ const A = CONFIG.career.development.availability;
 
 /**
  * Record this week's club fixtures, after they are resolved: played (with minutes, from the
- * match record), benched while fit, injured, or not yet registered. `benched` are the fixtures
- * the week's simulation left the player out of.
+ * match record), benched while fit, injured, suspended or not yet registered. `benched` are the
+ * fixtures the week's simulation left the player out of; `suspended` those of them they missed
+ * through a ban, decided before the week served it.
  */
-export function recordAvailability(world: World, benched: readonly Fixture[]): void {
+export function recordAvailability(
+  world: World,
+  benched: readonly Fixture[],
+  suspended: ReadonlySet<string> = new Set(),
+): void {
   const career = world.career;
   if (!career || (career.developmentRules ?? 0) < 2) return;
   const player = world.players[career.playerId]!;
@@ -36,11 +41,13 @@ export function recordAvailability(world: World, benched: readonly Fixture[]): v
       ? 'played'
       : !registered
         ? 'unregistered'
-        : left.has(fixture.id)
-          ? 'benched'
-          : player.injuryId
-            ? 'injured'
-            : 'benched';
+        : suspended.has(fixture.id)
+          ? 'suspended'
+          : left.has(fixture.id)
+            ? 'benched'
+            : player.injuryId
+              ? 'injured'
+              : 'benched';
     entries.push({ season, week, fixtureId: fixture.id, status, minutes: played?.minutes ?? 0 });
   }
   if (entries.length > A.limit) entries.splice(0, entries.length - A.limit);

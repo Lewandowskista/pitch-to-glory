@@ -547,6 +547,9 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   // Matches missed through a suspension are not the manager's choice (the discipline phase):
   // decided now, before this week's fixtures serve the ban.
   const dropped = benched.filter((fixture) => !careerSelection(world, fixture).suspended);
+  const banned = new Set(
+    benched.filter((fixture) => !dropped.includes(fixture)).map((fixture) => fixture.id),
+  );
   for (const fixture of fixtures)
     noteBans(
       world,
@@ -573,7 +576,7 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   creditTitles(world);
   developPlayers(world, rng);
   if (world.career) {
-    recordAvailability(world, benched);
+    recordAvailability(world, benched, banned);
     careerWeek(world);
     marketWeek(world, dropped);
     socialWeek(world);

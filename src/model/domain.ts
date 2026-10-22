@@ -559,7 +559,8 @@ export interface AvailabilityEntry {
   season: number;
   week: number;
   fixtureId: Id;
-  status: 'played' | 'benched' | 'injured' | 'unregistered';
+  /** `suspended`: serving a ban, which never counts against playing time (review phase 4). */
+  status: 'played' | 'benched' | 'injured' | 'unregistered' | 'suspended';
   minutes: number;
 }
 export type StoryKind =

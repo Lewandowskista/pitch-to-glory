@@ -10,6 +10,7 @@ import { careerContract } from '../src/engine/career/market/rules';
 import { developCareer } from '../src/engine/career/training';
 import { playingShare } from '../src/engine/career/availability';
 import { adjustRelationship } from '../src/engine/career/market/records';
+import { disciplineState } from '../src/engine/world/discipline';
 
 const A = CONFIG.career.development.availability;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
@@ -139,6 +140,25 @@ describe('playing time under development rules 2', () => {
     // A whole season later, nothing is recent: the neutral fallback applies.
     idle.date.season++;
     expect(playingShare(idle)).toBe(A.fallback);
+  }, 120000);
+
+  it('records a ban as suspended, which never counts against the player', () => {
+    let world = clone(career);
+    careerContract(world).role = 'key';
+    world = fixtures(world, A.fixtures, (w) => {
+      me(w).fatigue = 0;
+      me(w).form = 90;
+    });
+    const before = playingShare(world);
+    // A two-match league ban, as a dismissal would bring.
+    const state = disciplineState(world);
+    state.players[me(world).id] = { cards: {}, tally: {}, bans: { league: 2 } };
+    world = fixtures(world, 2);
+    const recent = entries(world).slice(-2);
+    expect(recent.map((entry) => entry.status)).toEqual(['suspended', 'suspended']);
+    expect(playingShare(world)).toBeCloseTo(before, 5);
+    // Served: the ban is gone.
+    expect(world.discipline!.players[me(world).id]?.bans.league ?? 0).toBe(0);
   }, 120000);
 
   it('develops a benched player more slowly than one who plays', () => {
