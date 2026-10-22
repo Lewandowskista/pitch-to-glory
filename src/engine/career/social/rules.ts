@@ -146,6 +146,7 @@ export const MORALE_PARTS: readonly MoralePart[] = [
   'chemistry',
   'dressingRoom',
   'cultureFit',
+  'ambition',
   'fans',
   'media',
   'lifestyle',

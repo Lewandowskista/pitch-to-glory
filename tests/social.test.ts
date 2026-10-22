@@ -194,7 +194,7 @@ describe('morale, form and the match', () => {
     expect(social.history).toHaveLength(6);
     expect(social.morale!.target).toBeGreaterThanOrEqual(0);
     for (const part of MORALE_PARTS)
-      expect(Math.abs(social.morale!.parts[part])).toBeLessThanOrEqual(12);
+      expect(Math.abs(social.morale!.parts[part]!)).toBeLessThanOrEqual(12);
     const calm = moraleParts(world).situation;
     world.career!.market.transferRequest = { ...world.date };
     expect(moraleParts(world).situation).toBeLessThan(calm);

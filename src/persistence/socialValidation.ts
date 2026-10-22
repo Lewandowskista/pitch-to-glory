@@ -77,8 +77,10 @@ export function validateSocial(w: Record<string, unknown>): void {
     const morale = object(social.morale);
     number(morale.target, 0, 100);
     const parts = object(morale.parts);
-    requireValue(Object.keys(parts).length === MORALE_PARTS.length);
-    for (const part of MORALE_PARTS) number(parts[part], -20, 20);
+    // Records from before the ambition part (review phase 4) have one part fewer.
+    const expected = MORALE_PARTS.filter((part) => part !== 'ambition' || part in parts);
+    requireValue(Object.keys(parts).length === expected.length);
+    for (const part of expected) number(parts[part], -20, 20);
   }
   number(social.answered, 0, 1e6, true);
   number(social.coverage, -10, 10);

@@ -546,6 +546,14 @@ export const careerText = {
       bigMatchTemperament: 'Big-match temperament',
       ambition: 'Ambition',
     } as Record<string, string>,
+    drive: {
+      summit: 'Wants top-division football by {age}.',
+      starter: 'Wants to be a regular in the side, whatever the role.',
+      roots: 'Values putting down roots at one club.',
+      met: 'Your career gives you that now, and your morale shows it.',
+      unmet: 'Your career does not give you that now, and your morale shows it.',
+      neutral: 'Neither here nor there yet: your morale is unaffected for now.',
+    },
     potential: 'Potential',
     potentialBands: [
       'Solid professional',

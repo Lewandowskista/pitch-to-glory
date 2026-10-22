@@ -736,6 +736,8 @@ export type MoralePart =
   | 'chemistry'
   | 'dressingRoom'
   | 'cultureFit'
+  // A revealed ambition as a stated preference (review phase 4); absent in older records.
+  | 'ambition'
   | 'fans'
   | 'media'
   | 'lifestyle'
@@ -744,7 +746,10 @@ export interface CareerSocial {
   /** Weekly morale and form, newest last. */
   history: WellbeingPoint[];
   /** The latest weekly morale target and what made it up. */
-  morale: { target: number; parts: Record<MoralePart, number> } | null;
+  morale: {
+    target: number;
+    parts: Record<Exclude<MoralePart, 'ambition'>, number> & { ambition?: number };
+  } | null;
   /** Press conferences and interviews answered, for media standing. */
   answered: number;
   /** Sentiment of recent coverage, decaying weekly (−10 to 10). */

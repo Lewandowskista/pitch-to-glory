@@ -358,8 +358,8 @@ function MoraleBreakdown({ career, player }: { career: Career; player: Player })
             <span>{C.raises} +</span>
           </div>
           <ul className="grid gap-2.5">
-            {MORALE_PARTS.map((part) => {
-              const value = morale.parts[part];
+            {MORALE_PARTS.filter((part) => morale.parts[part] !== undefined).map((part) => {
+              const value = morale.parts[part]!;
               const width = Math.min(50, Math.abs(value) * 4);
               return (
                 <li

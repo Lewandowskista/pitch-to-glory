@@ -19,6 +19,7 @@ import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { ART } from '../../engine/assets/shared';
 import { calendarDate } from '../../engine/world/calendar';
 import type { Career, CareerMatchRecord, Club, Player, World } from '../../model/domain';
+import { careerDrive } from '../../engine/career/social/drive';
 import { format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as mk } from '../../i18n/market';
@@ -88,7 +89,7 @@ export default function CareerProfile() {
           </div>
           <div className="flex flex-wrap items-start gap-5">
             <Positions player={context.player} />
-            <Hidden player={context.player} />
+            <Hidden world={context.world} player={context.player} />
             <Longevity world={context.world} career={context.career} player={context.player} />
           </div>
           <Untrained player={context.player} />
@@ -805,9 +806,11 @@ function Positions({ player }: { player: Player }) {
   );
 }
 
-function Hidden({ player }: { player: Player }) {
+function Hidden({ world, player }: { world: World; player: Player }) {
   const { appearances, order } = CONFIG.career.reveal;
   const played = player.stats.appearances;
+  // A revealed ambition is a stated preference that moves morale (review phase 4).
+  const drive = careerDrive(world);
   return (
     <Panel aria-labelledby="hidden-heading" className="min-w-0 flex-[1_1_22rem]">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -854,6 +857,21 @@ function Hidden({ player }: { player: Player }) {
           );
         })}
       </ul>
+      {drive && (
+        <p
+          className="mt-3 rounded-control bg-surface-soft px-3.5 py-2.5 text-sm"
+          data-testid="drive"
+        >
+          <strong>{format(c.profile.drive[drive.kind], { age: drive.age ?? '' })}</strong>{' '}
+          <span className="text-muted">
+            {drive.value > 0
+              ? c.profile.drive.met
+              : drive.value < 0
+                ? c.profile.drive.unmet
+                : c.profile.drive.neutral}
+          </span>
+        </p>
+      )}
     </Panel>
   );
 }

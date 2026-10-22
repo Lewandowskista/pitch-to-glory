@@ -755,6 +755,18 @@ export const CONFIG = {
         injury: -8,
         transferRequest: -5,
         partLimit: 10,
+        /**
+         * A revealed ambition as a stated preference (review phase 4, step 4.2). High ambition
+         * wants top-division football by `summit.age`: `met` there, `behind` per season past it.
+         * Middling ambition wants to be a regular: `met` picked for `regular` of matchdays or
+         * more, `missed` below `fringe`. Low ambition values staying: `met` from `settled`
+         * seasons at a club, `moved` in a first season after a move.
+         */
+        drive: {
+          summit: { from: 70, age: 24, met: 4, behind: -2, limit: 6 },
+          starter: { from: 40, regular: 0.75, fringe: 0.4, met: 3, missed: -4, matchdays: 3 },
+          roots: { settled: 2, met: 3, moved: -3 },
+        },
       },
       /** Without a match, form drifts back toward this level. */
       formRest: 50,

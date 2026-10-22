@@ -191,7 +191,11 @@ export function validateCareer(w: Record<string, unknown>): void {
       number(entry.season, 1800, Number(current.season), true);
       number(entry.week, 1, 200, true);
       text(entry.fixtureId, 120);
-      requireValue(['played', 'benched', 'injured', 'unregistered', 'suspended'].includes(String(entry.status)));
+      requireValue(
+        ['played', 'benched', 'injured', 'unregistered', 'suspended'].includes(
+          String(entry.status),
+        ),
+      );
       number(entry.minutes, 0, 130, true);
     }
   }

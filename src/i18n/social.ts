@@ -21,6 +21,7 @@ export const socialText = {
       chemistry: 'Teammate chemistry',
       dressingRoom: 'Dressing-room mood',
       cultureFit: 'Club culture fit',
+      ambition: 'Your ambition',
       fans: 'Fan affection',
       media: 'Media coverage',
       lifestyle: 'Home and car',
