@@ -941,6 +941,8 @@ export interface SeasonLine {
   assists: number;
   /** Average match rating, 0 without appearances. */
   rating: number;
+  /** Clean sheets in matches played (schema 22); absent in older records. */
+  cleanSheets?: number;
 }
 export interface RivalSeason {
   season: number;
@@ -963,7 +965,14 @@ export interface Rivalry {
   headToHead: { played: number; won: number; drawn: number; lost: number };
   seasons: RivalSeason[];
   /** The rival's lifetime statistics when the current season began. */
-  seasonStart: { appearances: number; goals: number; assists: number; ratingTotal: number };
+  seasonStart: {
+    appearances: number;
+    goals: number;
+    assists: number;
+    ratingTotal: number;
+    /** From schema 22; absent until the next season begins. */
+    cleanSheets?: number;
+  };
   /** The rival's goals at the end of last week, to notice new ones. */
   lastGoals: number;
   timeline: RivalryEntry[];
@@ -1209,6 +1218,11 @@ export type ChronicleKind =
   | 'hat-trick'
   | 'goal-milestone'
   | 'apps-milestone'
+  // Landmarks for every position (review phase 3, step 3.4; schema 22).
+  | 'first-clean-sheet'
+  | 'clean-sheet-milestone'
+  | 'first-assist'
+  | 'assist-milestone'
   | 'move'
   | 'injury'
   | 'trophy'
@@ -1315,7 +1329,18 @@ export interface Moment {
   id: Id;
   playerId: Id;
   date: GameDate;
-  kind: 'winner' | 'equalizer' | 'wonder' | 'final' | 'hat-trick';
+  kind:
+    | 'winner'
+    | 'equalizer'
+    | 'wonder'
+    | 'final'
+    | 'hat-trick'
+    // Review phase 3, step 3.4: moments for every position (schema 22).
+    | 'assist'
+    | 'great-save'
+    | 'penalty-save'
+    | 'last-ditch'
+    | 'shootout';
   minute: number;
   scorerName: string;
   home: { name: string; color: Hex };

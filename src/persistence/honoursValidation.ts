@@ -24,6 +24,10 @@ const CHRONICLE = [
   'hat-trick',
   'goal-milestone',
   'apps-milestone',
+  'first-clean-sheet',
+  'clean-sheet-milestone',
+  'first-assist',
+  'assist-milestone',
   'move',
   'injury',
   'trophy',
@@ -261,7 +265,18 @@ export function validateHonours(w: Record<string, unknown>): void {
     momentIds.add(String(moment.id));
     ref(moment.playerId, players);
     date(moment.date);
-    options(moment.kind, ['winner', 'equalizer', 'wonder', 'final', 'hat-trick']);
+    options(moment.kind, [
+      'winner',
+      'equalizer',
+      'wonder',
+      'final',
+      'hat-trick',
+      'assist',
+      'great-save',
+      'penalty-save',
+      'last-ditch',
+      'shootout',
+    ]);
     number(moment.minute, 1, 130, true);
     text(moment.scorerName);
     for (const side of ['home', 'away']) {

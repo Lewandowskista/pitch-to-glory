@@ -23,6 +23,8 @@ export const POSTER_HIGHLIGHTS = new Set<ChronicleEntry['kind']>([
   'move',
   'hat-trick',
   'goal-milestone',
+  'clean-sheet-milestone',
+  'assist-milestone',
   'cap',
   'retirement',
 ]);

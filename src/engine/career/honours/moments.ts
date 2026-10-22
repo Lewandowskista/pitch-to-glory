@@ -101,6 +101,8 @@ function cutClip(
   event: MatchEvent,
   playerId: string,
   trim: [Hex, Hex],
+  /** The action the fallback draws: a shot, or a save or challenge for defensive moments. */
+  action: 'shot' | 'save' | 'tackle' = 'shot',
 ): Clip | null {
   const highlight = session.state.highlights?.find((entry) => entry.eventId === event.id);
   if (
@@ -137,14 +139,21 @@ function cutClip(
     ms: FALLBACK_MS,
     motion: 'shot',
     carrier: null,
-    beat: { kind: 'shot', actor: selected },
+    beat: { kind: action, actor: selected },
   });
   return { selected, frames: keyframes, players: clipPlayers(session, [at], playerId), trim };
 }
 
+/** Key-moment choices that make a last-ditch defensive Moment when they succeed. */
+const LAST_DITCH = new Set(['goal-line-clear', 'body-block', 'stretch-tackle', 'slide-block']);
+const PENALTY_SAVES = new Set(['penalty-read', 'penalty-stay']);
+
 /**
- * Save memorable goals by the career player from a committed match: a goal in a final,
- * a late winner or equaliser, a hat-trick, or a long-odds key-moment finish.
+ * Save memorable moments of the career player from a committed match, at most two: goals
+ * first (in a final, a late winner or equaliser, a hat-trick, a long-odds finish), then for
+ * every position (review phase 3, step 3.4) a shootout won by their kick or save, a penalty
+ * saved, a last-ditch challenge, a long-odds save late in a close game, and an assist for a
+ * late winner, a late equaliser or a goal in a final.
  */
 export function captureMoments(world: World, session: MatchSession, importance: number): string[] {
   const career = world.career!;
@@ -153,38 +162,25 @@ export function captureMoments(world: World, session: MatchSession, importance: 
     session.setup.home.id === world.players[career.playerId]!.clubId ||
     session.setup.home.playerIds.includes(career.playerId);
   const own = ownHome ? 0 : 1;
+  const ownTeam = ownHome ? session.setup.home.id : session.setup.away.id;
   const final = state.match.score;
+  const won = final[own]! > final[1 - own]!;
+  const lost = final[own]! < final[1 - own]!;
   let ownGoals = 0;
   let theirGoals = 0;
   let scored = 0;
   const saved: string[] = [];
   const kits = chooseMatchKits(session.setup.home, session.setup.away);
-  for (const event of state.match.events) {
-    if (event.kind !== 'goal') continue;
-    const mine = event.teamId === (ownHome ? session.setup.home.id : session.setup.away.id);
-    if (mine) ownGoals++;
-    else theirGoals++;
-    if (event.playerId !== career.playerId) continue;
-    scored++;
-    const late = event.minute >= MO.lateMinute;
-    const kind: Moment['kind'] | null =
-      importance >= 1.5
-        ? 'final'
-        : late && ownGoals === theirGoals + 1 && final[own]! > final[1 - own]!
-          ? 'winner'
-          : late && ownGoals === theirGoals && final[own] === final[1 - own]
-            ? 'equalizer'
-            : scored === 3
-              ? 'hat-trick'
-              : event.outcome && event.outcome.probability <= MO.wonderProbability
-                ? 'wonder'
-                : null;
-    if (!kind || saved.length >= 2) continue;
-    const clip = cutClip(session, event, career.playerId, [
-      kits.home.colors[1],
-      kits.away.colors[1],
-    ]);
-    if (!clip) continue;
+  const save = (event: MatchEvent, kind: Moment['kind'], action: 'shot' | 'save' | 'tackle') => {
+    if (saved.length >= 2) return;
+    const clip = cutClip(
+      session,
+      event,
+      career.playerId,
+      [kits.home.colors[1], kits.away.colors[1]],
+      action,
+    );
+    if (!clip) return;
     const moment: Moment = {
       id: nextId(world, 'moment'),
       playerId: career.playerId,
@@ -200,6 +196,63 @@ export function captureMoments(world: World, session: MatchSession, importance: 
     };
     world.moments.push(moment);
     saved.push(moment.id);
+  };
+  // What each goal meant when it went in: a late winner or a late equaliser.
+  const decisive = new Map<MatchEvent, 'winner' | 'equalizer'>();
+  for (const event of state.match.events) {
+    if (event.kind !== 'goal') continue;
+    if (event.teamId === ownTeam) ownGoals++;
+    else theirGoals++;
+    if (event.teamId !== ownTeam || event.minute < MO.lateMinute) continue;
+    if (ownGoals === theirGoals + 1 && won) decisive.set(event, 'winner');
+    else if (ownGoals === theirGoals && final[own] === final[1 - own])
+      decisive.set(event, 'equalizer');
+  }
+  for (const event of state.match.events) {
+    if (event.kind !== 'goal' || event.playerId !== career.playerId) continue;
+    scored++;
+    const kind: Moment['kind'] | null =
+      importance >= 1.5
+        ? 'final'
+        : (decisive.get(event) ??
+          (scored === 3
+            ? 'hat-trick'
+            : event.outcome && event.outcome.probability <= MO.wonderProbability
+              ? 'wonder'
+              : null));
+    if (kind) save(event, kind, 'shot');
+  }
+  // The shootout (match-13): the kick or save, when the side won it.
+  const shootoutMoment = state.match.keyMoments.find((moment) => moment.follows === 'shootout');
+  const penalties = state.penalties;
+  const shootoutWon = Boolean(
+    state.shootout?.success && penalties && penalties[own]! > penalties[1 - own]!,
+  );
+  for (const event of state.match.events) {
+    if (saved.length >= 2) break;
+    if (event.playerId !== career.playerId || !event.outcome?.success) continue;
+    const choice = event.outcome.input.choiceId;
+    const shootout = event.outcome.input.momentId === shootoutMoment?.id;
+    if (shootout) {
+      if (shootoutWon) save(event, 'shootout', event.kind === 'save' ? 'save' : 'shot');
+    } else if (event.kind === 'save' && PENALTY_SAVES.has(choice))
+      save(event, 'penalty-save', 'save');
+    else if (event.kind === 'tackle' && LAST_DITCH.has(choice) && !lost)
+      save(event, 'last-ditch', 'tackle');
+    else if (
+      event.kind === 'save' &&
+      event.outcome.probability <= MO.greatSave &&
+      event.minute >= MO.defensiveMinute &&
+      Math.abs(final[0]! - final[1]!) <= 1 &&
+      !lost
+    )
+      save(event, 'great-save', 'save');
+  }
+  // An assist for a decisive goal, or any assist in a final.
+  for (const event of state.match.events) {
+    if (saved.length >= 2) break;
+    if (event.kind !== 'goal' || event.assistId !== career.playerId) continue;
+    if (importance >= 1.5 || decisive.has(event)) save(event, 'assist', 'shot');
   }
   trimMoments(world, career.playerId);
   return saved;

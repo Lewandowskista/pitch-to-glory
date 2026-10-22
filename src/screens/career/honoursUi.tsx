@@ -78,6 +78,10 @@ const GLYPHS = {
   contract: 'M6 3H15L19 7V21H6ZM15 3V7H19M9 12H16M9 16H14',
   lock: 'M6 11H18V21H6ZM8.5 11V7.5A3.5 3.5 0 0 1 15.5 7.5V11',
   check: 'M5 12L10 17L20 6',
+  // A keeper's glove and a defender's shield (review phase 3 Moments).
+  glove:
+    'M7 21V11L5 7.5Q4.5 6 6 6L8 9V4Q8 3 9 3T10 4V9V3Q10 2 11 2T12 3V9V4Q12 3 13 3T14 4V10V6Q14 5 15 5T16 6V14Q16 18 13 21Z',
+  shield: 'M12 3L20 6V11Q20 17 12 21Q4 17 4 11V6ZM12 7V17',
   link: 'M10 14L14 10M8.5 11.5L6 14A3.5 3.5 0 0 0 11 19L13.5 16.5M15.5 12.5L18 10A3.5 3.5 0 0 0 13 5L10.5 7.5',
 } as const;
 export type GlyphName = keyof typeof GLYPHS;
@@ -122,6 +126,10 @@ export const CHRONICLE_GLYPH: Record<ChronicleEntry['kind'], GlyphName> = {
   'hat-trick': 'ball',
   'goal-milestone': 'ball',
   'apps-milestone': 'boot',
+  'first-clean-sheet': 'glove',
+  'clean-sheet-milestone': 'glove',
+  'first-assist': 'boot',
+  'assist-milestone': 'boot',
   move: 'transfer',
   injury: 'injury',
   trophy: 'trophy',
@@ -153,10 +161,16 @@ export function chronicleSentence(world: World, entry: ChronicleEntry): string {
   }
   if (entry.kind === 'goal-milestone' && typeof p.goals === 'number')
     p.goals = counted(p.goals, C.careerGoals);
+  if (entry.kind === 'clean-sheet-milestone' && typeof p.cleanSheets === 'number')
+    p.cleanSheets = counted(p.cleanSheets, C.cleanSheets);
+  if (entry.kind === 'assist-milestone' && typeof p.assists === 'number')
+    p.assists = counted(p.assists, C.assists);
   if (entry.kind === 'apps-milestone' && typeof p.appearances === 'number')
     p.appearances = counted(p.appearances, C.apps);
   if (entry.kind === 'moment' && typeof p.minute === 'number') p.minute = ordinal(p.minute);
   if (entry.kind === 'rival' && typeof p.goals === 'number') p.goals = counted(p.goals, C.goals);
+  if (entry.kind === 'rival' && typeof p.cleanSheets === 'number')
+    p.cleanSheets = counted(p.cleanSheets, C.cleanSheets);
   const club = entry.clubId ? world.clubs[entry.clubId]?.name : undefined;
   if (club && p.club === undefined) p.club = club;
   if (typeof p.fee === 'number') p.fee = money(p.fee);
@@ -196,6 +210,8 @@ export function chronicleSentence(world: World, entry: ChronicleEntry): string {
         ? `move-${p.kind}`
         : entry.kind === 'start' && p.parent
           ? 'startChild'
-          : entry.kind;
+          : entry.kind === 'rival' && p.cleanSheets !== undefined
+            ? 'rival-defence'
+            : entry.kind;
   return format(h.chronicle.entries[key] ?? '', p);
 }

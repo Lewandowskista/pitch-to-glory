@@ -825,6 +825,8 @@ export const CONFIG = {
         moveChance: 0.35,
         timelineLimit: 60,
         compareEvery: 8,
+        /** A season's worth by line (review phase 3): what a clean sheet counts for. */
+        output: { keeperCleanSheet: 2, defenderCleanSheet: 1.5 },
       },
       media: {
         limit: 150,
@@ -975,7 +977,20 @@ export const CONFIG = {
        * advice, and late decline itself discourages playing on (career.longevity).
        */
       retirement: { optionalAge: 32, forcedAge: 38, declineAge: 33, declineShare: 0.78 },
-      moments: { limit: 40, lateMinute: 85, wonderProbability: 0.2 },
+      /**
+       * Moments: a late goal from `lateMinute`, a wonder goal at odds up to `wonderProbability`;
+       * for every position (review phase 3): a save at odds up to `greatSave` from
+       * `defensiveMinute` with the game within a goal, and a successful last-ditch challenge.
+       */
+      /** Chronicle landmarks for every position (review phase 3). */
+      milestones: { cleanSheets: [25, 50, 100, 200, 300], assists: [25, 50, 100, 150, 200] },
+      moments: {
+        limit: 40,
+        lateMinute: 85,
+        wonderProbability: 0.2,
+        greatSave: 0.35,
+        defensiveMinute: 70,
+      },
       /** Hall of Fame score. */
       /**
        * Ambitions the player chooses for the career: at most `count`, changed once a season.

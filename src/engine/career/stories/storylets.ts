@@ -26,7 +26,7 @@ import { addWeeks, compareDates, managerTrust, relationshipValue, today } from '
 import { chronicle } from '../honours/chronicle';
 import { fameLevel } from '../lifestyle/wardrobe';
 import { adjustCliques, adjustMood, keyTeammates } from '../social/dressing';
-import { adjustIntensity, rivalOf, rivalryOf, seasonLines } from '../social/rival';
+import { adjustIntensity, rivalOf, rivalOutput, rivalryOf, seasonLines } from '../social/rival';
 import { careerClub, careerPlayer, careerRoom } from '../social/rules';
 
 const T = CONFIG.career.stories;
@@ -254,16 +254,24 @@ export const STORYLETS: readonly Storylet[] = [
       const rival = rivalOf(world);
       if (!rivalry || !rival || rivalry.intensity < T.rivalIntensity) return null;
       const lines = seasonLines(world);
+      // Each judged by their line (review phase 3): clean sheets for the back line.
+      const position = world.players[world.career!.playerId]!.primaryPosition;
       return {
         rival: rival.name,
-        goals: lines?.career.goals ?? 0,
-        rivalGoals: lines?.rival.goals ?? 0,
+        output: lines ? rivalOutput(lines.career, position) : 0,
+        rivalOutput: lines ? rivalOutput(lines.rival, position) : 0,
       };
     },
     resolve(world, story) {
       const lines = seasonLines(world);
-      const gained = (lines?.career.goals ?? 0) - Number(story.params.goals);
-      const rivalGained = (lines?.rival.goals ?? 0) - Number(story.params.rivalGoals);
+      const position = world.players[world.career!.playerId]!.primaryPosition;
+      // A story begun before the comparison by line kept goals.
+      const byGoals = story.params.output === undefined;
+      const now = (side: 'career' | 'rival') =>
+        lines ? (byGoals ? lines[side].goals : rivalOutput(lines[side], position)) : 0;
+      const gained = now('career') - Number(byGoals ? story.params.goals : story.params.output);
+      const rivalGained =
+        now('rival') - Number(byGoals ? story.params.rivalGoals : story.params.rivalOutput);
       return gained >= rivalGained
         ? { outcome: 'won', effects: { fame: 5, morale: 4 }, chronicle: true }
         : { outcome: 'lost', effects: { fame: -3, morale: -3 } };

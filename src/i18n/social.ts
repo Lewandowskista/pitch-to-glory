@@ -335,6 +335,8 @@ export const socialText = {
       'A difficult afternoon for {player}, who looked short of ideas against {opponent}.',
     'journalist.compare':
       'Season so far: {player} {goals} goals, {rival} {rivalGoals}. The debate goes on.',
+    'journalist.compare-defence':
+      'Season so far: {player} {cleanSheets} clean sheets, {rival} {rivalCleanSheets}. The debate goes on.',
     'journalist.rival-transfer': '{rival} completes a {fee} move to {club}.',
     'rival.goal': 'On the scoresheet for {club} today. Onwards.',
     'rival.brace': 'Two goals for {club}. Some people should be watching.',

@@ -12,7 +12,15 @@ import { fixtureKind } from '../fixtures';
 import { adjustRelationship, nextId, postMessage } from '../market/records';
 import { addWeeks, compareDates, today } from '../market/rules';
 import { adjustCliques, adjustMood } from './dressing';
-import { addTimeline, adjustIntensity, rivalOf, rivalryOf, seasonLines } from './rival';
+import {
+  addTimeline,
+  adjustIntensity,
+  backLine,
+  rivalOf,
+  rivalOutput,
+  rivalryOf,
+  seasonLines,
+} from './rival';
 import { careerClub, careerPlayer, S } from './rules';
 
 const MD = S.media;
@@ -395,14 +403,31 @@ function rivalPosts(world: World, rng: Rng): void {
         kind: 'social',
         author: 'journalist',
         authorName: rng.pick(OUTLETS),
-        textKey: 'journalist.compare',
-        params: {
-          player: careerPlayer(world).name,
-          rival: rival.name,
-          goals: lines.career.goals,
-          rivalGoals: lines.rival.goals,
-        },
-        sentiment: lines.career.goals >= lines.rival.goals ? 1 : -1,
+        // Keepers and defenders are compared by clean sheets (review phase 3).
+        ...(backLine(careerPlayer(world).primaryPosition)
+          ? {
+              textKey: 'journalist.compare-defence',
+              params: {
+                player: careerPlayer(world).name,
+                rival: rival.name,
+                cleanSheets: lines.career.cleanSheets ?? 0,
+                rivalCleanSheets: lines.rival.cleanSheets ?? 0,
+              },
+            }
+          : {
+              textKey: 'journalist.compare',
+              params: {
+                player: careerPlayer(world).name,
+                rival: rival.name,
+                goals: lines.career.goals,
+                rivalGoals: lines.rival.goals,
+              },
+            }),
+        sentiment:
+          rivalOutput(lines.career, careerPlayer(world).primaryPosition) >=
+          rivalOutput(lines.rival, careerPlayer(world).primaryPosition)
+            ? 1
+            : -1,
       });
   }
 }

@@ -2,6 +2,7 @@ import type {
   Club,
   Fixture,
   Player,
+  Position,
   Rivalry,
   RivalryEntry,
   SeasonLine,
@@ -101,6 +102,7 @@ export function startRivalry(world: World, rng: Rng): Rivalry | null {
       goals: rival.stats.goals,
       assists: rival.stats.assists,
       ratingTotal: rival.stats.ratingTotal,
+      cleanSheets: rival.stats.cleanSheets,
     },
     lastGoals: rival.stats.goals,
     timeline: [],
@@ -139,6 +141,7 @@ export function seasonLines(
       rating: matches.length
         ? Math.round((matches.reduce((sum, m) => sum + m.rating, 0) / matches.length) * 100) / 100
         : 0,
+      cleanSheets: matches.filter((m) => m.cleanSheet).length,
     },
     rival: {
       clubId: rival.clubId!,
@@ -149,8 +152,27 @@ export function seasonLines(
         ? Math.round(((rival.stats.ratingTotal - rivalry.seasonStart.ratingTotal) / apps) * 100) /
           100
         : 0,
+      // A rivalry saved before clean sheets were tracked counts them from the next season.
+      cleanSheets:
+        rival.stats.cleanSheets - (rivalry.seasonStart.cleanSheets ?? rival.stats.cleanSheets),
     },
   };
+}
+
+/** Whether a position is judged by clean sheets: keepers and defenders. */
+export const backLine = (position: Position): boolean => ['GK', 'DEF'].includes(lineOf(position));
+
+/**
+ * What a season is worth for the comparison, by the line both play in (review phase 3, step
+ * 3.4): keepers by clean sheets (and the odd assist), defenders by clean sheets as well as goals
+ * and assists, everyone else by goals and assists.
+ */
+export function rivalOutput(line: SeasonLine, position: Position): number {
+  const sheets = line.cleanSheets ?? 0;
+  const L = lineOf(position);
+  if (L === 'GK') return sheets * R.output.keeperCleanSheet + line.assists;
+  if (L === 'DEF') return sheets * R.output.defenderCleanSheet + line.goals + line.assists;
+  return line.goals + line.assists;
 }
 
 /** Where the rival would move: a bigger club whose first team they would walk into. */
@@ -257,19 +279,25 @@ export function rivalSeasonEnd(world: World, season: number): void {
   const lines = seasonLines(world, season);
   if (!rivalry || !rival || !lines) return;
   rivalry.seasons.push({ season, career: lines.career, rival: lines.rival });
+  const position = careerPlayer(world).primaryPosition;
   const ahead =
-    lines.career.goals +
-    lines.career.assists -
-    (lines.rival.goals + lines.rival.assists) +
+    rivalOutput(lines.career, position) -
+    rivalOutput(lines.rival, position) +
     (lines.career.rating - lines.rival.rating) * 5;
   adjustIntensity(rivalry, R.seasonEnd);
   if (ahead >= 0 && lines.career.appearances)
-    chronicle(world, 'rival', {
-      rival: rival.name,
-      season,
-      goals: lines.career.goals,
-      rivalGoals: lines.rival.goals,
-    });
+    chronicle(
+      world,
+      'rival',
+      backLine(position)
+        ? {
+            rival: rival.name,
+            season,
+            cleanSheets: lines.career.cleanSheets ?? 0,
+            rivalCleanSheets: lines.rival.cleanSheets ?? 0,
+          }
+        : { rival: rival.name, season, goals: lines.career.goals, rivalGoals: lines.rival.goals },
+    );
   addTimeline(world, rivalry, 'season', {
     season,
     rival: rival.name,
@@ -280,6 +308,7 @@ export function rivalSeasonEnd(world: World, season: number): void {
     goals: rival.stats.goals,
     assists: rival.stats.assists,
     ratingTotal: rival.stats.ratingTotal,
+    cleanSheets: rival.stats.cleanSheets,
   };
   rivalry.lastGoals = rival.stats.goals;
 }

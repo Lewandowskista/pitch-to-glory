@@ -29,6 +29,7 @@ function seasonLine(value: unknown, clubs: Record<string, unknown>): void {
   ref(line.clubId, clubs);
   for (const key of ['appearances', 'goals', 'assists']) number(line[key], 0, 1000, true);
   number(line.rating, 0, 10);
+  if (line.cleanSheets !== undefined) number(line.cleanSheets, 0, 1000, true);
 }
 
 /**
@@ -104,6 +105,7 @@ export function validateSocial(w: Record<string, unknown>): void {
     const start = object(rivalry.seasonStart);
     for (const key of ['appearances', 'goals', 'assists']) number(start[key], 0, 1e7, true);
     number(start.ratingTotal, 0, 1e8);
+    if (start.cleanSheets !== undefined) number(start.cleanSheets, 0, 1e7, true);
     number(rivalry.lastGoals, 0, 1e7, true);
     for (const entryValue of array(rivalry.timeline, S.rival.timelineLimit)) {
       const entry = object(entryValue);

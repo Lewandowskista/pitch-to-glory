@@ -96,15 +96,15 @@ export const storyletsText = {
       title: 'A war of words',
       body: '{rival} has had a dig at you in an interview. The press wants your reaction.',
       choices: {
-        respond: 'Fire back: “Watch the goals column”',
+        respond: 'Fire back: “Let the numbers do the talking”',
         ignore: 'Rise above it',
         joke: 'Laugh it off on social media',
       },
       outcomes: {
         ignore: 'You said nothing. The story died quickly.',
         joke: 'The fans loved your reply. Even neutrals shared it.',
-        won: 'You backed up your words, outscoring {rival} since. The press noticed.',
-        lost: '{rival} had the last laugh. The goals column did not go your way.',
+        won: 'You backed up your words and outperformed {rival} since. The press noticed.',
+        lost: '{rival} had the last laugh. The numbers since did not go your way.',
       },
     },
     'transfer-saga': {

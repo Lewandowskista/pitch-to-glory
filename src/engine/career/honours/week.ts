@@ -9,6 +9,7 @@ import { monthlyAward, recordCareerTrophies, seasonAwards, startAwardSeason } fr
 import { retireCareer, retirementAge, retirementState, testimonialCheck } from './retirement';
 import { ambitionsCheck } from './ambitions';
 import { CONFIG } from '../../config';
+import { backLine } from '../social/rival';
 
 export { recordCareerTrophies, startAwardSeason };
 
@@ -68,6 +69,19 @@ export function honoursMatch(
   for (const milestone of [100, 250, 500, 750])
     if (player.stats.appearances === milestone)
       chronicle(world, 'apps-milestone', { appearances: milestone });
+  // Landmarks for every position (review phase 3): clean sheets for keepers and defenders,
+  // and assists for everyone.
+  const M = CONFIG.career.honours.milestones;
+  if (backLine(player.primaryPosition) && record.cleanSheet) {
+    if (player.stats.cleanSheets === 1) chronicle(world, 'first-clean-sheet', { opponent });
+    if ((M.cleanSheets as readonly number[]).includes(player.stats.cleanSheets))
+      chronicle(world, 'clean-sheet-milestone', { cleanSheets: player.stats.cleanSheets });
+  }
+  if (record.assists > 0 && player.stats.assists === record.assists)
+    chronicle(world, 'first-assist', { opponent });
+  for (const milestone of M.assists)
+    if (player.stats.assists >= milestone && player.stats.assists - record.assists < milestone)
+      chronicle(world, 'assist-milestone', { assists: milestone });
   ambitionsCheck(world);
 }
 

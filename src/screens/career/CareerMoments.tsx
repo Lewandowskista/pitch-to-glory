@@ -20,16 +20,33 @@ export default function CareerMoments() {
   );
 }
 
-const MOMENT_KINDS = ['winner', 'equalizer', 'wonder', 'final', 'hat-trick'] as const;
+/** Goals first, then the moments every position can make (saves, challenges, assists). */
+const MOMENT_KINDS = [
+  'winner',
+  'equalizer',
+  'wonder',
+  'final',
+  'hat-trick',
+  'shootout',
+  'penalty-save',
+  'great-save',
+  'last-ditch',
+  'assist',
+] as const;
 const MOMENT_GLYPH: Record<Moment['kind'], GlyphName> = {
   winner: 'ball',
   equalizer: 'ball',
   wonder: 'star',
   final: 'trophy',
   'hat-trick': 'ball',
+  shootout: 'medal',
+  'penalty-save': 'glove',
+  'great-save': 'glove',
+  'last-ditch': 'shield',
+  assist: 'boot',
 };
 /** Rare kinds wear gold; the rest the accent. */
-const GOLD_KINDS = new Set<Moment['kind']>(['wonder', 'final']);
+const GOLD_KINDS = new Set<Moment['kind']>(['wonder', 'final', 'shootout', 'penalty-save']);
 const LATE = ordinal(CONFIG.career.honours.moments.lateMinute);
 
 /** A side's crest, found by name (clips store names and colours, not club ids). */
