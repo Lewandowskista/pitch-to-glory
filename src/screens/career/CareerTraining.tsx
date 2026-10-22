@@ -39,7 +39,7 @@ const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
 const intensities = ['low', 'normal', 'high'] as const;
 type Intensity = TrainingSession['intensity'];
-type FocusKind = 'group' | 'single' | 'position' | 'recovery';
+type FocusKind = 'group' | 'single' | 'position' | 'recovery' | 'opponent';
 
 const KIND_ICON: Record<FocusKind, string> = {
   group: 'M4 4H10V10H4ZM14 4H20V10H14ZM4 14H10V20H4ZM14 14H20V20H14Z',
@@ -47,10 +47,14 @@ const KIND_ICON: Record<FocusKind, string> = {
   position:
     'M12 21S5 14 5 9.5A7 7 0 0 1 19 9.5C19 14 12 21 12 21ZM12 7A2.5 2.5 0 1 0 12 12A2.5 2.5 0 1 0 12 7',
   recovery: 'M5 19Q5 6 19 5Q18 19 5 19ZM5 19L13 11',
+  opponent: 'M2 12S6 5 12 5S22 12 22 12S18 19 12 19S2 12 2 12ZM12 9A3 3 0 1 0 12 15A3 3 0 1 0 12 9',
 };
+/** Sessions that ignore intensity: recovery, and studying the next opponent (review phase 4). */
+const fixedIntensity = (focus: TrainingFocus) => focus === 'recovery' || focus === 'opponent';
 
 function focusKind(focus: TrainingFocus): FocusKind {
   if (focus === 'recovery') return 'recovery';
+  if (focus === 'opponent') return 'opponent';
   if (isPositionFocus(focus)) return 'position';
   return (TRAINING_GROUPS as readonly string[]).includes(focus) ? 'group' : 'single';
 }
@@ -61,10 +65,16 @@ const kindName = (kind: FocusKind) =>
       ? c.training.single
       : kind === 'position'
         ? c.training.positions
-        : c.training.recovery;
+        : kind === 'opponent'
+          ? c.training.opponent
+          : c.training.recovery;
 
 function sessionFatigue(focus: TrainingFocus, intensity: Intensity): number {
-  return focus === 'recovery' ? T.fatigue.recovery : T.fatigue[intensity];
+  return focus === 'recovery'
+    ? T.fatigue.recovery
+    : focus === 'opponent'
+      ? T.fatigue.opponent
+      : T.fatigue[intensity];
 }
 
 function TrainingActionsPortal({ phone, children }: { phone: boolean; children: ReactNode }) {
@@ -156,6 +166,11 @@ function FocusSelect({
             <option value="recovery">{c.training.recovery}</option>
           </optgroup>
         )}
+        {allowRecovery && (
+          <optgroup label={c.training.opponent}>
+            <option value="opponent">{c.training.opponentFocus}</option>
+          </optgroup>
+        )}
       </select>
     </div>
   );
@@ -168,6 +183,15 @@ function FocusDescription({ player, focus }: { player: Player; focus: TrainingFo
       <>
         {kind}
         {c.training.recoveryBody}
+      </>
+    );
+  if (focus === 'opponent')
+    return (
+      <>
+        {kind}
+        {format(c.training.opponentBody, {
+          percent: Math.round((1 - CONFIG.match.prepared) * 100),
+        })}
       </>
     );
   if (isPositionFocus(focus)) {
@@ -276,7 +300,7 @@ function TrainingPlanner({
     1 -
     [
       ...plan.sessions
-        .filter((session) => session.focus !== 'recovery')
+        .filter((session) => !fixedIntensity(session.focus))
         .map((session) => T.injuryRisk[session.intensity]),
       ...(effective.extra ? [T.injuryRisk.extra] : []),
     ].reduce((product, value) => product * (1 - value), 1);
@@ -418,14 +442,14 @@ function TrainingPlanner({
                   <FocusDescription player={player} focus={session.focus} />
                 </p>
               </div>
-              <fieldset disabled={session.focus === 'recovery'} className="mt-auto min-w-0">
+              <fieldset disabled={fixedIntensity(session.focus)} className="mt-auto min-w-0">
                 <legend className="mb-1.5 text-[0.8125rem] font-bold">
                   {c.training.intensity}
                 </legend>
                 <div
                   className={cx(
                     'grid grid-cols-3 gap-1 rounded-control bg-surface-soft p-1',
-                    session.focus === 'recovery' && 'opacity-50',
+                    fixedIntensity(session.focus) && 'opacity-50',
                   )}
                 >
                   {intensities.map((intensity) => (
@@ -448,11 +472,13 @@ function TrainingPlanner({
                 <p className="mt-2 text-xs text-muted">
                   {session.focus === 'recovery'
                     ? format(c.training.intensityRecovery, { fatigue: T.fatigue.recovery })
-                    : format(c.training.intensityEffects, {
-                        gain: (T.gain[session.intensity] / T.gain.normal).toFixed(1),
-                        fatigue: T.fatigue[session.intensity],
-                        risk: percent(T.injuryRisk[session.intensity]),
-                      })}
+                    : session.focus === 'opponent'
+                      ? format(c.training.intensityOpponent, { fatigue: T.fatigue.opponent })
+                      : format(c.training.intensityEffects, {
+                          gain: (T.gain[session.intensity] / T.gain.normal).toFixed(1),
+                          fatigue: T.fatigue[session.intensity],
+                          risk: percent(T.injuryRisk[session.intensity]),
+                        })}
                 </p>
               </fieldset>
             </Panel>

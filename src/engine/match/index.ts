@@ -285,6 +285,8 @@ export function createMatchSetup(
     captain?: boolean;
     /** Players of either club serving a suspension in this competition (match-16). */
     suspended?: readonly string[];
+    /** The player studied the opponent in training this week (match-19). */
+    prepared?: boolean;
   } = {},
 ): MatchSetup {
   const home = world.clubs[homeId],
@@ -326,6 +328,8 @@ export function createMatchSetup(
           discipline: true as const,
           roleSlot: true as const,
           extraTimePlay: true as const,
+          identity: true as const,
+          ...(options.prepared ? { prepared: true as const } : {}),
           ...(options.suspended?.some((id) => id !== selectedPlayerId)
             ? { suspended: options.suspended.filter((id) => id !== selectedPlayerId) }
             : {}),
@@ -375,6 +379,30 @@ const current = (setup: Pick<MatchSetup, 'occasions' | 'discipline' | 'roleSlot'
 const extraTimeEngine = (
   setup: Pick<MatchSetup, 'occasions' | 'discipline' | 'roleSlot' | 'extraTimePlay'>,
 ) => current(setup) && Boolean(setup.extraTimePlay);
+/** Opponent identity and the preferred foot (`match-19`). */
+const identityEngine = (
+  setup: Pick<MatchSetup, 'occasions' | 'discipline' | 'roleSlot' | 'extraTimePlay' | 'identity'>,
+) => extraTimeEngine(setup) && Boolean(setup.identity);
+/** The opposition's playing style, on the engine that reads it (match-19). */
+const opposingStyle = (setup: MatchSetup): string | undefined =>
+  identityEngine(setup)
+    ? (selectedSide(setup) === 0 ? setup.away : setup.home).playingStyle
+    : undefined;
+/**
+ * The flank of the selected player's post in their formation, in the attack frame: the side
+ * a shot or cross is made from (match-19). Keepers and central posts have none.
+ */
+function postFlank(session: MatchSession): 'left' | 'right' | 'centre' {
+  const setup = session.setup;
+  const own = selectedSide(setup) === 0 ? session.state.match.home : session.state.match.away;
+  const formation = own.formation as Formation | undefined;
+  const post = formation
+    ? FORMATION_SLOTS[formation]?.[own.starterIds.indexOf(setup.selectedPlayerId)]
+    : undefined;
+  if (!post || setup.players[setup.selectedPlayerId]!.primaryPosition === 'GK') return 'centre';
+  const lateral = post.in[1];
+  return lateral < 50 - C.foot.centre ? 'left' : lateral > 50 + C.foot.centre ? 'right' : 'centre';
+}
 /** The last minute the session plays: 120 once extra time began (match-18), else 90. */
 export function fullTime(session: Pick<MatchSession, 'state'>): number {
   return session.state.regulation ? 90 + C.extraTime.minutes : 90;
@@ -1432,7 +1460,9 @@ function contextFor(
   situation: Situation,
   rng: Rng,
   drawn: { keeper?: string; defender?: string; attacker?: string } = {},
-  weights = situationWeights(playedSlot(session).position, session.state.match.tactics.role),
+  weights = situationWeights(playedSlot(session).position, session.state.match.tactics.role, {
+    opponentStyle: opposingStyle(session.setup),
+  }),
 ): DecisionContext {
   const s = session.state,
     setup = session.setup,
@@ -1497,6 +1527,18 @@ function contextFor(
     ...(latest(setup) ? { latest: true } : {}),
     // Skills stack on the impact path too (match-17).
     ...(current(setup) ? { stackImpact: true } : {}),
+    // The opposition's style and the player's stronger foot (match-19).
+    ...(identityEngine(setup)
+      ? {
+          opponentStyle: opposingStyle(setup),
+          ...(setup.prepared ? { prepared: true } : {}),
+          foot: {
+            strong: player.foot,
+            flank: postFlank(session),
+            twoFooted: player.traits.includes('two-footed'),
+          },
+        }
+      : {}),
   };
 }
 /**
@@ -1734,6 +1776,7 @@ function openMoment(next: MatchSession, forced?: ForcedMoment): void {
   const weights = situationWeights(playedSlot(next).position, m.tactics.role, {
     drama: setup.dramaMoments,
     state: { minute: m.minute, margin },
+    opponentStyle: opposingStyle(setup),
   });
   let situation = weights[weights.length - 1]!.situation;
   if (forced) situation = forced.situation;

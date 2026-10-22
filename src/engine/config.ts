@@ -23,6 +23,47 @@ export const CONFIG = {
      * stop at the cutoff above, so none are made in extra time.
      */
     extraTime: { minutes: 30, moments: [1, 2] as const, firstMoment: 4 },
+    /**
+     * Opponent identity (match-19, review phase 4, step 4.1). Each opposing style multiplies the
+     * weight of the situations it brings about (moment budgets are normalised by the same
+     * weights, so goals per match are unchanged) and the odds of the choices it bears on.
+     */
+    styles: {
+      press: {
+        situations: { 'build-out': 1.6, 'build-up': 0.85 },
+        choices: {
+          'short-pass': 0.92,
+          'carry-out': 0.92,
+          'press-escape': 1.08,
+          'clear-long': 1.04,
+        },
+      },
+      counter: {
+        situations: { 'edge-of-area': 1.4, 'aerial-chance': 1.3, 'box-chance': 0.8 },
+        choices: { 'take-on': 0.92, 'square-pass': 0.95, 'long-shot': 1.06, curler: 1.06 },
+      },
+      possession: {
+        situations: { 'defend-attack': 1.3, 'build-up': 0.9 },
+        choices: { intercept: 0.94, jockey: 1.05, 'track-runner': 1.04 },
+      },
+      direct: {
+        situations: { 'aerial-chance': 1.25, 'cross-ball': 1.3, 'defend-attack': 1.1 },
+        choices: { header: 1.04, 'slide-block': 1.04, 'carry-forward': 1.05 },
+      },
+      balanced: { situations: {}, choices: {} },
+    } as Record<string, { situations: Record<string, number>; choices: Record<string, number> }>,
+    /**
+     * The preferred foot (match-19, step 4.2): a shot, cross or carry on the weaker foot
+     * multiplies its odds by `weak` unless the player is two-footed; cutting inside onto the
+     * stronger foot from the opposite flank by `inside`. Moments within `centre` of the middle
+     * have no foot to favour.
+     */
+    foot: { weak: 0.88, inside: 1.06, centre: 12 },
+    /**
+     * A week with an opponent session in the training plan (match-19): the share of the
+     * opposition style's penalties the player still feels in the next match.
+     */
+    prepared: 0.5,
     /** A manager may also replace a poor or well-protected player at these minutes. */
     tacticalSubstitution: { minutes: [60, 70, 80], chance: 0.08, ratingBelow: 6, leadingBy: 2 },
     /** Players named on a matchday bench (engine match-15). */
@@ -495,7 +536,7 @@ export const CONFIG = {
       mentorGain: 0.12,
       /** Mentor quality multiplies gain by up to 1 + this, from the mentor's lead in the focus. */
       mentorBonus: 0.5,
-      fatigue: { low: 0.5, normal: 1.5, high: 4, extra: 2, recovery: -8 },
+      fatigue: { low: 0.5, normal: 1.5, high: 4, extra: 2, recovery: -8, opponent: 0.5 },
       injuryRisk: { low: 0.002, normal: 0.005, high: 0.009, extra: 0.004 },
       /** Training injury risk by age: the young recover, the old break. */
       injuryAgeFactor: { under21: 0.7, over30: 1.3 },

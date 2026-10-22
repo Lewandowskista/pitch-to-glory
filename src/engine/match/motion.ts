@@ -1017,6 +1017,10 @@ class Director {
       if (target && arrival)
         runs.set(target.id, this.reachable(target.id, this.onside(side, arrival), 2500));
       if (step.kind === 'carry') {
+        // A keeper never carries upfield: when the teammates a move starts with are missing
+        // (sent off), its carry would otherwise fall to the keeper after a goal kick. From
+        // match-19; earlier sessions replay as they were.
+        if (carrier.keeper && this.session.setup.identity) continue;
         const to = point(step.to);
         // Never carry backwards, except to hold the ball up for an overlap.
         if (!step.run && this.toSpot(side, to).d < this.toSpot(side, this.ball).d - 3) continue;

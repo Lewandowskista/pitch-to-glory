@@ -66,7 +66,7 @@ export const isPositionFocus = (focus: TrainingFocus): focus is `position:${Posi
 
 /** Attributes a focus trains for this player (empty for recovery and position work). */
 export function focusAttributes(player: Player, focus: TrainingFocus): AnyAttribute[] {
-  if (focus === 'recovery' || isPositionFocus(focus)) return [];
+  if (focus === 'recovery' || focus === 'opponent' || isPositionFocus(focus)) return [];
   const trainable = trainableAttributes(player);
   if ((TRAINING_GROUPS as readonly string[]).includes(focus))
     return trainable.filter((key) => {
@@ -83,7 +83,7 @@ export function focusAttributes(player: Player, focus: TrainingFocus): AnyAttrib
 }
 /** Whether a focus is meaningful for this player (used by validation and the planner). */
 export function validFocus(player: Player, focus: TrainingFocus): boolean {
-  if (focus === 'recovery') return true;
+  if (focus === 'recovery' || focus === 'opponent') return true;
   if (isPositionFocus(focus)) {
     const position = focus.slice('position:'.length) as Position;
     return (
@@ -369,10 +369,13 @@ export function careerWeek(world: World): void {
         ? T.fatigue.extra
         : session.focus === 'recovery'
           ? T.fatigue.recovery
-          : T.fatigue[session.intensity];
+          : session.focus === 'opponent'
+            ? T.fatigue.opponent
+            : T.fatigue[session.intensity];
       report.fatigue +=
         fatigue > 0 && has(career, 'second-wind') ? fatigue * T.secondWindSkill : fatigue;
-      if (session.focus === 'recovery') continue;
+      // Recovery and studying the opponent build nothing and carry no injury risk.
+      if (session.focus === 'recovery' || session.focus === 'opponent') continue;
       if (isPositionFocus(session.focus)) {
         const position = session.focus.slice('position:'.length) as Position;
         const entry = player.secondaryPositions.find((p) => p.position === position);

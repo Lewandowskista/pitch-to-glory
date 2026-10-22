@@ -63,6 +63,8 @@ export function careerMatchSetup(world: World, fixture: Fixture): MatchSetup {
       },
       chemistry: Math.round(chemistry(world)),
       captain: world.career!.captaincy?.clubId === world.players[world.career!.playerId]!.clubId,
+      // A week's training spent on the opponent softens their style (match-19).
+      prepared: world.career!.training.sessions.some((session) => session.focus === 'opponent'),
       // Players banned in this fixture's scope sit it out (the discipline phase).
       suspended: [fixture.homeId, fixture.awayId].flatMap((id) =>
         suspendedFor(world, world.clubs[id]!, fixture),

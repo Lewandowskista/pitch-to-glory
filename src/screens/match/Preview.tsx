@@ -205,6 +205,14 @@ export function Preview({
         : ['CM', 'AM'].includes(position)
           ? 'midfield'
           : 'attack';
+  // The opposition's way of playing and what it means for this match (match-19).
+  const opponentClub = ownClub.id === setup.home.id ? setup.away : setup.home;
+  const matchup =
+    setup.identity && opponentClub.playingStyle !== 'balanced'
+      ? matchFormat(matchLabel(`match.matchup.${opponentClub.playingStyle}`), {
+          opponent: opponentClub.name,
+        })
+      : null;
   const signed = (value: number) =>
     `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(Math.round(value * 100))}%`;
   // Engine match-15 reports how hard it rains, blows or snows and the pitch's state, and the
@@ -334,6 +342,12 @@ export function Preview({
                   )}
                 </div>
               </figure>
+              {matchup && (
+                <p className="match-card-note" data-testid="matchup">
+                  <strong>{u.matchup}</strong> {matchup}
+                  {setup.prepared && <> {u.prepared}</>}
+                </p>
+              )}
             </div>
             <div>
               <h3>{m.objectives}</h3>

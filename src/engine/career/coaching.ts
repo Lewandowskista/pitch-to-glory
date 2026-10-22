@@ -71,7 +71,8 @@ export function matchDecisions(
       success: outcome.success,
       probability: Math.round(outcome.probability * 1000) / 1000,
       attributes: choice.attributes.slice(0, 3),
-      attributeEffect: Math.round(attributeEffect * 1000) / 1000,
+      // `+ 0` turns a rounded −0 into 0, which a save writes and reads back unchanged.
+      attributeEffect: Math.round(attributeEffect * 1000) / 1000 + 0,
       regret: Math.round(Math.max(0, best - expectedImpact(choice).net) * 1e4) / 1e4,
     });
   }

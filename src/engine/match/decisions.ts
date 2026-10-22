@@ -1,5 +1,6 @@
 import type {
   DecisionChoice,
+  Foot,
   Match,
   Player,
   Position,
@@ -73,6 +74,45 @@ export interface DecisionContext {
    * covering skill gave the same flat impact however many more covered the choice.
    */
   stackImpact?: boolean;
+  /** The opposition's playing style (`match-19`): it bears on the odds of some choices. */
+  opponentStyle?: string;
+  /** The player studied this opponent (`match-19`): the style's penalties are softened. */
+  prepared?: boolean;
+  /**
+   * The player's stronger foot and the flank of their post (`match-19`): a shot, cross or carry
+   * on the weaker foot costs odds unless they are two-footed.
+   */
+  foot?: { strong: Foot; flank: 'left' | 'right' | 'centre'; twoFooted: boolean };
+}
+
+/** Choices made with a particular foot: the outside foot on the flank, or the inside one. */
+const FOOT_CHOICES: Record<string, 'outside' | 'inside'> = {
+  'near-post': 'outside',
+  'cross-switch': 'outside',
+  'far-post': 'inside',
+  'drive-inside': 'inside',
+  curler: 'inside',
+};
+/**
+ * The foot a choice is made with, from the flank of the player's post, and what it does to the
+ * odds: the weaker foot costs `foot.weak`; cutting inside onto the stronger foot gains
+ * `foot.inside`. Null for a choice with no foot to it, or in the middle of the pitch.
+ */
+export function footFor(
+  choiceId: string,
+  foot: NonNullable<DecisionContext['foot']>,
+): { side: 'left' | 'right'; weak: boolean; multiplier: number } | null {
+  const use = FOOT_CHOICES[choiceId];
+  if (!use || foot.flank === 'centre') return null;
+  const outside = foot.flank;
+  const side = use === 'outside' ? outside : outside === 'left' ? 'right' : 'left';
+  const able = foot.strong === 'both' || foot.twoFooted;
+  const weak = !able && side !== foot.strong;
+  return {
+    side,
+    weak,
+    multiplier: weak ? C.foot.weak : use === 'inside' ? C.foot.inside : 1,
+  };
 }
 
 export function governingValue(
@@ -353,9 +393,33 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
         1,
       );
       const momentum = clamp(1 + (context.momentum - 50) * D.momentumSlope, 0.9, 1.1);
+      const foot = context.foot ? footFor(t.id, context.foot) : null;
+      const styled = context.opponentStyle
+        ? (C.styles[context.opponentStyle]?.choices[t.id] ?? 1)
+        : 1;
+      // Studying the opponent in training softens what their style takes away.
+      const style = context.prepared && styled < 1 ? 1 - (1 - styled) * C.prepared : styled;
       const steps: [string, ProbabilityFactor['source'], number][] = [
         ['match.factor.defender', 'defender', (t.direct ? 1 : team) * matchup],
+        // The opposition's way of playing (match-19), named for its style.
+        ...(style !== 1
+          ? ([[`match.factor.style.${context.opponentStyle}`, 'defender', style]] as [
+              string,
+              ProbabilityFactor['source'],
+              number,
+            ][])
+          : []),
         ['match.factor.attribute', 'attribute', attribute],
+        // The foot it is made with (match-19).
+        ...(foot && foot.multiplier !== 1
+          ? ([
+              [
+                foot.weak ? 'match.factor.foot.weak' : 'match.factor.foot.inside',
+                'attribute',
+                foot.multiplier,
+              ],
+            ] as [string, ProbabilityFactor['source'], number][])
+          : []),
         ...(context.positionPenalty
           ? ([
               [
@@ -441,6 +505,7 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
           .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
           .map(([name]) => name),
         stakes,
+        ...(foot ? { foot: { side: foot.side, weak: foot.weak } } : {}),
       };
     });
 }
@@ -474,8 +539,10 @@ export interface GameState {
 export function situationWeights(
   position: Position,
   role: string,
-  options: { drama?: boolean; state?: GameState } = {},
+  options: { drama?: boolean; state?: GameState; opponentStyle?: string } = {},
 ): { situation: Situation; weight: number }[] {
+  // The opposition's style (match-19) brings some situations about more often.
+  const styled = options.opponentStyle ? C.styles[options.opponentStyle]?.situations : undefined;
   const effect = roleEffect(role);
   const G = C.drama;
   const state = options.drama ? options.state : undefined;
@@ -491,7 +558,8 @@ export function situationWeights(
     const weight =
       (situation.positions[position] ?? 0) *
       (effect.situations?.[situation.id] ?? 1) *
-      tilt(situation);
+      tilt(situation) *
+      (styled?.[situation.id] ?? 1);
     return weight > 0 ? [{ situation, weight }] : [];
   });
 }

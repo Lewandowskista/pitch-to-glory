@@ -27,9 +27,18 @@ export type { Tactics } from '../../model/domain';
  * their role choices, objectives, involvement, half-time role change and back-line credit, not
  * their primary position. `match-18` (review phase 3, step 3.1) plays extra time in the session
  * when a tie needs it, with key moments, and settles the shootout there: the player's kick is
- * taken after extra time, only if the sides are still level.
+ * taken after extra time, only if the sides are still level. `match-19` (review phase 4, steps
+ * 4.1 and 4.2) gives the opposition an identity and the player a stronger foot: the opponent's
+ * playing style tilts which situations reach the player and the odds of the choices it
+ * affects, and a shot or carry with the weaker foot costs odds unless the player is
+ * two-footed.
  */
-export const MATCH_ENGINE_VERSION = 'match-18';
+export const MATCH_ENGINE_VERSION = 'match-19';
+/**
+ * The engine before opponent identity and the preferred foot. A setup with `extraTimePlay` but
+ * without `identity` still replays as it was.
+ */
+export const EXTRA_TIME_MATCH_ENGINE = 'match-18';
 /**
  * The engine before playable extra time: the shootout kick came at 90 minutes and extra time
  * and penalties were simulated afterwards. A setup with `roleSlot` but without
@@ -80,6 +89,7 @@ export const engineFor = (
     | 'discipline'
     | 'roleSlot'
     | 'extraTimePlay'
+    | 'identity'
   >,
 ): string =>
   !setup.formations
@@ -92,7 +102,9 @@ export const engineFor = (
           ? setup.discipline
             ? setup.roleSlot
               ? setup.extraTimePlay
-                ? MATCH_ENGINE_VERSION
+                ? setup.identity
+                  ? MATCH_ENGINE_VERSION
+                  : EXTRA_TIME_MATCH_ENGINE
                 : ROLE_MATCH_ENGINE
               : DISCIPLINE_MATCH_ENGINE
             : OCCASIONS_MATCH_ENGINE
@@ -145,6 +157,13 @@ export interface MatchSetup {
    * and the shootout is settled there.
    */
   extraTimePlay?: true;
+  /**
+   * Opponent identity and the preferred foot (`match-19`): the opposition's playing style
+   * shapes the moments and their odds, and the weaker foot costs odds.
+   */
+  identity?: true;
+  /** The player studied this opponent in training (`match-19`): their style costs less. */
+  prepared?: true;
   /** Players serving a suspension in this fixture's competition, never picked (`match-16`). */
   suspended?: string[];
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */

@@ -170,7 +170,9 @@ function systemicText(id: string): string | null {
             ? percent(CONFIG.match.decision.bigGame.skill)
             : kind === 'longevity'
               ? longevityPoints(id)
-              : 0;
+              : kind === 'foot'
+                ? percent(1 - CONFIG.match.foot.weak)
+                : 0;
   return format(c.skills.systemic[kind], { value });
 }
 

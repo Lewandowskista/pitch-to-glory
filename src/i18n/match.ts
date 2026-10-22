@@ -126,6 +126,10 @@ export const matchText = {
   stakeSafe: 'If it fails: no counter risk',
   uses: 'Uses {attributes}',
   traitActive: 'Your trait helps: {trait}',
+  foot: {
+    strong: { left: 'Left foot', right: 'Right foot' },
+    weak: { left: 'Left foot (your weaker)', right: 'Right foot (your weaker)' },
+  },
   announceMoment: 'Key moment, minute {minute}: {situation}. {count} choices; press 1 to {count}.',
   announceScore: 'Score: {home} {homeScore}, {away} {awayScore}.',
   choice: 'Choice {number}',
@@ -383,6 +387,8 @@ export const matchText = {
     fatigueTile: 'Fatigue',
     footballerLine: '{position} · Age {age} · {club}',
     managerLine: '{name} · Manager',
+    matchup: 'The opposition:',
+    prepared: 'You studied them this week, so their style costs you half as much.',
     roleHint: 'Your role changes which key moments come your way.',
     riskHint: 'Higher risk raises the reward and the cost of a miss.',
     mentalityHint: 'Attacking sends you forward more, with less cover behind.',
@@ -1168,6 +1174,13 @@ const engineText: Record<string, string> = {
     Object.entries(pitchNames).map(([state, name]) => [`match.factor.pitch.${state}`, name]),
   ),
   'match.factor.limit': 'Probability limit',
+  // Opponent identity and the preferred foot (match-19).
+  'match.factor.style.press': 'Their pressing',
+  'match.factor.style.counter': 'Their deep block',
+  'match.factor.style.possession': 'Their passing game',
+  'match.factor.style.direct': 'Their direct play',
+  'match.factor.foot.weak': 'Weaker foot',
+  'match.factor.foot.inside': 'Cutting in on your stronger foot',
   'match.commentary.halftime': 'The whistle brings the first half to a close.',
   'match.commentary.extra-time': 'Still level after ninety minutes: extra time it is.',
   'match.commentary.substitution': 'The manager makes a change. Your shift is over.',
@@ -1195,6 +1208,15 @@ const engineText: Record<string, string> = {
   'match.headline.steady': 'Another chapter written under the floodlights',
   'match.headline.strong': 'Composure and craft light up a memorable performance',
   'match.headline.scorer': 'A moment to savour as the net ripples',
+  // The opposition's style in the pre-match briefing (match-19).
+  'match.matchup.press':
+    '{opponent} press high. Expect to receive the ball under pressure: beating the press pays, a loose short pass does not.',
+  'match.matchup.counter':
+    '{opponent} sit deep and break. Expect a crowded box and chances from range and in the air.',
+  'match.matchup.possession':
+    '{opponent} keep the ball. Expect to defend more, and to be patient when you win it back.',
+  'match.matchup.direct':
+    '{opponent} go long early. Expect balls in the air and second balls to fight for.',
   'match.instructions.attack':
     'Find space, support the attack, and be decisive when the chance comes.',
   'match.instructions.midfield': 'Keep the ball moving and give your teammates a passing option.',

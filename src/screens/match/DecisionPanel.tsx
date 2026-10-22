@@ -87,6 +87,12 @@ function ChoiceHint({
           })}
         </span>
       )}
+      {choice.foot && (
+        // The foot it is made with (match-19): the weaker one says so.
+        <span className={cx(choice.foot.weak && 'match-tag')}>
+          {m.foot[choice.foot.weak ? 'weak' : 'strong'][choice.foot.side]}
+        </span>
+      )}
       {choice.traitId && traits.includes(choice.traitId) && (
         <span className="match-tag">
           {matchFormat(m.traitActive, {

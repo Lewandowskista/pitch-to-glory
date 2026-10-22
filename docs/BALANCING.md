@@ -834,3 +834,29 @@ Plan step 3.3. Constants in `international.qualifying`.
 - **Through.** Group winners, runners-up and the `bestThirds` (4) best third-placed nations: 16. Ties break on points, goal difference, goals scored, then id. The tournament draws its groups from them.
 - **Story.** A player with a senior cap gets a Chronicle entry and an inbox message when the campaign ends, qualified or not.
 - **Old saves.** The campaign opens at a season start, so a world saved part-way through a season keeps the fixed tournament field until its next campaign. Its nations gain the sixteen new guests then.
+
+## Opponents, the stronger foot and ambition (October 2026)
+
+Plan steps 4.1–4.3. Match engine **match-19**: sessions saved on match-18 replay unchanged, and `tests/match-outcome-snapshot.test.ts` keeps that path.
+
+**The opposition's style (4.1).** Each club plays one of five styles. Against the player, a style multiplies how often its situations come up (`match.styles.<style>.situations`). Moment budgets are normalised by the same weights, so goals per match do not change; only where they come from. It also multiplies the odds of the choices it bears on (`choices`), shown as a named factor ("Their pressing").
+
+| Style                | Situations                                            | Choices                                                               |
+| -------------------- | ----------------------------------------------------- | --------------------------------------------------------------------- |
+| press                | build-out ×1.6, build-up ×0.85                        | short pass, carry out ×0.92; clear long ×1.04; escape the press ×1.08 |
+| counter (deep block) | edge of area ×1.4, aerial ×1.3, box chance ×0.8       | take on ×0.92, square pass ×0.95; long shot, curler ×1.06             |
+| possession           | defend ×1.3, build-up ×0.9                            | intercept ×0.94; jockey ×1.05, track the runner ×1.04                 |
+| direct               | aerial ×1.25, crosses to the keeper ×1.3, defend ×1.1 | header, slide block ×1.04; carry forward ×1.05                        |
+| balanced             | —                                                     | —                                                                     |
+
+The pre-match briefing explains the matchup. A training session spent studying the next opponent (fatigue +0.5, no injury risk, no attribute gains) means the style's penalties are felt at `prepared` (half) strength in that week's match; what a style gives is unchanged. National sides play a balanced style.
+
+**The stronger foot (4.2).** Shots at the near post and crosses are made with the outside foot of the flank the player's post is on; far-post shots, cutting inside and curlers with the inside foot. Posts within 12 of the centre line, and keepers, have no foot to favour. The weaker foot multiplies the odds by `foot.weak` (0.88); cutting inside onto the stronger foot by `foot.inside` (1.06). Two-footed players (5% of generated players) and the **Two-Footed** skill (dribbling, tier 2) lose nothing. The choice shows the foot it uses.
+
+**Ambition (4.2).** Once the hidden ambition is revealed (80 appearances), it is a stated preference with its own morale part (`social.morale.drive`):
+
+- 70 and over: top-division football by 24. +4 while in a top division; past 24 without it, −2 per season, to −6.
+- 40–69: regular football, whatever the role. +3 picked for 75% of matchdays or more, −4 below 40% (from 3 matchdays; not while injured).
+- Under 40: roots. +3 from a second season at the club; −3 in a first season after a move.
+
+**Bans (4.3).** A match missed through a ban is recorded as `suspended` in the availability list, so it never lowers playing time.

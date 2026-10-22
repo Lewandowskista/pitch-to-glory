@@ -83,7 +83,11 @@ export function validateCareer(w: Record<string, unknown>): void {
   }
   if (training.extra !== null) {
     const extra = object(training.extra);
-    requireValue(validFocus(player, extra.focus as TrainingFocus) && extra.focus !== 'recovery');
+    requireValue(
+      validFocus(player, extra.focus as TrainingFocus) &&
+        extra.focus !== 'recovery' &&
+        extra.focus !== 'opponent',
+    );
     ref(extra.mentorId, players);
     requireValue(extra.mentorId !== career.playerId);
   }

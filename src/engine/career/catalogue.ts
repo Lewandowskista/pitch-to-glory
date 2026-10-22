@@ -150,6 +150,8 @@ export const SKILLS: readonly Skill[] = [
   skill('trickster', 'dribbling', 1, [], { dribbling: 2 }, 'outfield'),
   skill('close-control', 'dribbling', 2, ['trickster'], { firstTouch: 2 }, 'outfield'),
   skill('speed-dribbler', 'dribbling', 2, ['trickster'], { acceleration: 2 }, 'outfield'),
+  // The weaker foot costs nothing (match-19).
+  skill('two-footed', 'dribbling', 2, ['trickster'], { dribbling: 1, firstTouch: 1 }, 'outfield'),
   skill('escape-artist', 'dribbling', 3, ['close-control'], { agility: 2 }, 'outfield'),
   skill('flair', 'dribbling', 3, ['speed-dribbler'], { dribbling: 2, composure: 1 }, 'outfield'),
   skill(
@@ -256,4 +258,5 @@ export const SYSTEMIC_SKILLS = {
   'big-game-player': 'importance',
   'captains-voice': 'leadership',
   leader: 'leadership',
+  'two-footed': 'foot',
 } as const;

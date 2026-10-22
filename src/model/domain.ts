@@ -414,9 +414,17 @@ export type SkillBranch =
   | 'set-pieces'
   | 'goalkeeping';
 export type TrainingGroup = 'technical' | 'physical' | 'mental' | 'goalkeeping';
-/** A training focus: an attribute group, one attribute, a position to learn, or recovery. */
+/**
+ * A training focus: an attribute group, one attribute, a position to learn, recovery, or the
+ * next opponent (review phase 4: their style costs less in the next match, nothing is built).
+ */
 export type TrainingFocus =
-  TrainingGroup | 'recovery' | keyof Attributes | keyof KeeperAttributes | `position:${Position}`;
+  | TrainingGroup
+  | 'recovery'
+  | 'opponent'
+  | keyof Attributes
+  | keyof KeeperAttributes
+  | `position:${Position}`;
 export interface TrainingSession {
   focus: TrainingFocus;
   intensity: 'low' | 'normal' | 'high';
@@ -1445,6 +1453,8 @@ export interface DecisionChoice {
   target?: ChoiceTarget;
   /** A tackle or defending choice's booking risk (engine match-16); absent otherwise. */
   booking?: BookingRisk;
+  /** The foot a shot, cross or carry is made with (engine match-19), and whether it is the weaker. */
+  foot?: { side: 'left' | 'right'; weak: boolean };
 }
 export interface KeyMoment {
   id: Id;

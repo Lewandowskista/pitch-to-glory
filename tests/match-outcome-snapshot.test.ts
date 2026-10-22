@@ -12,6 +12,7 @@ import {
   OCCASIONS_MATCH_ENGINE,
   DISCIPLINE_MATCH_ENGINE,
   ROLE_MATCH_ENGINE,
+  EXTRA_TIME_MATCH_ENGINE,
   type MatchCommand,
   type MatchSession,
   type MatchSetup,
@@ -83,12 +84,26 @@ const MATCH_15: Record<string, { hash: string; goals: number; moments: number }>
 };
 /** The current engine (match-16, full discipline). */
 /**
- * The current engine (match-18). Only players who start away from their primary position
- * differ from match-16 (here the AM and CM samples): their role, objectives and involvement
- * follow the slot (match-17). No sample plays extra time, so match-18 matches match-17 here;
- * tests/match-drama.test.ts covers extra time.
+ * The current engine (match-19): the opposition's style tilts the situations and the odds of
+ * the choices it bears on, and the weaker foot costs odds. Goals moved by at most two in a
+ * position and moments by at most three; the keeper samples are unchanged (their situations
+ * and choices carry no style or foot effect against these opponents).
  */
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
+  GK: { hash: '6782a66059b5c58a160b2809', goals: 61, moments: 214 },
+  CB: { hash: 'e5496721233e5d2a431590a4', goals: 61, moments: 232 },
+  LB: { hash: '9f1da2f8f51bf8adae4e00f8', goals: 53, moments: 234 },
+  DM: { hash: '62dd5cd8457519933b51e0b9', goals: 62, moments: 207 },
+  CM: { hash: 'c1c81083e39b8c5e9a3920c5', goals: 70, moments: 242 },
+  AM: { hash: '67a55b69405c83db8be3ed03', goals: 73, moments: 267 },
+  RW: { hash: 'b3f9fd37bef20fecfc5b12cd', goals: 53, moments: 291 },
+  ST: { hash: 'c166b294fa9869c29b4095e4', goals: 71, moments: 301 },
+};
+/**
+ * The match-18 path (no opponent identity or preferred foot). No sample plays extra time, so
+ * it matches match-17 here; tests/match-drama.test.ts covers extra time.
+ */
+const MATCH_18: Record<string, { hash: string; goals: number; moments: number }> = {
   GK: { hash: '6782a66059b5c58a160b2809', goals: 61, moments: 214 },
   CB: { hash: '01246285b1223dc007d2afbf', goals: 62, moments: 231 },
   LB: { hash: 'c8c9e7ab04ae4331827154b3', goals: 51, moments: 234 },
@@ -140,7 +155,7 @@ const STAT_KEYS = [
   'fatigue',
 ] as const;
 
-type Path = 'current' | 'match-17' | 'match-16' | 'match-15';
+type Path = 'current' | 'match-18' | 'match-17' | 'match-16' | 'match-15';
 function setupFor(position: Position, index: number, path: Path = 'current'): MatchSetup {
   const pair = index % 4 < 2 ? [clubs[0]!, clubs[1]!] : [clubs[2]!, clubs[3]!];
   const [home, away] = index % 2 ? [pair[1]!, pair[0]!] : [pair[0]!, pair[1]!];
@@ -185,8 +200,10 @@ function setupFor(position: Position, index: number, path: Path = 'current'): Ma
   // Variants 0 and 1 never carry discipline or the effective role; the match-15 run plays the
   // rest without either, the match-16 run without the effective role.
   if (path === 'match-15' || variant < 2) delete setup.discipline;
-  if ((path !== 'current' && path !== 'match-17') || variant < 2) delete setup.roleSlot;
-  if (path !== 'current' || variant < 2) delete setup.extraTimePlay;
+  if ((path !== 'current' && path !== 'match-18' && path !== 'match-17') || variant < 2)
+    delete setup.roleSlot;
+  if ((path !== 'current' && path !== 'match-18') || variant < 2) delete setup.extraTimePlay;
+  if (path !== 'current' || variant < 2) delete setup.identity;
   return setup;
 }
 /** Tactics for the job the setup gives the player: the starting slot from match-17. */
@@ -299,7 +316,9 @@ function snapshot(path: Path) {
             ? DISCIPLINE_MATCH_ENGINE
             : path === 'match-17'
               ? ROLE_MATCH_ENGINE
-              : MATCH_ENGINE_VERSION;
+              : path === 'match-18'
+                ? EXTRA_TIME_MATCH_ENGINE
+                : MATCH_ENGINE_VERSION;
       hash.update(JSON.stringify(outcomes(session, current)));
       goals += session.state.match.score[0] + session.state.match.score[1];
       moments += session.state.match.keyMoments.length;
@@ -313,6 +332,9 @@ function snapshot(path: Path) {
 describe('match outcome snapshot', { timeout: 300000 }, () => {
   it('keeps every outcome byte-identical per seed', () => {
     expect(snapshot('current')).toEqual(EXPECTED);
+  });
+  it('keeps the match-18 path (no opponent identity or foot) byte-identical', () => {
+    expect(snapshot('match-18')).toEqual(MATCH_18);
   });
   it('keeps the match-17 path (the kick at full time) byte-identical', () => {
     expect(snapshot('match-17')).toEqual(MATCH_17);
