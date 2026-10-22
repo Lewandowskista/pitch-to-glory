@@ -26,6 +26,26 @@ export type ReleaseSection = (typeof RELEASE_SECTIONS)[number];
 
 export const PATCH_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '0.5.0',
+    date: '2026-10-22',
+    title: 'The big occasions',
+    summary:
+      'Play extra time, take your own penalty, lead your nation through qualifying and play its tournament matches yourself, and get credit wherever you play on the pitch.',
+    new: [
+      'A level knockout tie now plays on into extra time on the pitch, with key moments of its own, and the shootout is settled in the match.',
+      'Tournaments between seasons are played match by match. When you are in the squad, your nation’s matches wait for you: play them yourself or have them simulated.',
+      'Qualifying: in the season before each tournament, nations play home and away in groups for a place in it, and your own nation can miss out. Called up to the senior side, you play its qualifiers.',
+      'The National page shows your nation’s qualifying group, what each place means and its six matches.',
+      'Sixteen more nations take part in qualifying.',
+      'New Moments: assists, great saves, penalty saves, goal-line clearances and the save or kick that wins a shootout.',
+      'New Chronicle landmarks: your first clean sheet and first assist and their milestones, and qualifying for a tournament or missing it.',
+    ],
+    improved: [
+      'Keepers and defenders are compared with their rival by clean sheets, in the press and in the rivalry, rather than by goals.',
+      'Tournament matches show their stage and importance and count towards your XP like any big match.',
+    ],
+  },
+  {
     version: '0.4.0',
     date: '2026-10-21',
     title: 'One player, one job',
