@@ -512,12 +512,12 @@ Constants live in `CONFIG.world.continental` and `CONFIG.career.honours`.
 **International football.**
 
 - Windows at 18%, 42% and 68% of the season, with two matches each. Squads are 3 goalkeepers, 8 defenders, 7 midfielders and 5 attackers. Age limits: Under-19 up to 19, Under-21 up to 21.
-- Selection score: `ability + 0.1 × form + min(8, 0.02 × fame)`.
+- Selection score: `ability + 0.1 × form + min(14, 0.03 × fame)`.
 - Nation rating: the mean ability of the first eleven (1 GK, 4 DEF, 3 MID, 3 ATT). A guest nation has a fixed rating, 10 lower at youth level.
 - Goals: Poisson with mean `max(0.2, 1.3 ± (home − away) × 0.035 / 2)`. In window matches, the player's nation gets +1 rating at home. Knockout draws go to penalties, 50/50.
 - The player plays if they would start (rank in their line within the starter slots), or otherwise with chance 0.4. Each of their side's goals is theirs with the line's goal share (GK 0, DEF 0.04, MID 0.12, ATT 0.28), or their assist with the assist share (0, 0.05, 0.14, 0.12).
 - Match rating: `6.2 + result (+0.5 win, −0.4 loss) + 0.8 × goals + 0.4 × assists ± 0.4`, within 3–10.
-- Reward per cap: +1 fame (senior) and 25 XP. Per goal: +2 fame (senior, +1 at youth level) and 15 XP. Winning a tournament while in the squad: +10 fame.
+- Reward per cap: +1 fame (senior) and 120 XP. Per goal: +2 fame (senior, +1 at youth level) and 30 XP. Winning a tournament while in the squad: +10 fame.
 - Kept: the last 120 international matches and 30 tournaments.
 
 **Awards.**
@@ -810,3 +810,15 @@ Decisions recorded before schema 22 count only for the bad-luck note.
 **Training shapes growth (2.4, development rules 3).** Passive growth multiplies each attribute's rate by its focus weight. The attributes the week's sessions (and extra session) focus on get `focusRatio` (2) times the weight of the rest. Weights are normalised to average 1 over the attributes still below their soft cap, so total growth is unchanged. A plan with no attribute focus, or one covering every attribute (the balanced default), leaves every weight at 1. Careers on rules 2 adopt rules 3 at their next season start.
 
 **Growth by source (2.4).** `career.growth` counts whole attribute points per season from playing (passive growth), training, spent points and skills, and points lost to age (the last 25 seasons are kept). The profile's season card shows it, and the career profile records it per season with a `--policy` (default, focused, recovery, no-points, loyal, mover, minutes).
+
+## Tournaments played match by match (October 2026)
+
+From the [October 20 review](APP-REVIEW-2026-10-20.md) (R9), plan step 3.2. Match engine **match-18**.
+
+- **When.** A tournament is due before every even season (continental when the year divides by four, world otherwise). It opens when the season before ends: sixteen nations, four seeded groups of four, drawn as before. The career player's place (in the squad, starting) is decided then.
+- **Round by round.** Three group matchdays, then quarter-finals, semi-finals and the final. Every other match of a round is simulated as before; the career player's nation's match waits for them when they are in the squad and fit. Group winners meet the other groups' runners-up (A1–B2, B1–A2, C1–D2, D1–C2), and the semi-finals pair those winners in order. Group ties break on points, goal difference, goals scored, then id.
+- **Same results either way.** Each fixture draws from its own seed (`seed:fixture id`), so a tournament simulated at once and one played round by round agree on every match the player does not play.
+- **Playing a match.** The two nations are the match engine's sides on neutral ground. A home nation fields its selected senior squad (3 GK, 8 DEF, 7 MID, 5 ATT), the career player always among their own nation's. Missing places, and a guest nation's whole squad, are generated players aged 24–30 at the nation's rating (club reputation `(rating − 13) / 0.75`), the same for the whole tournament. Each nation's formation is drawn once from its seed. No manager bonus applies.
+- **Stakes.** Fixture importance: group 1.15, knockout 1.3, final 1.5 (`international.tournament.importance`). A level knockout match plays extra time and a shootout in the session.
+- **Rewards.** A played match counts like a simulated one: a cap, goals and assists from the session, the cap and goal rewards above. Each home nation's first eleven earns a cap per tournament match.
+- **Season change.** Starting the next season plays out whatever remains, the career player's matches simulated. Worlds saved before this step, and worlds without a career, play the tournament at the season change at once, as before.

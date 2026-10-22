@@ -652,7 +652,9 @@ export function JobProgress() {
               ? c.wizard.building
               : job.type === 'create-career'
                 ? c.wizard.signing
-                : c.hub.simulating}
+                : job.type === 'tournament'
+                  ? c.hub.tournament.simulating
+                  : c.hub.simulating}
         </strong>
         {job.totalWeeks > 1 && (
           <span className="text-xs text-muted">

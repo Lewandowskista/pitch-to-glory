@@ -3,6 +3,8 @@ import { generateWorld } from '../engine/world/generate';
 import { startNextSeason } from '../engine/world/simulate';
 import { advanceCareerWeek } from '../engine/career/season';
 import { commitCareerMatch } from '../engine/career/matches';
+import { advanceTournament } from '../engine/career/honours/international';
+import { commitTournamentMatch } from '../engine/career/honours/nationalMatch';
 import { createCareer } from '../engine/career/create';
 import { runWorldJob } from './run';
 import type { WorkerRequest } from './protocol';
@@ -54,7 +56,19 @@ scope.onmessage = createChunkReceiver<WorkerRequest>((data) => {
       // The worker owns its copy, and each checkpoint is fully posted before the next week.
       week: (world, autoPlay) => advanceCareerWeek(world, { inPlace: true, autoPlay }),
       nextSeason: (world) => startNextSeason(world, { inPlace: true }),
-      commit: (world, session) => ({ world, outcome: commitCareerMatch(world, session) }),
+      // A tournament match (review phase 3) is recorded in the international state.
+      commit: (world, session) => ({
+        world,
+        outcome: world.international?.live?.fixtures.some(
+          (fixture) => fixture.id === session.setup.fixture?.id,
+        )
+          ? commitTournamentMatch(world, session)
+          : commitCareerMatch(world, session),
+      }),
+      tournament: (world, simulateCareer) => ({
+        world,
+        pendingFixtureId: advanceTournament(world, { simulateCareer }).pending?.id ?? null,
+      }),
       createCareer: (world, seed, draft, clubId) => createCareer(world, draft, clubId, seed),
       decisionDue: offerDeadlineThisWeek,
     },

@@ -126,3 +126,22 @@ Peak ability after the retune (seed A, before → after; seed B, after only):
 | ST recovery-heavy | 79.2 → 79.8 |   84.2 |
 
 The climb's pace is preserved within about a point, which is normal career-to-career variation. All career-profile gates pass. `tests/growth.test.ts` shows the focus attributes growing faster than under rules 2. The profile does not yet record attribute shape (focused against unfocused attributes at 25); adding that is the next measurement for step 2.4.
+
+## Phase 3 — Complete the big occasions and reward careers that don't score
+
+**3.1 Playable extra time and shootouts (match-18).** A level knockout plays extra time in the session (1–2 key moments) and settles the shootout there; the world uses the session's result. Sessions from earlier engines replay unchanged.
+
+**3.4 Every position.** Assists, great saves, penalty saves, goal-line clearances and shootout winners become Moments. The rival is judged by clean sheets for keepers and defenders. The Chronicle marks first clean sheets and assists and their milestones.
+
+**3.2 Playable major internationals.**
+
+- The tournament before an even season opens when the season ends and is stored in the world (`international.live`). It plays one round at a time; the career player's nation's match waits for them when they are in the squad and fit.
+- The hub shows the match with **Play the match** and **Simulate this match**, the round, and the group table. After the match, **Continue the tournament** plays the rest of the round and brings the next match or the end. The next season can start once the player's part is over; starting it plays out whatever remains.
+- A played match uses the full match engine on neutral ground. The nations are built as sides from their colours and squads; guest nations get generated squads at their rating, the same for the whole tournament (`nationalMatch.ts`).
+- `commitTournamentMatch` records the result once: a second commit throws, and the report's outcome is kept in the international record, not the club match list. XP follows the club formula (performance and decisions, opposition and occasion); caps, goals and fame count as for a simulated match.
+- Every fixture has its own seed, so a tournament simulated at once and one played round by round agree on every match the player does not play.
+- A match in progress survives a refresh: the save accepts a tournament session only when it matches the sides this world fields for the waiting match.
+- Found during testing: a tournament finished between seasons belongs to the coming season, and the save validator rejected it. Fixed, with a unit test that fails without the fix.
+- Not done: a setting to play qualifiers and friendlies (they stay simulated). It belongs with 3.3.
+
+**Verification.** `tests/honours.test.ts` (round-by-round play, determinism, single credit, season-end opening and closing, save validity), `tests/tournament-match.test.ts` (sides, guest squads at rating, commit once), `tests/worker.test.ts` (the tournament job) and `e2e/tournament.spec.ts` (hub → play → refresh → report → continue → simulate the rest → next season) pass in Chromium, Firefox and WebKit, with the match, career and honours flows. Match route 290.7 KB gzip (budget 300 KB): the nations' squad builder loads only when a tournament match is prepared.

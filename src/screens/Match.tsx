@@ -38,7 +38,13 @@ import { FootballIllustration } from '../ui/FootballIllustration';
 import { Selection } from './match/Selection';
 import { Preview } from './match/Preview';
 import { DecisionPanel, DecisionReplay } from './match/DecisionPanel';
-import { CareerFixture, CareerNoMatch, CareerReportActions } from './match/CareerMatchday';
+import {
+  CareerFixture,
+  CareerNoMatch,
+  CareerReportActions,
+  TournamentMatch,
+} from './match/CareerMatchday';
+import { pendingTournamentFixture } from '../engine/career/honours/international';
 import {
   CaptainPanel,
   CommentaryCard,
@@ -388,6 +394,9 @@ export default function MatchScreen() {
   const careerResult = useAppStore((store) => store.careerResult);
   const careerFixture = session?.setup.fixture;
   const pending = world?.career && !session ? pendingCareerFixture(world) : null;
+  // Between seasons, the career player's nation's tournament match (review phase 3).
+  const tournamentPending =
+    world?.career && !session && !pending ? pendingTournamentFixture(world) : null;
   const recordResult = useCallback(() => {
     const current = useAppStore.getState().matchSession;
     if (
@@ -554,6 +563,28 @@ export default function MatchScreen() {
               } catch {
                 setError(m.unavailable);
               }
+            }}
+          />
+        ) : tournamentPending ? (
+          <TournamentMatch
+            world={world}
+            fixture={tournamentPending}
+            disabled={Boolean(job)}
+            onPrepare={() => {
+              // The nations' squads are built on demand: their generator stays out of this route.
+              void import('../engine/career/honours/nationalMatch')
+                .then(({ tournamentMatchSetup }) => {
+                  const current = useAppStore.getState().world;
+                  if (!current || useAppStore.getState().worldJob) return;
+                  const fixture = pendingTournamentFixture(current);
+                  if (!fixture) return;
+                  const setup = tournamentMatchSetup(current, fixture);
+                  useAppStore
+                    .getState()
+                    .setMatchSession(createMatchSession(setup, defaultTactics(current, setup)));
+                  setError('');
+                })
+                .catch(() => setError(m.unavailable));
             }}
           />
         ) : (

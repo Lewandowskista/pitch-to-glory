@@ -133,6 +133,11 @@ export interface CareerMatchOutcome {
   injury: Injury | null;
   /** Fame from the signature celebration in a big match. */
   celebrationFame: number;
+  /**
+   * A tournament match for the career player's nation (review phase 3): its international
+   * match id. The record is the report's alone, not kept in the career's club matches.
+   */
+  internationalMatchId?: string;
 }
 
 /**

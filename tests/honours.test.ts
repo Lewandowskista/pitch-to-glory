@@ -22,13 +22,20 @@ import {
   encodeClip,
   formerTeammates,
   hallOfFameRank,
+  advanceTournament,
+  finishTournament,
   momentLink,
+  openTournament,
   parseMomentLink,
+  pendingTournamentFixture,
   playTournament,
+  recordTournamentMatch,
+  tournamentStakes,
   retirementState,
   windowWeeks,
   type Clip,
 } from '../src/engine/career/honours';
+import { honoursSeasonEnd } from '../src/engine/career/honours/week';
 import {
   careerTotals,
   careerHallOfFameScore,
@@ -348,6 +355,113 @@ describe('international tournaments', () => {
     again.date = { ...again.date, season: 2032 };
     expect(playTournament(again)).toEqual(tournament);
   });
+
+  /**
+   * The 2028 tournament, opened early on the complete 2026 season with the career player named
+   * in their nation's first eleven. Saves hold a tournament for next season only, so validity
+   * is checked as if it were next season's.
+   */
+  const named = () => {
+    const world = clone(season);
+    const live = openTournament(world, 2028)!;
+    live.inSquad = true;
+    live.starts = true;
+    return { world, live };
+  };
+  const validLive = (world: World) => {
+    const copy = clone(world);
+    copy.international!.live!.year = copy.date.season + 1;
+    valid(copy);
+  };
+  /** Finished between seasons, the tournament is the coming season's: it must save then. */
+  const validDone = (world: World) => {
+    const copy = clone(world);
+    const last = copy.international!.tournaments.at(-1)!;
+    last.year = copy.phase === 'complete' ? copy.date.season + 1 : copy.date.season;
+    valid(copy);
+  };
+
+  it('opens before an even season and plays one round at a time', () => {
+    expect(openTournament(clone(season), 2027)).toBeNull();
+    const { world, live } = named();
+    expect(live.round).toBe(1);
+    expect(live.fixtures).toHaveLength(24);
+    expect(openTournament(world, 2028)).toBeNull();
+    validLive(world);
+    const { pending } = advanceTournament(world);
+    expect(pending).toBe(pendingTournamentFixture(world));
+    expect(pending!.round).toBe(1);
+    expect([pending!.homeId, pending!.awayId]).toContain(live.careerNationId);
+    // Everyone else's matchday-one match is played; the player's waits for them.
+    const first = live.fixtures.filter((fixture) => fixture.round === 1);
+    expect(first.filter((fixture) => fixture.matchId)).toHaveLength(7);
+    expect(pending!.matchId).toBeNull();
+    // Advancing again without playing it changes nothing.
+    expect(advanceTournament(world).pending).toBe(pending);
+    expect(live.round).toBe(1);
+    validLive(world);
+  });
+
+  it('ends the same whether the career player’s matches stop it or not', () => {
+    const once = named();
+    const all = finishTournament(once.world)!;
+    const { world } = named();
+    let stops = 0;
+    for (let guard = 0; guard < 8 && world.international!.live; guard++) {
+      if (advanceTournament(world).pending) stops++;
+      // Simulate the waiting match too: the same seeded result as at once.
+      advanceTournament(world, { simulateCareer: true });
+    }
+    expect(stops).toBeGreaterThanOrEqual(1);
+    expect(world.international!.live).toBeNull();
+    expect(world.international!.tournaments.at(-1)).toEqual(all);
+    expect(world.career!.honours.caps).toEqual(once.world.career!.honours.caps);
+    expect(all.matchIds).toHaveLength(31);
+    validDone(world);
+  });
+
+  it('counts a played match once and refuses it twice', () => {
+    const { world } = named();
+    const before = world.career!.honours.caps.senior;
+    const { pending } = advanceTournament(world);
+    const match = {
+      id: `intl:test:${pending!.id}`,
+      date: { ...world.date },
+      level: 'senior' as const,
+      kind: tournamentStakes(pending!).kind,
+      tournamentId: world.international!.live!.id,
+      homeId: pending!.homeId,
+      awayId: pending!.awayId,
+      score: [2, 1] as [number, number],
+      penalties: null,
+      career: { rating: 7.4, goals: 1, assists: 0 },
+    };
+    recordTournamentMatch(world, pending!, match);
+    expect(world.career!.honours.caps.senior).toBe(before + 1);
+    expect(pending!.score).toEqual([2, 1]);
+    expect(() => recordTournamentMatch(world, pending!, match)).toThrow();
+    expect(world.career!.honours.caps.senior).toBe(before + 1);
+    expect(advanceTournament(world).pending?.round).toBe(2);
+    validLive(world);
+  });
+
+  it('opens at the end of an odd season and closes before the next one', () => {
+    const odd = clone(season);
+    odd.international!.live = null;
+    honoursSeasonEnd(odd);
+    // 2026 ends; no tournament before 2027.
+    expect(odd.international!.live ?? null).toBeNull();
+    const even = clone(season);
+    even.date = { ...even.date, season: 2027 };
+    honoursSeasonEnd(even);
+    expect(even.international!.live?.year).toBe(2028);
+    const { world } = named();
+    advanceTournament(world);
+    const next = startNextSeason(world);
+    expect(next.international!.live).toBeNull();
+    expect(next.international!.tournaments.at(-1)?.id).toBe('tournament:2028');
+    validDone(next);
+  }, 120000);
 });
 
 describe('retirement and legacy', () => {

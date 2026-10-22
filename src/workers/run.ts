@@ -18,6 +18,8 @@ export interface WorldOperations {
   week(world: World, autoPlay: boolean): { world: World; pendingFixtureId: Id | null };
   nextSeason(world: World): World;
   commit(world: World, session: MatchSession): { world: World; outcome: CareerMatchOutcome };
+  /** The tournament between seasons, to the career player's next match or its end. */
+  tournament(world: World, simulateCareer: boolean): { world: World; pendingFixtureId: Id | null };
   createCareer(world: World, seed: string, draft: CareerDraft, clubId: Id): World;
   /** Before simulating a further week: true when the player has a decision due in it. */
   decisionDue?(world: World): boolean;
@@ -46,7 +48,16 @@ export async function runWorldJob(
     else if (request.type === 'next-season') world = operations.nextSeason(request.world);
     else if (request.type === 'create-career')
       world = operations.createCareer(request.world, request.seed, request.draft, request.clubId);
-    else if (request.type === 'commit-match') {
+    else if (request.type === 'tournament') {
+      const step = operations.tournament(request.world, request.simulateCareer);
+      await runtime.emit({
+        requestId,
+        type: 'result',
+        world: step.world,
+        pendingFixtureId: step.pendingFixtureId,
+      });
+      return;
+    } else if (request.type === 'commit-match') {
       const committed = operations.commit(request.world, request.session);
       await runtime.emit({
         requestId,

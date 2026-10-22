@@ -4,7 +4,9 @@ import { Icon } from '../../ui/Icon';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import { StakeLine } from '../career/stakesUi';
 import type { CareerMatchOutcome } from '../../engine/career/matches';
-import type { Fixture, World } from '../../model/domain';
+import type { Fixture, TournamentFixture, World } from '../../model/domain';
+import { nationOf, tournamentStep } from '../../engine/career/honours/international';
+import { NationFlag, tournamentHeading } from '../career/TournamentHub';
 import { calendarDate } from '../../engine/world/calendar';
 import { formatGameDate } from '../../i18n/calendar';
 import { format } from '../../i18n';
@@ -12,7 +14,7 @@ import { careerText as c } from '../../i18n/career';
 import { CrestImage, JobProgress, PlayerPortrait } from '../career/shared';
 import { competitionName, leaguePosition, recentForm } from '../career/selectors';
 import { matchFormat, matchText as m } from '../../i18n/match';
-import { continueToMatchday } from '../career/actions';
+import { continueToMatchday, continueTournament } from '../career/actions';
 import { cx } from '../../ui/kit';
 
 const u = m.ui;
@@ -209,6 +211,96 @@ export function CareerFixture({
   );
 }
 
+/**
+ * The career player's tournament match, before the pre-match briefing opens (review phase 3):
+ * the two nations, the round and the one gold action, beside how matchday works.
+ */
+export function TournamentMatch({
+  world,
+  fixture,
+  disabled,
+  onPrepare,
+}: {
+  world: World;
+  fixture: TournamentFixture;
+  disabled: boolean;
+  onPrepare: () => void;
+}) {
+  const live = world.international!.live!;
+  const heading = tournamentHeading(live);
+  const side = (id: string) => {
+    const nation = nationOf(world, id);
+    return (
+      <div className="match-fixture-side">
+        <NationFlag nation={nation} className="h-12 w-[4.5rem] sm:h-16 sm:w-24" />
+        <div>
+          {id === live.careerNationId && (
+            <span className="match-hero-eyebrow">{c.hub.tournament.yourNation}</span>
+          )}
+          <span className="match-fixture-name">{nation.name}</span>
+        </div>
+      </div>
+    );
+  };
+  return (
+    <div className="match-fixture-layout">
+      <section
+        aria-labelledby="tournament-fixture-heading"
+        className="match-fixture-hero"
+        data-testid="tournament-fixture"
+      >
+        <div className="relative flex flex-wrap items-center justify-center gap-2.5">
+          <h2 id="tournament-fixture-heading" className="match-hero-eyebrow">
+            {heading.title}
+          </h2>
+          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
+            {heading.round}
+          </span>
+        </div>
+        <div className="match-fixture-teams">
+          {side(fixture.homeId)}
+          <span className="match-fixture-v" aria-hidden="true">
+            {u.versus}
+          </span>
+          <span className="sr-only">{c.common.vs}</span>
+          {side(fixture.awayId)}
+        </div>
+        <p className="relative text-center text-sm font-bold">{c.common.neutral}</p>
+        <div className="relative flex justify-center">
+          <button
+            type="button"
+            className="button play button-lg match-fixture-cta"
+            disabled={disabled}
+            onClick={onPrepare}
+          >
+            {c.report.prepare}
+            <Icon name="arrow" />
+          </button>
+        </div>
+      </section>
+      <aside className="match-panel match-steps" aria-labelledby="matchday-steps">
+        <h2 id="matchday-steps" className="match-card-title is-display">
+          {u.howTitle}
+        </h2>
+        <ol>
+          {u.steps.map((step, index) => (
+            <li key={step.title} className={cx(index === 0 && 'is-next')}>
+              <span className="match-step-number" aria-hidden="true">
+                {index + 1}
+              </span>
+              <span className="min-w-0">
+                <strong>{step.title}</strong>
+                <span>{step.body}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+        <p className="match-card-note">{u.pausesNote}</p>
+      </aside>
+    </div>
+  );
+}
+
 /** No career fixture can be played this week: the reason, what comes next and the way on. */
 export function CareerNoMatch({ world }: { world: World }) {
   const job = useAppStore((s) => s.worldJob);
@@ -265,6 +357,17 @@ export function CareerNoMatch({ world }: { world: World }) {
         </div>
       )}
       <div className="flex flex-wrap gap-3">
+        {tournamentStep(world) === 'continue' && (
+          <button
+            type="button"
+            className="button play"
+            disabled={Boolean(job)}
+            onClick={() => continueTournament(false)}
+          >
+            {c.hub.tournament.continue}
+            <Icon name="arrow" />
+          </button>
+        )}
         {world.phase !== 'complete' && (
           <button
             type="button"
@@ -322,6 +425,16 @@ export function CareerReportActions({
           onClick={continueToMatchday}
         >
           {c.report.continue}
+          <Icon name="arrow" />
+        </button>
+      ) : tournamentStep(world) === 'continue' ? (
+        <button
+          type="button"
+          className="button play button-lg"
+          disabled={Boolean(job)}
+          onClick={() => continueTournament(false)}
+        >
+          {c.hub.tournament.continue}
           <Icon name="arrow" />
         </button>
       ) : null}

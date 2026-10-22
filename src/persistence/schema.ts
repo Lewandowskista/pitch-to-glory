@@ -9,6 +9,7 @@ import { backfillSquadNumbers } from '../engine/world/squadNumbers';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
 import { validateWorld } from './worldSchema';
 import { validateMatchSession } from '../engine/match';
+import { tournamentMatchSetup } from '../engine/career/honours/nationalMatch';
 import { SaveError } from './errors';
 import { DEFAULT_SETTINGS, validateSettings } from './settings';
 
@@ -279,6 +280,18 @@ export function matchSessionFor(world: World, value: unknown): MatchSession | nu
   try {
     const session = validateMatchSession(value);
     const setup = session.setup;
+    // A tournament match (review phase 3) must be the one this world has waiting, its sides
+    // exactly as this world fields them.
+    const tournament = world.international?.live?.fixtures.find(
+      (fixture) => fixture.id === setup.fixture?.id,
+    );
+    if (tournament) {
+      if (setup.season !== world.date.season) return null;
+      const expected = tournamentMatchSetup(world, tournament);
+      for (const key of ['home', 'away', 'players', 'selectedPlayerId', 'fixture'] as const)
+        if (JSON.stringify(setup[key]) !== JSON.stringify(expected[key])) return null;
+      return session;
+    }
     if (
       setup.season !== world.date.season ||
       !world.clubs[setup.home.id] ||

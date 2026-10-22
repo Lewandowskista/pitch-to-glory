@@ -9,6 +9,11 @@ export type WorkerRequest =
   /** In a career world, `autoPlay` plays the career player's fixtures with the headless policy. */
   | { requestId: Id; type: 'simulate-season'; world: World; autoPlay: boolean }
   | { requestId: Id; type: 'commit-match'; world: World; session: MatchSession }
+  /**
+   * The tournament between seasons, on to the career player's next match; `simulateCareer`
+   * simulates that match too (review phase 3).
+   */
+  | { requestId: Id; type: 'tournament'; world: World; simulateCareer: boolean }
   | {
       requestId: Id;
       type: 'create-career';
@@ -22,7 +27,14 @@ export type WorkerRequest =
 export type WorkerResponse =
   | { requestId: Id; type: 'progress'; completedWeeks: number; totalWeeks: number }
   | { requestId: Id; type: 'checkpoint'; world: World; completedWeeks: number; totalWeeks: number }
-  | { requestId: Id; type: 'result'; world: World; outcome?: CareerMatchOutcome }
+  | {
+      requestId: Id;
+      type: 'result';
+      world: World;
+      outcome?: CareerMatchOutcome;
+      /** A tournament job: the career player's next match is waiting. */
+      pendingFixtureId?: Id | null;
+    }
   /** End of a simulation job. The final world was the last checkpoint. */
   | { requestId: Id; type: 'complete'; phase: World['phase']; pendingFixtureId: Id | null }
   | { requestId: Id; type: 'cancelled'; world: World | null }

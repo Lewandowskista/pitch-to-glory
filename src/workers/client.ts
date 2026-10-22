@@ -24,6 +24,8 @@ export interface WorldJobOptions {
   /** Season simulation in a career world: play the career player's fixtures automatically. */
   autoPlay?: boolean;
   session?: MatchSession;
+  /** A tournament job: simulate the career player's waiting match too. */
+  simulateCareer?: boolean;
   career?: { seed: string; draft: CareerDraft; clubId: Id };
 }
 export async function startWorldJob(
@@ -146,6 +148,10 @@ export async function startWorldJob(
               }
               useAppStore.getState().clearSession();
               useAppStore.getState().setWorld(data.world);
+            } else if (type === 'tournament') {
+              current.setCareerResult(null);
+              current.setWorld(data.world);
+              await autosave.afterWeek();
             } else if (type === 'next-season' || type === 'create-career') {
               current.setWorld(data.world);
               await autosave.afterWeek();
@@ -166,9 +172,15 @@ export async function startWorldJob(
                     ? 'careerCreated'
                     : type === 'commit-match'
                       ? 'recorded'
-                      : data.world.phase === 'complete'
-                        ? 'finished'
-                        : 'advanced',
+                      : type === 'tournament'
+                        ? data.pendingFixtureId
+                          ? 'tournamentMatch'
+                          : data.world.international?.live
+                            ? 'advanced'
+                            : 'tournamentOver'
+                        : data.world.phase === 'complete'
+                          ? 'finished'
+                          : 'advanced',
             );
           } else if (data.type === 'cancelled') finish('cancelled');
           else finish(null, data.code);
@@ -185,7 +197,9 @@ export async function startWorldJob(
             ? { requestId, type, world, session: options.session! }
             : type === 'create-career'
               ? { requestId, type, world, ...options.career! }
-              : { requestId, type, world };
+              : type === 'tournament'
+                ? { requestId, type, world, simulateCareer: Boolean(options.simulateCareer) }
+                : { requestId, type, world };
     await sendChunked(instance, request, () => cancelled || worker !== instance);
   } catch (error) {
     worker?.terminate();

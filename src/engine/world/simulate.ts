@@ -27,6 +27,7 @@ import {
 import { adoptDevelopmentRules, careerWeek, refreshMentor } from '../career/training';
 import { recordAvailability } from '../career/availability';
 import { accrueSeason, adoptAchievements, creditTitles } from '../career/honours/achievements';
+import { finishTournament } from '../career/honours/international';
 import { pendingCareerFixture } from '../career/fixtures';
 import {
   benchedCareerFixtures,
@@ -605,6 +606,8 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
   if (input.phase !== 'complete')
     throw new Error('The current season must finish before starting another');
   const world = options.inPlace ? input : copyWorld(input);
+  // A tournament still under way between seasons is played out first (review phase 3).
+  finishTournament(world);
   const summary = world.history.at(-1)!;
   archiveAndPrune(world, world.date.season);
   for (const movement of summary.movements)

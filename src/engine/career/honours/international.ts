@@ -2,11 +2,13 @@ import type {
   Hex,
   InternationalMatch,
   InternationalState,
+  LiveTournament,
   Nation,
   NationalLevel,
   Player,
   Position,
   Tournament,
+  TournamentFixture,
   World,
 } from '../../../model/domain';
 import { CONFIG } from '../../config';
@@ -319,19 +321,11 @@ function playMatch(
     state.matches.splice(0, state.matches.length - I.matchLimit);
   return match;
 }
-const winnerOf = (match: InternationalMatch) =>
-  match.penalties
-    ? match.penalties[0] > match.penalties[1]
-      ? match.homeId
-      : match.awayId
-    : match.score[0] > match.score[1]
-      ? match.homeId
-      : match.score[1] > match.score[0]
-        ? match.awayId
-        : null;
-
-/** Count the career player's appearance: caps, goals, fame, XP and the Chronicle. */
-function credit(world: World, match: InternationalMatch, nationName: string): void {
+/**
+ * Count the career player's appearance: caps, goals, fame, XP and the Chronicle. A match they
+ * played in the match engine brings its own XP; a simulated one the cap's and goals'.
+ */
+function credit(world: World, match: InternationalMatch, nationName: string, xp?: number): void {
   const career = world.career!;
   const part = match.career;
   if (!part) return;
@@ -343,7 +337,7 @@ function credit(world: World, match: InternationalMatch, nationName: string): vo
   honours.internationalGoals[match.level] += part.goals;
   const senior = match.level === 'senior';
   career.fame += (senior ? I.fame.cap : 0) + part.goals * (senior ? I.fame.goal : 1);
-  addXp(career, I.xp.cap + part.goals * I.xp.goal);
+  addXp(career, xp ?? I.xp.cap + part.goals * I.xp.goal);
   const player = world.players[career.playerId]!;
   player.fatigue = Math.min(100, player.fatigue + 8);
   if (first) chronicle(world, 'cap', { level: match.level, nation: nationName });
@@ -447,14 +441,47 @@ export function internationalWindow(world: World): void {
   postMessage(world, 'call-up', { level: call.level, nation: nation.name });
 }
 
+/** Group matchdays: who meets whom among a group's four, by seeding order. */
+const GROUP_ROUNDS: readonly (readonly [number, number])[][] = [
+  [
+    [0, 1],
+    [2, 3],
+  ],
+  [
+    [0, 2],
+    [1, 3],
+  ],
+  [
+    [0, 3],
+    [1, 2],
+  ],
+];
+const KNOCKOUT: Record<number, TournamentFixture['stage']> = {
+  4: 'quarter',
+  5: 'semi',
+  6: 'final',
+};
+const tournamentName = (world: World, kind: Tournament['kind']) =>
+  kind === 'continental'
+    ? world.identityVersion === 2
+      ? 'European Nations Championship'
+      : 'Continental Nations Championship'
+    : 'World Nations Cup';
+
+/** Whether a tournament is played before season `year`: every two years, between seasons. */
+export const tournamentYear = (year: number): boolean => year % 2 === 0;
+
 /**
- * A tournament between seasons, every two years: continental in years divisible by four,
- * world in the others. Sixteen nations play four groups of four, then knockouts.
+ * Open the tournament before season `year` (review phase 3, step 3.2): sixteen nations drawn
+ * into four seeded groups of four, the career player's place in the squad named now. Played
+ * one round at a time (`advanceTournament`), so the career player can play their nation's
+ * matches. Continental in years divisible by four, world in the others.
  */
-export function playTournament(world: World): Tournament | null {
+export function openTournament(world: World, year = world.date.season + 1): LiveTournament | null {
   const state = world.international;
-  const year = world.date.season;
-  if (!state || year % 2 !== 0) return null;
+  if (!state || !tournamentYear(year) || state.live) return null;
+  const id = `tournament:${year}`;
+  if (state.tournaments.some((entry) => entry.id === id)) return null;
   const kind: Tournament['kind'] = year % 4 === 0 ? 'continental' : 'world';
   const rng = createRng(`${world.seed}:tournament:${year}`);
   const home = state.nations.filter((nation) => nation.countryId);
@@ -467,135 +494,350 @@ export function playTournament(world: World): Tournament | null {
   const ratings = new Map(
     field.map((nation) => [nation.id, nationRating(world, nation, 'senior', squads)]),
   );
-  const career = world.career;
-  const player = career ? world.players[career.playerId]! : undefined;
-  const careerNation = player
-    ? field.find((nation) => nation.countryId === player.nationalityId)
-    : undefined;
-  const call = career ? careerCallUp(world) : null;
-  const inSquad = Boolean(call && call.level === 'senior');
-  const id = `tournament:${year}`;
   const seeded = [...field].sort(
     (a, b) => ratings.get(b.id)! - ratings.get(a.id)! || (a.id < b.id ? -1 : 1),
   );
   const groups: string[][] = [[], [], [], []];
   seeded.forEach((nation, index) => {
     const pot = Math.floor(index / 4);
-    const order = [0, 1, 2, 3];
-    const slot = order.filter((g) => groups[g]!.length === pot);
+    const slot = [0, 1, 2, 3].filter((g) => groups[g]!.length === pot);
     groups[rng.pick(slot)]!.push(nation.id);
   });
-  const matchIds: string[] = [];
-  const side = (nationId: string): Side => ({
-    nation: field.find((n) => n.id === nationId)!,
-    rating: ratings.get(nationId)!,
-  });
-  const careerSide = (a: string, b: string): 0 | 1 | null =>
-    inSquad && careerNation ? (a === careerNation.id ? 0 : b === careerNation.id ? 1 : null) : null;
-  const play = (a: string, b: string, stage: InternationalMatch['kind']) => {
-    const match = playMatch(
-      world,
-      rng,
-      side(a),
-      side(b),
-      'senior',
-      stage,
-      id,
-      careerSide(a, b),
-      Boolean(call?.starts),
-    );
-    matchIds.push(match.id);
-    if (careerNation) credit(world, match, careerNation.name);
-    for (const nationId of [a, b]) {
-      const countryId = side(nationId).nation.countryId;
-      const squad = countryId ? squads.get(`${countryId}:senior`) : undefined;
-      if (squad)
-        creditCaps(
-          world,
-          starters(squad).map((p) => p.id),
-        );
-    }
-    return match;
-  };
-  const standings = groups.map((group) => {
-    const points = new Map(group.map((n) => [n, { points: 0, difference: 0, scored: 0 }]));
-    for (let a = 0; a < 4; a++)
-      for (let b = a + 1; b < 4; b++) {
-        const match = play(group[a]!, group[b]!, 'group');
-        const [x, y] = match.score;
-        const rowA = points.get(group[a]!)!;
-        const rowB = points.get(group[b]!)!;
-        rowA.points += x > y ? 3 : x === y ? 1 : 0;
-        rowB.points += y > x ? 3 : x === y ? 1 : 0;
-        rowA.difference += x - y;
-        rowB.difference += y - x;
-        rowA.scored += x;
-        rowB.scored += y;
-      }
-    return [...group].sort((a, b) => {
-      const p = points.get(a)!;
-      const q = points.get(b)!;
-      return (
-        q.points - p.points ||
-        q.difference - p.difference ||
-        q.scored - p.scored ||
-        (a < b ? -1 : 1)
-      );
-    });
-  });
-  let round = [
-    standings[0]![0]!,
-    standings[1]![1]!,
-    standings[1]![0]!,
-    standings[0]![1]!,
-    standings[2]![0]!,
-    standings[3]![1]!,
-    standings[3]![0]!,
-    standings[2]![1]!,
-  ];
-  let stage: NonNullable<Tournament['career']>['stage'] = 'group';
-  const reached = new Map<string, 'quarter' | 'semi' | 'final'>();
-  const names: ('quarter' | 'semi' | 'final')[] = ['quarter', 'semi', 'final'];
-  let runnerUp = '';
-  for (const name of names) {
-    round.forEach((nation) => reached.set(nation, name));
-    const next: string[] = [];
-    for (let index = 0; index < round.length; index += 2) {
-      const match = play(round[index]!, round[index + 1]!, name === 'final' ? 'final' : 'knockout');
-      const winner = winnerOf(match)!;
-      next.push(winner);
-      if (name === 'final') runnerUp = winner === round[index] ? round[index + 1]! : round[index]!;
-    }
-    round = next;
-  }
-  const winnerId = round[0]!;
-  if (careerNation) {
-    const reach = reached.get(careerNation.id);
-    stage = winnerId === careerNation.id ? 'winner' : (reach ?? 'group');
-  }
-  const tournament: Tournament = {
+  const fixtures: TournamentFixture[] = [];
+  GROUP_ROUNDS.forEach((pairs, index) =>
+    groups.forEach((group, g) =>
+      pairs.forEach(([a, b]) =>
+        fixtures.push({
+          id: `${id}:group:${g}:${index + 1}:${a}${b}`,
+          round: index + 1,
+          stage: 'group',
+          homeId: group[a]!,
+          awayId: group[b]!,
+          matchId: null,
+          score: null,
+          penalties: null,
+        }),
+      ),
+    ),
+  );
+  const career = world.career;
+  const player = career ? world.players[career.playerId] : undefined;
+  const careerNation = player
+    ? field.find((nation) => nation.countryId === player.nationalityId)
+    : undefined;
+  const call = career ? careerCallUp(world) : null;
+  const live: LiveTournament = {
     id,
     kind,
-    name:
-      kind === 'continental'
-        ? world.identityVersion === 2
-          ? 'European Nations Championship'
-          : 'Continental Nations Championship'
-        : 'World Nations Cup',
+    name: tournamentName(world, kind),
     year,
     groups,
-    matchIds,
+    fixtures,
+    round: 1,
+    careerNationId: careerNation?.id ?? null,
+    inSquad: Boolean(careerNation && call?.level === 'senior'),
+    starts: Boolean(careerNation && call?.level === 'senior' && call.starts),
+  };
+  state.live = live;
+  return live;
+}
+
+export const nationOf = (world: World, id: string) =>
+  world.international!.nations.find((nation) => nation.id === id)!;
+
+/** The career player's nation's match in this round, while they are fit to play it. */
+export function pendingTournamentFixture(world: World): TournamentFixture | null {
+  const live = world.international?.live;
+  const career = world.career;
+  if (!live || !career || !live.inSquad || !live.careerNationId) return null;
+  if (world.players[career.playerId]?.injuryId) return null;
+  return (
+    live.fixtures.find(
+      (fixture) =>
+        fixture.round === live.round &&
+        !fixture.matchId &&
+        (fixture.homeId === live.careerNationId || fixture.awayId === live.careerNationId),
+    ) ?? null
+  );
+}
+
+/**
+ * What the career player can do with the tournament between seasons: play their nation's
+ * waiting match, continue once it is played (the rest of the round, then their next match or
+ * the end), or nothing, when they are not in it (the next season plays it out).
+ */
+export function tournamentStep(world: World): 'play' | 'continue' | null {
+  const live = world.international?.live;
+  if (!live || !world.career) return null;
+  if (pendingTournamentFixture(world)) return 'play';
+  const involved =
+    live.inSquad &&
+    live.fixtures.some(
+      (fixture) =>
+        fixture.round === live.round &&
+        (fixture.homeId === live.careerNationId || fixture.awayId === live.careerNationId),
+    );
+  return involved ? 'continue' : null;
+}
+
+/** A fixture's match kind and importance for the record and the match engine. */
+export function tournamentStakes(fixture: TournamentFixture): {
+  kind: InternationalMatch['kind'];
+  importance: number;
+} {
+  const T = I.tournament;
+  return fixture.stage === 'group'
+    ? { kind: 'group', importance: T.importance.group }
+    : fixture.stage === 'final'
+      ? { kind: 'final', importance: T.importance.final }
+      : { kind: 'knockout', importance: T.importance.knockout };
+}
+
+/**
+ * Store a played tournament match, from the simulation or from the career player's session:
+ * the fixture's result, the career player's caps and goals (once), and the caps of both
+ * home nations' first elevens. Throws if the fixture was already played.
+ */
+export function recordTournamentMatch(
+  world: World,
+  fixture: TournamentFixture,
+  match: InternationalMatch,
+  /** The XP of a match the career player played in the match engine. */
+  xp?: number,
+  /** Squads already selected this round, shared between its matches. */
+  squads = new Map<string, Player[]>(),
+): void {
+  if (fixture.matchId) throw new Error('This match has already been played');
+  const live = world.international!.live!;
+  fixture.matchId = match.id;
+  fixture.score = [match.score[0], match.score[1]];
+  fixture.penalties = match.penalties ? [match.penalties[0], match.penalties[1]] : null;
+  if (live.careerNationId) credit(world, match, nationOf(world, live.careerNationId).name, xp);
+  for (const nationId of [fixture.homeId, fixture.awayId]) {
+    const nation = nationOf(world, nationId);
+    if (!nation.countryId) continue;
+    nationRating(world, nation, 'senior', squads);
+    const squad = squads.get(`${nation.countryId}:senior`);
+    if (squad)
+      creditCaps(
+        world,
+        starters(squad).map((p) => p.id),
+      );
+  }
+}
+
+/** Simulate one tournament fixture, with the career player's part if their nation plays. */
+function simulateFixture(
+  world: World,
+  live: LiveTournament,
+  fixture: TournamentFixture,
+  squads: Map<string, Player[]>,
+): void {
+  const rng = createRng(`${world.seed}:${fixture.id}`);
+  const side = (id: string): Side => ({
+    nation: nationOf(world, id),
+    rating: nationRating(world, nationOf(world, id), 'senior', squads),
+  });
+  const careerSide =
+    live.inSquad && live.careerNationId
+      ? fixture.homeId === live.careerNationId
+        ? 0
+        : fixture.awayId === live.careerNationId
+          ? 1
+          : null
+      : null;
+  const match = playMatch(
+    world,
+    rng,
+    side(fixture.homeId),
+    side(fixture.awayId),
+    'senior',
+    tournamentStakes(fixture).kind,
+    live.id,
+    careerSide,
+    live.starts,
+  );
+  recordTournamentMatch(world, fixture, match, undefined, squads);
+}
+
+/** A group's table row: matches played, points, goal difference and goals scored. */
+export interface GroupRow {
+  nationId: string;
+  played: number;
+  points: number;
+  difference: number;
+  scored: number;
+}
+/** A group's table from its played matches: points, goal difference, goals, then id. */
+export function groupStandings(live: LiveTournament, group: readonly string[]): GroupRow[] {
+  const rows = new Map<string, GroupRow>(
+    group.map((id) => [id, { nationId: id, played: 0, points: 0, difference: 0, scored: 0 }]),
+  );
+  for (const fixture of live.fixtures) {
+    if (fixture.stage !== 'group' || !fixture.score || !rows.has(fixture.homeId)) continue;
+    const [x, y] = fixture.score;
+    const home = rows.get(fixture.homeId)!;
+    const away = rows.get(fixture.awayId)!;
+    home.played++;
+    away.played++;
+    home.points += x > y ? 3 : x === y ? 1 : 0;
+    away.points += y > x ? 3 : x === y ? 1 : 0;
+    home.difference += x - y;
+    away.difference += y - x;
+    home.scored += x;
+    away.scored += y;
+  }
+  return [...rows.values()].sort(
+    (p, q) =>
+      q.points - p.points ||
+      q.difference - p.difference ||
+      q.scored - p.scored ||
+      (p.nationId < q.nationId ? -1 : 1),
+  );
+}
+const groupTable = (live: LiveTournament, group: readonly string[]): string[] =>
+  groupStandings(live, group).map((row) => row.nationId);
+const fixtureWinner = (fixture: TournamentFixture): string | null =>
+  fixture.penalties
+    ? fixture.penalties[0] > fixture.penalties[1]
+      ? fixture.homeId
+      : fixture.awayId
+    : fixture.score && fixture.score[0] !== fixture.score[1]
+      ? fixture.score[0] > fixture.score[1]
+        ? fixture.homeId
+        : fixture.awayId
+      : null;
+
+/** Draw the next knockout round from the last one's results, or the groups'. */
+function nextRound(live: LiveTournament): void {
+  const round = live.round + 1;
+  if (round <= GROUP_ROUNDS.length) {
+    live.round = round;
+    return;
+  }
+  let teams: string[];
+  if (round === GROUP_ROUNDS.length + 1) {
+    const tables = live.groups.map((group) => groupTable(live, group));
+    teams = [
+      tables[0]![0]!,
+      tables[1]![1]!,
+      tables[1]![0]!,
+      tables[0]![1]!,
+      tables[2]![0]!,
+      tables[3]![1]!,
+      tables[3]![0]!,
+      tables[2]![1]!,
+    ];
+  } else
+    teams = live.fixtures
+      .filter((fixture) => fixture.round === live.round)
+      .map((fixture) => fixtureWinner(fixture)!);
+  for (let index = 0; index < teams.length; index += 2)
+    live.fixtures.push({
+      id: `${live.id}:${KNOCKOUT[round]}:${index / 2}`,
+      round,
+      stage: KNOCKOUT[round]!,
+      homeId: teams[index]!,
+      awayId: teams[index + 1]!,
+      matchId: null,
+      score: null,
+      penalties: null,
+    });
+  live.round = round;
+}
+
+/** The tournament is over: its record, and the career player's story of it. */
+function closeTournament(world: World, live: LiveTournament): Tournament {
+  const state = world.international!;
+  const final = live.fixtures.find((fixture) => fixture.stage === 'final')!;
+  const winnerId = fixtureWinner(final)!;
+  const runnerUpId = winnerId === final.homeId ? final.awayId : final.homeId;
+  let stage: NonNullable<Tournament['career']>['stage'] = 'group';
+  if (live.careerNationId) {
+    const reached = live.fixtures
+      .filter(
+        (fixture) =>
+          fixture.homeId === live.careerNationId || fixture.awayId === live.careerNationId,
+      )
+      .reduce((best, fixture) => Math.max(best, fixture.round), 0);
+    stage =
+      winnerId === live.careerNationId
+        ? 'winner'
+        : reached >= 6
+          ? 'final'
+          : reached === 5
+            ? 'semi'
+            : reached === 4
+              ? 'quarter'
+              : 'group';
+  }
+  const tournament: Tournament = {
+    id: live.id,
+    kind: live.kind,
+    name: live.name,
+    year: live.year,
+    groups: live.groups,
+    matchIds: live.fixtures.map((fixture) => fixture.matchId!),
     winnerId,
-    runnerUpId: runnerUp,
-    career: careerNation ? { nationId: careerNation.id, stage, inSquad } : null,
+    runnerUpId,
+    career: live.careerNationId
+      ? { nationId: live.careerNationId, stage, inSquad: live.inSquad }
+      : null,
   };
   state.tournaments.push(tournament);
   if (state.tournaments.length > I.tournamentLimit)
     state.tournaments.splice(0, state.tournaments.length - I.tournamentLimit);
-  if (career && careerNation && inSquad) {
-    chronicle(world, 'tournament', { name: tournament.name, year, stage });
+  state.live = null;
+  const career = world.career;
+  if (career && live.careerNationId && live.inSquad) {
+    const nation = nationOf(world, live.careerNationId).name;
+    chronicle(world, 'tournament', { name: tournament.name, year: tournament.year, stage });
     if (stage === 'winner') career.fame += I.fame.tournament;
-    postMessage(world, 'tournament', { name: tournament.name, stage, nation: careerNation.name });
+    postMessage(world, 'tournament', { name: tournament.name, stage, nation });
   }
   return tournament;
+}
+
+/**
+ * Play the tournament on: every match of the round except the career player's (unless
+ * `simulateCareer`), then the next round once this one is done. Stops when the career player's
+ * match is due, and closes the tournament after the final. Returns the match waiting for the
+ * player, if any.
+ */
+export function advanceTournament(
+  world: World,
+  options: { simulateCareer?: boolean } = {},
+): { pending: TournamentFixture | null; tournament: Tournament | null } {
+  const live = world.international?.live;
+  if (!live) return { pending: null, tournament: null };
+  // Squads are picked once for the whole advance: nobody's club football changes during it.
+  const squads = new Map<string, Player[]>();
+  for (let guard = 0; guard < 8; guard++) {
+    const pending = options.simulateCareer ? null : pendingTournamentFixture(world);
+    for (const fixture of live.fixtures)
+      if (fixture.round === live.round && !fixture.matchId && fixture !== pending)
+        simulateFixture(world, live, fixture, squads);
+    if (pending) return { pending, tournament: null };
+    if (live.round === 6) return { pending: null, tournament: closeTournament(world, live) };
+    nextRound(live);
+  }
+  throw new Error('The tournament did not finish');
+}
+
+/** Play out whatever remains of a tournament, the career player's matches simulated. */
+export function finishTournament(world: World): Tournament | null {
+  if (!world.international?.live) return null;
+  return advanceTournament(world, { simulateCareer: true }).tournament;
+}
+
+/**
+ * The tournament between seasons, at the season change, for a world that did not play it
+ * round by round (no career, or saved before review phase 3): opened and played out at once.
+ */
+export function playTournament(world: World): Tournament | null {
+  const state = world.international;
+  if (!state) return null;
+  if (state.live) return finishTournament(world);
+  if (!openTournament(world, world.date.season)) return null;
+  return finishTournament(world);
 }

@@ -138,7 +138,8 @@ export function validateHonours(w: Record<string, unknown>): void {
       id(tournament.id);
       options(tournament.kind, ['continental', 'world']);
       text(tournament.name, 80);
-      number(tournament.year, 1800, Number(current.season), true);
+      // A tournament played between seasons (review phase 3) is the coming season's.
+      number(tournament.year, 1800, Number(current.season) + 1, true);
       const groups = array(tournament.groups, 4);
       groups.forEach((group) => ids(group, 4).forEach((key) => requireValue(nationIds.has(key))));
       requireValue(
@@ -150,6 +151,41 @@ export function validateHonours(w: Record<string, unknown>): void {
         requireValue(nationIds.has(String(part.nationId)));
         options(part.stage, ['group', 'quarter', 'semi', 'final', 'winner']);
         requireValue(typeof part.inSquad === 'boolean');
+      }
+    }
+    // The tournament under way between seasons (review phase 3, step 3.2).
+    if (state.live !== undefined && state.live !== null) {
+      const live = object(state.live);
+      text(live.id, 60);
+      options(live.kind, ['continental', 'world']);
+      text(live.name, 80);
+      number(live.year, 1800, Number(object(w.date).season) + 1, true);
+      number(live.round, 1, 6, true);
+      const groups = array(live.groups, 4);
+      requireValue(groups.length === 4);
+      for (const group of groups)
+        for (const id of array(group, 4)) requireValue(nationIds.has(String(id)));
+      if (live.careerNationId !== null) requireValue(nationIds.has(String(live.careerNationId)));
+      requireValue(typeof live.inSquad === 'boolean' && typeof live.starts === 'boolean');
+      const ids = new Set<string>();
+      for (const value of array(live.fixtures, 31)) {
+        const fixture = object(value);
+        text(fixture.id, 80);
+        requireValue(!ids.has(String(fixture.id)));
+        ids.add(String(fixture.id));
+        number(fixture.round, 1, 6, true);
+        options(fixture.stage, ['group', 'quarter', 'semi', 'final']);
+        requireValue(
+          nationIds.has(String(fixture.homeId)) && nationIds.has(String(fixture.awayId)),
+        );
+        if (fixture.matchId !== null) text(fixture.matchId, 120);
+        for (const key of ['score', 'penalties']) {
+          if (fixture[key] === null) continue;
+          const pair = array(fixture[key], 2);
+          requireValue(pair.length === 2);
+          for (const goals of pair) number(goals, 0, 30, true);
+        }
+        requireValue((fixture.matchId === null) === (fixture.score === null));
       }
     }
   }

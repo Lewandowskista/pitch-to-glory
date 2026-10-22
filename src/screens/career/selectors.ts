@@ -135,12 +135,21 @@ export function leaguePosition(
     leagueName: league.name,
   };
 }
+const tournamentName = (world: World, id: string): string | undefined => {
+  const tournament = world.international?.tournaments.find((entry) => entry.id === id);
+  return tournament ? `${tournament.name} ${tournament.year}` : undefined;
+};
 export function competitionName(world: World, competitionId: string): string {
   return (
     world.leagues[competitionId]?.name ??
     world.competitions[competitionId]?.name ??
     world.pyramid?.phases[competitionId]?.name ??
     world.pyramid?.ties[competitionId]?.name ??
+    // A tournament between seasons (review phase 3), under way or finished.
+    (world.international?.live?.id === competitionId
+      ? `${world.international.live.name} ${world.international.live.year}`
+      : undefined) ??
+    tournamentName(world, competitionId) ??
     competitionId
   );
 }

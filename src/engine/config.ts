@@ -938,6 +938,8 @@ export const CONFIG = {
         xp: { cap: 120, goal: 30 },
         matchLimit: 120,
         tournamentLimit: 30,
+        /** Tournaments played round by round (review phase 3): fixture importance by stage. */
+        tournament: { importance: { group: 1.15, knockout: 1.3, final: 1.5 } },
       },
       awards: {
         monthWeeks: 5,

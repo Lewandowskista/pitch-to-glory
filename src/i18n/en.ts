@@ -563,6 +563,8 @@ export const en = {
       matchday: 'Matchday. Your club plays this week. Take the field from your career hub.',
       careerCreated: 'Your career has begun. Welcome to the club.',
       recorded: 'Result recorded.',
+      tournamentMatch: 'Your nation plays next. Take the field from your career hub.',
+      tournamentOver: 'The tournament is over. The new season is ready to begin.',
     },
     inspect: 'Club details',
     jumpToClub: 'Go to club details',

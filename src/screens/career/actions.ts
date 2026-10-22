@@ -10,3 +10,10 @@ export function simulateCareerSeason(autoPlay: boolean): void {
 export function startNextCareerSeason(): void {
   void startWorldJob('next-season');
 }
+/**
+ * The tournament between seasons: on to the career player's next match, or with
+ * `simulateCareer` through the one waiting for them (review phase 3).
+ */
+export function continueTournament(simulateCareer: boolean): void {
+  void startWorldJob('tournament', { simulateCareer });
+}

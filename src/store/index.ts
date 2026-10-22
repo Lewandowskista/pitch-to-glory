@@ -43,7 +43,8 @@ export interface WorldJob {
     | 'simulate-to-match'
     | 'next-season'
     | 'commit-match'
-    | 'create-career';
+    | 'create-career'
+    | 'tournament';
   completedWeeks: number;
   totalWeeks: number;
   cancelling: boolean;
@@ -60,6 +61,8 @@ interface WorldSlice {
     | 'matchday'
     | 'careerCreated'
     | 'recorded'
+    | 'tournamentMatch'
+    | 'tournamentOver'
     | null;
   worldError: string | null;
   setWorld: (world: World) => void;
@@ -90,8 +93,19 @@ function reportFor(
 ): MatchSlice['careerResult'] {
   if (!result) return null;
   const career = world?.career;
-  const last = career?.matches.at(-1);
   const record = result.outcome.record;
+  // A tournament match (review phase 3) is kept in the international record instead.
+  const international = result.outcome.internationalMatchId;
+  if (international) {
+    const match = world?.international?.matches.find((entry) => entry.id === international);
+    return career &&
+      career.playerId === result.session.setup.selectedPlayerId &&
+      match?.career?.rating === record.rating &&
+      match.career.goals === record.goals
+      ? result
+      : null;
+  }
+  const last = career?.matches.at(-1);
   const same =
     career &&
     last &&

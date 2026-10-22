@@ -55,7 +55,14 @@ import {
   recentForm,
   seasonLine,
 } from './selectors';
-import { continueToMatchday, simulateCareerSeason, startNextCareerSeason } from './actions';
+import {
+  continueToMatchday,
+  continueTournament,
+  simulateCareerSeason,
+  startNextCareerSeason,
+} from './actions';
+import { tournamentStep } from '../../engine/career/honours/international';
+import { TournamentBody, tournamentHeading } from './TournamentHub';
 import { useUrlDialog } from './useUrlDialog';
 import {
   bridgeWage,
@@ -432,6 +439,10 @@ function NextMatch({
   const injury = career.injury;
   const awaitingRecovery = Boolean(injury && injury.recovery === null);
   const complete = world.phase === 'complete';
+  // Between seasons, a tournament the player's nation is still in comes first (review phase 3).
+  const step = complete ? tournamentStep(world) : null;
+  const tournament =
+    step && world.international?.live ? tournamentHeading(world.international.live) : null;
   // A ban that rules the player out of this fixture (the discipline phase).
   const banned = fixture && !injury ? suspension(world, career.playerId, fixture) : 0;
   // An expiring contract with nothing agreed: the next season starts on the bridge deal, so
@@ -450,6 +461,29 @@ function NextMatch({
     >
       {session.state.match.status === 'finished' ? c.hub.record : c.hub.resume}
     </ButtonLink>
+  ) : step === 'play' ? (
+    <ButtonLink
+      variant="play"
+      size="lg"
+      className="max-sm:w-full"
+      to="/match"
+      iconEnd="ball"
+      data-hub-action=""
+    >
+      {c.hub.tournament.play}
+    </ButtonLink>
+  ) : step === 'continue' ? (
+    <Button
+      variant="play"
+      size="lg"
+      className="max-sm:w-full"
+      iconEnd="arrow"
+      disabled={busy}
+      onClick={() => continueTournament(false)}
+      data-hub-action=""
+    >
+      {c.hub.tournament.continue}
+    </Button>
   ) : complete ? (
     <Button
       variant="play"
@@ -501,7 +535,13 @@ function NextMatch({
     </Button>
   );
   // The eyebrow says what the card is about now; its heading always names the card.
-  const eyebrow = complete ? c.hub.seasonComplete : pending ? c.hub.matchday : null;
+  const eyebrow = tournament
+    ? tournament.title
+    : complete
+      ? c.hub.seasonComplete
+      : pending
+        ? c.hub.matchday
+        : null;
   const eyebrowClass = 'text-xs font-extrabold tracking-[0.14em] text-gold uppercase';
   const homeSide = fixture ? world.clubs[fixture.homeId] : undefined;
   const awaySide = fixture ? world.clubs[fixture.awayId] : undefined;
@@ -521,6 +561,11 @@ function NextMatch({
               {c.hub.nextMatch}
             </h2>
             {eyebrow && <p className={eyebrowClass}>{eyebrow}</p>}
+            {tournament && (
+              <span className="rounded-full bg-[rgb(255_247_228/0.14)] px-2.5 py-0.5 text-xs font-semibold">
+                {tournament.round}
+              </span>
+            )}
             {kind && !complete && (
               <span className="rounded-full bg-[rgb(255_247_228/0.14)] px-2.5 py-0.5 text-xs font-semibold">
                 {c.hub.importance[kind]}
@@ -540,7 +585,9 @@ function NextMatch({
             </p>
           )}
         </div>
-        {complete ? (
+        {step ? (
+          <TournamentBody world={world} />
+        ) : complete ? (
           <div>
             <p className="font-display text-[2.6rem] leading-none">{c.hub.seasonComplete}</p>
             <p className="mt-2 max-w-prose text-sm text-hero-muted">{c.hub.seasonCompleteBody}</p>
@@ -635,6 +682,16 @@ function NextMatch({
               onClick={() => dialog.open('autoplay')}
             >
               {c.hub.simulateSeason}
+            </button>
+          )}
+          {step === 'play' && !session && (
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center rounded-control px-2 text-sm font-semibold text-hero-ink underline underline-offset-4 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 disabled:no-underline"
+              disabled={busy}
+              onClick={() => continueTournament(true)}
+            >
+              {c.hub.tournament.simulate}
             </button>
           )}
           {awaitingRecovery && !session && (

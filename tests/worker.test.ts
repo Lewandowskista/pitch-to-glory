@@ -15,6 +15,10 @@ const operations = {
   commit: () => {
     throw new Error('Not used');
   },
+  tournament: (world: World, simulateCareer: boolean) => ({
+    world,
+    pendingFixtureId: simulateCareer ? null : 'tournament:2028:group:0:1:01',
+  }),
   createCareer: (world: World) => world,
   nextSeason: (world: World): World => ({
     ...world,
@@ -45,6 +49,28 @@ describe('worker job protocol', () => {
     // Week 1 always plays; Continue then stops in week 2 for the decision.
     expect(await run('simulate-to-match')).toBe(1);
     expect(await run('simulate-season')).toBe(3);
+  });
+  it('plays the tournament on to the career player’s match, or through it', async () => {
+    const { runWorldJob } = await import('../src/workers/run');
+    const run = async (simulateCareer: boolean) => {
+      const events: WorkerResponse[] = [];
+      await runWorldJob(
+        { requestId: 'tournament', type: 'tournament', world: initial, simulateCareer },
+        {
+          emit: (event) => events.push(event),
+          checkpoint: async () => {},
+          cancelled: () => false,
+          yieldControl: async () => {},
+        },
+        operations,
+      );
+      return events.at(-1)!;
+    };
+    expect(await run(false)).toMatchObject({
+      type: 'result',
+      pendingFixtureId: 'tournament:2028:group:0:1:01',
+    });
+    expect(await run(true)).toMatchObject({ type: 'result', pendingFixtureId: null });
   });
   it('continues through the national postseason calendar instead of stopping at legacy week 34', async () => {
     const { runWorldJob } = await import('../src/workers/run');

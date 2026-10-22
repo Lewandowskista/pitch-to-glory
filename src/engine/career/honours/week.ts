@@ -4,7 +4,13 @@ import { playerAbility } from '../../strength';
 import { postMessage } from '../market/records';
 import { chronicle } from './chronicle';
 import { captureMoments } from './moments';
-import { createInternational, internationalWindow, playTournament } from './international';
+import {
+  createInternational,
+  internationalWindow,
+  openTournament,
+  playTournament,
+  tournamentYear,
+} from './international';
 import { monthlyAward, recordCareerTrophies, seasonAwards, startAwardSeason } from './awards';
 import { retireCareer, retirementAge, retirementState, testimonialCheck } from './retirement';
 import { ambitionsCheck } from './ambitions';
@@ -100,6 +106,9 @@ export function honoursWeek(world: World): void {
 /** The season's final week, once its tables are archived. */
 export function honoursSeasonEnd(world: World): void {
   seasonAwards(world);
+  // A tournament before next season is played round by round, between seasons (review phase
+  // 3), so the career player can play their nation's matches.
+  if (tournamentYear(world.date.season + 1)) openTournament(world);
   testimonialCheck(world);
   ambitionsCheck(world, { hallOfFame: true });
   if (retirementAge(world) + 1 >= H.retirement.forcedAge) postMessage(world, 'retirement-due', {});

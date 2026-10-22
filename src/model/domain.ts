@@ -1719,6 +1719,40 @@ export interface InternationalState {
   nations: Nation[];
   matches: InternationalMatch[];
   tournaments: Tournament[];
+  /**
+   * The tournament being played between seasons (review phase 3, step 3.2; schema 22), one
+   * round at a time so the career player can play their nation's matches. Null or absent when
+   * none is under way.
+   */
+  live?: LiveTournament | null;
+}
+/** A match of a tournament under way, with its result once played. */
+export interface TournamentFixture {
+  id: Id;
+  /** 1–3 group matchdays, 4 quarter-finals, 5 semi-finals, 6 the final. */
+  round: number;
+  stage: 'group' | 'quarter' | 'semi' | 'final';
+  homeId: Id;
+  awayId: Id;
+  /** The recorded `InternationalMatch`, once played. */
+  matchId: Id | null;
+  score: [number, number] | null;
+  penalties: [number, number] | null;
+}
+/** A tournament under way between seasons (review phase 3, step 3.2). */
+export interface LiveTournament {
+  id: Id;
+  kind: Tournament['kind'];
+  name: string;
+  year: number;
+  groups: Id[][];
+  fixtures: TournamentFixture[];
+  /** The round being played. */
+  round: number;
+  /** The career player's nation, if in the field, and whether they were named in the squad. */
+  careerNationId: Id | null;
+  inSquad: boolean;
+  starts: boolean;
 }
 export interface BackgroundResult {
   fixtureId: Id;
