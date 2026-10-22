@@ -28,6 +28,7 @@ import { cultureTraits, signed } from './socialUi';
 import { competitionLine, FormationPitch, SelectionReasons } from './selectionUi';
 import { PromiseCard, promiseLeads } from './storiesUi';
 import { TrendIcon } from './marketUi';
+import { StrainNote } from './financeUi';
 
 const C = s.club;
 /** The small uppercase label over a group inside a card (at most one per card). */
@@ -61,6 +62,8 @@ function ClubContent({
     <div className="grid gap-5">
       {/* The manager's challenge leads the page while it needs an answer or is running. */}
       {lead && <PromiseCard world={world} />}
+      {/* The club's finances under strain (review phase 4): what it costs the player. */}
+      {club.finances.strain && <StrainNote strain={club.finances.strain} className="" />}
       {/* Two independent columns on wide screens, so a short card never stretches to match its
           neighbour; on phones the columns dissolve and `order` restores the reading order. */}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12 lg:items-start">

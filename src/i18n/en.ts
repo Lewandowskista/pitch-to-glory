@@ -592,6 +592,15 @@ export const en = {
     balance: 'Balance',
     wageBudget: 'Weekly wage budget',
     transferBudget: 'Transfer budget',
+    strain: {
+      stretched: 'Spending more than it earns',
+      debt: 'In debt',
+    },
+    strainEffects: {
+      stretched:
+        'Wages are above what the club earns. It signs no one, renews {cut} fewer players, offers {wage}% of a fair wage with no raise at renewal, and its training support is worth {support}%.',
+      debt: 'The club is in debt. It signs no one, renews {cut} fewer players, offers {wage}% of a fair wage with no raise at renewal, and its training support is worth {support}%.',
+    },
     money: '{amount} Cr',
     squad: 'Squad',
     squadNumber: 'Squad number',

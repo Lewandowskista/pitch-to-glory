@@ -117,6 +117,8 @@ export function aiTransferWindow(world: World, rng: Rng): number {
   for (const buyer of clubs) {
     if (buyer.playerIds.length >= L.squadMaximum) continue;
     if (buyer.finances.transferBudget < M.minimumBudget) continue;
+    // A club under financial strain (review phase 4) does not buy.
+    if (buyer.finances.strain) continue;
     if (rng.next() >= M.signingChance) continue;
     const abroad = rng.next() < M.abroadChance;
     const weakest = weakestSlot(world, buyer);

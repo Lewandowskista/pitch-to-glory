@@ -1,3 +1,4 @@
+import { COMMITMENTS } from '../engine/career/commitments';
 import type { Player, StoryKind, TrainingFocus } from '../model/domain';
 import { CONFIG } from '../engine/config';
 import { ARCHETYPE_BY_ID, SKILL_BY_ID } from '../engine/career/catalogue';
@@ -90,6 +91,26 @@ export function validateCareer(w: Record<string, unknown>): void {
     );
     ref(extra.mentorId, players);
     requireValue(extra.mentorId !== career.playerId);
+  }
+  // Weekly commitments (review phase 4): at most three, each once.
+  if (training.commitments !== undefined) {
+    const kinds = array(training.commitments, CONFIG.career.commitments.slots);
+    for (const kind of kinds) options(kind, COMMITMENTS);
+    requireValue(new Set(kinds).size === kinds.length);
+  }
+  if (career.commitments !== undefined) {
+    const record = object(career.commitments);
+    for (const [kind, count] of Object.entries(object(record.totals))) {
+      options(kind, COMMITMENTS);
+      number(count, 0, 1e6, true);
+    }
+    if (record.last !== null) {
+      const last = object(record.last);
+      number(last.season, 1800, 9999, true);
+      number(last.week, 1, 80, true);
+      for (const kind of array(last.kept, CONFIG.career.commitments.slots))
+        options(kind, COMMITMENTS);
+    }
   }
   const trainable = trainableAttributes(player) as string[];
   for (const [key, value] of Object.entries(object(career.trainingProgress))) {

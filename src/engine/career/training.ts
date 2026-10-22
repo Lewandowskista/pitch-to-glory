@@ -1,5 +1,6 @@
 import type {
   Career,
+  Club,
   Injury,
   Player,
   Position,
@@ -357,6 +358,7 @@ export function careerWeek(world: World): void {
       ((DEV.professionalismBase + player.hidden.professionalism / 100) / 1.1) *
       (has(career, 'professional') ? T.professionalSkill : 1) *
       fit *
+      clubSupport(club) *
       assetEffects(career.style?.assets ?? []).training;
     const sessions = [
       ...career.training.sessions.map((session) => ({ ...session, extra: false })),
@@ -373,7 +375,11 @@ export function careerWeek(world: World): void {
             ? T.fatigue.opponent
             : T.fatigue[session.intensity];
       report.fatigue +=
-        fatigue > 0 && has(career, 'second-wind') ? fatigue * T.secondWindSkill : fatigue;
+        fatigue > 0
+          ? fatigue *
+            (has(career, 'second-wind') ? T.secondWindSkill : 1) *
+            assetEffects(career.style?.assets ?? []).trainingFatigue
+          : fatigue;
       // Recovery and studying the opponent build nothing and carry no injury risk.
       if (session.focus === 'recovery' || session.focus === 'opponent') continue;
       if (isPositionFocus(session.focus)) {
@@ -385,7 +391,10 @@ export function careerWeek(world: World): void {
         else player.secondaryPositions.push({ position, familiarity });
         report.familiarity = { position, familiarity };
       } else {
-        let gain = (session.extra ? T.mentorGain : T.gain[session.intensity]) * learning;
+        let gain =
+          (session.extra
+            ? T.mentorGain * assetEffects(career.style?.assets ?? []).extraGain
+            : T.gain[session.intensity]) * learning;
         if (session.extra && career.training.extra) {
           const mentor = world.players[career.training.extra.mentorId];
           const keys = focusAttributes(player, session.focus);
@@ -447,6 +456,15 @@ export function adoptDevelopmentRules(world: World): void {
     career.availability = seedAvailability(world);
   }
   career.developmentRules = 3;
+}
+
+/**
+ * What a club's training support is worth (review phase 4): full while its finances are
+ * healthy, less while it is stretched or in debt.
+ */
+export function clubSupport(club: Club | undefined): number {
+  const strain = club?.finances.strain;
+  return strain ? CONFIG.world.background.economy.support[strain] : 1;
 }
 
 /** Keep the extra session's mentor a current teammate, re-picking or dropping it if not. */

@@ -1,6 +1,6 @@
-import type { World } from '../../../model/domain';
+import type { StaffSpeciality, World } from '../../../model/domain';
 import { draftWorld } from '../market/actions';
-import { LIFESTYLE_BY_ID } from './catalogue';
+import { LIFESTYLE_BY_ID, STAFF_SPECIALITIES } from './catalogue';
 import { firstClubOf } from './lifestyle';
 import { acceptSponsor, breakBootsDeal, buyAsset, declineSponsor, sellAsset } from './lifestyle';
 import { claimChallenge, refreshChallenges } from './challenges';
@@ -11,6 +11,8 @@ export type LifestyleAction =
   | { type: 'buy-cosmetic'; id: string }
   | { type: 'buy-asset'; itemId: string; amount?: number }
   | { type: 'sell-asset'; assetId: string }
+  /** A member of staff's speciality (review phase 4). */
+  | { type: 'staff-speciality'; assetId: string; speciality: StaffSpeciality }
   | { type: 'accept-sponsor'; id: string }
   | { type: 'decline-sponsor'; id: string }
   | { type: 'refresh-challenges'; date: string }
@@ -46,6 +48,13 @@ export function applyLifestyleAction(input: World, action: LifestyleAction): Wor
     case 'sell-asset':
       sellAsset(world, action.assetId);
       break;
+    case 'staff-speciality': {
+      const asset = world.career!.style.assets.find((entry) => entry.id === action.assetId);
+      if (!asset || !STAFF_SPECIALITIES[asset.itemId]?.includes(action.speciality))
+        throw new Error('That speciality is not on offer');
+      asset.speciality = action.speciality;
+      break;
+    }
     case 'accept-sponsor':
       acceptSponsor(world, action.id);
       break;

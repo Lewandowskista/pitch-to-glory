@@ -124,6 +124,11 @@ export interface Finances {
   weeklyCosts: number;
   transferBudget: number;
   wageBudget: number;
+  /**
+   * Under the club economy: wages above the budget (`stretched`) or a balance in debt
+   * (`debt`). Absent when the club is healthy, or before the world adopts the economy.
+   */
+  strain?: 'stretched' | 'debt';
 }
 export interface Club {
   id: Id;
@@ -433,7 +438,15 @@ export interface TrainingPlan {
   sessions: TrainingSession[];
   /** Optional extra session led by the club's best teammate for that focus. */
   extra: { focus: TrainingFocus; mentorId: Id } | null;
+  /**
+   * The week's optional commitments outside training (review phase 4, step 4.4), at most
+   * three; repeated every week like the sessions. Absent in plans saved before them.
+   */
+  commitments?: CommitmentKind[];
 }
+/** A weekly commitment outside training: what the player gives their spare time to. */
+export type CommitmentKind =
+  'mentoring' | 'sponsor' | 'community' | 'team-social' | 'family' | 'rest';
 export interface TrainingReport {
   season: number;
   week: number;
@@ -507,6 +520,14 @@ export interface Career {
   skillPoints: number;
   skills: Id[];
   training: TrainingPlan;
+  /**
+   * Weekly commitments kept (review phase 4): how many weeks of each, and last week's. Absent
+   * until the first is kept.
+   */
+  commitments?: {
+    totals: Partial<Record<CommitmentKind, number>>;
+    last: { season: number; week: number; kept: CommitmentKind[] } | null;
+  };
   /** Fractional training progress per attribute, below one point. */
   trainingProgress: Record<string, number>;
   lastTraining: TrainingReport | null;
@@ -730,7 +751,14 @@ export interface LifestyleAsset {
   value: number;
   /** Weekly cost fixed at purchase (balance pass D); absent for older assets. */
   upkeep?: number;
+  /**
+   * A member of staff's speciality (review phase 4, step 4.4); absent means the first, which
+   * every member of staff had before specialities.
+   */
+  speciality?: StaffSpeciality;
 }
+export type StaffSpeciality =
+  'prevention' | 'recovery' | 'endurance' | 'development' | 'mentoring' | 'decisions' | 'scouting';
 export interface WellbeingPoint {
   season: number;
   week: number;
@@ -1065,7 +1093,9 @@ export interface InboxSender {
 }
 export type SponsorCategory = 'boots' | 'apparel' | 'drinks' | 'watches' | 'cars' | 'tech';
 export interface SponsorObligation {
-  kind: 'starts' | 'goals' | 'clean-sheets' | 'press' | 'rating' | 'boots' | 'image';
+  /** `appearances`: sponsor appearances made as a weekly commitment (review phase 4). */
+  kind:
+    'starts' | 'goals' | 'clean-sheets' | 'press' | 'rating' | 'boots' | 'image' | 'appearances';
   /** A count, an average rating, or a minimum fan affection for 'image'. */
   target: number;
 }
@@ -1084,7 +1114,7 @@ export interface Sponsorship {
   bonus: number;
   obligations: SponsorObligation[];
   /** Career counters when the deal started, to measure obligations. */
-  baseline: { matches: number; answered: number } | null;
+  baseline: { matches: number; answered: number; appearances?: number } | null;
   /** Fees paid so far (balance pass D): a failed deal claws a share back. */
   paid?: number;
 }
@@ -1616,6 +1646,12 @@ export interface World {
   achievements?: { version: 1; since: number; titles: Id[] };
   /** Formation-aware team selection (Phase 5.1); absent before the world adopts it. */
   selectionVersion?: 1;
+  /**
+   * Club economy (review phase 4, step 4.4): balances can go into debt, the wage budget
+   * follows what a club can afford, and a club under strain recruits, renews and supports
+   * less. Absent before the world adopts it at a season start.
+   */
+  economyVersion?: 1;
   /**
    * 2: real countries and towns, with fictional clubs and competitions referencing real ones.
    * Absent for worlds generated with fictional countries, which keep their identities.

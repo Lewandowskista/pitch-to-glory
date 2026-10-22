@@ -92,10 +92,18 @@ function openTerms(world: World, offer: TransferOffer, club: Club, desire: numbe
       ? current.role
       : deserved;
   const value = marketValue(world, player);
-  const market = marketWage(club, player, role) * N.openingWage;
+  // A club under financial strain (review phase 4) offers less, and at a renewal no raise:
+  // never less than the player earns now.
+  const strain = club.finances.strain;
+  const squeeze = strain ? CONFIG.world.background.economy.renewalWage[strain] : 1;
+  const market = marketWage(club, player, role) * N.openingWage * squeeze;
   const wage = Math.max(
     CONFIG.world.generation.wageFloor,
-    Math.round(offer.kind === 'renewal' ? Math.max(market, current.weeklyWage * 1.05) : market),
+    Math.round(
+      offer.kind === 'renewal'
+        ? Math.max(market, current.weeklyWage * (strain ? 1 : 1.05))
+        : market,
+    ),
   );
   const years = Math.min(N.maximumYears, contractYears(ageOf(world, player)));
   const clauseAllowed = club.reputation < 75;

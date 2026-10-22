@@ -860,3 +860,38 @@ The pre-match briefing explains the matchup. A training session spent studying t
 - Under 40: roots. +3 from a second season at the club; −3 in a first season after a move.
 
 **Bans (4.3).** A match missed through a ban is recorded as `suspended` in the availability list, so it never lowers playing time.
+
+## Weekly commitments, staff and club finances (October 2026)
+
+Plan step 4.4.
+
+**Commitments.** Up to three a week (`career.commitments.slots`), saved with the training plan and kept every week until changed, so a routine week stays one click. **Suggest a week** fills them for a player who would rather delegate: rest when fatigue is over 50, family when morale is under 55, sponsor appearances when a deal asks for them, then the team, the community and a youngster.
+
+| Commitment         | Each week                                                                                         | Needs                       |
+| ------------------ | ------------------------------------------------------------------------------------------------- | --------------------------- |
+| Mentor a youngster | +25 XP; the young clique +1.5; fatigue +1                                                         | age 23, a teammate under 21 |
+| Sponsor appearance | fame +1; 15% of active sponsors' weekly fees; fatigue +0.5; counts towards appearance obligations | an active deal              |
+| Community work     | fan affection +1.5; fame +0.5; fatigue +0.5                                                       | —                           |
+| Team social        | every clique +1; dressing-room mood +1; morale +1; fatigue +0.5                                   | —                           |
+| Family time        | morale +3                                                                                         | —                           |
+| Extra rest         | fatigue −3                                                                                        | —                           |
+
+New sponsor deals also ask for appearances: 0.15 per remaining fixture (`sponsorships.appearances`), counted from the deal's start.
+
+**Staff specialities.** Each member of staff does one of two things, chosen and changed on the lifestyle page (`lifestyle.staff`). The first is what they did before, so existing staff are unchanged.
+
+| Staff        | Specialities                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Physio       | injury prevention (injury chance ×0.8) or recovery (2 fatigue a week)                                                             |
+| Nutritionist | recovery (2 fatigue a week) or endurance (training fatigue ×0.85)                                                                 |
+| Coach        | development (training gains ×1.15) or extra sessions (mentor session gains ×1.3)                                                  |
+| Analyst      | decision coaching (+2 XP per key decision that comes off) or scouting (every match prepared for, as a week studying the opponent) |
+
+**Club finances (`economyVersion` 1).** New worlds start on it; older worlds adopt it at their next season start. Constants in `world.background.economy`.
+
+- Running costs are set at generation and every season start from what a club's peers pay: the median wage bill of clubs within 2 reputation points (widened to at least 15 clubs). Costs leave a club paying that median 85% of its earnings for wages (at least 1,300 a week left). Measuring pay from the world keeps the calibration right as players and wages develop, and at low reputation, where the minimum wage dominates.
+- The wage budget is what a club earns for wages: income less running costs, less any debt spread over 104 weeks. Savings are a cushion, not a budget, and the budget falls as well as rises.
+- A balance can go into debt, to a floor of 52 weeks' income. The transfer budget stays within 35% of a positive balance (none in debt).
+- Wages above the budget mark a club **stretched**; a negative balance, **in debt**. Under strain a club signs no one, renews 3 (in debt 6) fewer of its squad, pays 90% (80%) of a fair wage on new contracts, opens renewal talks with the career player 75% (50%) as often and offers no raise at renewal, and its training support is worth 96% (90%). The club page and the world's club inspector say so, with the numbers.
+
+Measured over six seasons of a national world without a career: 10% of clubs stretched at the end of the first season, as clubs paying well above their peers find out; they cut back, and from the third season 3–4% are stretched at season end (6–8% at a season's peak), across every tier. No club fell into debt: reserves cover a loss for seasons. `wageShare`, the peer window and the strain effects are the levers. A fixed reputation curve was tried first and drifted: low-reputation clubs pay the minimum wage, which a curve undershoots, so a third of tier 4 ended up stretched.

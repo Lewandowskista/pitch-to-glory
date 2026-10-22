@@ -11,6 +11,7 @@ import {
 } from '../store/trainingDraftSlice';
 import { confirmTrainingAbandonment } from '../store/trainingTransitions';
 import { mentorFor, validFocus } from '../engine/career/training';
+import { COMMITMENTS } from '../engine/career/commitments';
 
 export { errorCode } from './errors';
 export function snapshot(): FoundationState | WorldState {
@@ -90,6 +91,13 @@ export async function saveTrainingDraft(): Promise<boolean> {
         (entry) =>
           !validFocus(player, entry.focus) || !['low', 'normal', 'high'].includes(entry.intensity),
       )
+    )
+      throw new SaveError('invalid');
+    const commitments = draft.plan.commitments ?? [];
+    if (
+      commitments.length > CONFIG.career.commitments.slots ||
+      new Set(commitments).size !== commitments.length ||
+      commitments.some((kind) => !COMMITMENTS.includes(kind))
     )
       throw new SaveError('invalid');
     const mentor = draft.plan.extra ? mentorFor(world, draft.plan.extra.focus) : null;

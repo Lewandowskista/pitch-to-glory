@@ -1,4 +1,5 @@
-import type { Hex, SponsorCategory } from '../../../model/domain';
+import type { Hex, SponsorCategory, StaffSpeciality } from '../../../model/domain';
+import { CONFIG } from '../../config';
 
 /**
  * Cosmetics, celebrations, sponsor brands and lifestyle items. Cosmetics are earned by fame
@@ -405,6 +406,20 @@ export const LIFESTYLE: readonly LifestyleItem[] = [
     effect: 'academy',
   },
 ];
+/**
+ * What each member of staff can specialise in (review phase 4, step 4.4), the first being what
+ * they did before specialities.
+ */
+export const STAFF_SPECIALITIES: Readonly<Record<string, readonly StaffSpeciality[]>> = {
+  'staff:physio': ['prevention', 'recovery'],
+  'staff:nutritionist': ['recovery', 'endurance'],
+  'staff:coach': ['development', 'mentoring'],
+  'staff:analyst': ['decisions', 'scouting'],
+};
+/** A member of staff's speciality: the chosen one, else the first. */
+export const specialityOf = (asset: { itemId: string; speciality?: StaffSpeciality }) =>
+  asset.speciality ?? STAFF_SPECIALITIES[asset.itemId]?.[0];
+const SP = CONFIG.career.lifestyle.staff;
 /** The effects of owned items on the career, from the assets alone (pure). */
 export interface AssetEffects {
   /** Multiplier on injury chance. */
@@ -418,8 +433,16 @@ export interface AssetEffects {
   /** Weekly fan affection from charities, and fame every four weeks. */
   fans: number;
   fame: number;
+  /** Multiplier on fatigue from training (an endurance nutritionist). */
+  trainingFatigue: number;
+  /** Multiplier on the extra session's gains (a mentoring coach). */
+  extraGain: number;
+  /** Every match prepared for, as a week studying the opponent would (a scouting analyst). */
+  scouting: boolean;
 }
-export function assetEffects(assets: readonly { itemId: string }[]): AssetEffects {
+export function assetEffects(
+  assets: readonly { itemId: string; speciality?: StaffSpeciality }[],
+): AssetEffects {
   const effects: AssetEffects = {
     injury: 1,
     rest: 0,
@@ -427,25 +450,42 @@ export function assetEffects(assets: readonly { itemId: string }[]): AssetEffect
     decisionXp: 0,
     fans: 0,
     fame: 0,
+    trainingFatigue: 1,
+    extraGain: 1,
+    scouting: false,
   };
   let bestRest = 0;
   for (const asset of assets) {
     const item = LIFESTYLE_BY_ID[asset.itemId];
     if (!item) continue;
     if (item.rest) bestRest = Math.max(bestRest, item.rest);
+    if (item.kind === 'staff') {
+      switch (specialityOf(asset)) {
+        case 'prevention':
+          effects.injury *= SP.prevention;
+          break;
+        case 'recovery':
+          effects.rest += SP.recovery;
+          break;
+        case 'endurance':
+          effects.trainingFatigue *= SP.endurance;
+          break;
+        case 'development':
+          effects.training *= SP.development;
+          break;
+        case 'mentoring':
+          effects.extraGain *= SP.mentoring;
+          break;
+        case 'decisions':
+          effects.decisionXp += SP.decisions;
+          break;
+        case 'scouting':
+          effects.scouting = true;
+          break;
+      }
+      continue;
+    }
     switch (item.effect) {
-      case 'physio':
-        effects.injury *= 0.8;
-        break;
-      case 'nutrition':
-        effects.rest += 2;
-        break;
-      case 'coach':
-        effects.training *= 1.15;
-        break;
-      case 'analyst':
-        effects.decisionXp += 2;
-        break;
       case 'foundation':
         effects.fans += 0.4;
         effects.fame += 1;

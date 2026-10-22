@@ -9,6 +9,7 @@ import { renderKit } from '../../engine/assets/kit';
 import { clubDress, renderAvatar, type AvatarDress } from '../../engine/assets/avatar';
 import { kitArt } from '../../ui/kitArt';
 import { overallRating } from '../../engine/strength';
+import { StrainNote } from '../career/financeUi';
 
 const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
 /** Rows shown before "Show all players"; the selected player always stays in view. */
@@ -143,6 +144,7 @@ export function ClubInspector({
         </ul>
       )}
       <Disclosure summary={t.world.finances} className="finance-details">
+        {club.finances.strain && <StrainNote strain={club.finances.strain} />}
         <dl className="club-details">
           {(
             [

@@ -1,3 +1,5 @@
+import { commitmentsWeek } from '../career/commitments';
+import { setSeasonCosts, usesEconomy } from './economy';
 import type { Club, League, Player, SeasonSummary, World } from '../../model/domain';
 import { coachingRollover } from '../career/coaching';
 import { CONFIG } from '../config';
@@ -61,6 +63,8 @@ const copyWorld = (world: World): World => JSON.parse(JSON.stringify(world)) as 
 const BACKGROUND = CONFIG.world.background;
 const clampPercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 const money = (value: number): number => Math.max(0, Math.round(value));
+const E = CONFIG.world.background.economy;
+export { usesEconomy };
 
 export type { PlayedFixture } from './finalize';
 /**
@@ -147,15 +151,29 @@ function updateFinances(world: World): void {
           world.contracts[world.players[id]!.contractId!]!.weeklyWage * (loanShare.get(id) ?? 1),
         0,
       ) + (parentShare.get(club.id) ?? 0);
-    club.finances.balance = money(
-      club.finances.balance + club.finances.weeklyIncome - club.finances.weeklyCosts - wages,
-    );
-    club.finances.wageBudget = money(Math.max(club.finances.wageBudget, wages));
-    club.finances.transferBudget = money(
-      Math.min(
-        club.finances.transferBudget,
-        club.finances.balance * BACKGROUND.transferBudgetBalanceShare,
-      ),
+    const finances = club.finances;
+    if (usesEconomy(world)) {
+      // The club economy (review phase 4): a balance can go into debt, to a floor, and the
+      // wage budget is what the club can afford now, so it falls as well as rises.
+      const net = finances.weeklyIncome - finances.weeklyCosts;
+      finances.balance = Math.round(
+        Math.max(-E.debtFloorWeeks * finances.weeklyIncome, finances.balance + net - wages),
+      );
+      // What the club earns for wages: income less running costs, less a share of any debt.
+      // Savings are a cushion, not a budget.
+      finances.wageBudget = money(net + Math.min(0, finances.balance) / E.reserveWeeks);
+      const strain =
+        finances.balance < 0 ? 'debt' : wages > finances.wageBudget ? 'stretched' : null;
+      if (strain) finances.strain = strain;
+      else delete finances.strain;
+    } else {
+      finances.balance = money(
+        finances.balance + finances.weeklyIncome - finances.weeklyCosts - wages,
+      );
+      finances.wageBudget = money(Math.max(finances.wageBudget, wages));
+    }
+    finances.transferBudget = money(
+      Math.min(finances.transferBudget, finances.balance * BACKGROUND.transferBudgetBalanceShare),
     );
   }
 }
@@ -343,12 +361,18 @@ function updateReputations(world: World, summary: SeasonSummary): void {
       club.finances.weeklyIncome = money(
         Math.max(G.incomeFloor, club.reputation * club.reputation * G.incomeFactor),
       );
+      // Under the club economy the next season's start sets running costs from what peers pay.
       club.finances.weeklyCosts = money(club.reputation * club.reputation * G.costsFactor);
       // A new season's transfer budget, from standing, not from what was left unspent.
       club.finances.transferBudget = money(club.reputation * club.reputation * G.transferFactor);
-      club.finances.wageBudget = money(
-        Math.max(club.finances.wageBudget, club.reputation * club.reputation * G.wageBudgetFactor),
-      );
+      // Under the club economy the wage budget follows the books every week instead.
+      if (!usesEconomy(world))
+        club.finances.wageBudget = money(
+          Math.max(
+            club.finances.wageBudget,
+            club.reputation * club.reputation * G.wageBudgetFactor,
+          ),
+        );
     });
   }
 }
@@ -578,6 +602,8 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   if (world.career) {
     recordAvailability(world, benched, banned);
     careerWeek(world);
+    // The week's commitments outside training (review phase 4).
+    commitmentsWeek(world);
     marketWeek(world, dropped);
     socialWeek(world);
     lifestyleWeek(world);
@@ -621,6 +647,10 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
   // Worlds saved before formation-aware selection adopt it with the new season, so no
   // season changes selection rules part-way.
   world.selectionVersion = CONFIG.selection.version;
+  // The club economy starts with a season (review phase 4), its running costs set from each
+  // club's standing every season, so its strain shows from week one.
+  world.economyVersion = 1;
+  setSeasonCosts(world);
   for (const movement of summary.movements)
     if (movement.fromLeagueId.startsWith('feeder:') && world.leagues[movement.toLeagueId])
       refreshReturningClub(world, world.clubs[movement.clubId]!);

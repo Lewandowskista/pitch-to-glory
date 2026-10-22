@@ -200,7 +200,42 @@ describe('things worth buying', () => {
       decisionXp: 2,
       fans: 0.4,
       fame: 1,
+      trainingFatigue: 1,
+      extraGain: 1,
+      scouting: false,
     });
+    // The other specialities (review phase 4): each staff member does one thing or another.
+    const other = assetEffects([
+      { itemId: 'staff:physio', speciality: 'recovery' },
+      { itemId: 'staff:nutritionist', speciality: 'endurance' },
+      { itemId: 'staff:coach', speciality: 'mentoring' },
+      { itemId: 'staff:analyst', speciality: 'scouting' },
+    ]);
+    expect(other).toMatchObject({
+      injury: 1,
+      rest: 2,
+      training: 1,
+      decisionXp: 0,
+      trainingFatigue: 0.85,
+      extraGain: 1.3,
+      scouting: true,
+    });
+    // Chosen from the lifestyle page, and only among the member's own specialities.
+    const asset = hired.career!.style.assets.find((a) => a.itemId === 'staff:physio')!;
+    const switched = applyLifestyleAction(hired, {
+      type: 'staff-speciality',
+      assetId: asset.id,
+      speciality: 'recovery',
+    });
+    expect(injuryFactor(switched.career!, player(switched))).toBeCloseTo(before, 6);
+    expect(() => validateWorld(clone(switched))).not.toThrow();
+    expect(() =>
+      applyLifestyleAction(hired, {
+        type: 'staff-speciality',
+        assetId: asset.id,
+        speciality: 'scouting',
+      }),
+    ).toThrow();
     const giving = applyLifestyleAction(hired, { type: 'buy-asset', itemId: 'charity:foundation' });
     const fansBefore = fans(giving);
     assetWeek(giving);

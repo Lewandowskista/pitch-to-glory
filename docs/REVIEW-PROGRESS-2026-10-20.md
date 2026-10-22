@@ -153,3 +153,12 @@ The climb's pace is preserved within about a point, which is normal career-to-ca
 - Tests: `tests/qualifying.test.ts` plays a full campaign through the season simulation (groups, fixtures, the table, the tournament field, a called-up player's qualifiers matching the fixtures, the story, save validity). `e2e/tournament.spec.ts` checks the National screen part-way through.
 
 **Verification.** `tests/honours.test.ts` (round-by-round play, determinism, single credit, season-end opening and closing, save validity), `tests/tournament-match.test.ts` (sides, guest squads at rating, commit once), `tests/worker.test.ts` (the tournament job) and `e2e/tournament.spec.ts` (hub → play → refresh → report → continue → simulate the rest → next season) pass in Chromium, Firefox and WebKit, with the match, career and honours flows. Match route 290.7 KB gzip (budget 300 KB): the nations' squad builder loads only when a tournament match is prepared.
+
+## Phase 4 — Repeated decisions that cost something
+
+- **4.1 The opposition's style** (engine match-19): it tilts the situations that reach the player and the odds of the choices it bears on, as a named factor; the briefing explains the matchup; studying the opponent in training (or a scouting analyst) halves its penalties.
+- **4.2 Foot and ambition:** shots, crosses and carries use a foot from the flank of the player's post; the weaker one costs odds unless two-footed (a new Two-Footed skill). A revealed ambition is a stated preference with its own morale part.
+- **4.3 Discipline link:** a match missed through a ban is recorded as suspended and never lowers playing time.
+- **4.4 Commitments, staff and finances:** up to three weekly commitments kept with the training plan (with a suggestion), sponsor appearance obligations, two specialities per member of staff, and a club economy where wages are budgeted from earnings, balances can go into debt and clubs under strain sign, renew, pay and support less.
+- Found during testing: in the pitch animation, a keeper could carry the ball upfield when the teammates a move starts with had been sent off (fixed on match-19), and a coaching value stored as −0 changed in a save round trip (fixed).
+- Measured: match-19 moves goals by at most two and moments by at most three per position in the outcome snapshot (25 matches each); the 10,000-match distribution holds. The economy's strain rates are in BALANCING.md.

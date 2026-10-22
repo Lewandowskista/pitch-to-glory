@@ -899,8 +899,36 @@ export const CONFIG = {
         likesPerFame: 0.5,
       },
     },
+    /**
+     * Weekly commitments outside training (review phase 4, step 4.4): at most `slots` a week,
+     * each with its effects every week it is kept. Mentoring needs `minimumAge` and a teammate
+     * under 21; sponsor appearances need an active deal and pay `feeShare` of its weekly fee.
+     */
+    commitments: {
+      slots: 3,
+      mentoring: { xp: 25, young: 1.5, fatigue: 1, minimumAge: 23 },
+      sponsor: { fame: 1, feeShare: 0.15, fatigue: 0.5 },
+      community: { fans: 1.5, fame: 0.5, fatigue: 0.5 },
+      'team-social': { cliques: 1, mood: 1, morale: 1, fatigue: 0.5 },
+      family: { morale: 3 },
+      rest: { fatigue: -3 },
+    },
     /** Fame, sponsorships, lifestyle, wardrobe, celebrations and challenges (milestone 7). */
     lifestyle: {
+      /**
+       * Staff specialities (review phase 4, step 4.4): injury chance × `prevention`, fatigue
+       * relief `recovery` a week, training fatigue × `endurance`, training gains ×
+       * `development`, extra-session gains × `mentoring`, `decisions` XP per key decision
+       * that comes off. A scouting analyst prepares the player for every opponent.
+       */
+      staff: {
+        prevention: 0.8,
+        recovery: 2,
+        endurance: 0.85,
+        development: 1.15,
+        mentoring: 1.3,
+        decisions: 2,
+      },
       /** Fame needed for levels 1–10. */
       fameLevels: [0, 20, 50, 100, 170, 260, 380, 530, 720, 950] as const,
       /** At each new season fame above the floor fades by this share: fame is a standing. */
@@ -932,6 +960,8 @@ export const CONFIG = {
         goals: 0.25,
         cleanSheets: 0.2,
         press: 0.08,
+        /** Sponsor appearances, a weekly commitment (review phase 4): per remaining fixture. */
+        appearances: 0.15,
         rating: 6.6,
         image: 45,
       },
@@ -1388,6 +1418,33 @@ export const CONFIG = {
       abilityRatingSlope: 0.02,
       transferContractYears: 2,
       transferBudgetBalanceShare: 0.35,
+      /**
+       * The club economy (review phase 4, step 4.4). The wage budget is what a club earns for
+       * wages each week: income less running costs, less any debt spread over `reserveWeeks`
+       * (savings are a cushion, not a budget). Wages above it are a loss (`stretched`). A debt
+       * is floored at `debtFloorWeeks` of income.
+       * Under strain a club stops buying, renews `renewalCut` fewer of its squad, offers the
+       * career player `renewalWage` of a fair wage less often (`renewalChance`), and its
+       * training support is worth `support`.
+       */
+      economy: {
+        /**
+         * The usual wages of a club's peers: the median wage bill of clubs within `peerWindow`
+         * reputation points (widened to at least `peers` clubs). Running costs leave a club
+         * paying that `wageShare` of its income for wages.
+         */
+        peerWindow: 2,
+        peers: 15,
+        wageShare: 0.85,
+        /** The least a club keeps each week after running costs. */
+        netFloor: 1300,
+        reserveWeeks: 104,
+        debtFloorWeeks: 52,
+        renewalCut: { stretched: 3, debt: 6 },
+        renewalWage: { stretched: 0.9, debt: 0.8 },
+        renewalChance: { stretched: 0.75, debt: 0.5 },
+        support: { stretched: 0.96, debt: 0.9 },
+      },
     },
     /**
      * Ageing and development. Each attribute category follows an age curve (multiplier of a

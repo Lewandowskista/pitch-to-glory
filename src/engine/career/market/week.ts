@@ -274,13 +274,16 @@ function renewals(world: World, ctx: Context): void {
   if (recent) return;
   const weeks = getSeasonWeeks(world);
   const player = world.players[world.career!.playerId]!;
+  // A club under financial strain (review phase 4) is slower to offer a new deal.
+  const strain = world.clubs[contract.clubId]?.finances.strain;
+  const willing = strain ? CONFIG.world.background.economy.renewalChance[strain] : 1;
   if (contract.end.season === world.date.season && world.date.week >= R.finalSeasonFrom * weeks) {
-    if (ctx.rng.next() < R.chance) makeRenewalOffer(world, false, true);
+    if (ctx.rng.next() < R.chance * willing) makeRenewalOffer(world, false, true);
     return;
   }
   const deserved = deservedRole(world, ctx.parent, player);
   const wage = marketWage(ctx.parent, player, deserved);
-  if (wage >= contract.weeklyWage * R.underpaid && ctx.rng.next() < R.improveChance)
+  if (wage >= contract.weeklyWage * R.underpaid && ctx.rng.next() < R.improveChance * willing)
     makeRenewalOffer(world, true, true);
 }
 

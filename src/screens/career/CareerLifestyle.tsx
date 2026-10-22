@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { m } from 'framer-motion';
-import type { Career, SponsorCategory, Sponsorship, World } from '../../model/domain';
+import type {
+  Career,
+  SponsorCategory,
+  Sponsorship,
+  StaffSpeciality,
+  World,
+} from '../../model/domain';
 import { CONFIG } from '../../engine/config';
 import {
   BRAND_BY_ID,
@@ -9,6 +15,8 @@ import {
   COSMETICS,
   LIFESTYLE,
   LIFESTYLE_BY_ID,
+  STAFF_SPECIALITIES,
+  specialityOf,
   careerFameLevel,
   fameProgress,
   experienceWait,
@@ -645,9 +653,37 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
                 <span className="min-w-0 flex-[1_1_8.75rem]">
                   <strong className="block">{name}</strong>
                   <span className="text-[0.8125rem] text-muted">
-                    {format(l.lifestyle.value, { amount: money(asset.value) })}
+                    {asset.kind === 'staff'
+                      ? specialityEffect(specialityOf(asset)!)
+                      : format(l.lifestyle.value, { amount: money(asset.value) })}
                   </span>
                 </span>
+                {STAFF_SPECIALITIES[asset.itemId] && (
+                  // What they specialise in (review phase 4): either, changed at any time.
+                  <fieldset className="flex flex-wrap gap-1 rounded-control bg-surface p-1">
+                    <legend className="sr-only">
+                      {l.lifestyle.speciality} — {name}
+                    </legend>
+                    {STAFF_SPECIALITIES[asset.itemId]!.map((speciality) => (
+                      <label
+                        key={speciality}
+                        className="relative flex min-h-10 cursor-pointer items-center rounded-chip px-2.5 text-[0.8125rem] font-bold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
+                      >
+                        <input
+                          type="radio"
+                          className="sr-only"
+                          name={`speciality-${asset.id}`}
+                          checked={specialityOf(asset) === speciality}
+                          disabled={Boolean(action.block)}
+                          onChange={() =>
+                            action.run({ type: 'staff-speciality', assetId: asset.id, speciality })
+                          }
+                        />
+                        {l.lifestyle.specialities[speciality]}
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
                 <Button
                   variant="secondary"
                   disabled={Boolean(action.block)}
@@ -757,4 +793,23 @@ function Shop({ world, action }: { world: World; action: Action }) {
       </div>
     </Panel>
   );
+}
+
+/** What a member of staff's speciality does, in numbers. */
+function specialityEffect(speciality: StaffSpeciality): string {
+  const S = CONFIG.career.lifestyle.staff;
+  const percent = (factor: number) => Math.round(Math.abs(factor - 1) * 100);
+  return format(l.lifestyle.specialityEffects[speciality], {
+    percent:
+      speciality === 'prevention'
+        ? percent(S.prevention)
+        : speciality === 'endurance'
+          ? percent(S.endurance)
+          : speciality === 'development'
+            ? percent(S.development)
+            : speciality === 'mentoring'
+              ? percent(S.mentoring)
+              : 0,
+    value: speciality === 'recovery' ? S.recovery : S.decisions,
+  });
 }

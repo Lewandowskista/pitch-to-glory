@@ -80,6 +80,7 @@ export const lifestyleText = {
       rating: 'Average a rating of {target}',
       boots: 'Wear their boots',
       image: 'Keep fan affection at {target} or more',
+      appearances: 'Make {target} sponsor appearances',
     },
     /** Singular forms of `obligations`, used when the target is 1. */
     obligationsOne: {
@@ -87,6 +88,7 @@ export const lifestyleText = {
       goals: 'Score 1 goal',
       'clean-sheets': 'Keep 1 clean sheet',
       press: 'Answer 1 press question',
+      appearances: 'Make 1 sponsor appearance',
     } as Record<string, string>,
     progress: '{progress} / {target}',
     met: 'Met',
@@ -118,6 +120,26 @@ export const lifestyleText = {
       legacy: 'Your legacy',
     },
     salaryValue: '{amount} a week, {hire} to hire',
+    speciality: 'Speciality',
+    specialityHint: 'Once hired, choose what they specialise in. You can change it at any time.',
+    specialities: {
+      prevention: 'Injury prevention',
+      recovery: 'Recovery',
+      endurance: 'Endurance',
+      development: 'Development',
+      mentoring: 'Extra sessions',
+      decisions: 'Decision coaching',
+      scouting: 'Scouting',
+    },
+    specialityEffects: {
+      prevention: 'Injuries {percent}% less likely',
+      recovery: 'Recovers {value} fatigue a week',
+      endurance: 'Training fatigue −{percent}%',
+      development: 'Training gains +{percent}%',
+      mentoring: 'Extra-session gains +{percent}%',
+      decisions: '+{value} XP for every key decision that comes off',
+      scouting: 'Prepares you for every opponent: their style costs half as much',
+    },
     donationValue: '{amount} a week',
     effects: {
       physio: 'Injuries 20% less likely',

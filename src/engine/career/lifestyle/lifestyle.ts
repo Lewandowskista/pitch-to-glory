@@ -1,3 +1,4 @@
+import { sponsorAppearances } from '../commitments';
 import type { SponsorObligation, Sponsorship, World } from '../../../model/domain';
 import { createRng, type Rng } from '../../rng';
 import { addWeeks, careerContract, compareDates, relationshipValue, today } from '../market/rules';
@@ -20,7 +21,11 @@ const DEFENDERS = ['GK', 'CB', 'LB', 'RB'];
 /** Career counters that obligations and challenges are measured against. */
 export function counters(world: World) {
   const career = world.career!;
-  return { matches: career.matches.length, answered: career.social.answered };
+  return {
+    matches: career.matches.length,
+    answered: career.social.answered,
+    appearances: sponsorAppearances(world),
+  };
 }
 
 /** Progress on an obligation since the deal started. */
@@ -51,6 +56,8 @@ export function obligationProgress(
       const player = world.players[career.playerId]!;
       return relationshipValue(world, 'fans', player.clubId!);
     }
+    case 'appearances':
+      return sponsorAppearances(world) - (baseline.appearances ?? 0);
   }
 }
 export const obligationMet = (world: World, deal: Sponsorship, obligation: SponsorObligation) =>
@@ -107,6 +114,8 @@ export function makeSponsorOffer(world: World, rng: Rng): Sponsorship | null {
   else if (brand.category === 'drinks' || brand.category === 'apparel')
     obligations.push({ kind: 'press', target: target(SP.press) });
   else obligations.push({ kind: 'image', target: SP.image });
+  // Appearances for the brand, made as a weekly commitment (review phase 4).
+  obligations.push({ kind: 'appearances', target: target(SP.appearances) });
   const weeklyFee = Math.round(SP.feeBase * SP.feeGrowth ** (level - 1) * brand.scale);
   const deal: Sponsorship = {
     id: nextId(world, 'sponsor'),

@@ -1,4 +1,9 @@
-import { BRAND_BY_ID, COSMETIC_BY_ID, LIFESTYLE_BY_ID } from '../engine/career/lifestyle/catalogue';
+import {
+  BRAND_BY_ID,
+  COSMETIC_BY_ID,
+  LIFESTYLE_BY_ID,
+  STAFF_SPECIALITIES,
+} from '../engine/career/lifestyle/catalogue';
 import { array, date, id, number, object, options, requireValue } from './worldValidation';
 
 const KINDS = [
@@ -12,7 +17,16 @@ const KINDS = [
   'weeks',
   'xp',
 ];
-const OBLIGATIONS = ['starts', 'goals', 'clean-sheets', 'press', 'rating', 'boots', 'image'];
+const OBLIGATIONS = [
+  'starts',
+  'goals',
+  'clean-sheets',
+  'press',
+  'rating',
+  'boots',
+  'image',
+  'appearances',
+];
 
 function cosmetic(value: unknown, kind: string): void {
   const item = COSMETIC_BY_ID[String(value)];
@@ -66,6 +80,13 @@ export function validateLifestyle(w: Record<string, unknown>): void {
     date(asset.bought);
     number(asset.cost, 0, 1e12, true);
     number(asset.value, 0, 1e13, true);
+    // A member of staff's speciality (review phase 4): one they can take.
+    if (asset.speciality !== undefined)
+      requireValue(
+        (STAFF_SPECIALITIES[String(asset.itemId)] ?? []).includes(
+          String(asset.speciality) as never,
+        ),
+      );
   }
   if (style.experiences !== undefined) {
     const experiences = object(style.experiences);
@@ -108,6 +129,7 @@ export function validateLifestyle(w: Record<string, unknown>): void {
       const baseline = object(deal.baseline);
       number(baseline.matches, 0, 1e6, true);
       number(baseline.answered, 0, 1e6, true);
+      if (baseline.appearances !== undefined) number(baseline.appearances, 0, 1e6, true);
     }
   }
   requireValue(activeCategories.size <= 4);

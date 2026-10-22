@@ -110,7 +110,9 @@ describe('avatar determinism', () => {
     expect(hashSeed(JSON.stringify(players))).toBe(1171940817);
     expect(hashSeed(JSON.stringify(managers))).toBe(326043937);
     expect(hashSeed(JSON.stringify(agents))).toBe(986092761);
-    expect(hashSeed(JSON.stringify(world.clubs))).toBe(143282897);
+    // Clubs' running costs are set from what their peers pay (the club economy, review phase
+    // 4), with no draws: names, players and the generator's draws are unchanged.
+    expect(hashSeed(JSON.stringify(world.clubs))).toBe(18175811);
     expect(world.rng).toEqual({
       algorithm: 'mulberry32',
       seed: 'avatar-determinism',

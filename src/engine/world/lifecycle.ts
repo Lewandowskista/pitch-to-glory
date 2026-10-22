@@ -127,7 +127,12 @@ export function contractTerms(
   contract: Pick<Contract, 'id' | 'role'>,
   rng: Rng,
 ): Contract {
-  const weeklyWage = wageFor(playerAbility(player), club.reputation);
+  // A club under financial strain (review phase 4) pays less on every new contract.
+  const strain = club.finances.strain;
+  const weeklyWage = Math.round(
+    wageFor(playerAbility(player), club.reputation) *
+      (strain ? CONFIG.world.background.economy.renewalWage[strain] : 1),
+  );
   return {
     id: contract.id,
     playerId: player.id,
@@ -234,6 +239,9 @@ export function seasonalSquadReview(world: World, rng: Rng): void {
       )
         retirePlayer(world, player, club);
     const ranked = rankByValue(world, roster(world, club));
+    // A club under financial strain (review phase 4) renews fewer of its squad.
+    const strain = club.finances.strain;
+    const keep = L.renewalRank - (strain ? CONFIG.world.background.economy.renewalCut[strain] : 0);
     for (const [rank, player] of ranked.entries()) {
       if (player.id === careerId) continue;
       const contract = world.contracts[player.contractId!]!;
@@ -241,7 +249,7 @@ export function seasonalSquadReview(world: World, rng: Rng): void {
       const age = ageOf(world, player);
       if (
         rivalIds.has(player.id) ||
-        ((rank < L.renewalRank || age <= L.renewalYouthAge) && age <= L.renewalMaximumAge)
+        ((rank < keep || age <= L.renewalYouthAge) && age <= L.renewalMaximumAge)
       )
         world.contracts[contract.id] = contractTerms(
           world,

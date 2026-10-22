@@ -1,3 +1,4 @@
+import { setSeasonCosts } from './economy';
 import type {
   Club,
   ClubKits,
@@ -238,6 +239,7 @@ export function generateWorld(
       : {}),
     developmentVersion: 2,
     selectionVersion: 1,
+    economyVersion: 1,
     achievements: { version: 1, since: year, titles: [] },
     ...(national ? { identityVersion: 2 as const } : {}),
     id: `world:${hashSeed(seed)}`,
@@ -646,6 +648,8 @@ export function generateWorld(
   }
   // Continental cups by reputation for a new national world (milestone 8).
   if (national) startContinental(world, false);
+  // The club economy (review phase 4): running costs from what each club's peers pay.
+  setSeasonCosts(world);
   world.rng = rng.snapshot();
   return world;
 }

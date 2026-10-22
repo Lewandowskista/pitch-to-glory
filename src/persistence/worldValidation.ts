@@ -192,6 +192,7 @@ export function validateEntities(
     for (const title of array(achievements.titles, 2000)) text(title, 200);
   }
   if (w.selectionVersion !== undefined) requireValue(w.selectionVersion === 1);
+  if (w.economyVersion !== undefined) requireValue(w.economyVersion === 1);
   if (w.identityVersion !== undefined) requireValue(w.identityVersion === 2);
   const currentDate = object(w.date);
   const countries = object(w.countries),
@@ -233,6 +234,7 @@ export function validateEntities(
     const finance = object(club.finances);
     for (const key of ['balance', 'weeklyIncome', 'weeklyCosts', 'transferBudget', 'wageBudget'])
       number(finance[key], key === 'balance' ? -1e12 : 0);
+    if (finance.strain !== undefined) options(finance.strain, ['stretched', 'debt']);
     const culture = object(club.culture);
     requireValue(typeof culture.fanOwned === 'boolean');
     for (const key of ['youth', 'winNow', 'discipline', 'attacking']) number(culture[key], 0, 100);

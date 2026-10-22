@@ -2,6 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { adviceDraft, coachAdvice } from '../../engine/career/coaching';
+import {
+  COMMITMENTS,
+  commitmentBlocked,
+  suggestCommitments,
+} from '../../engine/career/commitments';
 import { CoachAdvice, SeasonGoalCard } from './CoachAdvice';
 import { useAppStore } from '../../store';
 import { CONFIG } from '../../engine/config';
@@ -16,6 +21,7 @@ import {
 } from '../../engine/career/training';
 import { attributeValue, trainableAttributes } from '../../engine/career/progression';
 import type {
+  CommitmentKind,
   Career,
   Player,
   Position,
@@ -288,6 +294,10 @@ function TrainingPlanner({
   const effective: TrainingPlan = {
     sessions: plan.sessions,
     extra: plan.extra && mentor ? { focus: plan.extra.focus, mentorId: mentor.id } : null,
+    // Weekly commitments outside training (review phase 4), saved with the plan.
+    ...(plan.commitments?.length || career.training.commitments
+      ? { commitments: plan.commitments ?? [] }
+      : {}),
   };
   const dirty = !samePlan(effective, career.training);
   const keeper = player.primaryPosition === 'GK';
@@ -295,7 +305,10 @@ function TrainingPlanner({
   const fatigue = [
     ...plan.sessions.map((session) => sessionFatigue(session.focus, session.intensity)),
     ...(effective.extra ? [T.fatigue.extra] : []),
-  ].reduce((sum, value) => sum + (value > 0 && secondWind ? value * T.secondWindSkill : value), 0);
+  ].reduce(
+    (sum, value) => sum + (value > 0 && secondWind ? value * T.secondWindSkill : value),
+    commitmentFatigue(effective.commitments ?? []),
+  );
   const risk =
     1 -
     [
@@ -321,6 +334,10 @@ function TrainingPlanner({
       { sessions: [], extra: effective.extra },
       { sessions: [], extra: career.training.extra },
     )
+      ? 0
+      : 1) +
+    (JSON.stringify(effective.commitments ?? []) ===
+    JSON.stringify(career.training.commitments ?? [])
       ? 0
       : 1);
   const updateSession = (index: number, patch: Partial<TrainingSession>) => {
@@ -547,6 +564,14 @@ function TrainingPlanner({
             <p className="text-sm font-semibold text-danger">{c.training.mentorLeft}</p>
           )}
         </Panel>
+        <Commitments
+          world={world}
+          chosen={plan.commitments ?? []}
+          onChange={(commitments) => {
+            setStatus('');
+            setPlan((current) => ({ ...current, commitments }));
+          }}
+        />
         <CoachAdvice
           world={world}
           applied={applied}
@@ -869,6 +894,105 @@ function Progress({ career, player, keeper }: { career: Career; player: Player; 
           );
         })}
       </ul>
+    </Panel>
+  );
+}
+
+/** Fatigue a week's commitments add (or take away, resting). */
+function commitmentFatigue(kinds: readonly CommitmentKind[]): number {
+  const C = CONFIG.career.commitments;
+  return kinds.reduce((sum, kind) => {
+    const effect = C[kind] as { fatigue?: number };
+    return sum + (effect.fatigue ?? 0);
+  }, 0);
+}
+
+/**
+ * The week's commitments outside training (review phase 4): up to three, kept every week
+ * with the plan, each with what it does. A suggestion fills the week for a player who would
+ * rather not plan it.
+ */
+function Commitments({
+  world,
+  chosen,
+  onChange,
+}: {
+  world: World;
+  chosen: CommitmentKind[];
+  onChange: (next: CommitmentKind[]) => void;
+}) {
+  const C = CONFIG.career.commitments;
+  const k = c.training.commitments;
+  const full = chosen.length >= C.slots;
+  const last = world.career!.commitments?.last;
+  return (
+    <Panel aria-labelledby="commitments-heading" className="flex flex-[1_1_28rem] flex-col gap-3.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+        <div>
+          <CardTitle id="commitments-heading">{k.title}</CardTitle>
+          <p className="mt-1 max-w-[35rem] text-sm text-muted">
+            {format(k.body, { slots: C.slots })}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="inline-flex min-h-11 items-center rounded-control px-2 text-sm font-semibold underline underline-offset-4 hover:bg-surface-soft"
+          onClick={() => onChange(suggestCommitments(world))}
+        >
+          {k.suggest}
+        </button>
+      </div>
+      <fieldset className="grid gap-2 sm:grid-cols-2">
+        <legend className="sr-only">{format(k.legend, { slots: C.slots })}</legend>
+        {COMMITMENTS.map((kind) => {
+          const blocked = commitmentBlocked(world, kind);
+          const on = chosen.includes(kind);
+          return (
+            <label
+              key={kind}
+              className={cx(
+                'flex min-h-14 cursor-pointer items-start gap-3 rounded-control border px-3.5 py-2.5',
+                on ? 'border-accent bg-accent-soft' : 'border-line',
+                (blocked || (full && !on)) && 'cursor-not-allowed opacity-60',
+              )}
+            >
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+                checked={on}
+                disabled={!on && (Boolean(blocked) || full)}
+                onChange={(event) =>
+                  onChange(
+                    event.target.checked
+                      ? [...chosen, kind]
+                      : chosen.filter((entry) => entry !== kind),
+                  )
+                }
+              />
+              <span className="min-w-0 text-sm">
+                <span className="block font-bold">{k.names[kind]}</span>
+                <span className="block text-xs text-muted">
+                  {blocked
+                    ? format(k.blocked[blocked], { age: C.mentoring.minimumAge })
+                    : format(k.effects[kind], {
+                        xp: C.mentoring.xp,
+                        share: Math.round(C.sponsor.feeShare * 100),
+                        fans: C.community.fans,
+                        morale: kind === 'family' ? C.family.morale : C['team-social'].morale,
+                        rest: -C.rest.fatigue,
+                        age: C.mentoring.minimumAge,
+                      })}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </fieldset>
+      {last && last.kept.length > 0 && (
+        <p className="text-xs text-muted">
+          {format(k.last, { kept: last.kept.map((kind) => k.names[kind]).join(', ') })}
+        </p>
+      )}
     </Panel>
   );
 }
