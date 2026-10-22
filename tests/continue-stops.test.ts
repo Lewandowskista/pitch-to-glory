@@ -85,7 +85,7 @@ describe('Continue stops for decisions', () => {
     world.career!.injury = {
       id: 'injury:test',
       playerId: me.id,
-      kind: 'hamstring',
+      kind: 'hamstring-strain',
       started: { ...world.date },
       weeksRemaining: 6,
       severity: 2,

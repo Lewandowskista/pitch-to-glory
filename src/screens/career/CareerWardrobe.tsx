@@ -8,6 +8,8 @@ import {
   BRAND_BY_ID,
   challengeDone,
   challengeProgress,
+  needsMinutes,
+  sidelined,
   COSMETIC_BY_ID,
   COSMETICS,
   dealFailureCost,
@@ -693,6 +695,11 @@ function ChallengeRow({
     { target: challenge.target },
   );
   const ready = done && !challenge.claimed;
+  // Matches only move some challenges (review phase 5): say so, and while the player is out of
+  // the side offer a goal they can reach instead.
+  const minutes = needsMinutes(challenge.kind);
+  const swappable =
+    minutes && !done && !challenge.claimed && !challenge.swapped && sidelined(world);
   return (
     <li
       className={cx(
@@ -701,7 +708,19 @@ function ChallengeRow({
       )}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm font-bold">{label}</span>
+        <span className="text-sm font-bold">
+          {label}
+          {minutes && (
+            <span className="ml-2 align-middle text-[0.6875rem] font-extrabold tracking-[0.06em] text-muted uppercase">
+              {l.challenges.needsMinutes}
+            </span>
+          )}
+          {challenge.swapped && (
+            <span className="ml-2 align-middle text-[0.6875rem] font-semibold text-muted">
+              {l.challenges.swapped}
+            </span>
+          )}
+        </span>
         <span className="shrink-0 text-xs font-extrabold text-muted tabular-nums">
           {format(l.challenges.progress, { progress, target: challenge.target })}
         </span>
@@ -734,6 +753,18 @@ function ChallengeRow({
           </span>
         )}
       </div>
+      {swappable && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted">
+          <span className="min-w-0 flex-[1_1_14rem]">{l.challenges.swapHint}</span>
+          <Button
+            variant="secondary"
+            disabled={Boolean(action.block)}
+            onClick={() => action.run({ type: 'swap-challenge', id: challenge.id })}
+          >
+            {l.challenges.swap}
+          </Button>
+        </div>
+      )}
       {!done && (
         <div className="h-2 overflow-hidden rounded-full bg-track" aria-hidden="true">
           <span

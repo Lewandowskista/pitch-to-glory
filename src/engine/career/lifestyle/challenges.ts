@@ -49,7 +49,69 @@ export function challengeCounter(world: World, kind: ChallengeKind): number {
       return (world.date.season - career.startSeason) * getSeasonWeeks(world) + world.date.week;
     case 'xp':
       return career.xp;
+    case 'commitments':
+      return Object.values(career.commitments?.totals ?? {}).reduce(
+        (sum, count) => sum + (count ?? 0),
+        0,
+      );
   }
+}
+
+/** Kinds that only matches move: a sidelined player cannot make progress on them. */
+const MATCH_KINDS: ReadonlySet<ChallengeKind> = new Set([
+  'play',
+  'goals',
+  'assists',
+  'wins',
+  'rating',
+  'clean-sheets',
+]);
+export const needsMinutes = (kind: ChallengeKind): boolean => MATCH_KINDS.has(kind);
+
+/**
+ * Whether the player is out of the side for now: injured, or not on the pitch in their club's
+ * last fixture (benched or suspended).
+ */
+export function sidelined(world: World): boolean {
+  const career = world.career!;
+  if (career.injury || world.players[career.playerId]?.injuryId) return true;
+  const last = career.availability?.at(-1);
+  return Boolean(last && last.status !== 'played' && last.season === world.date.season);
+}
+
+/** What a challenge needing minutes becomes while sidelined: a goal of the same size off it. */
+const ALTERNATIVES: Record<'daily' | 'weekly', [ChallengeKind, number][]> = {
+  daily: [
+    ['commitments', 2],
+    ['press', 1],
+    ['weeks', 2],
+  ],
+  weekly: [
+    ['commitments', 6],
+    ['press', 3],
+    ['weeks', 8],
+  ],
+};
+
+/**
+ * Swap a challenge that needs match minutes for one the player can reach while sidelined
+ * (review phase 5): the first alternative not already set, with the same reward. Once each.
+ */
+export function swapChallenge(world: World, id: string): void {
+  const challenge = world.challenges.find((entry) => entry.id === id);
+  if (!challenge || challenge.claimed || challenge.swapped)
+    throw new Error('This challenge cannot be swapped');
+  if (!needsMinutes(challenge.kind) || !sidelined(world))
+    throw new Error('Swaps are for challenges you cannot play towards');
+  const taken = new Set(
+    world.challenges.filter((entry) => entry.cadence === challenge.cadence).map((e) => e.kind),
+  );
+  const next = ALTERNATIVES[challenge.cadence].find(([kind]) => !taken.has(kind));
+  if (!next) throw new Error('No alternative is free');
+  challenge.kind = next[0];
+  challenge.target = next[1];
+  challenge.baseline = challengeCounter(world, next[0]);
+  challenge.swapped = true;
 }
 export function challengeProgress(world: World, challenge: Challenge): number {
   return Math.max(

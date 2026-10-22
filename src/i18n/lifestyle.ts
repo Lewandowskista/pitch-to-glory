@@ -342,6 +342,7 @@ export const lifestyleText = {
       press: 'Answer {target} press questions',
       weeks: 'Play through {target} weeks',
       xp: 'Earn {target} XP',
+      commitments: 'Keep {target} weekly commitments',
     },
     /** Singular forms of `kinds`, used when the target is 1. */
     kindsOne: {
@@ -354,7 +355,13 @@ export const lifestyleText = {
       press: 'Answer 1 press question',
       weeks: 'Play through 1 week',
       xp: 'Earn 1 XP',
+      commitments: 'Keep 1 weekly commitment',
     },
+    needsMinutes: 'Needs match minutes',
+    swap: 'Swap for something you can do now',
+    swapHint:
+      'You are out of the side, so this one is out of reach. Swap it once for a goal off the pitch, for the same reward.',
+    swapped: 'Swapped while you were out',
     reward_got: 'Reward collected!',
     toGo: '{count} to go',
     toGoOne: '1 to go',

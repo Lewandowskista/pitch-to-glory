@@ -1124,7 +1124,17 @@ export interface Sponsorship {
   paid?: number;
 }
 export type ChallengeKind =
-  'play' | 'goals' | 'assists' | 'wins' | 'rating' | 'clean-sheets' | 'press' | 'weeks' | 'xp';
+  | 'play'
+  | 'goals'
+  | 'assists'
+  | 'wins'
+  | 'rating'
+  | 'clean-sheets'
+  | 'press'
+  | 'weeks'
+  | 'xp'
+  // Weekly commitments kept (review phase 5): a goal a sidelined player can still reach.
+  | 'commitments';
 export interface Challenge {
   id: Id;
   cadence: 'daily' | 'weekly';
@@ -1137,6 +1147,8 @@ export interface Challenge {
   rewardTokens: number;
   rewardCosmeticId: Id | null;
   claimed: boolean;
+  /** Swapped for a goal that needs no match minutes while sidelined (review phase 5). */
+  swapped?: true;
 }
 /** A nation's squad for one level, as last selected. */
 export interface NationalTeam {

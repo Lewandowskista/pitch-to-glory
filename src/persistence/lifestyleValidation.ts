@@ -16,6 +16,7 @@ const KINDS = [
   'press',
   'weeks',
   'xp',
+  'commitments',
 ];
 const OBLIGATIONS = [
   'starts',
@@ -162,5 +163,6 @@ export function validateLifestyle(w: Record<string, unknown>): void {
     if (challenge.rewardCosmeticId !== null)
       requireValue(COSMETIC_BY_ID[String(challenge.rewardCosmeticId)] !== undefined);
     requireValue(typeof challenge.claimed === 'boolean');
+    if (challenge.swapped !== undefined) requireValue(challenge.swapped === true);
   }
 }

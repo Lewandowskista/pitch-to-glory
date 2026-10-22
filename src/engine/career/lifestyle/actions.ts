@@ -3,7 +3,7 @@ import { draftWorld } from '../market/actions';
 import { LIFESTYLE_BY_ID, STAFF_SPECIALITIES } from './catalogue';
 import { firstClubOf } from './lifestyle';
 import { acceptSponsor, breakBootsDeal, buyAsset, declineSponsor, sellAsset } from './lifestyle';
-import { claimChallenge, refreshChallenges } from './challenges';
+import { claimChallenge, refreshChallenges, swapChallenge } from './challenges';
 import { applyWardrobe, buyCosmetic, type WardrobeChange } from './wardrobe';
 
 export type LifestyleAction =
@@ -16,7 +16,9 @@ export type LifestyleAction =
   | { type: 'accept-sponsor'; id: string }
   | { type: 'decline-sponsor'; id: string }
   | { type: 'refresh-challenges'; date: string }
-  | { type: 'claim-challenge'; id: string };
+  | { type: 'claim-challenge'; id: string }
+  /** A challenge needing minutes swapped while sidelined (review phase 5). */
+  | { type: 'swap-challenge'; id: string };
 
 /**
  * The player's lifestyle decisions from the UI, with structural sharing. A look change and an
@@ -63,6 +65,9 @@ export function applyLifestyleAction(input: World, action: LifestyleAction): Wor
       break;
     case 'refresh-challenges':
       if (!refreshChallenges(world, action.date)) return input;
+      break;
+    case 'swap-challenge':
+      swapChallenge(world, action.id);
       break;
     case 'claim-challenge':
       claimChallenge(world, action.id);
