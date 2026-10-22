@@ -26,6 +26,28 @@ export type ReleaseSection = (typeof RELEASE_SECTIONS)[number];
 
 export const PATCH_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '0.6.0',
+    date: '2026-10-23',
+    title: 'Choices with a cost',
+    summary:
+      'Opponents with a style of their own, a stronger foot, an ambition that wants something, weekly commitments that compete for your time, and clubs that can run short of money.',
+    new: [
+      'Every opponent plays a style. A pressing side puts you under pressure on the ball, a deep block crowds the box and leaves space at the edge, a passing side makes you defend, a direct side fights in the air. The briefing explains the matchup, and the odds show it as a named factor.',
+      'Study the next opponent: a training session that halves what their style takes from your choices.',
+      'Your stronger foot matters. A shot, cross or carry with your weaker foot costs odds, cutting inside onto your stronger foot helps, and each choice shows the foot it uses.',
+      'Two-Footed, a new dribbling skill: no weaker foot.',
+      'Once your ambition is revealed it becomes a stated wish (top-division football by 24, regular football, or roots at one club) that lifts or lowers your morale.',
+      'Weekly commitments: up to three things outside training each week, from mentoring a youngster and sponsor appearances to community work, a team social, family time and extra rest. They repeat with your plan, and Suggest a week fills them for you.',
+      'New sponsor deals ask for sponsor appearances.',
+      'Your staff each offer two specialities to choose between: a physio for prevention or recovery, a nutritionist for recovery or endurance, a coach for development or extra sessions, an analyst for decision coaching or scouting.',
+      'Clubs can run short of money. A club paying more than it earns signs no one, renews fewer players, offers less, is slower to renew your contract and gives weaker training support; the club page says so when it is yours.',
+    ],
+    improved: ['A match missed through a ban no longer counts against your playing time.'],
+    fixed: [
+      'A goalkeeper could run the ball upfield on the pitch when the teammates a move begins with had been sent off.',
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-10-22',
     title: 'The big occasions',

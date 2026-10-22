@@ -878,6 +878,19 @@ Plan step 4.4.
 
 New sponsor deals also ask for appearances: 0.15 per remaining fixture (`sponsorships.appearances`), counted from the deal's start.
 
+**Scheduling compared (career profiles, central midfielder, seeds `p4a` and `p4b`).** `social` keeps a team social, community work and family time every week; `delegate` takes the suggested week every week; `default` keeps none.
+
+| Seed | Policy   | Peak | Morale | Trust | Fans | Fame at 25 | Level at 30 | Hall of Fame |
+| ---- | -------- | ---: | -----: | ----: | ---: | ---------: | ----------: | -----------: |
+| p4a  | default  | 80.0 |   63.9 |  79.8 | 89.6 |        835 |          69 |          524 |
+| p4a  | delegate | 80.2 |   70.4 |  77.8 | 93.1 |        913 |          71 |          121 |
+| p4a  | social   | 79.7 |   70.4 |  80.3 | 92.8 |        861 |          66 |          141 |
+| p4b  | default  | 79.4 |   66.3 |  77.4 | 86.2 |        678 |          69 |           89 |
+| p4b  | delegate | 79.4 |   66.1 |  80.6 | 91.3 |        837 |          70 |          606 |
+| p4b  | social   | 78.6 |   70.5 |  80.3 | 95.7 |        899 |          64 |          963 |
+
+Morale, trust and fans are career averages. A social week buys morale (+4 to +6), fan affection and fame, at the cost of levels (no mentoring XP, more fatigue); delegating lands between. Peak ability does not move, and the Hall of Fame rank moves both ways between seeds, so no habit dominates. The first tuning gave +16 morale and saturated fan affection.
+
 **Staff specialities.** Each member of staff does one of two things, chosen and changed on the lifestyle page (`lifestyle.staff`). The first is what they did before, so existing staff are unchanged.
 
 | Staff        | Specialities                                                                                                                      |

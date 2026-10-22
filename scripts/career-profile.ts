@@ -11,6 +11,7 @@
  *
  * Writes artifacts/profile/<seed>-<position>.json.
  */
+import { suggestCommitments } from '../src/engine/career/commitments';
 import { CALIBRATION_GATE, calibrationProblems } from './calibration';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type {
@@ -120,6 +121,10 @@ export const POLICIES = {
   mover: { moves: 'any', requestTransferAt: 20 },
   /** Asks for a loan only while short of minutes, and takes it. */
   minutes: { loans: 'minutes' },
+  /** Weekly commitments (review phase 4): the team, the community and family every week. */
+  social: {},
+  /** Weekly commitments: the suggested week, re-chosen every week (delegation). */
+  delegate: {},
 } as const satisfies Record<string, DecideOptions>;
 export type Policy = keyof typeof POLICIES;
 
@@ -288,6 +293,9 @@ export function runProfile(
       if (world.career) {
         const plan = policyPlan(policy, world.players[world.career.playerId]!);
         if (plan) world.career.training = plan;
+        if (policy === 'social')
+          world.career.training.commitments = ['team-social', 'community', 'family'];
+        if (policy === 'delegate') world.career.training.commitments = suggestCommitments(world);
         if (specialise && policy !== 'no-points') world = specialisedSpend(world, position);
         world = decide(world, state, note, POLICIES[policy]);
       }

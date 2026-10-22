@@ -883,10 +883,10 @@ export const careerText = {
       effects: {
         mentoring: '+{xp} XP, and the young players warm to you.',
         sponsor: 'Counts towards sponsor appearances and pays {share}% of their weekly fees.',
-        community: 'Fan affection +{fans}, and a little fame.',
-        'team-social': 'The dressing room warms to you; morale +{morale}.',
-        family: 'Morale +{morale}.',
-        rest: 'Fatigue −{rest}.',
+        community: 'Fan affection +{fans} a week, and a little fame.',
+        'team-social': 'The dressing room warms to you; morale +{morale} a week.',
+        family: 'Morale +{morale} a week.',
+        rest: 'Fatigue −{rest} a week.',
       },
       blocked: {
         age: 'From age {age}.',

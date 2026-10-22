@@ -155,21 +155,26 @@ test('training intensity choices stay readable on a tablet, at normal and large 
       document.documentElement.style.fontSize = `${scale}%`;
     }, percent);
     const problems = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('fieldset')).flatMap((fieldset, session) => {
-        const labels = Array.from(fieldset.querySelectorAll('label'));
-        return labels.flatMap((label, index) => {
-          const box = label.getBoundingClientRect();
-          const issues: string[] = [];
-          // The label's own text fits inside it, and it does not run into its neighbour.
-          if (label.scrollWidth > label.clientWidth + 1)
-            issues.push(`session ${session + 1} option ${index + 1} clipped`);
-          const next = labels[index + 1]?.getBoundingClientRect();
-          if (next && box.right > next.left + 1)
-            issues.push(`session ${session + 1} options ${index + 1}/${index + 2} overlap`);
-          if (box.width < 60) issues.push(`session ${session + 1} option ${index + 1} too narrow`);
-          return issues;
-        });
-      }),
+      // The intensity choices: a row of radio options per session (the commitments below
+      // them are a grid of checkboxes).
+      Array.from(document.querySelectorAll('fieldset:has(input[type="radio"])')).flatMap(
+        (fieldset, session) => {
+          const labels = Array.from(fieldset.querySelectorAll('label'));
+          return labels.flatMap((label, index) => {
+            const box = label.getBoundingClientRect();
+            const issues: string[] = [];
+            // The label's own text fits inside it, and it does not run into its neighbour.
+            if (label.scrollWidth > label.clientWidth + 1)
+              issues.push(`session ${session + 1} option ${index + 1} clipped`);
+            const next = labels[index + 1]?.getBoundingClientRect();
+            if (next && box.right > next.left + 1)
+              issues.push(`session ${session + 1} options ${index + 1}/${index + 2} overlap`);
+            if (box.width < 60)
+              issues.push(`session ${session + 1} option ${index + 1} too narrow`);
+            return issues;
+          });
+        },
+      ),
     );
     expect(problems, `${percent}% text`).toEqual([]);
   }

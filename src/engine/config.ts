@@ -901,16 +901,18 @@ export const CONFIG = {
     },
     /**
      * Weekly commitments outside training (review phase 4, step 4.4): at most `slots` a week,
-     * each with its effects every week it is kept. Mentoring needs `minimumAge` and a teammate
+     * each with its effects every week it is kept. Morale moves 30% of the way to its target
+     * each week and standing drifts back 3%, so a weekly bump b settles at about b / 0.3
+     * morale (family +4, a team social +2) and b / 0.03 fan affection (community +10). Mentoring needs `minimumAge` and a teammate
      * under 21; sponsor appearances need an active deal and pay `feeShare` of its weekly fee.
      */
     commitments: {
       slots: 3,
-      mentoring: { xp: 25, young: 1.5, fatigue: 1, minimumAge: 23 },
-      sponsor: { fame: 1, feeShare: 0.15, fatigue: 0.5 },
-      community: { fans: 1.5, fame: 0.5, fatigue: 0.5 },
-      'team-social': { cliques: 1, mood: 1, morale: 1, fatigue: 0.5 },
-      family: { morale: 3 },
+      mentoring: { xp: 25, young: 0.8, fatigue: 1.5, minimumAge: 23 },
+      sponsor: { fame: 0.5, feeShare: 0.15, fatigue: 1 },
+      community: { fans: 0.3, fame: 0.25, fatigue: 1 },
+      'team-social': { cliques: 0.5, mood: 0.5, morale: 0.6, fatigue: 1 },
+      family: { morale: 1.2 },
       rest: { fatigue: -3 },
     },
     /** Fame, sponsorships, lifestyle, wardrobe, celebrations and challenges (milestone 7). */
