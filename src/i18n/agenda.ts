@@ -50,8 +50,7 @@ export const agendaText = {
     weeks: 'Continue plays out weeks {from}–{through}',
     stop: ', then stops in week {week} for {opponent} if you are picked. If not, it plays on to your next match.',
     season: 'Your club has no fixture left: Continue plays out the season to week {through}.',
-    deadline:
-      ', then stops on deadline day, week {week}, so you can answer {club} before their offer lapses.',
+    deadline: ', then stops on deadline day, week {week}, so you can {action} before it lapses.',
     fit: 'You are expected back in week {week}.',
     recovery: 'Choose how to recover before the world moves on.',
     lapsing: 'Passes on the way unless you act first:',

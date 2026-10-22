@@ -21,8 +21,13 @@ export interface WorldOperations {
   /** The tournament between seasons, to the career player's next match or its end. */
   tournament(world: World, simulateCareer: boolean): { world: World; pendingFixtureId: Id | null };
   createCareer(world: World, seed: string, draft: CareerDraft, clubId: Id): World;
-  /** Before simulating a further week: true when the player has a decision due in it. */
-  decisionDue?(world: World): boolean;
+  /** The ids of the decisions waiting for the player (review phase 5, step 5.1). */
+  pending?(world: World): string[];
+  /**
+   * Before simulating a further week: true when a decision falls due in it, or one arrived
+   * that was not waiting (`before`) when Continue was pressed.
+   */
+  continueStops?(world: World, before: ReadonlySet<string>): boolean;
 }
 export async function runWorldJob(
   request: JobRequest,
@@ -70,13 +75,15 @@ export async function runWorldJob(
       const autoPlay = request.type === 'simulate-season' && request.autoPlay;
       let completedWeeks = 0;
       let pendingFixtureId: Id | null = null;
+      const before = new Set(operations.pending?.(world!) ?? []);
       while (world!.phase === 'active' && completedWeeks < totalWeeks) {
-        // Continue (not a season simulation) stops on deadline day: the week always moves on
-        // once, so pressing it again lets the deadline pass.
+        // Continue (not a season simulation) stops for a decision: on its deadline day, or
+        // when a new one arrives. The week always moves on once, so pressing it again lets a
+        // deadline pass.
         if (
           request.type === 'simulate-to-match' &&
           completedWeeks > 0 &&
-          operations.decisionDue?.(world!)
+          operations.continueStops?.(world!, before)
         )
           break;
         const step = operations.week(world!, autoPlay);

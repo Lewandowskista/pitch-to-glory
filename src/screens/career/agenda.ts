@@ -14,7 +14,7 @@ import type {
   World,
 } from '../../model/domain';
 import { pendingCareerFixture } from '../../engine/career/fixtures';
-import { nextOfferDeadline } from '../../engine/career/deadlines';
+import { nextDecisionDeadline, pendingDecisions } from '../../engine/career/pending';
 import { windowWeeks } from '../../engine/career/honours/international';
 import { compareDates, windowState } from '../../engine/career/market/rules';
 import { contractExpiring } from '../../engine/career/market/offers';
@@ -65,65 +65,51 @@ const byDeadline = (a: Priority, b: Priority) =>
         : 0) ||
   (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
-/** Actions that lapse: transfer talks awaiting the player, unanswered press, sponsor offers. */
+/**
+ * Actions that lapse: transfer talks awaiting the player, unanswered press, the manager's
+ * challenge, a story and sponsor offers (the engine's pending decisions, with where to act).
+ */
 export function deadlineItems(world: World): Priority[] {
-  const items: Priority[] = [];
-  for (const offer of world.offers) {
-    if (offer.status !== 'terms') continue;
-    items.push({
-      id: `offer:${offer.id}`,
-      kind: 'offer',
-      group: 'deadline',
-      deadline: offer.expires,
-      to: `/career/transfers?offer=${encodeURIComponent(offer.id)}`,
-      params: { club: world.clubs[offer.clubId]?.name ?? offer.clubId, offer: offer.kind },
-    });
-  }
-  for (const item of world.media) {
-    if (!item.choices.length || item.answer !== null) continue;
-    items.push({
-      id: `press:${item.id}`,
-      kind: 'press',
-      group: 'deadline',
-      deadline: item.expires,
-      to: '/career/media',
-      params: { outlet: item.authorName },
-    });
-  }
-  const promise = world.career?.social.promises?.find(
-    (entry) => entry.season === world.date.season && entry.status === 'offered',
-  );
-  if (promise)
-    items.push({
-      id: `promise:${promise.id}`,
-      kind: 'promise',
-      group: 'deadline',
-      deadline: { season: promise.season, week: promise.respondBy, day: 7 },
-      to: '/career/club',
-      params: { manager: world.managers[promise.managerId]?.name ?? '' },
-    });
-  const story = world.career?.stories?.find((entry) => entry.status === 'offered');
-  if (story)
-    items.push({
-      id: `story:${story.id}`,
-      kind: 'story',
-      group: 'deadline',
-      deadline: story.respondBy,
-      to: '/career#story',
-      params: { story: story.kind },
-    });
-  for (const deal of world.sponsorships) {
-    if (deal.status !== 'offered') continue;
-    items.push({
-      id: `sponsor:${deal.id}`,
-      kind: 'sponsor',
-      group: 'deadline',
-      deadline: deal.expires,
-      to: '/career/lifestyle',
-      params: { category: deal.category },
-    });
-  }
-  return items.sort(byDeadline);
+  return pendingDecisions(world)
+    .map((item): Priority => {
+      const base = {
+        id: item.id,
+        kind: item.kind,
+        group: 'deadline' as const,
+        deadline: item.deadline,
+      };
+      switch (item.kind) {
+        case 'offer': {
+          const offer = world.offers.find((entry) => entry.id === item.refId)!;
+          return {
+            ...base,
+            to: `/career/transfers?offer=${encodeURIComponent(offer.id)}`,
+            params: { club: world.clubs[offer.clubId]?.name ?? offer.clubId, offer: offer.kind },
+          };
+        }
+        case 'press': {
+          const press = world.media.find((entry) => entry.id === item.refId)!;
+          return { ...base, to: '/career/media', params: { outlet: press.authorName } };
+        }
+        case 'promise': {
+          const promise = world.career!.social.promises!.find((entry) => entry.id === item.refId)!;
+          return {
+            ...base,
+            to: '/career/club',
+            params: { manager: world.managers[promise.managerId]?.name ?? '' },
+          };
+        }
+        case 'story': {
+          const story = world.career!.stories!.find((entry) => entry.id === item.refId)!;
+          return { ...base, to: '/career#story', params: { story: story.kind } };
+        }
+        case 'sponsor': {
+          const deal = world.sponsorships.find((entry) => entry.id === item.refId)!;
+          return { ...base, to: '/career/lifestyle', params: { category: deal.category } };
+        }
+      }
+    })
+    .sort(byDeadline);
 }
 
 /**
@@ -229,8 +215,8 @@ export interface AdvancePreview {
   fitWeek: number | null;
   /** Deadlines that pass in the simulated weeks unless acted on first. */
   lapsing: Priority[];
-  /** Deadline day: the week Continue stops in for an offer awaiting an answer. */
-  deadline?: { week: number; clubId: string };
+  /** Deadline day: the week Continue stops in for a decision that would otherwise lapse. */
+  deadline?: { week: number; item: Priority };
 }
 
 /**
@@ -266,9 +252,13 @@ export function advancePreview(world: World, session: SessionState): AdvancePrev
         (a, b) => a.date.week - b.date.week || a.date.day - b.date.day || (a.id < b.id ? -1 : 1),
       )[0] ?? null;
   const fixtureThrough = fixture ? fixture.date.week - 1 : seasonWeeks;
-  // Continue stops on deadline day when an offer awaits an answer (see deadlines.ts).
-  const due = nextOfferDeadline(world);
-  const deadline = due && due.week - 1 < fixtureThrough ? due : null;
+  // Continue stops on deadline day for any decision waiting (see engine/career/pending.ts).
+  const next = nextDecisionDeadline(world);
+  const item = next ? deadlineItems(world).find((entry) => entry.id === next.id) : undefined;
+  const deadline =
+    next && item && next.deadline!.week - 1 < fixtureThrough
+      ? { week: next.deadline!.week, item }
+      : null;
   const through = deadline ? Math.max(from, deadline.week - 1) : fixtureThrough;
   const lapsing = deadlineItems(world).filter(
     (item) => item.deadline && inSeason(world, item.deadline) && item.deadline.week <= through,

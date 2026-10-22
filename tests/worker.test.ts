@@ -42,13 +42,36 @@ describe('worker job protocol', () => {
           yieldControl: async () => {},
         },
         // A decision falls due in week 1 (where Continue starts) and in week 2.
-        { ...operations, decisionDue: (world) => world.date.week <= 2 },
+        { ...operations, continueStops: (world) => world.date.week <= 2 },
       );
       return events.filter((event) => event.type === 'checkpoint').length;
     };
     // Week 1 always plays; Continue then stops in week 2 for the decision.
     expect(await run('simulate-to-match')).toBe(1);
     expect(await run('simulate-season')).toBe(3);
+  });
+  it('stops Continue when a new decision arrives, but not for one already waiting', async () => {
+    const { runWorldJob } = await import('../src/workers/run');
+    const events: WorkerResponse[] = [];
+    await runWorldJob(
+      { requestId: 'arrival', type: 'simulate-to-match', world: initial },
+      {
+        emit: (event) => events.push(event),
+        checkpoint: async () => {},
+        cancelled: () => false,
+        yieldControl: async () => {},
+      },
+      {
+        ...operations,
+        // An offer waits from the start; a press question arrives in week 3.
+        pending: (world) => (world.date.week >= 3 ? ['offer:a', 'press:b'] : ['offer:a']),
+        continueStops: (world, before) =>
+          (world.date.week >= 3 ? ['offer:a', 'press:b'] : ['offer:a']).some(
+            (id) => !before.has(id),
+          ),
+      },
+    );
+    expect(events.filter((event) => event.type === 'checkpoint')).toHaveLength(2);
   });
   it('plays the tournament on to the career player’s match, or through it', async () => {
     const { runWorldJob } = await import('../src/workers/run');

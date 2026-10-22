@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import type { Career, CliqueKind, MediaItem, World } from '../../model/domain';
+import type { Career, CliqueKind, MediaItem, MediaTone, World } from '../../model/domain';
 import { rivalOf } from '../../engine/career/social';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
@@ -35,6 +35,7 @@ function MediaContent({ world, career }: { world: World; career: Career }) {
     .reverse();
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
+      <RoutinePress tone={world.career!.social.pressTone ?? null} />
       {/* The questions lead; coverage and the squad's groups are a short column beside them. */}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
         {!pending.length && !latest && !earlier.length ? (
@@ -578,5 +579,41 @@ function Feed({ world }: { world: World }) {
         </div>
       )}
     </Panel>
+  );
+}
+
+const TONES: MediaTone[] = ['team', 'humble', 'confident', 'deflect', 'provocative'];
+/**
+ * Routine press answered for the player in a chosen tone as it arrives (review phase 5), so a
+ * quiet week needs no stop for a post-match question.
+ */
+function RoutinePress({ tone }: { tone: MediaTone | null }) {
+  const { run, error, block } = useSocialAction();
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-panel border border-line bg-surface px-4 py-3">
+      <div className="min-w-0 flex-[1_1_18rem]">
+        <label htmlFor="routine-press" className="font-bold">
+          {s.media.routine}
+        </label>
+        <p className="text-[0.8125rem] text-muted">{s.media.routineBody}</p>
+      </div>
+      <select
+        id="routine-press"
+        value={tone ?? ''}
+        disabled={Boolean(block)}
+        onChange={(event) =>
+          run({ type: 'press-tone', tone: (event.target.value || null) as MediaTone | null })
+        }
+        className="min-h-11 rounded-control border border-line bg-surface px-3 text-sm font-bold"
+      >
+        <option value="">{s.media.routineSelf}</option>
+        {TONES.map((entry) => (
+          <option key={entry} value={entry}>
+            {format(s.media.routineTone, { tone: s.tones[entry] })}
+          </option>
+        ))}
+      </select>
+      {error && <p className="basis-full text-sm font-semibold text-danger">{error}</p>}
+    </div>
   );
 }

@@ -794,6 +794,11 @@ export interface CareerSocial {
   promises?: ManagerPromise[];
   /** A stance taken to the press, judged by the next result (balance pass D). */
   stance?: { tone: MediaTone; date: GameDate };
+  /**
+   * Routine press answered for the player in this tone as it arrives (review phase 5);
+   * absent to answer every question themselves.
+   */
+  pressTone?: MediaTone;
 }
 export type PromiseStatus = 'offered' | 'active' | 'achieved' | 'missed' | 'cancelled';
 export type PromiseEnd =

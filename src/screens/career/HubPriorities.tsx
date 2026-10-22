@@ -19,6 +19,8 @@ import {
 } from './agenda';
 import { ui } from './shared';
 
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+
 /** Small tags in the coming-up list: a word always says what the colour means. */
 const TAG_TONE = {
   accent: 'bg-accent-soft text-accent',
@@ -213,7 +215,7 @@ export function AdvancePreviewText({ world, preview }: { world: World; preview: 
         {preview.deadline
           ? `${range}${format(a.preview.deadline, {
               week: preview.deadline.week,
-              club: world.clubs[preview.deadline.clubId]?.name ?? '',
+              action: lowerFirst(priorityLabel(preview.deadline.item)),
             })}`
           : fixture
             ? `${range}${format(a.preview.stop, {

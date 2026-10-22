@@ -28,6 +28,11 @@ const MD = S.media;
 /** Press topics and their answers. Effects are shown to the player before they choose. */
 export type PressTopic =
   'win' | 'loss' | 'goal' | 'dropped' | 'rumour' | 'request' | 'newclub' | 'rival' | 'bigmatch';
+/**
+ * Routine press (review phase 5): after a match and before a big one. These a player can have
+ * answered for them in a chosen tone; questions about moves, rivals or selection always wait.
+ */
+export const ROUTINE_PRESS: ReadonlySet<PressTopic> = new Set(['win', 'loss', 'goal', 'bigmatch']);
 const effect = (partial: Partial<MediaEffects>): MediaEffects => ({
   fame: 0,
   trust: 0,
@@ -441,7 +446,17 @@ function pickPress(world: World, rng: Rng, matches: CareerMatchRecord[]): void {
   const rivalry = rivalryOf(world);
   const ask = (topic: PressTopic, params: MediaItem['params']): boolean => {
     if (askedRecently(world, topic)) return false;
-    openPress(world, rng, topic, params);
+    const item = openPress(world, rng, topic, params);
+    // Routine questions can be answered for the player in a chosen tone (review phase 5).
+    // A question without that tone gets the nearest: team first, then humble, then the first.
+    const tone = career.social.pressTone;
+    if (tone && ROUTINE_PRESS.has(topic)) {
+      const choice =
+        [tone, 'team', 'humble']
+          .map((wanted) => item.choices.find((c) => c.tone === wanted))
+          .find(Boolean) ?? item.choices[0];
+      if (choice) answerPress(world, item.id, choice.id);
+    }
     return true;
   };
   const thisWeek = (date: { season: number; week: number } | null | undefined) =>

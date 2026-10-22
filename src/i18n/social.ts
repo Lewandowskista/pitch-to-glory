@@ -143,6 +143,11 @@ export const socialText = {
     prefers: '· prefers {formation}',
   },
   media: {
+    routine: 'Routine questions',
+    routineBody:
+      'After a match and before a big one. Questions about moves, rivals or your place in the side always wait for you.',
+    routineSelf: 'I answer them myself',
+    routineTone: 'Answer for me: {tone}',
     pending: 'Questions waiting',
     none: 'No questions right now. Journalists come to you after notable matches, moves and rival meetings.',
     deadline: 'Answer by week {week}, or the silence costs a little fame.',

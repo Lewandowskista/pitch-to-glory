@@ -84,6 +84,8 @@ export function validateSocial(w: Record<string, unknown>): void {
   }
   number(social.answered, 0, 1e6, true);
   number(social.coverage, -10, 10);
+  if (social.pressTone !== undefined)
+    options(social.pressTone, ['team', 'confident', 'humble', 'provocative', 'deflect']);
   if (social.promises !== undefined) validatePromises(social.promises, current);
 
   const rivalries = array(w.rivalries, 1);
