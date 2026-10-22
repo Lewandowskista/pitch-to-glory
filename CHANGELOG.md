@@ -2,6 +2,27 @@
 
 Player-facing notes for every release of Pitch to Glory, newest first. Generated from `src/i18n/patchNotes.ts` by `npm run changelog`; do not edit by hand. See [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.7.0 — A career with a memory
+
+_2026-10-23_
+
+Continue never lets a decision slip by, the football world remembers what you did, and every season starts with a briefing and an ambition of your own.
+
+### New
+
+- Continue stops for any decision that arrives or falls due: a transfer offer, a press question, the manager’s challenge, a story or a sponsor, so nothing lapses while you are not looking.
+- Have routine press questions answered for you in a tone you choose. Questions about moves, rivals and your place always wait for you.
+- The football world remembers: criticising your manager, asking to leave or missing a challenge limits how far they will trust you; declaring your loyalty makes the club keener to renew; your history counts towards the captaincy. The club page shows what is remembered and what it changes.
+- Youngsters you mentor carry into your legacy, and may come back as managers in the world that follows.
+- A preseason briefing each season: what the manager expects, the competition for your place, your development target, and an ambition for the season that is judged at its end.
+- From 31, one late-career step a season: accept a smaller role, retrain for a new position, mentor the youngsters, or look for a club closer to home.
+- Challenges that need match minutes say so, and while you are injured or out of the side you can swap one for a goal you can still reach.
+
+### Improved
+
+- Stories now rest for a season or two before the same kind comes round again.
+- The hub’s preview says which decision Continue will stop for.
+
 ## 0.6.0 — Choices with a cost
 
 _2026-10-23_

@@ -162,3 +162,10 @@ The climb's pace is preserved within about a point, which is normal career-to-ca
 - **4.4 Commitments, staff and finances:** up to three weekly commitments kept with the training plan (with a suggestion), sponsor appearance obligations, two specialities per member of staff, and a club economy where wages are budgeted from earnings, balances can go into debt and clubs under strain sign, renew, pay and support less.
 - Found during testing: in the pitch animation, a keeper could carry the ball upfield when the teammates a move starts with had been sent off (fixed on match-19), and a coaching value stored as −0 changed in a save round trip (fixed).
 - Measured: match-19 moves goals by at most two and moments by at most three per position in the outcome snapshot (25 matches each); the 10,000-match distribution holds. The economy's strain rates are in BALANCING.md.
+
+## Phase 5 — Story memory and the shape of a career
+
+- **5.1** Continue stops for any decision due that week or newly arrived (engine `pending.ts`, used by the worker and the hub preview). Routine press can be auto-answered in a chosen tone. Acceptance: `tests/continue-stops.test.ts` runs the worker's own loop through a six-week injury with a press question, a sponsor offer and a story, and each is waiting at a stop before its last week.
+- **5.2** Lasting facts change trust ceilings, renewals, the captaincy claim and story cooldowns; mentees carry into the legacy and may manage in the world to come. The club page shows what is remembered and what it changes.
+- **5.3** A preseason briefing page with expectations, competition for a place, the development target and a season ambition judged at its end; one late-career step a season from 31.
+- **5.4** Challenges needing minutes are labelled, and can be swapped once while sidelined.

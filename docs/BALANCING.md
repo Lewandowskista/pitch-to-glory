@@ -908,3 +908,31 @@ Morale, trust and fans are career averages. A social week buys morale (+4 to +6)
 - Wages above the budget mark a club **stretched**; a negative balance, **in debt**. Under strain a club signs no one, renews 3 (in debt 6) fewer of its squad, pays 90% (80%) of a fair wage on new contracts, opens renewal talks with the career player 75% (50%) as often and offers no raise at renewal, and its training support is worth 96% (90%). The club page and the world's club inspector say so, with the numbers.
 
 Measured over six seasons of a national world without a career: 10% of clubs stretched at the end of the first season, as clubs paying well above their peers find out; they cut back, and from the third season 3–4% are stretched at season end (6–8% at a season's peak), across every tier. No club fell into debt: reserves cover a loss for seasons. `wageShare`, the peer window and the strain effects are the levers. A fixed reputation curve was tried first and drifted: low-reputation clubs pay the minimum wage, which a curve undershoots, so a third of tier 4 ended up stretched.
+
+## Story memory and the shape of a career (October 2026)
+
+Plan steps 5.1–5.4. Constants in `career.facts`, `career.preseason` and the challenge alternatives.
+
+**Continue stops (5.1).** Continue (not a season simulation) plays at least one week, then stops before simulating another when a decision falls due that week or a new one has arrived since it was pressed: transfer talks, press questions, the manager's challenge, a story or a sponsor offer (`engine/career/pending.ts`). The hub's preview names the decision it will stop for. Routine press (after a match, before a big one) can be answered in a chosen tone as it arrives; a question without that tone takes team, then humble, then the first answer. Questions about moves, rivals and selection always wait.
+
+**Lasting facts (5.2).** Remembered once per kind and subject a season, the last 60 kept.
+
+| Fact                       | Recorded when                                                             | Changes                                                                   |
+| -------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Challenge kept / missed    | the manager's challenge is met or missed                                  | missed: a grievance; kept: captaincy +5                                   |
+| Public criticism           | a provocative answer to a question about being dropped or asking to leave | a grievance; captaincy −15                                                |
+| Transfer request           | the player asks to leave                                                  | a grievance; the club renews half as readily for 2 seasons; captaincy −10 |
+| Declared loyalty           | committing to the club in a transfer saga                                 | the club renews 1.5× as readily; captaincy +10                            |
+| Mentored                   | a mentoring story ends with the youngster grown                           | captaincy +5; the mentee joins the legacy                                 |
+| Difficult return / captain | a slow comeback; named captain                                            | captain: captaincy +5                                                     |
+
+Each grievance a manager holds lowers the most they trust the player by 12, to 60, checked weekly. Mentees pass into the career's legacy and lead the list of former players who may become managers (chance 0.6 against 0.4); one appointed to the player's club starts with +20 trust and a message. Stories rest by kind: two seasons for a dispute, the captaincy, contract envy, the rival war, a transfer saga and mentoring; one for the rest.
+
+**Preseason (5.3).** Offered from the hub in the season's first 6 weeks until done.
+
+- The manager's expectations: the club's place by reputation in its league, the player's role and what their standing says.
+- Competition for a place: the slot, its fit, who is ahead and the chance of starting.
+- The season goal (development target) and an ambition for the season, judged at its end: a regular place (60% of league fixtures started), output (goals and assists: attackers 14, midfielders 9, full-backs and centre-backs 9 clean sheets, keepers 11), or growth (+3 ability; from 29, holding ability). Met: +300 XP, +8 fame, +6 morale. Missed: −4 morale.
+- From 31, one late-career step a season: a smaller role (one role down; +8 manager trust, the seniors warm), retraining (one step back, e.g. striker to attacking midfielder: familiarity +25 and a training session on it), mentoring (a weekly commitment), or two clubs in the home country starting to scout at confidence 70.
+
+**Sidelined challenges (5.4).** Challenges only matches move say so. While injured, out of the last fixture or suspended, one can be swapped once for a goal off the pitch with the same cosmetic reward: weekly commitments (2 daily, 6 weekly), press or weeks played through.
