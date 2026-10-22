@@ -1,3 +1,4 @@
+import { renewalWillingness } from '../facts';
 import type { Club, Fixture, ScoutingInterest, World } from '../../../model/domain';
 import { createRng, type Rng } from '../../rng';
 import { CONFIG } from '../../config';
@@ -276,7 +277,10 @@ function renewals(world: World, ctx: Context): void {
   const player = world.players[world.career!.playerId]!;
   // A club under financial strain (review phase 4) is slower to offer a new deal.
   const strain = world.clubs[contract.clubId]?.finances.strain;
-  const willing = strain ? CONFIG.world.background.economy.renewalChance[strain] : 1;
+  // What the club remembers (review phase 5): loyalty makes it keener, a request less so.
+  const willing =
+    (strain ? CONFIG.world.background.economy.renewalChance[strain] : 1) *
+    renewalWillingness(world, contract.clubId);
   if (contract.end.season === world.date.season && world.date.week >= R.finalSeasonFrom * weeks) {
     if (ctx.rng.next() < R.chance * willing) makeRenewalOffer(world, false, true);
     return;

@@ -48,5 +48,9 @@ export const storiesText = {
       subject: 'Challenge called off',
       body: 'The challenge no longer applies. Nothing is held against you.',
     },
+    'mentee-manager': {
+      subject: '{manager} is the new manager',
+      body: '{manager} learned the game under {mentor}, and starts out with real faith in you.',
+    },
   },
 } as const;

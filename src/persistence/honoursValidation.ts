@@ -321,6 +321,7 @@ export function validateHonours(w: Record<string, unknown>): void {
     number(legacy.earnings, 0, 1e15);
     number(legacy.savings, 0, 1e15);
     ids(legacy.teammateIds, 12).forEach(id);
+    if (legacy.menteeIds !== undefined) ids(legacy.menteeIds, 60).forEach(id);
     if (legacy.childPlayerId !== null) person(legacy.childPlayerId);
   }
 

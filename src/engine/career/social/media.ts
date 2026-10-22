@@ -1,3 +1,4 @@
+import { addFact } from '../facts';
 import type {
   CareerMatchRecord,
   Club,
@@ -241,6 +242,10 @@ export function answerPress(world: World, mediaId: string, choiceId: string): vo
   const rivalry = rivalryOf(world);
   if (rivalry && e.rival) adjustIntensity(rivalry, e.rival);
   item.answer = choice.id;
+  // Answering a question about being dropped or wanting out provocatively is public criticism
+  // the manager remembers (review phase 5).
+  if (choice.tone === 'provocative' && (item.textKey === 'dropped' || item.textKey === 'request'))
+    addFact(world, 'public-criticism', { clubId: club.id, managerId: club.managerId });
   const social = world.career!.social;
   social.answered++;
   // Bold words are judged by the next result; humble ones earn trust from a win.

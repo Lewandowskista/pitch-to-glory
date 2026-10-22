@@ -347,6 +347,43 @@ export const CONFIG = {
      * a new manager, a comeback, a homecoming, a derby) brings one at once. Each kind once a
      * season; the last `limit` are kept. The rest are the thresholds and sizes of each story.
      */
+    /**
+     * Lasting story facts (review phase 5, step 5.2). Each grievance a manager holds (a
+     * challenge missed, public criticism, a transfer request under them) lowers the most they
+     * can trust the player by `grievance`, to `trustFloor`. A club renews `loyalty` times as
+     * willingly after a declaration of loyalty, `request` times within `requestSeasons` of a
+     * transfer request. The captaincy claim gains or loses `captaincy` points by kind. A
+     * mentee who becomes a manager starts with `menteeTrust` more trust. Stories rest
+     * `cooldown` seasons by kind (1 means only once a season).
+     */
+    facts: {
+      limit: 60,
+      grievance: 12,
+      trustFloor: 60,
+      loyalty: 1.5,
+      request: 0.5,
+      requestSeasons: 2,
+      captaincy: {
+        'declared-loyalty': 10,
+        mentored: 5,
+        captain: 5,
+        'promise-kept': 5,
+        'public-criticism': -15,
+        'transfer-request': -10,
+      } as Partial<Record<string, number>>,
+      menteeTrust: 20,
+      menteeManagerChance: 0.6,
+      cooldown: {
+        'senior-dispute': 2,
+        captaincy: 2,
+        'contract-envy': 2,
+        'rival-war': 2,
+        'transfer-saga': 2,
+        'mentor-youth': 2,
+        charity: 1,
+        'night-out': 1,
+      } as Partial<Record<string, number>>,
+    },
     stories: {
       gapWeeks: 4,
       weeklyChance: 0.3,

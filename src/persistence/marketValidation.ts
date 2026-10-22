@@ -77,6 +77,7 @@ export const INBOX_KINDS = [
   'promise-achieved',
   'promise-missed',
   'promise-cancelled',
+  'mentee-manager',
   'ambition-achieved',
   'story-offer',
   'story-outcome',

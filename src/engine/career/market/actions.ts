@@ -1,3 +1,4 @@
+import { addFact } from '../facts';
 import type { ContractTerms, World } from '../../../model/domain';
 import { recordEvent } from '../../world/events';
 import {
@@ -233,6 +234,7 @@ export function applyMarketAction(
       adjustCliques(world, Q.transferRequest);
       adjustCliques(world, { seniors: Q.seniorsTransferRequest });
       market.transferRequest = today(world);
+      addFact(world, 'transfer-request', { clubId: parent.id, managerId: parent.managerId });
       for (const interest of world.scouting)
         if (interest.kind === 'transfer')
           interest.confidence = Math.min(100, interest.confidence + 10);

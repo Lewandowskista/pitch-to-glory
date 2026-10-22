@@ -1,3 +1,4 @@
+import { trustCeiling } from '../facts';
 import type {
   CareerMatchRecord,
   CareerSocial,
@@ -147,6 +148,16 @@ export function socialWeek(world: World): void {
         (entry.kind === 'fans' && entry.targetId === club.id))
     )
       entry.value = Math.round((entry.value + (D.toward - entry.value) * D.rate) * 10) / 10;
+  // A manager who holds grievances (review phase 5) trusts the player only so far.
+  const ceiling = trustCeiling(world, club.managerId);
+  for (const entry of world.relationships)
+    if (
+      entry.sourceId === player.id &&
+      entry.kind === 'manager' &&
+      entry.targetId === club.managerId &&
+      entry.value > ceiling
+    )
+      entry.value = ceiling;
   const social = career.social;
   social.coverage =
     Math.round(

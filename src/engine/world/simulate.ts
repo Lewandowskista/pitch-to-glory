@@ -38,7 +38,7 @@ import {
   marketWeek,
 } from '../career/market/week';
 import { careerSelection } from '../career/market/rules';
-import { postMessage, recordMove } from '../career/market/records';
+import { adjustRelationship, postMessage, recordMove } from '../career/market/records';
 import { socialRollover, socialWeek } from '../career/social/week';
 import { lifestyleRollover, lifestyleWeek } from '../career/lifestyle/week';
 import {
@@ -285,7 +285,14 @@ function managerChanges(world: World, rng: Rng): void {
       manager.appointed = { ...world.date };
       // A retired teammate of a past career may return as a manager (AGENTS.md §9.2).
       const former = formerTeammates(world);
-      if (former.length && rng.next() < CONFIG.career.honours.formerTeammateManager) {
+      // A former mentee (review phase 5) is likelier still to be given the job.
+      const mentee = Boolean(
+        former[0] && world.legacies.some((legacy) => legacy.menteeIds?.includes(former[0]!.id)),
+      );
+      const chance = mentee
+        ? CONFIG.career.facts.menteeManagerChance
+        : CONFIG.career.honours.formerTeammateManager;
+      if (former.length && rng.next() < chance) {
         const person = former[0]!;
         manager.name = person.name;
         manager.avatar = { ...person.avatar };
@@ -294,6 +301,20 @@ function managerChanges(world: World, rng: Rng): void {
       }
       world.managers[id] = manager;
       club.managerId = id;
+      // A mentee of a past career managing the player's club starts out trusting them.
+      const career = world.career;
+      if (
+        career &&
+        manager.formerPlayerId &&
+        world.players[career.playerId]?.clubId === club.id &&
+        world.legacies.some((legacy) => legacy.menteeIds?.includes(manager.formerPlayerId!))
+      ) {
+        const mentor = world.legacies.find((legacy) =>
+          legacy.menteeIds?.includes(manager.formerPlayerId!),
+        )!;
+        adjustRelationship(world, 'manager', id, CONFIG.career.facts.menteeTrust);
+        postMessage(world, 'mentee-manager', { manager: manager.name, mentor: mentor.name });
+      }
       event(world, 'manager-change', [club.id, old.id, id], {
         name: club.name,
         old: old.name,

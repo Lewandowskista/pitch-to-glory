@@ -11,12 +11,14 @@
  */
 import type {
   CliqueKind,
+  FactKind,
   GameDate,
   Player,
   StoryKind,
   StoryState,
   World,
 } from '../../../model/domain';
+import { addFact, captaincyStanding, storyResting } from '../facts';
 import { CONFIG } from '../../config';
 import { createRng, type Rng } from '../../rng';
 import { playerAbility } from '../../strength';
@@ -196,8 +198,13 @@ export const STORYLETS: readonly Storylet[] = [
     resolve(world, story, rng) {
       const own = player(world);
       const mate = world.players[String(story.params.teammateId)];
+      // What the club remembers of the player adds to the claim (review phase 5).
+      const club = careerClub(world);
       const claim =
-        own.attributes.leadership + managerTrust(world) / 2 + rng.next() * T.captaincySpread;
+        own.attributes.leadership +
+        managerTrust(world) / 2 +
+        captaincyStanding(world, club.id, club.managerId) +
+        rng.next() * T.captaincySpread;
       const other = (mate?.attributes.leadership ?? 50) + 40;
       if (claim >= other) {
         world.career!.captaincy = { clubId: careerClub(world).id, since: today(world) };
@@ -450,6 +457,28 @@ export const STORYLET_BY_KIND = Object.fromEntries(
   STORYLETS.map((story) => [story.kind, story]),
 ) as Record<StoryKind, Storylet>;
 
+/**
+ * The facts a story leaves (review phase 5): by `kind:choice` when chosen, `kind:outcome`
+ * when resolved.
+ */
+const STORY_FACTS: Record<string, FactKind> = {
+  'transfer-saga:commit': 'declared-loyalty',
+  'mentor-youth:grown': 'mentored',
+  'comeback:slow': 'difficult-return',
+  'captaincy:named': 'captain',
+};
+function rememberStory(world: World, story: StoryState, key: string): void {
+  const kind = STORY_FACTS[`${story.kind}:${key}`];
+  if (!kind) return;
+  const club = careerClub(world);
+  addFact(world, kind, {
+    clubId: club.id,
+    ...(kind === 'mentored' && typeof story.params.teammateId === 'string'
+      ? { playerId: story.params.teammateId }
+      : { managerId: club.managerId }),
+  });
+}
+
 /** Apply a story's effects to the world. */
 function applyEffects(world: World, story: StoryState, effects: StoryEffects): void {
   const career = world.career!;
@@ -500,6 +529,7 @@ function choose(world: World, story: StoryState, choiceId: string): void {
   if (!choice) throw new Error('Unknown story choice');
   story.choice = choice.id;
   applyEffects(world, story, choice.effects);
+  rememberStory(world, story, choice.id);
   if (choice.followUp && def.resolve) {
     story.status = 'waiting';
     story.resolveAt = addWeeks(world, today(world), choice.followUp);
@@ -514,6 +544,7 @@ function resolve(world: World, story: StoryState, rng: Rng): void {
   story.status = 'resolved';
   story.outcome = result.outcome;
   applyEffects(world, story, result.effects);
+  rememberStory(world, story, result.outcome);
   const params = { story: story.kind, outcome: result.outcome, ...story.params };
   postMessage(world, 'story-outcome', params, story.id);
   if (result.chronicle) chronicle(world, 'story', params);
@@ -547,13 +578,14 @@ export function storiesWeek(world: World): void {
   if (stories.some((story) => story.status !== 'resolved')) return;
   const last = stories.at(-1);
   if (last && compareDates(addWeeks(world, last.started, T.gapWeeks), now) > 0) return;
-  const usedThisSeason = new Set(
-    stories.filter((story) => story.started.season === world.date.season).map((s) => s.kind),
+  // A story rests for its cooldown of seasons once told (review phase 5).
+  const resting = new Set(
+    STORYLETS.filter((def) => storyResting(world, def.kind)).map((d) => d.kind),
   );
   // Stories tied to an occasion (a new manager, a comeback, a derby) always come up; the
   // others only on some weeks.
   const ready = STORYLETS.flatMap((def) => {
-    if (usedThisSeason.has(def.kind)) return [];
+    if (resting.has(def.kind)) return [];
     const params = def.trigger(world, rng);
     return params ? [{ def, params }] : [];
   });

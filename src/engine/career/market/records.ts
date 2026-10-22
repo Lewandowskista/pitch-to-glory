@@ -74,6 +74,7 @@ export type InboxKind =
   | 'promise-achieved'
   | 'promise-missed'
   | 'promise-cancelled'
+  | 'mentee-manager'
   | 'ambition-achieved'
   | 'story-offer'
   | 'story-outcome'
@@ -109,6 +110,7 @@ const FROM_MANAGER = new Set<InboxKind>([
   'promise-achieved',
   'promise-missed',
   'promise-cancelled',
+  'mentee-manager',
 ]);
 
 /** Who wrote a message, as things stand when it is posted (phase 7, C5). */

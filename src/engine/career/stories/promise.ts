@@ -8,6 +8,7 @@
  * stable per season, and every effect (message, trust, Chronicle) is applied once, on its
  * transition, so reprocessing a week or reloading a save never repeats it.
  */
+import { addFact } from '../facts';
 import type { ManagerPromise, PromiseEnd, SeasonGoalKind, World } from '../../../model/domain';
 import { CONFIG } from '../../config';
 import type { AnyAttribute } from '../../ageing';
@@ -110,6 +111,11 @@ function finish(
   }
   adjustRelationship(world, 'manager', promise.managerId, P.trust[status]);
   adjustRelationship(world, 'fans', promise.clubId, P.fans[status]);
+  // The manager remembers (review phase 5).
+  addFact(world, status === 'achieved' ? 'promise-kept' : 'promise-broken', {
+    clubId: promise.clubId,
+    managerId: promise.managerId,
+  });
   postMessage(
     world,
     status === 'achieved' ? 'promise-achieved' : 'promise-missed',

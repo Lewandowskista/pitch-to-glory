@@ -29,6 +29,7 @@ import { competitionLine, FormationPitch, SelectionReasons } from './selectionUi
 import { PromiseCard, promiseLeads } from './storiesUi';
 import { TrendIcon } from './marketUi';
 import { StrainNote } from './financeUi';
+import { captaincyStanding, renewalWillingness, trustCeiling } from '../../engine/career/facts';
 
 const C = s.club;
 /** The small uppercase label over a group inside a card (at most one per card). */
@@ -75,6 +76,7 @@ function ClubContent({
         <div className="contents lg:col-span-5 lg:flex lg:flex-col lg:gap-5">
           <MoraleBreakdown career={career} player={player} />
           <PeopleCard world={world} club={club} />
+          <MemoryCard world={world} club={club} />
           <SelectionCard world={world} club={club} />
           {!lead && <PromiseCard world={world} className="order-6 lg:order-none" />}
           <FitCard world={world} player={player} club={club} />
@@ -722,6 +724,62 @@ function FitCard({ world, player, club }: { world: World; player: Player; club: 
           ))}
         </dl>
       </div>
+    </Panel>
+  );
+}
+
+/**
+ * What the club and its manager remember of the player (review phase 5): the facts about them,
+ * and what they change now. Absent when nothing is remembered here.
+ */
+function MemoryCard({ world, club }: { world: World; club: Club }) {
+  const facts = (world.career!.facts ?? []).filter(
+    (fact) => fact.clubId === club.id || fact.managerId === club.managerId,
+  );
+  if (!facts.length) return null;
+  const T = s.memory;
+  const manager = world.managers[club.managerId]?.name ?? '';
+  const ceiling = trustCeiling(world, club.managerId);
+  const renewal = renewalWillingness(world, club.id);
+  const captaincy = captaincyStanding(world, club.id, club.managerId);
+  return (
+    <Panel aria-labelledby="memory-heading" className="order-5 flex flex-col gap-3 lg:order-none">
+      <div>
+        <CardTitle id="memory-heading">{T.title}</CardTitle>
+        <p className="mt-1.5 text-muted">{T.body}</p>
+      </div>
+      <ul className="flex flex-col">
+        {facts
+          .slice()
+          .reverse()
+          .map((fact, index) => (
+            <li
+              key={`${fact.kind}:${fact.season}:${fact.week}:${index}`}
+              className="border-b border-line py-1.5 text-[0.8125rem] last:border-b-0"
+            >
+              {format(T.facts[fact.kind], {
+                manager: world.managers[fact.managerId ?? '']?.name ?? T.formerManager,
+                club: world.clubs[fact.clubId ?? '']?.name ?? '',
+                player:
+                  world.players[fact.playerId ?? '']?.name ??
+                  world.archive?.players[fact.playerId ?? '']?.name ??
+                  '',
+                season: fact.season,
+              })}
+            </li>
+          ))}
+      </ul>
+      <ul className="flex flex-col gap-1 text-[0.8125rem] font-semibold">
+        {ceiling < 100 && <li>{format(T.ceiling, { manager, value: ceiling })}</li>}
+        {renewal !== 1 && <li>{format(T.renewal, { value: renewal })}</li>}
+        {captaincy !== 0 && (
+          <li>
+            {format(T.captaincy, {
+              value: captaincy > 0 ? `+${captaincy}` : `−${Math.abs(captaincy)}`,
+            })}
+          </li>
+        )}
+      </ul>
     </Panel>
   );
 }

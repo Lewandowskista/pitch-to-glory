@@ -551,6 +551,11 @@ export interface Career {
   ambitions?: CareerAmbitions;
   /** Multi-week stories (schema 20): offered, awaiting their follow-up, or resolved. */
   stories?: StoryState[];
+  /**
+   * What the football world remembers about the player (review phase 5, step 5.2), newest
+   * last and bounded. Stories and decisions read it. Absent until the first is recorded.
+   */
+  facts?: CareerFact[];
   /** The club the player captains, and since when (schema 20). */
   captaincy?: { clubId: Id; since: GameDate } | null;
   /** A farewell season announced (schema 20): the career ends when it is complete. */
@@ -606,6 +611,25 @@ export type StoryKind =
   | 'derby-promise'
   | 'contract-envy';
 export type StoryStatus = 'offered' | 'waiting' | 'resolved';
+export type FactKind =
+  | 'promise-kept'
+  | 'promise-broken'
+  | 'public-criticism'
+  | 'declared-loyalty'
+  | 'mentored'
+  | 'difficult-return'
+  | 'transfer-request'
+  | 'captain';
+/** A lasting fact of the career: what happened, when, and whom it concerns. */
+export interface CareerFact {
+  kind: FactKind;
+  season: number;
+  week: number;
+  clubId?: Id;
+  managerId?: Id;
+  /** A teammate it concerns (the youngster mentored). */
+  playerId?: Id;
+}
 /**
  * A story arc: offered with choices, answered (or lapsed into its default), then resolved
  * weeks later by what happened in the meantime. Effects apply once, on each transition.
@@ -1271,6 +1295,11 @@ export interface Legacy {
   savings: number;
   teammateIds: Id[];
   childPlayerId: Id | null;
+  /**
+   * Youngsters the player mentored (review phase 5, step 5.2): one may return as a manager
+   * later in the persistent world. Absent in legacies from before.
+   */
+  menteeIds?: Id[];
 }
 export type ChronicleKind =
   | 'start'

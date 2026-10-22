@@ -1,6 +1,24 @@
 /** Social copy (milestone 6): club life, morale, dressing room, rival and media. */
 export const socialText = {
   titles: { club: 'Club life', media: 'Media', rival: 'Rival' },
+  memory: {
+    title: 'What they remember',
+    body: 'The football world keeps track. What happened here shapes what the club and the manager will do for you.',
+    facts: {
+      'promise-kept': 'You met {manager}’s challenge ({season}).',
+      'promise-broken': 'You fell short of {manager}’s challenge ({season}).',
+      'public-criticism': 'You criticised {manager} in the press ({season}).',
+      'declared-loyalty': 'You declared your loyalty to {club} ({season}).',
+      mentored: 'You mentored {player} ({season}).',
+      'difficult-return': 'Your comeback here was a struggle ({season}).',
+      'transfer-request': 'You asked to leave {club} ({season}).',
+      captain: 'You were named captain of {club} ({season}).',
+    },
+    ceiling: '{manager} will trust you at most {value} out of 100.',
+    renewal: 'The club offers new deals {value}× as readily.',
+    captaincy: 'Your captaincy claim here: {value}.',
+    formerManager: 'a former manager',
+  },
   sectionNames: { club: 'Club life', media: 'Media', rival: 'Rival' },
   eyebrow: 'Off the pitch',
   morale: {

@@ -458,6 +458,17 @@ export function retireCareer(world: World): Legacy {
     savings: career.market.finances.cash,
     teammateIds,
     childPlayerId: null,
+    // Youngsters mentored (review phase 5): one may become a manager in the world to come.
+    ...(() => {
+      const menteeIds = [
+        ...new Set(
+          (career.facts ?? [])
+            .filter((fact) => fact.kind === 'mentored' && fact.playerId)
+            .map((fact) => fact.playerId!),
+        ),
+      ];
+      return menteeIds.length ? { menteeIds } : {};
+    })(),
   };
   world.legacies.push(legacy);
   // Release the player from their club; the retired player stays for the history.
@@ -501,7 +512,9 @@ export function retireCareer(world: World): Legacy {
  */
 export function formerTeammates(world: World) {
   const employed = new Set(Object.values(world.managers).map((m) => m.formerPlayerId));
-  return [...new Set(world.legacies.flatMap((legacy) => legacy.teammateIds))]
+  // Mentees first (review phase 5): the youngsters a past career took under its wing.
+  const mentees = world.legacies.flatMap((legacy) => legacy.menteeIds ?? []);
+  return [...new Set([...mentees, ...world.legacies.flatMap((legacy) => legacy.teammateIds)])]
     .map((id) => world.archive?.players[id] ?? world.players[id])
     .filter(
       (person): person is NonNullable<typeof person> =>

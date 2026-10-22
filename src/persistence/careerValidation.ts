@@ -92,6 +92,25 @@ export function validateCareer(w: Record<string, unknown>): void {
     ref(extra.mentorId, players);
     requireValue(extra.mentorId !== career.playerId);
   }
+  // Lasting story facts (review phase 5).
+  if (career.facts !== undefined)
+    for (const value of array(career.facts, CONFIG.career.facts.limit)) {
+      const fact = object(value);
+      options(fact.kind, [
+        'promise-kept',
+        'promise-broken',
+        'public-criticism',
+        'declared-loyalty',
+        'mentored',
+        'difficult-return',
+        'transfer-request',
+        'captain',
+      ]);
+      number(fact.season, 1800, 9999, true);
+      number(fact.week, 1, 80, true);
+      for (const key of ['clubId', 'managerId', 'playerId'])
+        if (fact[key] !== undefined) id(fact[key]);
+    }
   // Weekly commitments (review phase 4): at most three, each once.
   if (training.commitments !== undefined) {
     const kinds = array(training.commitments, CONFIG.career.commitments.slots);
