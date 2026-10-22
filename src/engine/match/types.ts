@@ -25,9 +25,17 @@ export type { Tactics } from '../../model/domain';
  * player's own dismissal and a booking risk on defending choices. `match-17` (review phase 2,
  * step 2.1) gives the selected player one effective role: the formation slot they start in sets
  * their role choices, objectives, involvement, half-time role change and back-line credit, not
- * their primary position.
+ * their primary position. `match-18` (review phase 3, step 3.1) plays extra time in the session
+ * when a tie needs it, with key moments, and settles the shootout there: the player's kick is
+ * taken after extra time, only if the sides are still level.
  */
-export const MATCH_ENGINE_VERSION = 'match-17';
+export const MATCH_ENGINE_VERSION = 'match-18';
+/**
+ * The engine before playable extra time: the shootout kick came at 90 minutes and extra time
+ * and penalties were simulated afterwards. A setup with `roleSlot` but without
+ * `extraTimePlay` still replays as it was.
+ */
+export const ROLE_MATCH_ENGINE = 'match-17';
 /**
  * The engine before the effective role: the primary position set role choices, objectives and
  * involvement. A setup with `discipline` but without `roleSlot` still replays as it was.
@@ -65,7 +73,13 @@ export const LEGACY_MATCH_ENGINE = 'match-10-lines';
 export const engineFor = (
   setup: Pick<
     MatchSetup,
-    'formations' | 'slotMoments' | 'dramaMoments' | 'occasions' | 'discipline' | 'roleSlot'
+    | 'formations'
+    | 'slotMoments'
+    | 'dramaMoments'
+    | 'occasions'
+    | 'discipline'
+    | 'roleSlot'
+    | 'extraTimePlay'
   >,
 ): string =>
   !setup.formations
@@ -77,7 +91,9 @@ export const engineFor = (
         : setup.occasions
           ? setup.discipline
             ? setup.roleSlot
-              ? MATCH_ENGINE_VERSION
+              ? setup.extraTimePlay
+                ? MATCH_ENGINE_VERSION
+                : ROLE_MATCH_ENGINE
               : DISCIPLINE_MATCH_ENGINE
             : OCCASIONS_MATCH_ENGINE
           : DRAMA_MATCH_ENGINE;
@@ -124,6 +140,11 @@ export interface MatchSetup {
    * position, sets their role choices, objectives, involvement and back-line credit.
    */
   roleSlot?: true;
+  /**
+   * Playable extra time (`match-18`): a tie that needs it plays on to 120 minutes in the session,
+   * and the shootout is settled there.
+   */
+  extraTimePlay?: true;
   /** Players serving a suspension in this fixture's competition, never picked (`match-16`). */
   suspended?: string[];
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */
@@ -147,6 +168,12 @@ export interface MatchFixture {
    * decided by ranking.
    */
   shootoutLead?: number;
+  /**
+   * The home side's aggregate lead before this match when, level on aggregate at full time, it
+   * goes to extra time (match-18): the last leg of a tie whose rule plays extra time. Absent
+   * where a level match goes straight to penalties, a draw stands or ranking decides.
+   */
+  extraTimeLead?: number;
 }
 export type MatchCommand =
   | { type: 'kickoff' }
@@ -291,6 +318,13 @@ export interface MatchState {
   headlineParams?: Record<string, string>;
   /** The player's shootout kick (or save), taken at full time in a level knockout (match-13). */
   shootout?: { choiceId: string; probability: number; roll: number; success: boolean };
+  /**
+   * The score at 90 minutes when the match went to extra time (match-18): the session then
+   * plays on to 120, and the goals since are extra time's.
+   */
+  regulation?: [number, number];
+  /** The shootout's result, home first, decided in the session (match-18). */
+  penalties?: [number, number];
   /**
    * The selected player's dismissal (match-16): the minute and why. Their match ends there and
    * the rest is simulated to full time.

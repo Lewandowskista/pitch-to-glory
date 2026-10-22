@@ -75,12 +75,14 @@ export function careerMatchSetup(world: World, fixture: Fixture): MatchSetup {
  * home side's aggregate lead from earlier legs (0 for a single match). A league game, a group
  * game or a tie settled by ranking has none.
  */
-export function shootoutLeadOf(world: World, fixture: Fixture): { shootoutLead?: number } {
+export function shootoutLeadOf(
+  world: World,
+  fixture: Fixture,
+): { shootoutLead?: number; extraTimeLead?: number } {
   const tie = fixture.tieId ? world.pyramid?.ties[fixture.tieId] : undefined;
   if (tie) {
     if (fixture.id !== tie.fixtureIds.at(-1)) return {};
-    if (tie.drawRule === 'higher-rank' || tie.drawRule === 'higher-rank-after-extra-time')
-      return {};
+    if (tie.drawRule === 'higher-rank') return {};
     let lead = 0;
     for (const id of tie.fixtureIds) {
       if (id === fixture.id) continue;
@@ -89,7 +91,11 @@ export function shootoutLeadOf(world: World, fixture: Fixture): { shootoutLead?:
       if (!score) return {};
       lead += leg.homeId === fixture.homeId ? score[0] - score[1] : score[1] - score[0];
     }
-    return { shootoutLead: lead };
+    // As the background resolves it (finalize.ts): extra time unless the rule is penalties
+    // alone, then penalties unless ranking decides after extra time.
+    if (tie.drawRule === 'higher-rank-after-extra-time') return { extraTimeLead: lead };
+    if (tie.drawRule === 'penalties') return { shootoutLead: lead };
+    return { shootoutLead: lead, extraTimeLead: lead };
   }
   return isKnockoutFixture(world, fixture) ? { shootoutLead: 0 } : {};
 }
@@ -186,12 +192,12 @@ export function commitCareerMatch(
     const members = new Set(club.playerIds);
     const result: Record<string, number> = {};
     for (const id of initial)
-      if (members.has(id)) result[id] = sentOff.get(id) ?? off.get(id) ?? 90;
+      if (members.has(id)) result[id] = Math.min(90, sentOff.get(id) ?? off.get(id) ?? 90);
     for (const id of starterIds)
       if (!kickoff.has(id)) {
         const from = on.get(id) ?? state.selectedPlayerMinutes;
         // A substitute sent off plays from coming on until the card.
-        result[id] = Math.max(1, (sentOff.get(id) ?? 90) - from);
+        result[id] = Math.max(1, Math.min(90, sentOff.get(id) ?? 90) - from);
       }
     return result;
   };
@@ -211,16 +217,24 @@ export function commitCareerMatch(
     : undefined;
   const onPitch = (lineup: { starterIds: string[]; sentOffIds?: string[] }) =>
     lineup.starterIds.filter((id) => !lineup.sentOffIds?.includes(id));
-  const played: PlayedFixture = {
-    score: [state.match.score[0], state.match.score[1]],
-    goals: state.match.events
-      .filter((event) => event.kind === 'goal' && event.playerId)
+  // Regulation is everything to 90 minutes; extra time played in the session (match-18) is
+  // passed apart, as the background would otherwise draw it.
+  const goalsOf = (from: number, to: number) =>
+    state.match.events
+      .filter(
+        (event) =>
+          event.kind === 'goal' && event.playerId && event.minute >= from && event.minute <= to,
+      )
       .map((event) => ({
         playerId: event.playerId!,
         teamId: event.teamId,
         minute: Math.max(1, event.minute),
         ...(event.assistId ? { assistId: event.assistId } : {}),
-      })),
+      }));
+  const regulation = state.regulation ?? state.match.score;
+  const played: PlayedFixture = {
+    score: [regulation[0], regulation[1]],
+    goals: goalsOf(0, 90),
     minutes: {
       home: minutes(session.setup.home, state.match.home.starterIds),
       away: minutes(session.setup.away, state.match.away.starterIds),
@@ -235,6 +249,20 @@ export function commitCareerMatch(
             success: state.shootout.success,
           },
         }
+      : {}),
+    ...(state.regulation
+      ? {
+          extraTime: {
+            score: [
+              state.match.score[0] - state.regulation[0],
+              state.match.score[1] - state.regulation[1],
+            ] as [number, number],
+            goals: goalsOf(91, Number.MAX_SAFE_INTEGER),
+          },
+        }
+      : {}),
+    ...(state.penalties
+      ? { penalties: [state.penalties[0], state.penalties[1]] as [number, number] }
       : {}),
   };
   const finalized = commitPlayedFixture(world, fixture.id, played);

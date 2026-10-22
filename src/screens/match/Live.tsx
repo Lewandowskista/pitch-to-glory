@@ -1,7 +1,7 @@
 import { useId, useMemo, useState, type ReactNode } from 'react';
 import type { DecisionOutcome, MatchEvent, World } from '../../model/domain';
 import type { MatchSession } from '../../engine/match';
-import { attacksRightAt } from '../../engine/match';
+import { attacksRightAt, fullTime } from '../../engine/match';
 import { renderAvatar } from '../../engine/assets/avatar';
 import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
 import { lifestyleText as l } from '../../i18n/lifestyle';
@@ -330,7 +330,9 @@ export function Timeline({ session }: { session: MatchSession }) {
         ),
       })),
   ].sort((a, b) => a.minute - b.minute);
-  const at = (value: number) => `${(Math.min(90, Math.max(0, value)) / 90) * 100}%`;
+  // The track is 90 minutes, or 120 once extra time began (match-18).
+  const end = fullTime(session);
+  const at = (value: number) => `${(Math.min(end, Math.max(0, value)) / end) * 100}%`;
   return (
     <div className="match-timeline">
       <h3 className="sr-only">{u.timeline}</h3>

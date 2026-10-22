@@ -44,6 +44,16 @@ export interface PlayedFixture {
   shootout?: { teamId: Id; success: boolean };
   /** Cards shown in regulation (engine match-16); absent from earlier engines' sessions. */
   cards?: FixtureCard[];
+  /**
+   * Extra time played in the session (engine match-18): its score and goals, used instead of
+   * drawing them. Who played it is `onPitch`, as for simulated extra time.
+   */
+  extraTime?: {
+    score: [number, number];
+    goals: { playerId: Id; teamId: Id; minute: number; assistId?: Id }[];
+  };
+  /** The shootout's result, home first, settled in the session (engine match-18). */
+  penalties?: [number, number];
 }
 export interface FixtureGoal {
   playerId: Id;
@@ -246,6 +256,13 @@ export function finalizeFixture(
   let winnerId = finalWinner(fixture, score);
   let penalties: [number, number] | null = null;
   let extraTime: [number, number] | null = null;
+  // A shootout settled in the session (match-18) stands; otherwise it is drawn here.
+  const shootout = (homeId: Id, fromSession?: PlayedFixture): [number, number] => {
+    if (fromSession?.penalties) return [fromSession.penalties[0], fromSession.penalties[1]];
+    const homeWins = rng.next() < shootoutChance(homeId, fromSession);
+    const loserScore = rng.int(...BACKGROUND.penaltyLoserGoals);
+    return homeWins ? [loserScore + 1, loserScore] : [loserScore, loserScore + 1];
+  };
   const tie = fixture.tieId ? world.pyramid!.ties[fixture.tieId] : undefined;
   if (tie && fixture.id === tie.fixtureIds.at(-1)) {
     const aggregate: [number, number] = [0, 0];
@@ -259,16 +276,19 @@ export function finalizeFixture(
     }
     if (aggregate[0] === aggregate[1] && tie.drawRule !== 'higher-rank') {
       if (tie.drawRule !== 'penalties') {
-        extraTime = [
-          poisson(
-            rng,
-            Math.max(BACKGROUND.minimumGoals, CONFIG.world.baseGoals / 3 + difference / 3),
-          ),
-          poisson(
-            rng,
-            Math.max(BACKGROUND.minimumGoals, CONFIG.world.baseGoals / 3 - difference / 3),
-          ),
-        ];
+        // Played in the session (match-18), or drawn here.
+        extraTime = played?.extraTime
+          ? [played.extraTime.score[0], played.extraTime.score[1]]
+          : [
+              poisson(
+                rng,
+                Math.max(BACKGROUND.minimumGoals, CONFIG.world.baseGoals / 3 + difference / 3),
+              ),
+              poisson(
+                rng,
+                Math.max(BACKGROUND.minimumGoals, CONFIG.world.baseGoals / 3 - difference / 3),
+              ),
+            ];
         score[0] += extraTime[0];
         score[1] += extraTime[1];
         const homeIndex = tie.clubIds.indexOf(home.id) as 0 | 1;
@@ -276,18 +296,14 @@ export function finalizeFixture(
         aggregate[(1 - homeIndex) as 0 | 1] += extraTime[1];
       }
       if (aggregate[0] === aggregate[1] && tie.drawRule !== 'higher-rank-after-extra-time') {
-        const homeWins = rng.next() < shootoutChance(home.id, played);
-        const loserScore = rng.int(...BACKGROUND.penaltyLoserGoals);
-        penalties = homeWins ? [loserScore + 1, loserScore] : [loserScore, loserScore + 1];
-        winnerId = homeWins ? home.id : away.id;
+        penalties = shootout(home.id, played);
+        winnerId = penalties[0] > penalties[1] ? home.id : away.id;
       } else winnerId = finalWinner(fixture, score);
     }
   }
   if (!winnerId && isKnockoutFixture(world, fixture)) {
-    const homeWins = rng.next() < shootoutChance(home.id, played);
-    const loserScore = rng.int(...BACKGROUND.penaltyLoserGoals);
-    penalties = homeWins ? [loserScore + 1, loserScore] : [loserScore, loserScore + 1];
-    winnerId = homeWins ? home.id : away.id;
+    penalties = shootout(home.id, played);
+    winnerId = penalties[0] > penalties[1] ? home.id : away.id;
   }
 
   // Minutes, and who is on the pitch for extra time.
@@ -344,8 +360,18 @@ export function finalizeFixture(
             }
             return entry;
           }),
-          ...extraTimeGoals(homePlayers, home.id, score[0] - regulation[0]),
-          ...extraTimeGoals(awayPlayers, away.id, score[1] - regulation[1]),
+          ...(played.extraTime
+            ? played.extraTime.goals.map((goal): FixtureGoal => ({
+                playerId: goal.playerId,
+                teamId: goal.teamId,
+                minute: goal.minute,
+                extraTime: true,
+                ...(goal.assistId ? { assistId: goal.assistId } : {}),
+              }))
+            : [
+                ...extraTimeGoals(homePlayers, home.id, score[0] - regulation[0]),
+                ...extraTimeGoals(awayPlayers, away.id, score[1] - regulation[1]),
+              ]),
         ]
       : // Background goals, extra time included, are drawn across the match as before.
         [
@@ -391,9 +417,13 @@ export function finalizeFixture(
         assists: assisted.length,
         extraTimeGoals: extraTimeGoalCount,
         extraTimeAssists: extraTimeAssistCount,
+        // The session's rating covers extra time it played (match-18); simulated extra time
+        // adds its goals and assists to it.
         rating:
           player.id === selectedId
-            ? withExtraTime(played!.selected.rating, extraTimeGoalCount, extraTimeAssistCount)
+            ? played!.extraTime
+              ? played!.selected.rating
+              : withExtraTime(played!.selected.rating, extraTimeGoalCount, extraTimeAssistCount)
             : background,
       });
     }

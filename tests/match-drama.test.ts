@@ -13,6 +13,7 @@ import {
   SITUATIONS,
   SLOT_MATCH_ENGINE,
   DRAMA_MATCH_ENGINE,
+  ROLE_MATCH_ENGINE,
   type MatchSession,
   type MatchSetup,
 } from '../src/engine/match';
@@ -320,6 +321,68 @@ describe('key moments that follow the game', () => {
       expect(validateMatchSession(structuredClone(session))).toEqual(session);
     }
     expect(shootouts).toBeGreaterThan(0);
+  }, 60000);
+
+  it('play extra time in a level tie, then the kick only if still level (match-18)', () => {
+    let extra = 0;
+    let shootouts = 0;
+    for (let index = 0; index < 120 && (extra < 4 || shootouts < 1); index++) {
+      const setup = setupFor(index % 2 ? 'GK' : 'ST', `extra:${index}`, index);
+      expect(engineFor(setup)).toBe(MATCH_ENGINE_VERSION);
+      setup.fixture = {
+        id: `tie:${index}`,
+        competitionId: 'cup',
+        importance: 1.15,
+        shootoutLead: 0,
+        extraTimeLead: 0,
+      };
+      const session = play(createMatchSession(setup, tactics));
+      const s = session.state;
+      if (!s.regulation) {
+        // Not level at 90: no extra time, no kick, done at 90.
+        expect(s.match.minute).toBe(90);
+        expect(s.shootout).toBeUndefined();
+        continue;
+      }
+      extra++;
+      expect(s.regulation[0]).toBe(s.regulation[1]);
+      expect(s.match.minute).toBe(120);
+      expect(s.match.events.some((e) => e.commentaryKey === 'match.commentary.extra-time')).toBe(
+        true,
+      );
+      if (!s.substituted && !s.sentOff)
+        expect(s.match.keyMoments.some((m) => m.minute > 90 && !m.follows)).toBe(true);
+      const level = s.match.score[0] === s.match.score[1];
+      expect(Boolean(s.shootout)).toBe(level && !s.substituted && !s.sentOff);
+      if (s.shootout) {
+        shootouts++;
+        // The shootout is settled in the session, by one kick.
+        expect(s.penalties).toBeDefined();
+        expect(Math.abs(s.penalties![0] - s.penalties![1])).toBe(1);
+      } else expect(s.penalties).toBeUndefined();
+      expect(validateMatchSession(structuredClone(session))).toEqual(session);
+    }
+    expect(extra).toBeGreaterThan(0);
+  }, 120000);
+
+  it('keep the match-17 path: the kick at 90, extra time simulated later', () => {
+    for (let index = 0; index < 60; index++) {
+      const setup = setupFor('ST', `extra:${index}`, index);
+      delete setup.extraTimePlay;
+      expect(engineFor(setup)).toBe(ROLE_MATCH_ENGINE);
+      setup.fixture = {
+        id: `tie:${index}`,
+        competitionId: 'cup',
+        importance: 1.15,
+        shootoutLead: 0,
+        extraTimeLead: 0,
+      };
+      const s = play(createMatchSession(setup, tactics)).state;
+      expect(s.regulation).toBeUndefined();
+      expect(s.penalties).toBeUndefined();
+      expect(s.match.minute).toBe(90);
+      if (s.shootout) return;
+    }
   }, 60000);
 
   it('write a final’s headline from its result', () => {

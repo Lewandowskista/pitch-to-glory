@@ -1169,6 +1169,7 @@ const engineText: Record<string, string> = {
   ),
   'match.factor.limit': 'Probability limit',
   'match.commentary.halftime': 'The whistle brings the first half to a close.',
+  'match.commentary.extra-time': 'Still level after ninety minutes: extra time it is.',
   'match.commentary.substitution': 'The manager makes a change. Your shift is over.',
   'match.rating.base': 'Starting rating',
   'match.rating.shooting': 'Shooting decisions',

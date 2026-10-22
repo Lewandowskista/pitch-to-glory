@@ -55,6 +55,7 @@ import {
 } from './motion';
 import { narrate } from './narration';
 import { MATCH_CONFIG as C } from './tuning';
+import { CONFIG } from '../config';
 import { performanceFame, performanceXp } from './rewards';
 import { reportCopy } from './headlines';
 import { validateSetup, validateTactics, validateCommand, validateJson } from './validation';
@@ -324,6 +325,7 @@ export function createMatchSetup(
           occasions: true as const,
           discipline: true as const,
           roleSlot: true as const,
+          extraTimePlay: true as const,
           ...(options.suspended?.some((id) => id !== selectedPlayerId)
             ? { suspended: options.suspended.filter((id) => id !== selectedPlayerId) }
             : {}),
@@ -366,9 +368,17 @@ const latest = (setup: Pick<MatchSetup, 'occasions'>) => Boolean(setup.occasions
 /** Full discipline (`match-16`): second yellows, reds, ten men and booking risks. */
 const full = (setup: Pick<MatchSetup, 'occasions' | 'discipline'>) =>
   Boolean(setup.occasions && setup.discipline);
-/** The current engine (`match-17`): one effective role, and skills that stack everywhere. */
+/** The engine from `match-17`: one effective role, and skills that stack everywhere. */
 const current = (setup: Pick<MatchSetup, 'occasions' | 'discipline' | 'roleSlot'>) =>
   Boolean(setup.occasions && setup.discipline && setup.roleSlot);
+/** Playable extra time and an in-session shootout (`match-18`). */
+const extraTimeEngine = (
+  setup: Pick<MatchSetup, 'occasions' | 'discipline' | 'roleSlot' | 'extraTimePlay'>,
+) => current(setup) && Boolean(setup.extraTimePlay);
+/** The last minute the session plays: 120 once extra time began (match-18), else 90. */
+export function fullTime(session: Pick<MatchSession, 'state'>): number {
+  return session.state.regulation ? 90 + C.extraTime.minutes : 90;
+}
 const F = C.cards;
 /** The players of a line-up on the pitch: its starters, less anyone sent off (match-16). */
 const onPitch = (team: Lineup): string[] =>
@@ -1132,7 +1142,9 @@ function afterMinute(session: MatchSession) {
       null,
       'match.commentary.halftime',
     );
-  } else if (s.match.minute === 90) {
+  } else if (s.match.minute === 90 && extraTimeDue(session)) {
+    startExtraTime(session);
+  } else if (s.match.minute === fullTime(session)) {
     if (shootoutDue(session)) {
       const keeper =
         session.setup.players[session.setup.selectedPlayerId]!.primaryPosition === 'GK';
@@ -1151,9 +1163,62 @@ function finish(session: MatchSession): void {
   s.report = report(session);
   s.match.reports = [s.report];
 }
+/** Level on aggregate at 90 minutes in a match that plays extra time (match-18). */
+function extraTimeDue(session: MatchSession): boolean {
+  const s = session.state,
+    lead = session.setup.fixture?.extraTimeLead;
+  return (
+    extraTimeEngine(session.setup) &&
+    lead !== undefined &&
+    !s.regulation &&
+    s.match.score[0] - s.match.score[1] + lead === 0
+  );
+}
+/**
+ * Extra time (match-18): play goes on to 120 minutes, with one or two more key moments for the
+ * player if they are still on the pitch, on their own stream so earlier draws are untouched.
+ */
+function startExtraTime(session: MatchSession): void {
+  const s = session.state,
+    E = C.extraTime;
+  s.regulation = [s.match.score[0], s.match.score[1]];
+  const rng = createRng(`${session.setup.seed}:extra-time`);
+  const count = offPitch(s) ? 0 : rng.int(E.moments[0], E.moments[1]);
+  const added: number[] = [];
+  for (let index = 0; index < count; index++) {
+    const from = 90 + E.firstMoment + Math.floor((index * (E.minutes - E.firstMoment)) / count);
+    const to =
+      90 + E.firstMoment + Math.floor(((index + 1) * (E.minutes - E.firstMoment)) / count) - 1;
+    added.push(rng.int(from, Math.max(from, to)));
+  }
+  s.momentMinutes = [...s.momentMinutes, ...added];
+  event(
+    session,
+    'halftime',
+    session.setup.players[session.setup.selectedPlayerId]!.clubId!,
+    null,
+    'match.commentary.extra-time',
+  );
+}
+/**
+ * The shootout's result (match-18), settled in the session: even, moved by the player's own
+ * kick or save as the background moves it, with the loser's tally from the same range.
+ */
+function settleShootout(session: MatchSession): void {
+  const s = session.state,
+    B = CONFIG.world.background;
+  const kick = s.shootout;
+  const homeSide = selectedSide(session.setup) === 0;
+  const shift = kick ? (kick.success ? 1 : -1) * B.shootoutKick : 0;
+  const rng = createRng(`${session.setup.seed}:penalties`);
+  const homeWins = rng.next() < B.penaltyWinnerChance + (homeSide ? shift : -shift);
+  const loser = rng.int(B.penaltyLoserGoals[0], B.penaltyLoserGoals[1]);
+  s.penalties = homeWins ? [loser + 1, loser] : [loser, loser + 1];
+}
 /**
  * A level knockout at full time (match-13): the player takes a shootout kick, or faces them in
- * goal, should extra time not separate the sides. Not after being substituted.
+ * goal, should extra time not separate the sides. Not after being substituted. From match-18
+ * extra time is played first, so the kick comes only when it is needed.
  */
 function shootoutDue(session: MatchSession): boolean {
   const s = session.state,
@@ -2028,6 +2093,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     if (state.currentMoment.follows === 'shootout') {
       resolveShootout(next, command.choiceId);
       state.currentMoment = null;
+      if (extraTimeEngine(setup)) settleShootout(next);
       finish(next);
       return next;
     }

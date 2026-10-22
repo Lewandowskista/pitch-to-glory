@@ -87,9 +87,14 @@ export function validateSetup(setup: MatchSetup): void {
       !string(setup.fixture.competitionId) ||
       !number(setup.fixture.importance, 1, 2) ||
       (setup.fixture.shootoutLead !== undefined && !number(setup.fixture.shootoutLead, -20, 20)) ||
-      !['competitionId,id,importance', 'competitionId,id,importance,shootoutLead'].includes(
-        Object.keys(setup.fixture).sort().join(','),
-      ))
+      (setup.fixture.extraTimeLead !== undefined &&
+        !number(setup.fixture.extraTimeLead, -20, 20)) ||
+      ![
+        'competitionId,id,importance',
+        'competitionId,id,importance,shootoutLead',
+        'competitionId,extraTimeLead,id,importance',
+        'competitionId,extraTimeLead,id,importance,shootoutLead',
+      ].includes(Object.keys(setup.fixture).sort().join(',')))
   )
     throw new Error('Invalid match fixture');
   if (

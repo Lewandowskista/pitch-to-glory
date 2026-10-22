@@ -17,6 +17,12 @@ export const CONFIG = {
     minimumSubstitutionMinute: 65,
     /** No new substitution is triggered from this minute onwards. */
     substitutionCutoffMinute: 90,
+    /**
+     * Playable extra time (engine match-18): its length, and the player's key moments in it
+     * (between the bounds, from this many minutes in; none once off the pitch). Substitutions
+     * stop at the cutoff above, so none are made in extra time.
+     */
+    extraTime: { minutes: 30, moments: [1, 2] as const, firstMoment: 4 },
     /** A manager may also replace a poor or well-protected player at these minutes. */
     tacticalSubstitution: { minutes: [60, 70, 80], chance: 0.08, ratingBelow: 6, leadingBy: 2 },
     /** Players named on a matchday bench (engine match-15). */

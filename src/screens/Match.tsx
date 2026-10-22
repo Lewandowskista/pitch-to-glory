@@ -12,6 +12,7 @@ import { lazyPage } from '../ui/lazyPage';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import {
+  fullTime,
   applyMatchCommand,
   createMatchSession,
   createMatchSetup,
@@ -244,7 +245,7 @@ export default function MatchScreen() {
         current.state.match.status === 'live' &&
         !current.state.captainDecisionPending &&
         !current.state.substitutionDecisionPending &&
-        current.state.match.minute < 90
+        current.state.match.minute < fullTime(current)
       )
         current = applyMatchCommand(current, { type: 'advance' });
       useAppStore.getState().setMatchSession(current);

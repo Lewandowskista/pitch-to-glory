@@ -223,6 +223,44 @@ describe('career match accounting', () => {
     expect(invented).toBeGreaterThan(10);
   });
 
+  it('keeps extra time and penalties played in the session (match-18)', () => {
+    const world = clone(national);
+    const league = Object.values(world.leagues).find((l) => l.tier === 1)!;
+    const [homeId, awayId] = league.clubIds;
+    const fixture = playoff(world, homeId!, awayId!, 'session-extra-time');
+    const { played } = levelPlayed(world, fixture);
+    const scorer = played.onPitch.home.find((id) => world.players[id]!.primaryPosition !== 'GK')!;
+    const session = {
+      ...played,
+      extraTime: {
+        score: [1, 1] as [number, number],
+        goals: [
+          { playerId: scorer, teamId: fixture.homeId, minute: 104 },
+          {
+            playerId: played.onPitch.away.find(
+              (id) => world.players[id]!.primaryPosition !== 'GK',
+            )!,
+            teamId: fixture.awayId,
+            minute: 117,
+          },
+        ],
+      },
+      penalties: [3, 4] as [number, number],
+    };
+    const final = finalizeFixture(world, fixture, session);
+    expect(final.regulation).toEqual([1, 1]);
+    expect(final.extraTime).toEqual([1, 1]);
+    expect(final.score).toEqual([2, 2]);
+    expect(final.penalties).toEqual([3, 4]);
+    expect(final.decided).toBe('penalties');
+    expect(final.winnerId).toBe(fixture.awayId);
+    const extra = final.goals.filter((goal) => goal.extraTime);
+    expect(extra.map((goal) => [goal.playerId, goal.minute])).toEqual([
+      [scorer, 104],
+      [session.extraTime.goals[1]!.playerId, 117],
+    ]);
+  });
+
   it('plays extra time with only the players on the pitch at 90 minutes', () => {
     const world = clone(national);
     const league = Object.values(world.leagues).find((l) => l.tier === 1)!;
@@ -289,30 +327,34 @@ describe('career match accounting', () => {
     for (let index = 0; index < 150 && !(checked >= 3 && scoredInExtraTime); index++) {
       const world = clone(career);
       const fixture = playoff(world, trial.id, opponent, `career-${index}`);
-      let session: MatchSession = createMatchSession(
-        careerMatchSetup(world, fixture),
-        defaultTactics(world),
-      );
+      const setup = careerMatchSetup(world, fixture);
+      let session: MatchSession = createMatchSession(setup, defaultTactics(world, setup));
       while (session.state.match.status !== 'finished')
         session = applyMatchCommand(session, autoPlayCommand(session));
-      const [home, away] = session.state.match.score;
-      if (home !== away || session.state.substituted || session.state.sentOff) continue;
+      // Level at 90: the session played extra time (match-18).
+      const regulation = session.state.regulation;
+      if (!regulation || session.state.substituted || session.state.sentOff) continue;
       const playerId = world.career!.playerId;
       const before = clone(world);
       const { record, final, celebrationFame } = commitCareerMatch(world, session);
       checked++;
-      expect(final.extraTime).not.toBeNull();
+      // The finalized match is the session's: its regulation, extra time and shootout.
+      expect(final.regulation).toEqual(regulation);
+      expect(final.extraTime).toEqual([
+        session.state.match.score[0] - regulation[0],
+        session.state.match.score[1] - regulation[1],
+      ]);
+      expect(final.penalties ?? undefined).toEqual(session.state.penalties);
       expect(record.decided).toBe(final.penalties ? 'penalties' : 'extra-time');
       expect(final.extraTimeMinutes).toBe(30);
-      expect(record.minutes).toBe(session.state.selectedPlayerMinutes + 30);
-      expect(record.goals).toBe(session.state.stats.goals + final.extraTimeGoals);
-      expect(record.assists).toBe(session.state.stats.assists + final.extraTimeAssists);
+      expect(record.minutes).toBe(session.state.selectedPlayerMinutes);
+      // The session counted extra time's goals, assists and rating once.
+      expect(record.goals).toBe(session.state.stats.goals);
+      expect(record.assists).toBe(session.state.stats.assists);
       expect(record.score).toEqual(final.score);
       expect(record.rating).toBe(final.rating);
-      if (final.extraTimeGoals || final.extraTimeAssists) {
-        scoredInExtraTime ||= final.extraTimeGoals > 0;
-        expect(final.rating).toBeGreaterThan(session.state.report!.rating);
-      } else expect(final.rating).toBe(session.state.report!.rating);
+      expect(final.rating).toBe(session.state.report!.rating);
+      scoredInExtraTime ||= final.extraTimeGoals > 0;
       // Cumulative statistics, contract bonuses, XP and fame agree with the record.
       const was = before.players[playerId]!.stats;
       const now = world.players[playerId]!.stats;
