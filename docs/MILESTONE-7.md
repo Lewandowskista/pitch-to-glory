@@ -1,5 +1,9 @@
 # Milestone 7: fame, sponsorships, lifestyle, wardrobe, celebrations and challenges
 
+> **History.** This records the milestone as it was built. Later work has changed many of its
+> details; for the current rules see [BALANCING.md](BALANCING.md), and for the current state the
+> box at the top of [HANDOFF.md](HANDOFF.md).
+
 ## Scope
 
 AGENTS.md §8 (fame and lifestyle, celebrations) and §9.8 (daily and weekly challenges with cosmetic rewards). National teams, continental cups, awards, retirement, legacy, the Chronicle and Moments belong to milestone 8 and are not started.

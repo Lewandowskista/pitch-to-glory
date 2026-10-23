@@ -1,4 +1,19 @@
-﻿# Football world realism
+# Football world realism
+
+> **Current state — 24 October 2026 (release 0.7.0).** Milestones 1–10 are implemented and the
+> web game is released: every push to `main` is a release that CI (typecheck, lint, unit tests,
+> Playwright in Chromium, Firefox and WebKit) validates before deploying ([RELEASING.md](RELEASING.md)).
+> Milestone 11 (Android) has not started; Capacitor is not installed. Since 20 October the
+> [review plan](REVIEW-PLAN-2026-10-20.md) has been carried out through Phase 5, with measurements in
+> [REVIEW-PROGRESS-2026-10-20.md](REVIEW-PROGRESS-2026-10-20.md) and rules in [BALANCING.md](BALANCING.md).
+> Live versions: save schema **22**; match engine **match-19** (earlier sessions replay on their
+> own engine); career development rules **3**; world flags `selectionVersion` 1,
+> `achievements` 1 and `economyVersion` 1 (adopted at a season start by older saves).
+>
+> The structures below are current. Since this revision: tournaments are played between
+> seasons with qualification in the season before ([BALANCING.md](BALANCING.md), "Qualification"),
+> and club finances follow what clubs of the same standing pay ("Club finances"). The
+> milestone-2 framing in the next paragraph is history.
 
 New worlds use `national-v1` with identity version 2: the six real countries with source-based national pyramids, real towns, and fictional clubs and competitions that reference their real counterparts (see [Identities](#identities)). Worlds generated before identity version 2 keep their fictional countries and names. Initial generation contains 52 league groups, 959 clubs, 21,098 players and seven domestic cups. These are initial counts; feeder admissions and regional capacity changes can alter later totals. This revision remains within milestone 2. Interactive matches, continental competitions and career creation belong to later milestones.
 

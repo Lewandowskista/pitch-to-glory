@@ -345,26 +345,29 @@ Covers R15 and R17. Work on the gates can start earlier, alongside Phase 2.
 
 ## Findings to work map
 
-| Finding                           | Priority | Plan step     |
-| --------------------------------- | -------- | ------------- |
-| R1 Hall of Fame fairness          | P1       | 1.7           |
-| R2 Stale playing-time growth      | P1       | 1.5           |
-| R3 Expiry chooses the club        | P1       | 1.6           |
-| R4 International and extra time   | P1       | 3.1–3.3       |
-| R5 Skill impact stacking          | P2       | 2.2           |
-| R6 Effective role                 | P2       | 2.1           |
-| R7 Coaching variance              | P2       | 2.3           |
-| R8 Non-scoring visibility         | P2       | 3.4           |
-| R9 Training audit and late career | P2       | 2.4, 1.4      |
-| R10 Story memory and Continue     | P2       | 5.1, 5.2      |
-| R11 Economy and finances          | P2       | 4.4           |
-| R12 Phone transfer talks          | P2       | 1.3           |
-| R13 Experience mutation           | P2       | 1.1           |
-| R14 Poster caps                   | P2       | 1.2           |
-| R15 Quality gates                 | P2       | 6.1–6.3       |
-| R16 Foot, ambition, style         | P3       | 4.1, 4.2      |
-| R17 Docs entry point              | P3       | 6.4           |
-| Additions 1–8                     | —        | 3.x, 4.x, 5.x |
+Status as of 24 October 2026 (release 0.7.0). "Resolved" links the tests and the rules that show it.
+
+| Finding                           | Priority | Plan step     | Status                                                 | Evidence                                                                                                                                                                            |
+| --------------------------------- | -------- | ------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1 Hall of Fame fairness          | P1       | 1.7           | Resolved (0.3.0)                                       | `tests/honours.test.ts`; [BALANCING](BALANCING.md) "Hall of Fame: one record for every player"                                                                                      |
+| R2 Stale playing-time growth      | P1       | 1.5           | Resolved (0.3.0)                                       | `tests/playing-time.test.ts`; BALANCING "Late career"                                                                                                                               |
+| R3 Expiry chooses the club        | P1       | 1.6           | Resolved (0.3.0)                                       | `tests/contract-expiry.test.ts`; BALANCING "Contract expiry"                                                                                                                        |
+| R4 International and extra time   | P1       | 3.1–3.3       | Resolved (0.5.0)                                       | `tests/match-drama.test.ts`, `tests/tournament-match.test.ts`, `tests/qualifying.test.ts`, `e2e/tournament.spec.ts`; BALANCING "Tournaments played match by match", "Qualification" |
+| R5 Skill impact stacking          | P2       | 2.2           | Resolved (0.4.0)                                       | `tests/match-outcome-snapshot.test.ts` (match-17); BALANCING "One footballer"                                                                                                       |
+| R6 Effective role                 | P2       | 2.1           | Resolved (0.4.0)                                       | `tests/effective-role.test.ts`                                                                                                                                                      |
+| R7 Coaching variance              | P2       | 2.3           | Resolved (0.4.0)                                       | `tests/coaching.test.ts`                                                                                                                                                            |
+| R8 Non-scoring visibility         | P2       | 3.4           | Resolved (0.5.0)                                       | `tests/every-position.test.ts`                                                                                                                                                      |
+| R9 Training audit and late career | P2       | 2.4, 1.4      | Resolved (0.4.0)                                       | `tests/growth.test.ts`; [REVIEW-PROGRESS](REVIEW-PROGRESS-2026-10-20.md) policy study                                                                                               |
+| R10 Story memory and Continue     | P2       | 5.1, 5.2      | Resolved (0.7.0)                                       | `tests/continue-stops.test.ts`, `tests/story-facts.test.ts`; BALANCING "Story memory"                                                                                               |
+| R11 Economy and finances          | P2       | 4.4           | Resolved (0.6.0)                                       | `tests/club-economy.test.ts`, `tests/commitments.test.ts`; BALANCING "Weekly commitments, staff and club finances"                                                                  |
+| R12 Phone transfer talks          | P2       | 1.3           | Resolved (0.3.0)                                       | `e2e/market.spec.ts`                                                                                                                                                                |
+| R13 Experience mutation           | P2       | 1.1           | Resolved (0.3.0)                                       | `tests/action-immutability.test.ts`                                                                                                                                                 |
+| R14 Poster caps                   | P2       | 1.2           | Resolved (0.3.0)                                       | `tests/honours.test.ts` (poster)                                                                                                                                                    |
+| R15 Quality gates                 | P2       | 6.1–6.3       | Resolved in code (after 0.7.0); device numbers pending | `e2e/performance.spec.ts` (tolerances asserted, targets reported), `npm run profile -- --check`, `npm run profile:match -- --check`                                                 |
+| R16 Foot, ambition, style         | P3       | 4.1, 4.2      | Resolved (0.6.0)                                       | `tests/identity.test.ts`, `tests/drive.test.ts`                                                                                                                                     |
+| R17 Docs entry point              | P3       | 6.4           | Resolved (after 0.7.0)                                 | Current-state box at the top of [HANDOFF](HANDOFF.md), [ARCHITECTURE](ARCHITECTURE.md), [REALISM](REALISM.md)                                                                       |
+| Additions 1–8                     | —        | 3.x, 4.x, 5.x | Resolved                                               | the steps above                                                                                                                                                                     |
+| Device acceptance, playtests      | —        | 6.5, 6.6      | Open: needs people and devices                         | [DEVICE-ACCEPTANCE.md](DEVICE-ACCEPTANCE.md)                                                                                                                                        |
 
 ## Decisions (confirmed 20 October 2026)
 

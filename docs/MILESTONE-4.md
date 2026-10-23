@@ -1,5 +1,9 @@
 # Milestone 4: the career player
 
+> **History.** This records the milestone as it was built. Later work has changed many of its
+> details; for the current rules see [BALANCING.md](BALANCING.md), and for the current state the
+> box at the top of [HANDOFF.md](HANDOFF.md).
+
 ## Scope
 
 AGENTS.md §6 and milestone 4: career creation, attributes, match XP, level-ups with attribute allocation, weekly training, a skill tree of about 40 traits, and the ageing curve. Goalkeepers are fully supported. Scheduled fixtures of the career player's club are played interactively and committed exactly once. Contracts, agents, transfers, media, relationships, fame systems and retirement belong to later milestones and are not started.

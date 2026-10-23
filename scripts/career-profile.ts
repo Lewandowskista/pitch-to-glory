@@ -430,8 +430,35 @@ export function runProfile(
   return profile;
 }
 
-/** The gates. Each returns a problem, or null when it holds, over all recorded profiles. */
-type Gate = { name: string; check: (profiles: CareerProfile[]) => string | null };
+/**
+ * The gates. Each returns a problem, or null when it holds, over all recorded profiles, and
+ * shows what it measured (review phase 6): the raw values, and for a share of careers a 95%
+ * Wilson interval, so a pass on few profiles is read for what it is.
+ */
+type Gate = {
+  name: string;
+  check: (profiles: CareerProfile[]) => string | null;
+  /** The values the gate judges, one per career (or season), for the distribution. */
+  values?: (profiles: CareerProfile[]) => number[];
+  /** For a gate on a share of careers: how many of how many. */
+  share?: (profiles: CareerProfile[]) => { hits: number; of: number };
+};
+/** A 95% Wilson score interval for a share. */
+export function wilson(hits: number, of: number): [number, number] {
+  if (!of) return [0, 1];
+  const z = 1.96;
+  const p = hits / of;
+  const centre = (p + (z * z) / (2 * of)) / (1 + (z * z) / of);
+  const half = (z * Math.sqrt((p * (1 - p)) / of + (z * z) / (4 * of * of))) / (1 + (z * z) / of);
+  return [Math.max(0, centre - half), Math.min(1, centre + half)];
+}
+const quartiles = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const q = (f: number) => sorted[Math.min(sorted.length - 1, Math.floor(f * sorted.length))]!;
+  return sorted.length
+    ? `n ${sorted.length}: min ${q(0)} · p25 ${q(0.25)} · median ${q(0.5)} · p75 ${q(0.75)} · max ${sorted.at(-1)}`
+    : 'n 0';
+};
 const at = (profile: CareerProfile, age: number) =>
   profile.seasons.find((season) => season.age === age);
 const median = (values: number[]) => {
@@ -447,15 +474,40 @@ export const GATES: Gate[] = [
       const low = Math.min(...values);
       return median(values) >= 68 && low >= 60 ? null : `median ${median(values)}, lowest ${low}`;
     },
+    values: (profiles) => profiles.map((p) => at(p, 25)?.ability ?? 0),
   },
   {
-    name: 'top tier reached by 27 in most careers',
+    // Tier 1 itself (review phase 6): this gate once accepted tier 2.
+    name: 'top tier (tier 1) reached by 27 in most careers',
     check: (profiles) => {
       const reached = profiles.filter((p) =>
-        p.seasons.some((s) => s.age <= 27 && s.tier <= 2),
+        p.seasons.some((s) => s.age <= 27 && s.tier === 1),
       ).length;
       return reached * 2 >= profiles.length ? null : `${reached} of ${profiles.length}`;
     },
+    share: (profiles) => ({
+      hits: profiles.filter((p) => p.seasons.some((s) => s.age <= 27 && s.tier === 1)).length,
+      of: profiles.length,
+    }),
+    // The age each career first played in tier 1 (careers that never did are in the share).
+    values: (profiles) =>
+      profiles.flatMap((p) => {
+        const age = p.seasons.find((s) => s.tier === 1)?.age;
+        return age === undefined ? [] : [age];
+      }),
+  },
+  {
+    name: 'tier 2 or better reached by 25 in most careers',
+    check: (profiles) => {
+      const reached = profiles.filter((p) =>
+        p.seasons.some((s) => s.age <= 25 && s.tier <= 2),
+      ).length;
+      return reached * 2 >= profiles.length ? null : `${reached} of ${profiles.length}`;
+    },
+    share: (profiles) => ({
+      hits: profiles.filter((p) => p.seasons.some((s) => s.age <= 25 && s.tier <= 2)).length,
+      of: profiles.length,
+    }),
   },
   {
     name: 'playing time: median appearances at 21–25 ≥ 20 a season',
@@ -465,6 +517,10 @@ export const GATES: Gate[] = [
       );
       return median(values) >= 20 ? null : `median ${median(values)}`;
     },
+    values: (profiles) =>
+      profiles.flatMap((p) =>
+        p.seasons.filter((s) => s.age >= 21 && s.age <= 25).map((s) => s.apps),
+      ),
   },
   {
     name: 'specialised and balanced builds end within 10 ability points',
@@ -499,6 +555,13 @@ export const GATES: Gate[] = [
       );
       return median(values) >= 0.15 ? null : `median ${Math.round(median(values) * 100)}%`;
     },
+    values: (profiles) =>
+      profiles.map(
+        (p) =>
+          Math.round(
+            (p.seasons.reduce((sum, s) => sum + s.trustBelow70, 0) / p.seasons.length) * 100,
+          ) / 100,
+      ),
   },
   {
     name: 'money has somewhere to go: the spender puts at least 20% of earnings into the lifestyle',
@@ -547,6 +610,14 @@ function check(): void {
   for (const gate of GATES) {
     const problem = gate.check(profiles);
     console.log(`${problem ? 'FAIL' : 'ok  '} ${gate.name}${problem ? ` — ${problem}` : ''}`);
+    if (gate.share) {
+      const { hits, of } = gate.share(profiles);
+      const [low, high] = wilson(hits, of);
+      console.log(
+        `       ${hits} of ${of} (${Math.round((100 * hits) / of)}%), 95% interval ${Math.round(low * 100)}–${Math.round(high * 100)}%`,
+      );
+    }
+    if (gate.values) console.log(`       ${quartiles(gate.values(profiles))}`);
     if (problem) failed++;
   }
   if (failed) process.exitCode = 1;

@@ -1,5 +1,9 @@
 # Milestone 2 design and implementation plan
 
+> **History.** This records the milestone as it was built. Later work has changed many of its
+> details; for the current rules see [BALANCING.md](BALANCING.md), and for the current state the
+> box at the top of [HANDOFF.md](HANDOFF.md).
+
 **Goal:** generate and persist a complete fictional football world, browse its competitions and squads, and advance weeks or a whole season without blocking the browser.
 
 **Architecture:** pure engine modules create and advance serializable `World` values. A module Web Worker owns each simulation job, emits progress and weekly checkpoints, and waits for checkpoint acknowledgement so IndexedDB autosave finishes before advancing. Zustand holds the last committed world and the job state. Route chunks and the worker are precached for offline use.

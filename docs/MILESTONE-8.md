@@ -1,5 +1,9 @@
 # Milestone 8: national team, continental cups, awards, retirement, legacy, Chronicle and Moments
 
+> **History.** This records the milestone as it was built. Later work has changed many of its
+> details; for the current rules see [BALANCING.md](BALANCING.md), and for the current state the
+> box at the top of [HANDOFF.md](HANDOFF.md).
+
 ## Scope
 
 AGENTS.md §5 (continental competitions), §8 (national team, awards, retirement) and §9: the Career Chronicle (1), the persistent world and legacy (2), the rival in awards (3), and Moments (7). Edit mode, accessibility pass, the tutorial and audio belong to milestone 9 and are not started.

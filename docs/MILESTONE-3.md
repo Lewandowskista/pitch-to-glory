@@ -1,5 +1,9 @@
 # Milestone 3: deterministic match experience
 
+> **History.** This records the milestone as it was built. Later work has changed many of its
+> details; for the current rules see [BALANCING.md](BALANCING.md), and for the current state the
+> box at the top of [HANDOFF.md](HANDOFF.md).
+
 ## Design and scope
 
 The approved AGENTS.md match specification is the design authority. Build the pure headless engine first, then the lazy PixiJS viewer and matchday UI. Existing saved worlds supply clubs, lineups and a selected footballer. Until milestone 4 creates a career player, this is a friendly match: reports calculate earned XP/fame but do not grant career progression or change league standings. The UI explains the friendly context.

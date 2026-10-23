@@ -1,5 +1,9 @@
 # Milestone 6: media, relationships, rival, dressing room, morale and form
 
+> **History.** This records the milestone as it was built. Later work has changed many of its
+> details; for the current rules see [BALANCING.md](BALANCING.md), and for the current state the
+> box at the top of [HANDOFF.md](HANDOFF.md).
+
 ## Scope
 
 This milestone covers AGENTS.md §8 (relationships, media, morale and form) and §9.3, 9.4 and 9.6: the rival, dressing-room dynamics and club culture fit. Fame systems, sponsorships, lifestyle, celebrations and challenges belong to milestone 7. Awards, which also compare the player with their rival, belong to milestone 8.

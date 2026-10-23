@@ -1,4 +1,21 @@
-﻿# Pitch to Glory architecture
+# Pitch to Glory architecture
+
+> **Current state — 24 October 2026 (release 0.7.0).** Milestones 1–10 are implemented and the
+> web game is released: every push to `main` is a release that CI (typecheck, lint, unit tests,
+> Playwright in Chromium, Firefox and WebKit) validates before deploying ([RELEASING.md](RELEASING.md)).
+> Milestone 11 (Android) has not started; Capacitor is not installed. Since 20 October the
+> [review plan](REVIEW-PLAN-2026-10-20.md) has been carried out through Phase 5, with measurements in
+> [REVIEW-PROGRESS-2026-10-20.md](REVIEW-PROGRESS-2026-10-20.md) and rules in [BALANCING.md](BALANCING.md).
+> Live versions: save schema **22**; match engine **match-19** (earlier sessions replay on their
+> own engine); career development rules **3**; world flags `selectionVersion` 1,
+> `achievements` 1 and `economyVersion` 1 (adopted at a season start by older saves).
+>
+> Since this document's milestone notes: the engine gained tournaments played round by round
+> and qualification (`career/honours/international.ts`, `nationalMatch.ts`), weekly commitments
+> (`career/commitments.ts`), lasting facts (`career/facts.ts`), the preseason
+> (`career/preseason.ts`), pending decisions for Continue (`career/pending.ts`) and the club
+> economy (`world/economy.ts`). The sections below describe the structure; treat their
+> milestone dates as history, and `src/model/domain.ts` as the source of the types.
 
 Milestones 1–4 (including the post-milestone-3 hardening pass), 6 October 2026. The root AGENTS.md is the product authority. Assets, saves, world simulation and interactive friendly matches are implemented; later career systems remain typed contracts.
 

@@ -6,7 +6,11 @@
  *
  *   npm run profile:match -- --matches 300          every position
  *   npm run profile:match -- --positions ST,GK --matches 500
- *   npm run profile:match -- --check                 assert the gates on the last run
+ *   npm run profile:match -- --seeds match-profile,match-profile-b   several world seeds
+ *   npm run profile:match -- --check                 assert the gates on the last run, per seed
+ *
+ * Not modelled: a player starting on the bench. The match engine's selected player always
+ * starts; benching is a career matter, gated by the career profile's playing time.
  *
  * Writes artifacts/profile/matches.json.
  */
@@ -25,6 +29,7 @@ import {
 import { ABILITY_WEIGHTS } from '../src/engine/strength';
 import { FORMATION_SLOTS, FORMATIONS } from '../src/engine/selection/formations';
 import { expectedImpact } from '../src/engine/match/decisions';
+import { SITUATION_BY_ID } from '../src/engine/match/situations';
 import { autoPlayCommand } from '../src/engine/career/matches';
 import { motionProbe } from '../src/engine/match/motion';
 
@@ -68,6 +73,34 @@ export interface PositionProfile {
   };
   /** Milliseconds per full match: everything, and the choreography (motion, narration included). */
   cost: { matchMs: number; motionMs: number; narrationMs?: number };
+  /** The world seed the profile was played in (review phase 6: several seeds). */
+  seed?: string;
+  /**
+   * Goals prevented by deciding well (review phase 6): per seed, the goals conceded with the
+   * worst policy less those with the best, on the same specialised setup; mean, standard error.
+   */
+  prevented?: { mean: number; se: number; n: number };
+  /**
+   * Key moments from minute 75 by the selected side's score then (review phase 6): attacking
+   * and defending situations when behind, level and ahead.
+   */
+  late?: Record<'behind' | 'level' | 'ahead', { attack: number; defence: number }>;
+  /**
+   * Scenarios on a share of the seeds (review phase 6): the mean odds of the choices taken in
+   * the player's own slot and out of position (a formation without it; absent where every
+   * formation has the slot), and substitutions and ratings fresh and tired.
+   */
+  scenarios?: {
+    /** Mean contribution of the "Out of position" factor to the choices taken. */
+    slot: { own: number; outOfPosition: number | null; n: number };
+    tired: {
+      substitutedFresh: number;
+      substitutedTired: number;
+      ratingFresh: number;
+      ratingTired: number;
+      n: number;
+    };
+  };
 }
 
 function argument(name: string): string | undefined {
@@ -93,7 +126,15 @@ function play(session: MatchSession, command: (s: MatchSession) => MatchCommand)
 function specialise(setup: MatchSetup, id: string): MatchSetup {
   const copy = structuredClone(setup);
   const player = copy.players[id]!;
-  if (player.primaryPosition === 'GK') return copy;
+  if (player.primaryPosition === 'GK') {
+    // A shot-stopper (review phase 6): reflexes, diving, handling and one-on-ones up, the
+    // kicking and command of the area down.
+    const keeper = player.keeperAttributes as unknown as Record<string, number>;
+    const strong = new Set(['reflexes', 'diving', 'handling', 'oneOnOnes']);
+    for (const key of Object.keys(keeper))
+      keeper[key] = Math.max(1, Math.min(99, keeper[key]! + (strong.has(key) ? 12 : -8)));
+    return copy;
+  }
   const weights = ABILITY_WEIGHTS[player.primaryPosition] as Record<string, number>;
   const source = player.attributes as unknown as Record<string, number>;
   for (const key of Object.keys(source)) {
@@ -108,8 +149,25 @@ const percentile = (values: number[], share: number) => {
   return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * share))] ?? 0;
 };
 
-export function profilePosition(position: Position, matches: number): PositionProfile {
-  const world = generateWorld('match-profile', { format: 'legacy' });
+/** The "Out of position" factor of every choice the player took (0 when absent). */
+const positionFactors = (session: MatchSession): number[] =>
+  session.state.match.events.flatMap((event) => {
+    const outcome = event.outcome;
+    if (!outcome || outcome.input.momentId.startsWith('routine:')) return [];
+    const moment = session.state.match.keyMoments.find((m) => m.id === outcome.input.momentId);
+    const choice = moment?.choices.find((c) => c.id === outcome.input.choiceId);
+    const factor = choice?.factors.find((f) => f.labelKey === 'match.factor.position');
+    return choice ? [factor?.contribution ?? 0] : [];
+  });
+const mean = (values: number[]) =>
+  values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+
+export function profilePosition(
+  position: Position,
+  matches: number,
+  seed = 'match-profile',
+): PositionProfile {
+  const world = generateWorld(seed, { format: 'legacy' });
   const clubs = Object.values(world.clubs).slice(0, 2);
   const tactics = { role: 'balanced', risk: 'balanced', mentality: 'balanced' } as const;
   const ratings: number[] = [];
@@ -138,8 +196,23 @@ export function profilePosition(position: Position, matches: number): PositionPr
       level: { minutes: 0, goals: 0 },
     },
     cost: { matchMs: 0, motionMs: 0 },
+    seed,
+    late: {
+      behind: { attack: 0, defence: 0 },
+      level: { attack: 0, defence: 0 },
+      ahead: { attack: 0, defence: 0 },
+    },
   };
   const cards = result.cards!;
+  const late = result.late!;
+  const odds = { own: [] as number[], away: [] as number[] };
+  const prevented: number[] = [];
+  const tired = {
+    fresh: [] as boolean[],
+    tired: [] as boolean[],
+    freshRating: [] as number[],
+    tiredRating: [] as number[],
+  };
   // Motion cost probe (redesign step M0): choreography must stay within 10 ms a match.
   motionProbe.clock = () => performance.now();
   motionProbe.ms = 0;
@@ -173,6 +246,41 @@ export function profilePosition(position: Position, matches: number): PositionPr
         FORMATION_SLOTS[f].some((s) => s.position === position),
       )!;
     const best = play(createMatchSession(setup, tactics), autoPlayCommand);
+    // Late moments by the score at the time (review phase 6).
+    for (const moment of best.state.match.keyMoments) {
+      if (moment.minute < 75) continue;
+      const goals = best.state.match.events.filter(
+        (event) => event.kind === 'goal' && event.minute < moment.minute,
+      );
+      const mine = goals.filter((event) => event.teamId === club.id).length;
+      const theirs = goals.length - mine;
+      const state = mine < theirs ? 'behind' : mine > theirs ? 'ahead' : 'level';
+      const phase = SITUATION_BY_ID[moment.situationId]?.phase;
+      if (phase === 'attack') late[state].attack++;
+      else if (phase === 'defence') late[state].defence++;
+    }
+    // Scenarios on every fourth seed (review phase 6).
+    if (index % 4 === 0 && position !== 'GK') {
+      odds.own.push(...positionFactors(best));
+      const lacking = FORMATIONS.find(
+        (f) => !FORMATION_SLOTS[f].some((slot) => slot.position === position),
+      );
+      if (lacking && setup.formations) {
+        const away = structuredClone(setup);
+        away.formations![own] = lacking;
+        odds.away.push(
+          ...positionFactors(play(createMatchSession(away, tactics), autoPlayCommand)),
+        );
+      }
+      const worn = structuredClone(setup);
+      worn.players[selected]!.fitness = 60;
+      worn.players[selected]!.fatigue = 70;
+      const wornPlayed = play(createMatchSession(worn, tactics), autoPlayCommand);
+      tired.fresh.push(Boolean(best.state.substituted));
+      tired.tired.push(Boolean(wornPlayed.state.substituted));
+      tired.freshRating.push(best.state.report!.rating);
+      tired.tiredRating.push(wornPlayed.state.report!.rating);
+    }
     // The policy spread is measured on a career-like profile: strong in what the position
     // relies on, weaker elsewhere, so choices differ in value.
     const shaped = specialise(setup, selected);
@@ -221,6 +329,7 @@ export function profilePosition(position: Position, matches: number): PositionPr
     result.fatigueAtEnd += s.stats.fatigue;
     result.xp += report.xp;
     result.fame += report.fameDelta;
+    prevented.push(worst.state.match.score[1 - own]! - bestShaped.state.match.score[1 - own]!);
     result.policy.best[0] += bestShaped.state.match.score[own]!;
     result.policy.best[1] += bestShaped.state.match.score[1 - own]!;
     result.policy.worst[0] += worst.state.match.score[own]!;
@@ -284,6 +393,29 @@ export function profilePosition(position: Position, matches: number): PositionPr
       round(result.policy.involvement[0] / matches),
       round(result.policy.involvement[1] / matches),
     ],
+  };
+  const sd = Math.sqrt(
+    prevented.reduce((sum, value) => sum + (value - mean(prevented)) ** 2, 0) /
+      Math.max(1, prevented.length - 1),
+  );
+  result.prevented = {
+    mean: round(mean(prevented), 3),
+    se: round(sd / Math.sqrt(Math.max(1, prevented.length)), 3),
+    n: prevented.length,
+  };
+  result.scenarios = {
+    slot: {
+      own: round(mean(odds.own), 4),
+      outOfPosition: odds.away.length ? round(mean(odds.away), 4) : null,
+      n: odds.own.length,
+    },
+    tired: {
+      substitutedFresh: round(mean(tired.fresh.map(Number)), 3),
+      substitutedTired: round(mean(tired.tired.map(Number)), 3),
+      ratingFresh: round(mean(tired.freshRating)),
+      ratingTired: round(mean(tired.tiredRating)),
+      n: tired.fresh.length,
+    },
   };
   result.calibration = Object.fromEntries(
     Object.entries(buckets).map(([key, value]) => [
@@ -405,6 +537,74 @@ export const GATES: Gate[] = [
     },
   },
   {
+    // Review phase 6: decisions matter at the back too, measured in goals prevented: the worst
+    // policy concedes more than the best on the same seeds, pooled over the back line, by more
+    // than twice its standard error.
+    name: 'keepers and defenders prevent goals by deciding well (pooled, beyond 2 standard errors)',
+    check: (profiles) => {
+      const back = profiles.filter(
+        (p) => ['GK', 'CB', 'LB', 'RB', 'DM'].includes(p.position) && p.prevented,
+      );
+      if (!back.length) return 'no goals-prevented data';
+      const n = back.reduce((sum, p) => sum + p.prevented!.n, 0);
+      const mean = back.reduce((sum, p) => sum + p.prevented!.mean * p.prevented!.n, 0) / n;
+      // Independent positions: the pooled standard error from each one's.
+      const se =
+        Math.sqrt(back.reduce((sum, p) => sum + (p.prevented!.se * p.prevented!.n) ** 2, 0)) / n;
+      return mean > 2 * se
+        ? null
+        : `prevented ${mean.toFixed(3)} a match, standard error ${se.toFixed(3)} (${back
+            .map((p) => `${p.position} ${p.prevented!.mean}±${p.prevented!.se}`)
+            .join(', ')})`;
+    },
+  },
+  {
+    name: 'late in a match a side behind gets more attacking moments than a side ahead',
+    check: (profiles) => {
+      const sum = (state: 'behind' | 'ahead', phase: 'attack' | 'defence') =>
+        profiles.reduce((total, p) => total + (p.late?.[state][phase] ?? 0), 0);
+      const share = (state: 'behind' | 'ahead') =>
+        sum(state, 'attack') / Math.max(1, sum(state, 'attack') + sum(state, 'defence'));
+      if (!profiles.some((p) => p.late)) return 'no late-moment data';
+      return share('behind') > share('ahead')
+        ? null
+        : `behind ${Math.round(share('behind') * 100)}% attacking, ahead ${Math.round(share('ahead') * 100)}%`;
+    },
+  },
+  {
+    name: 'out of position, the choices taken carry an "Out of position" cost',
+    check: (profiles) => {
+      const off = profiles
+        .filter(
+          (p) =>
+            p.scenarios?.slot.outOfPosition != null &&
+            !(p.scenarios.slot.outOfPosition < p.scenarios.slot.own),
+        )
+        .map(
+          (p) =>
+            `${p.position} own ${p.scenarios!.slot.own} away ${p.scenarios!.slot.outOfPosition}`,
+        );
+      return off.length ? off.join('; ') : null;
+    },
+  },
+  {
+    name: 'a tired player is substituted more often than a fresh one',
+    check: (profiles) => {
+      const sum = (pick: (t: NonNullable<PositionProfile['scenarios']>['tired']) => number) =>
+        profiles.reduce(
+          (total, p) => total + (p.scenarios ? pick(p.scenarios.tired) * p.scenarios.tired.n : 0),
+          0,
+        );
+      const n = profiles.reduce((total, p) => total + (p.scenarios?.tired.n ?? 0), 0);
+      if (!n) return 'no scenario data';
+      const fresh = sum((t) => t.substitutedFresh) / n;
+      const worn = sum((t) => t.substitutedTired) / n;
+      return worn > fresh
+        ? null
+        : `tired ${Math.round(worn * 100)}% fresh ${Math.round(fresh * 100)}%`;
+    },
+  },
+  {
     name: CALIBRATION_GATE,
     check: (profiles) => {
       const off = profiles.flatMap((p) => calibrationProblems(p.calibration, String(p.position)));
@@ -413,13 +613,19 @@ export const GATES: Gate[] = [
   },
 ];
 
+/** Every seed's profiles are checked on their own (review phase 6: several seeds). */
 function check(): void {
-  const profiles = JSON.parse(readFileSync(OUT, 'utf8')) as PositionProfile[];
+  const all = JSON.parse(readFileSync(OUT, 'utf8')) as PositionProfile[];
+  const seeds = [...new Set(all.map((p) => p.seed ?? 'match-profile'))];
   let failed = 0;
-  for (const gate of GATES) {
-    const problem = gate.check(profiles);
-    console.log(`${problem ? 'FAIL' : 'ok  '} ${gate.name}${problem ? ` — ${problem}` : ''}`);
-    if (problem) failed++;
+  for (const seed of seeds) {
+    const profiles = all.filter((p) => (p.seed ?? 'match-profile') === seed);
+    console.log(`seed ${seed} (${profiles.length} positions)`);
+    for (const gate of GATES) {
+      const problem = gate.check(profiles);
+      console.log(`${problem ? 'FAIL' : 'ok  '} ${gate.name}${problem ? ` — ${problem}` : ''}`);
+      if (problem) failed++;
+    }
   }
   if (failed) process.exitCode = 1;
 }
@@ -429,13 +635,16 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/match-profile.ts')) {
   else {
     const matches = Number(argument('matches') ?? 300);
     const positions = (argument('positions')?.split(',') as Position[] | undefined) ?? POSITIONS;
-    const profiles = positions.map((position) => {
-      const profile = profilePosition(position, matches);
-      console.log(
-        `${position}: ${profile.goals} g ${profile.assists} a · rating ${profile.rating.mean} (p10 ${profile.rating.p10}, p90 ${profile.rating.p90}, 9+ ${profile.rating.nineOrMore}) · ${profile.moments} moments · subs ${profile.substituted} · fatigue ${profile.fatigueAtEnd} · xp ${profile.xp} fame ${profile.fame} · best ${profile.policy.best.join('-')} worst ${profile.policy.worst.join('-')} involvement ${profile.policy.involvement.join('/')} · ${profile.cost.matchMs} ms a match (motion ${profile.cost.motionMs}, narration ${profile.cost.narrationMs ?? 0}) · objectives ${JSON.stringify(profile.objectives)} · cards ${JSON.stringify(profile.cards)}`,
-      );
-      return profile;
-    });
+    const seeds = argument('seeds')?.split(',') ?? ['match-profile'];
+    const profiles = seeds.flatMap((seed) =>
+      positions.map((position) => {
+        const profile = profilePosition(position, matches, seed);
+        console.log(
+          `${position}: ${profile.goals} g ${profile.assists} a · rating ${profile.rating.mean} (p10 ${profile.rating.p10}, p90 ${profile.rating.p90}, 9+ ${profile.rating.nineOrMore}) · ${profile.moments} moments · subs ${profile.substituted} · fatigue ${profile.fatigueAtEnd} · xp ${profile.xp} fame ${profile.fame} · best ${profile.policy.best.join('-')} worst ${profile.policy.worst.join('-')} involvement ${profile.policy.involvement.join('/')} · ${profile.cost.matchMs} ms a match (motion ${profile.cost.motionMs}, narration ${profile.cost.narrationMs ?? 0}) · objectives ${JSON.stringify(profile.objectives)} · cards ${JSON.stringify(profile.cards)}`,
+        );
+        return profile;
+      }),
+    );
     mkdirSync('artifacts/profile', { recursive: true });
     writeFileSync(OUT, JSON.stringify(profiles, null, 2));
     console.log(`Profile: ${OUT}`);

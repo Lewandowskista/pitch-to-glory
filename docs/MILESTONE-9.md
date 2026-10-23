@@ -1,5 +1,9 @@
 # Milestone 9: edit mode, accessibility pass, tutorial, audio and polish
 
+> **History.** This records the milestone as it was built. Later work has changed many of its
+> details; for the current rules see [BALANCING.md](BALANCING.md), and for the current state the
+> box at the top of [HANDOFF.md](HANDOFF.md).
+
 ## Scope
 
 AGENTS.md §5 (edit mode), §9.9 (accessibility), §11 (onboarding tutorial), §2 and §3 (audio with Howler.js, starting after the first interaction), and a polish pass on every screen. The web release work (deployment, PWA and offline polish, bundle audit, share tags) belongs to milestone 10 and is not started.

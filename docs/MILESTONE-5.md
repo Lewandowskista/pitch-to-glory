@@ -1,5 +1,9 @@
 # Milestone 5: contracts, agents, transfers and loans
 
+> **History.** This records the milestone as it was built. Later work has changed many of its
+> details; for the current rules see [BALANCING.md](BALANCING.md), and for the current state the
+> box at the top of [HANDOFF.md](HANDOFF.md).
+
 ## Scope
 
 AGENTS.md §8 (contracts, agents, transfers and loans) and milestone 5: the career player's contract and squad-role promise, agents, scouting interest, club-to-club bids, multi-step negotiation with counter-offers, loans, transfer requests, renewals and free transfers. Media, relationships beyond manager trust and fan affection, the rival, dressing-room dynamics and morale systems belong to milestone 6 and are not started.

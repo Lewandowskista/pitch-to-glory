@@ -169,3 +169,27 @@ The climb's pace is preserved within about a point, which is normal career-to-ca
 - **5.2** Lasting facts change trust ceilings, renewals, the captaincy claim and story cooldowns; mentees carry into the legacy and may manage in the world to come. The club page shows what is remembered and what it changes.
 - **5.3** A preseason briefing page with expectations, competition for a place, the development target and a season ambition judged at its end; one late-career step a season from 31.
 - **5.4** Challenges needing minutes are labelled, and can be swapped once while sidelined.
+
+## Phase 6 — Honest quality gates, current docs, device acceptance
+
+**6.1 Performance.** `e2e/performance.spec.ts` now separates the regression tolerances (asserted, about twice the reference machine) from the product targets (reported, never asserted): 100 ms an action, 3 s to the hub, 60 fps. Measured on 24 October (Apple M1 Pro, headless Chromium; the phone profile is a 390 px viewport with the CPU slowed four times and no network shaping):
+
+| Career            | Profile | Hub ready | Slowest interaction | Continue to matchday | Pitch (p95 frame) |
+| ----------------- | ------- | --------: | ------------------: | -------------------: | ----------------: |
+| populated (46 MB) | desktop |     0.9 s |               24 ms |                4.3 s |  60 fps (16.7 ms) |
+| populated         | phone   |     2.7 s |               16 ms |                8.5 s |  60 fps (16.7 ms) |
+| late (75 MB)      | desktop |     1.5 s |               24 ms |                2.3 s |  60 fps (16.8 ms) |
+| late              | phone   | **3.8 s** |               32 ms |                4.8 s |  60 fps (16.7 ms) |
+
+Every tolerance holds. One target is missed: a late-career save takes 3.8 s to reach the hub on the emulated phone, against 3 s. Emulation is not a device; the device checks decide. The test now presses Continue through the stops for decisions that phase 5 added.
+
+**6.2 Career gates.** "Top tier by 27" requires tier 1 (it accepted tier 2), with a separate gate for tier 2 by 25. Every gate prints its distribution, and the share gates a 95% Wilson interval. On 30 profiles: tier 1 by 27 in 28 (93%, interval 79–98%; the two loyal careers stay below by design), first in tier 1 at a median age of 21.
+
+**6.3 Match gates.** Keepers have a specialised build; new gates for goals prevented by deciding well, late-game situations by score, choices out of position (the "Out of position" factor) and tired players; and the profile runs over several seeds, checked per seed. At 300 matches a position on two seeds, every gate passes except one:
+
+- **Keepers and defenders do not measurably prevent goals by deciding well.** Worst policy less best, goals conceded a match: −0.004 ± 0.019 on `match-profile`, 0.040 ± 0.020 on `match-profile-b` (GK, CB, LB, DM pooled). Attacking decisions do matter (the best policy is involved in 18% or more goals than the worst). The engine sets each moment's budget so a reference player realises the same expected goals whichever choice they make; at the back the player's own attributes are not enough to separate the choices. Changing it is a match-engine decision; the gate stays red until then.
+- A benched start is not modelled in the match engine (the selected player always starts); benching is covered by the career profile's playing-time gate.
+
+**6.4 Docs.** A current-state box tops [HANDOFF.md](HANDOFF.md), [ARCHITECTURE.md](ARCHITECTURE.md) and [REALISM.md](REALISM.md); the milestone notes are marked as history; the findings table in the plan has a status and evidence for each.
+
+**6.5 and 6.6** need people: [DEVICE-ACCEPTANCE.md](DEVICE-ACCEPTANCE.md) gained latency, frame-timing and new-feature checks (still skipped by the decision of 8 October), and [PLAYTEST.md](PLAYTEST.md) sets out the recall protocol.

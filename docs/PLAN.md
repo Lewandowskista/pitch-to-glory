@@ -1,5 +1,9 @@
 # Milestone 1 implementation plan
 
+> **History.** This records the milestone as it was built. Later work has changed many of its
+> details; for the current rules see [BALANCING.md](BALANCING.md), and for the current state the
+> box at the top of [HANDOFF.md](HANDOFF.md).
+
 Goal: a runnable, polished foundation with reproducible SVG art, safe local saves and a complete responsive shell.
 
 Architecture: pure engine and serializable model; Zustand slices connect lazy React routes to Dexie and the web platform adapter. Future game systems are types only.

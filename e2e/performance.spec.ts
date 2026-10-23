@@ -17,15 +17,25 @@ const PROFILES = {
   phone: { viewport: { width: 390, height: 844 }, cpu: 4 },
 } as const;
 /**
- * Budgets in milliseconds, about twice what the reference machine measured (docs/VERIFICATION.md,
- * Phase 4.2), so a real regression fails while ordinary variation between runners does not.
- * Interactions use the 200 ms "good" threshold; frames require at least 30 fps at the 95th
- * percentile. `advance` covers Continue to the next matchday: several simulated weeks, each saved.
+ * Two different kinds of number (review phase 6, step 6.1); never read one as the other.
+ *
+ * Regression tolerances, ASSERTED: about twice what the reference machine measured
+ * (docs/VERIFICATION.md, Phase 4.2), so a real regression fails while ordinary variation between
+ * runners does not. They are not the product's targets, and passing them proves nothing about
+ * the targets. `advance` covers Continue to the next matchday: several simulated weeks, each saved.
  */
-const BUDGETS = {
+const TOLERANCES = {
   desktop: { hubReady: 3000, interaction: 200, advance: 10000, frameP95: 34 },
   phone: { hubReady: 6000, interaction: 200, advance: 30000, frameP95: 34 },
 } as const;
+/**
+ * Product targets, REPORTED and not asserted (AGENTS.md §3, §10, §2): every action within
+ * 100 ms, interactive within 3 s on a mid-range phone, the pitch at 60 fps (95th-percentile frame
+ * within 17.5 ms). Headless Chromium with a throttled CPU is only an approximation of a phone
+ * (no network shaping, no real GPU), so these are evidence to read, and real devices
+ * (docs/DEVICE-ACCEPTANCE.md) are the acceptance.
+ */
+const TARGETS = { interaction: 100, hubReady: 3000, frameP95: 17.5 } as const;
 const FIXTURES = ['populated', 'late'] as const;
 
 interface Row {
@@ -43,7 +53,10 @@ interface Row {
   longestTaskMs: number;
   frames: { renderer: string; fps: number; p95: number; p99: number; longest: number };
   heapMB: number | null;
-  budget: Record<string, boolean>;
+  /** Regression tolerances: asserted. */
+  tolerances: Record<string, boolean>;
+  /** Product targets: reported, never asserted. */
+  targets: Record<string, boolean>;
 }
 const rows: Row[] = [];
 
@@ -75,7 +88,8 @@ test.afterAll(async () => {
         date: new Date().toISOString(),
         machine: { cpu: cpus()[0]?.model, cores: cpus().length, memoryGB: totalmem() / 2 ** 30 },
         profiles: PROFILES,
-        budgets: BUDGETS,
+        tolerances: { asserted: true, values: TOLERANCES },
+        targets: { asserted: false, values: TARGETS },
         rows,
       },
       null,
@@ -151,12 +165,20 @@ for (const fixture of FIXTURES)
       await expect(page.getByRole('region', { name: 'Needs you' })).toBeVisible();
       const interactions = await perf(page);
 
-      // Continue: the world simulates to the next matchday and saves each week.
+      // Continue: the world simulates to the next matchday and saves each week. Continue also
+      // stops for a decision that arrives or falls due (review phase 5), so it is pressed again
+      // until the matchday; the time covers every press.
       const advanceMs = await timed(async () => {
-        await page.getByRole('button', { name: 'Continue to next matchday' }).click();
-        await expect(page.getByRole('link', { name: 'Play matchday' })).toBeVisible({
-          timeout: 300000,
-        });
+        const play = page.getByRole('link', { name: 'Play matchday' });
+        const go = page.getByRole('button', { name: 'Continue to next matchday' });
+        for (let press = 0; press < 12 && !(await play.isVisible()); press++) {
+          await expect(go.or(play)).toBeVisible({ timeout: 300000 });
+          if (await play.isVisible()) break;
+          await expect(go).toBeEnabled({ timeout: 300000 });
+          await go.click();
+          await expect(go.or(play)).toBeEnabled({ timeout: 300000 });
+        }
+        await expect(play).toBeVisible({ timeout: 300000 });
       });
       const saveMs = await timed(() =>
         expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 60000 }),
@@ -200,7 +222,7 @@ for (const fixture of FIXTURES)
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 
       const tasks = [...loading.longTasks, ...interactions.longTasks, ...advancing.longTasks];
-      const budget = BUDGETS[profile];
+      const budget = TOLERANCES[profile];
       const interactionMs = Math.round(Math.max(0, ...interactions.events));
       const row: Row = {
         fixture,
@@ -216,16 +238,26 @@ for (const fixture of FIXTURES)
         longestTaskMs: Math.round(Math.max(0, ...tasks)),
         frames,
         heapMB,
-        budget: {
+        tolerances: {
           hubReady: hubReadyMs <= budget.hubReady,
           interaction: interactionMs <= budget.interaction,
           advance: advanceMs <= budget.advance,
           frames: frames.p95 <= budget.frameP95,
         },
+        targets: {
+          interaction: interactionMs <= TARGETS.interaction,
+          // The 3 s target is for a phone; the desktop row is reported against it too.
+          hubReady: hubReadyMs <= TARGETS.hubReady,
+          frames: frames.p95 <= TARGETS.frameP95,
+        },
       };
       rows.push(row);
       console.log(JSON.stringify(row));
-      expect(row.budget, `${fixture} · ${profile}`).toEqual({
+      const met = Object.entries(row.targets)
+        .map(([key, ok]) => `${key} ${ok ? 'met' : 'NOT met'}`)
+        .join(', ');
+      console.log(`${fixture} · ${profile} · product targets (reported, not asserted): ${met}`);
+      expect(row.tolerances, `${fixture} · ${profile} regression tolerances`).toEqual({
         hubReady: true,
         interaction: true,
         advance: true,

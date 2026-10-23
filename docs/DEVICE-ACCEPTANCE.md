@@ -43,6 +43,21 @@ Use a career save with at least one completed season (`npm run perf:fixtures` wr
 8. **Sustained rendering.** Play a full match at 1× on the live pitch. Note dropped frames,
    heat and battery use; the pitch should stay smooth (aim: 60 fps on the laptop and phone).
 
+9. **Interaction latency (review phase 6).** With the late-career save, open the Calendar, the
+   Inbox and a long message, and press Continue. Record how long each takes to respond. The
+   product target is 100 ms for an action; the automated run in
+   `artifacts/performance/results.json` reports the same numbers on emulated hardware, which
+   is not evidence on a real device.
+10. **Frame timing (review phase 6).** In a live match at 1×, record the frame rate from the
+    browser's performance tools (Safari Web Inspector on macOS and iOS, Chrome remote
+    debugging on Android) over a minute. The target is 60 fps.
+11. **New since 0.5.0.** On the late-career save: a tournament match between seasons (play,
+    refresh mid-match, continue), the National page's qualifying table, the preseason page,
+    the training page's commitments, and the Club page's "What they remember" card, by touch.
+
+Use both fixtures: `artifacts/performance/populated.json` (a career a few seasons in) and
+`artifacts/performance/late.json` (a long career), both written by `npm run perf:fixtures`.
+
 ## Results
 
 Fill in one row per device and check. Leave a result blank until it has been run on that

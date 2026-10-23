@@ -1,5 +1,9 @@
 # Milestone 10: web release
 
+> **History.** This records the milestone as it was built. Later work has changed many of its
+> details; for the current rules see [BALANCING.md](BALANCING.md), and for the current state the
+> box at the top of [HANDOFF.md](HANDOFF.md).
+
 ## Scope
 
 AGENTS.md §3 and §12 milestone 10: deployment pipeline, PWA and offline polish, the update prompt, a performance and bundle audit, a cross-browser test pass, and the landing screen with share tags. The Android port belongs to milestone 11 and is not started; Capacitor is not installed.
