@@ -26,6 +26,18 @@ export type ReleaseSection = (typeof RELEASE_SECTIONS)[number];
 
 export const PATCH_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '0.8.0',
+    date: '2026-10-24',
+    title: 'Defending that decides',
+    summary:
+      'At the back, your choices now decide more of the goals your team concedes, and your defending attributes count for more in them.',
+    improved: [
+      'Playing as a keeper, centre-back, full-back or defensive midfielder, more of the opposition’s chances come down to your key moments, and fewer are settled around you. Choosing well keeps more goals out; choosing badly lets more in.',
+      'Your defending attributes count for more in tackles, interceptions, blocks and saves, so a strong defender reads the game better than a weak one.',
+      'Matches already in progress when you update finish under the rules they started with.',
+    ],
+  },
+  {
     version: '0.7.0',
     date: '2026-10-23',
     title: 'A career with a memory',

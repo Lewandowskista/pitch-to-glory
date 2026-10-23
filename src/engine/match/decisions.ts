@@ -78,6 +78,8 @@ export interface DecisionContext {
   opponentStyle?: string;
   /** The player studied this opponent (`match-19`): the style's penalties are softened. */
   prepared?: boolean;
+  /** Decisive defending (`match-20`): attributes move defending odds further. */
+  defending?: boolean;
   /**
    * The player's stronger foot and the flank of their post (`match-19`): a shot, cross or carry
    * on the weaker foot costs odds unless they are two-footed.
@@ -313,11 +315,12 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
     .map((t) => {
       const value = governingValue(player, t.attributes);
       const relative = value + context.consistencyShift - context.matchLevel;
-      const attribute = clamp(
-        1 + relative * D.attributeSlope,
-        D.attributeMinimum,
-        D.attributeMaximum,
-      );
+      // Defending choices lean harder on the attributes behind them (match-20).
+      const slope =
+        context.defending && (t.opponent === 'attacker' || t.direct === 'against')
+          ? D.attributeSlope * C.defending.attributeSlope
+          : D.attributeSlope;
+      const attribute = clamp(1 + relative * slope, D.attributeMinimum, D.attributeMaximum);
       const impact = clamp(1 + relative * D.impactSlope, D.impactMinimum, D.impactMaximum);
       const defensive = t.opponent === 'attacker';
       const fixed = t.fixed !== undefined;

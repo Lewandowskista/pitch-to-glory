@@ -329,6 +329,7 @@ export function createMatchSetup(
           roleSlot: true as const,
           extraTimePlay: true as const,
           identity: true as const,
+          defending: true as const,
           ...(options.prepared ? { prepared: true as const } : {}),
           ...(options.suspended?.some((id) => id !== selectedPlayerId)
             ? { suspended: options.suspended.filter((id) => id !== selectedPlayerId) }
@@ -383,6 +384,13 @@ const extraTimeEngine = (
 const identityEngine = (
   setup: Pick<MatchSetup, 'occasions' | 'discipline' | 'roleSlot' | 'extraTimePlay' | 'identity'>,
 ) => extraTimeEngine(setup) && Boolean(setup.identity);
+/** Decisive defending (`match-20`). */
+const defendingEngine = (
+  setup: Pick<
+    MatchSetup,
+    'occasions' | 'discipline' | 'roleSlot' | 'extraTimePlay' | 'identity' | 'defending'
+  >,
+) => identityEngine(setup) && Boolean(setup.defending);
 /** The opposition's playing style, on the engine that reads it (match-19). */
 const opposingStyle = (setup: MatchSetup): string | undefined =>
   identityEngine(setup)
@@ -482,8 +490,17 @@ function currentRates(session: MatchSession, tactics: Tactics): [number, number]
     Math.max(M.attackFloor, 1 - own * M.attack) * (1 + other * M.concede);
   return [round6(base[0] * scale(home, away)), round6(base[1] * scale(away, home))];
 }
-function shares(position: Position, role: string, drama = false): MatchState['shares'] {
-  const [attack, defence] = C.shares[position];
+function shares(
+  position: Position,
+  role: string,
+  drama = false,
+  defending = false,
+): MatchState['shares'] {
+  const [attack, base] = C.shares[position];
+  // Decisive defending (match-20): the back line's moments carry more of the opposition's goals.
+  const defence = defending
+    ? round6(Math.min(C.defending.maximum, base * (C.defending.share[position] ?? 1)))
+    : base;
   const weights = situationWeights(position, role);
   // A set-piece taker (engine match-12) carries more of the team's attack: set pieces add to
   // the open-play moments rather than taking from them, and the background plays less.
@@ -666,7 +683,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       strength,
       matchLevel,
       expectedGoals: rates(setup, strength, tactics),
-      shares: shares(position, tactics.role, setup.dramaMoments),
+      shares: shares(position, tactics.role, setup.dramaMoments, defendingEngine(setup)),
       stats: {
         homeShots: 0,
         awayShots: 0,
@@ -1527,6 +1544,8 @@ function contextFor(
     ...(latest(setup) ? { latest: true } : {}),
     // Skills stack on the impact path too (match-17).
     ...(current(setup) ? { stackImpact: true } : {}),
+    // Attributes move defending odds further (match-20).
+    ...(defendingEngine(setup) ? { defending: true } : {}),
     // The opposition's style and the player's stronger foot (match-19).
     ...(identityEngine(setup)
       ? {
@@ -2199,7 +2218,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
       const position = rolePosition(setup);
       m.tactics.role = halftimeRole(position, m.tactics.role);
       state.expectedGoals = currentRates(next, m.tactics);
-      state.shares = shares(position, m.tactics.role, setup.dramaMoments);
+      state.shares = shares(position, m.tactics.role, setup.dramaMoments, defendingEngine(setup));
     }
     state.stats.fatigue = round6(Math.max(0, state.stats.fatigue - C.halftimeRecovery));
     // Ends are switched and the away side kicks off the second half.

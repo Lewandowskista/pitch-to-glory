@@ -198,11 +198,12 @@ describe('engine match-19', () => {
     return session;
   };
 
-  it('is the engine new setups play, and older setups keep match-18', () => {
+  it('is played by new setups, and setups without it keep match-18', () => {
     const setup = createMatchSetup(world, home.id, away.id, selected, 'identity:1');
     expect(setup.identity).toBe(true);
     expect(engineFor(setup)).toBe(MATCH_ENGINE_VERSION);
     const older = structuredClone(setup);
+    delete older.defending;
     delete older.identity;
     expect(engineFor(older)).toBe(EXTRA_TIME_MATCH_ENGINE);
   });

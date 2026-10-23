@@ -31,9 +31,16 @@ export type { Tactics } from '../../model/domain';
  * 4.1 and 4.2) gives the opposition an identity and the player a stronger foot: the opponent's
  * playing style tilts which situations reach the player and the odds of the choices it
  * affects, and a shot or carry with the weaker foot costs odds unless the player is
- * two-footed.
+ * two-footed. `match-20` (review phase 6) makes defending decide more: a back-line player's
+ * moments carry more of the opposition's goals, and their attributes move defending odds
+ * further, so choosing well measurably prevents goals.
  */
-export const MATCH_ENGINE_VERSION = 'match-19';
+export const MATCH_ENGINE_VERSION = 'match-20';
+/**
+ * The engine before decisive defending. A setup with `identity` but without `defending` still
+ * replays as it was.
+ */
+export const IDENTITY_MATCH_ENGINE = 'match-19';
 /**
  * The engine before opponent identity and the preferred foot. A setup with `extraTimePlay` but
  * without `identity` still replays as it was.
@@ -90,6 +97,7 @@ export const engineFor = (
     | 'roleSlot'
     | 'extraTimePlay'
     | 'identity'
+    | 'defending'
   >,
 ): string =>
   !setup.formations
@@ -103,7 +111,9 @@ export const engineFor = (
             ? setup.roleSlot
               ? setup.extraTimePlay
                 ? setup.identity
-                  ? MATCH_ENGINE_VERSION
+                  ? setup.defending
+                    ? MATCH_ENGINE_VERSION
+                    : IDENTITY_MATCH_ENGINE
                   : EXTRA_TIME_MATCH_ENGINE
                 : ROLE_MATCH_ENGINE
               : DISCIPLINE_MATCH_ENGINE
@@ -164,6 +174,11 @@ export interface MatchSetup {
   identity?: true;
   /** The player studied this opponent in training (`match-19`): their style costs less. */
   prepared?: true;
+  /**
+   * Decisive defending (`match-20`): more of the opposition's goals pass through a back-line
+   * player's moments, and attributes move defending odds further.
+   */
+  defending?: true;
   /** Players serving a suspension in this fixture's competition, never picked (`match-16`). */
   suspended?: string[];
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */

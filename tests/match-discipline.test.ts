@@ -211,12 +211,17 @@ const many = (['CB', 'DM', 'ST', 'LB'] as const).flatMap((position) =>
 );
 const dismissals = (session: MatchSession) =>
   session.state.match.events.filter((e) => e.kind === 'card' && e.card !== 'yellow');
-/** A defender built to be booked, so dismissals are easy to find. */
+/**
+ * A defender built to be booked, so dismissals are easy to find: poor at every way of
+ * defending, so no choice escapes the booking risk (from match-20 attributes move defending
+ * odds further, and a poor tackler otherwise simply avoids tackling).
+ */
 function hothead(seed: string): MatchSetup {
   const setup = setupFor('CB', seed);
   const player = setup.players[setup.selectedPlayerId]!;
   player.attributes.aggression = 99;
-  player.attributes.tackling = 20;
+  for (const key of ['tackling', 'positioning', 'decisions', 'composure', 'pace'] as const)
+    player.attributes[key] = 20;
   return setup;
 }
 const sentOffMatches = Array.from({ length: 160 }, (_, n) => play(hothead(`hothead-${n}`))).filter(

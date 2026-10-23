@@ -196,6 +196,7 @@ export function tournamentMatchSetup(world: World, fixture: TournamentFixture): 
     roleSlot: true,
     extraTimePlay: true,
     identity: true,
+    defending: true,
     strengthBonus: [0, 0],
   };
 }

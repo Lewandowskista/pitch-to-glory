@@ -155,9 +155,15 @@ describe('match motion', { timeout: 60000 }, () => {
         expect(index).toBeGreaterThanOrEqual(0);
         // Play restarts from the centre spot with the conceding team on the ball and
         // everyone in their own half.
+        // Search from the strike on: a passage can also hold the restart from an earlier goal.
+        const strike = passages[index]!.frames.findIndex(
+          (f) => f.carrierId === goal.playerId && f.ball.x === goal.point.x,
+        );
         const kickoff = passages
           .slice(index)
-          .flatMap((p) => p.frames.map((frame) => ({ frame, minute: p.minute })))
+          .flatMap((p, k) =>
+            p.frames.slice(k === 0 ? strike : 0).map((frame) => ({ frame, minute: p.minute })),
+          )
           .find(({ frame }) => frame.ball.x === 50 && frame.ball.y === 50 && frame.carrierId);
         if (!kickoff) continue; // final whistle before the restart
         const kicker = kickoff.frame.carrierId!;

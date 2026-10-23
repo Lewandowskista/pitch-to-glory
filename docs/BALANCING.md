@@ -936,3 +936,21 @@ Each grievance a manager holds lowers the most they trust the player by 12, to 6
 - From 31, one late-career step a season: a smaller role (one role down; +8 manager trust, the seniors warm), retraining (one step back, e.g. striker to attacking midfielder: familiarity +25 and a training session on it), mentoring (a weekly commitment), or two clubs in the home country starting to scout at confidence 70.
 
 **Sidelined challenges (5.4).** Challenges only matches move say so. While injured, out of the last fixture or suspended, one can be swapped once for a goal off the pitch with the same cosmetic reward: weekly commitments (2 daily, 6 weekly), press or weeks played through.
+
+## Decisive defending (October 2026)
+
+Match engine **match-20** (review phase 6). Sessions saved on match-19 replay unchanged; `tests/match-outcome-snapshot.test.ts` keeps that path.
+
+The honest match gates found that a keeper's or defender's choices barely changed the goals they conceded: the worst policy conceded −0.004 ± 0.019 more a match than the best on one seed and 0.040 ± 0.020 on another. Each moment is set so a reference player realises the same expected goals whichever choice they make, and at the back the player's attributes moved the odds too little to separate the choices.
+
+- A back-line player's moments carry more of the opposition's goals: the defence share × 1.3 for keepers and × 1.5 for centre-backs, full-backs and defensive midfielders, to at most 0.6 (`match.defending`). The rest of the match scores correspondingly less, so goals per match hold (10,000-match test: 2.66).
+- Defending choices (against an attacker, or saves) lean harder on the attributes behind them: their attribute slope × 1.5. A reference player is unaffected, so the choice fairness test holds.
+- The expected gap between the best and worst choice of a match rose from 0.048 to 0.101 goals for a centre-back, 0.037 to 0.058 for a keeper and 0.035 to 0.062 for a defensive midfielder.
+- Measured with the match profile (300 matches a position, specialised builds, worst policy less best, goals conceded a match):
+
+| Seed            |          GK |          CB |          LB |           DM |      Pooled |
+| --------------- | ----------: | ----------: | ----------: | -----------: | ----------: |
+| match-profile   | 0.01 ± 0.05 | 0.15 ± 0.05 | 0.06 ± 0.04 |  0.03 ± 0.05 | 0.06 ± 0.02 |
+| match-profile-b | 0.14 ± 0.05 | 0.08 ± 0.05 | 0.05 ± 0.05 | −0.01 ± 0.04 | 0.07 ± 0.02 |
+
+Before match-20 the pooled figures were −0.004 ± 0.019 and 0.040 ± 0.020. Centre-backs gain most; a defensive midfielder's choices still barely move the goals conceded, and a keeper's depend on the seed. The goals-prevented gate passes on both seeds.

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { PATCH_NOTES } from '../src/i18n/patchNotes';
+import { PATCH_NOTES, RELEASE_SECTIONS } from '../src/i18n/patchNotes';
+import { whatsNewText } from '../src/i18n/whatsNew';
 import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
 
 /** Versions and patch notes: the What's new screen and the "Updated" notice. */
@@ -36,8 +37,12 @@ test('Settings and the clubhouse lead to What’s new, and Back returns', async 
   await expect(page.getByText(`You are playing version ${version}`)).toBeVisible();
   const newest = page.getByRole('region', { name: latest.title });
   await expect(newest).toContainText(`Version ${version}`);
-  await expect(newest.getByRole('heading', { level: 3, name: 'New' })).toBeVisible();
-  await expect(newest.getByRole('listitem').first()).toHaveText(latest.new![0]!);
+  // The first section the release has (sections are optional).
+  const section = RELEASE_SECTIONS.find((key) => latest[key]?.length)!;
+  await expect(
+    newest.getByRole('heading', { level: 3, name: whatsNewText.sections[section] }),
+  ).toBeVisible();
+  await expect(newest.getByRole('listitem').first()).toHaveText(latest[section]![0]!);
   // Older releases wait behind a disclosure.
   const older = PATCH_NOTES[1]!;
   const disclosure = page.locator('details', { hasText: `${older.version} · ${older.title}` });

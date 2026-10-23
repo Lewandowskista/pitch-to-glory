@@ -278,7 +278,6 @@ export function runProfile(
     legacy: null,
     calibration: {},
   };
-  const seen = new Set<string>();
   const buckets: Record<string, { n: number; p: number; s: number }> = {};
   for (let guard = 0; guard < 25; guard++) {
     const offers = new Set<Id>();
@@ -301,6 +300,7 @@ export function runProfile(
       }
       for (const offer of world.offers) offers.add(offer.id);
       if (world.career) spent += shop(world, (next) => (world = next));
+      const played = { season: world.date.season, week: world.date.week };
       world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
       weeks++;
       if (managerTrust(world) < 70) lowTrustWeeks++;
@@ -309,10 +309,11 @@ export function runProfile(
         injuries++;
         injuryWeeks += injury.weeksRemaining;
       }
+      // The decisions of the week just played, each once. (A key of season, week, family, odds
+      // and result merged a keeper's identical saves at capped odds, review phase 6, and so
+      // understated success at high odds.)
       for (const sample of world.career?.coaching?.recent ?? []) {
-        const key = `${sample.season}:${sample.week}:${sample.family}:${sample.probability}:${sample.success}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
+        if (sample.season !== played.season || sample.week !== played.week) continue;
         const bucket = `${sample.family}:${Math.floor(sample.probability * 5) * 20}`;
         buckets[bucket] ??= { n: 0, p: 0, s: 0 };
         buckets[bucket].n++;

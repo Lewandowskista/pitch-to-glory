@@ -60,6 +60,16 @@ export const CONFIG = {
      */
     foot: { weak: 0.88, inside: 1.06, centre: 12 },
     /**
+     * Decisive defending (match-20, review phase 6): a position's defence share × `share`
+     * (to `maximum`), and defending choices' attribute slope × `attributeSlope`. Neutral for a
+     * reference player, so goals per match hold; choosing well prevents more.
+     */
+    defending: {
+      share: { GK: 1.3, CB: 1.5, LB: 1.5, RB: 1.5, DM: 1.5 } as Partial<Record<string, number>>,
+      maximum: 0.6,
+      attributeSlope: 1.5,
+    },
+    /**
      * A week with an opponent session in the training plan (match-19): the share of the
      * opposition style's penalties the player still feels in the next match.
      */
