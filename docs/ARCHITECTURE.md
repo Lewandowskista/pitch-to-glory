@@ -1,20 +1,23 @@
 # Pitch to Glory architecture
 
-> **Current state — 24 October 2026 (release 0.7.0).** Milestones 1–10 are implemented and the
+> **Current state — 25 October 2026 (release 0.9.0).** Milestones 1–10 are implemented and the
 > web game is released: every push to `main` is a release that CI (typecheck, lint, unit tests,
 > Playwright in Chromium, Firefox and WebKit) validates before deploying ([RELEASING.md](RELEASING.md)).
 > Milestone 11 (Android) has not started; Capacitor is not installed. Since 20 October the
-> [review plan](REVIEW-PLAN-2026-10-20.md) has been carried out through Phase 5, with measurements in
+> [review plan](REVIEW-PLAN-2026-10-20.md) has been carried out through Phase 6, with measurements in
 > [REVIEW-PROGRESS-2026-10-20.md](REVIEW-PROGRESS-2026-10-20.md) and rules in [BALANCING.md](BALANCING.md).
-> Live versions: save schema **22**; match engine **match-19** (earlier sessions replay on their
+> Live versions: save schema **22**; match engine **match-21** (earlier sessions replay on their
 > own engine); career development rules **3**; world flags `selectionVersion` 1,
 > `achievements` 1 and `economyVersion` 1 (adopted at a season start by older saves).
 >
 > Since this document's milestone notes: the engine gained tournaments played round by round
 > and qualification (`career/honours/international.ts`, `nationalMatch.ts`), weekly commitments
 > (`career/commitments.ts`), lasting facts (`career/facts.ts`), the preseason
-> (`career/preseason.ts`), pending decisions for Continue (`career/pending.ts`) and the club
-> economy (`world/economy.ts`). The sections below describe the structure; treat their
+> (`career/preseason.ts`), pending decisions for Continue (`career/pending.ts`), the club
+> economy (`world/economy.ts`) and window matches the player plays (`international.window`,
+> opened the week before by `openWindow`, waited on by `advanceCareerWeek`). The career hub and
+> Matchday load their bodies (`HubBody.tsx`, `MatchBody.tsx`) only when there is a career or a
+> save to show. The sections below describe the structure; treat their
 > milestone dates as history, and `src/model/domain.ts` as the source of the types.
 
 Milestones 1–4 (including the post-milestone-3 hardening pass), 6 October 2026. The root AGENTS.md is the product authority. Assets, saves, world simulation and interactive friendly matches are implemented; later career systems remain typed contracts.
@@ -1411,7 +1414,7 @@ The module worker runs the same pure generation/simulation functions as Vitest. 
 
 The squad lifecycle (`engine/world/lifecycle.ts`) runs at the intake week and transfer windows for clubs in simulated leagues: age-curve retirement, contract renewal or release, academy intake, trimming, and free-agent signings with generated trialists as a last resort. Clubs below the simulated frontier are dormant and reused for later feeder admissions. At rollover, retired players move to `World.archive`, events older than the previous season are dropped and unemployed managers are removed, which keeps the world bounded (see BALANCING.md). A season job posts each weekly checkpoint and waits for acknowledgement after the store commit and autosave finish. Save failure halts further simulation and retains the dirty checkpoint. Cancellation terminates the worker, waits for startup/checkpoint storage to settle and retains the last committed week. Generation replaces the in-memory world through a guarded handoff, detaching its previous slot without overwriting it. Busy jobs block save-slot mutation. UI animation timing never controls randomness. An unfinished friendly prevents advancing or replacing its source world.
 
-Worker transport breaks large graphs into bounded entity batches and yields while sending. Receivers assemble an unpublished snapshot and expose it only after the end marker; cancellation cannot publish a partial world. Simulation completion sends a small phase notification after the final durable checkpoint rather than echoing the whole graph again.
+Worker transport breaks large graphs into bounded entity batches and yields while sending. Inside a world it splits again any record wider than `workers.transportWideKeys` keys, or a small record holding one (archived players, season statistics, discipline records, archived seasons' tables), so no single message carries megabytes. Receivers assemble an unpublished snapshot and expose it only after the end marker; cancellation cannot publish a partial world. Simulation completion sends a small phase notification after the final durable checkpoint rather than echoing the whole graph again.
 
 A persistent persistence worker performs save validation, migrations, JSON parsing/formatting and IndexedDB reads/writes. The browser repository delegates to this service; Node tests use the same local repository directly. Write receipts carry normalized envelope/preferences without repeating the world, and the UI retains its immutable submitted snapshot. Imports always undergo complete validation. Ownership and expected revision are checked inside the original atomic IndexedDB transaction. Cancelling simulation never terminates an in-flight persistence operation. A lightweight main-thread Dexie count observes the slot key range so worker mutations refresh save cards without reading large records on the UI thread.
 

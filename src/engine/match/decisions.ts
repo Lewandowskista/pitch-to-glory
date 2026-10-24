@@ -80,6 +80,8 @@ export interface DecisionContext {
   prepared?: boolean;
   /** Decisive defending (`match-20`): attributes move defending odds further. */
   defending?: boolean;
+  /** The defending choices' attribute slope multiplier when not match-20's (`match-21`). */
+  defendingSlope?: number;
   /**
    * The player's stronger foot and the flank of their post (`match-19`): a shot, cross or carry
    * on the weaker foot costs odds unless they are two-footed.
@@ -318,7 +320,11 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
       // Defending choices lean harder on the attributes behind them (match-20).
       const slope =
         context.defending && (t.opponent === 'attacker' || t.direct === 'against')
-          ? D.attributeSlope * C.defending.attributeSlope
+          ? D.attributeSlope *
+            // A penalty keeps its fixed odds' slope (match-21 steepens open-play saves only).
+            (t.fixed === undefined
+              ? (context.defendingSlope ?? C.defending.attributeSlope)
+              : C.defending.attributeSlope)
           : D.attributeSlope;
       const attribute = clamp(1 + relative * slope, D.attributeMinimum, D.attributeMaximum);
       const impact = clamp(1 + relative * D.impactSlope, D.impactMinimum, D.impactMaximum);

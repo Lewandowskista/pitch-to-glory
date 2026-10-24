@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore, type WorldJob } from '../store';
+import { tournamentStep } from '../engine/career/honours/international';
 import { t, format, errorText } from '../i18n';
 import { Page } from '../ui/Page';
 import { Icon, type IconName } from '../ui/Icon';
@@ -868,6 +869,9 @@ function SeasonHero({
   const busy = Boolean(job);
   const complete = world.phase === 'complete';
   const career = world.career;
+  // A tournament the player's nation is still in comes before the season (review phase 3).
+  const tournament = complete ? tournamentStep(world) : null;
+  const [confirmSeason, setConfirmSeason] = useState(false);
   const pending = career ? pendingCareerFixture(world) : null;
   const awaitingRecovery = Boolean(career?.injury && career.injury.recovery === null);
   const matchday = Boolean(career && (pending || notice === 'matchday'));
@@ -879,7 +883,34 @@ function SeasonHero({
   let title: string;
   let body: ReactNode = null;
   let action: ReactNode;
-  if (complete) {
+  if (complete && tournament) {
+    icon = 'history';
+    title = t.world.hero.tournamentTitle;
+    body = t.world.hero.tournamentBody;
+    action = (
+      <>
+        <ButtonLink variant="play" size="lg" iconEnd="arrow" to="/career">
+          {t.world.hero.tournamentAction}
+        </ButtonLink>
+        <Button variant="secondary" disabled={busy} onClick={() => setConfirmSeason(true)}>
+          {t.world.next}
+        </Button>
+        {confirmSeason && (
+          <Dialog
+            title={t.world.hero.skipTitle}
+            body={t.world.hero.skipBody}
+            confirmLabel={t.world.hero.skipConfirm}
+            busy={busy}
+            onClose={() => setConfirmSeason(false)}
+            onConfirm={() => {
+              setConfirmSeason(false);
+              void startWorldJob('next-season');
+            }}
+          />
+        )}
+      </>
+    );
+  } else if (complete) {
     icon = 'history';
     title = t.world.hero.completeTitle;
     body = t.world.seasonReviewBody;

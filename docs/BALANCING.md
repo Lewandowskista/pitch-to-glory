@@ -954,3 +954,26 @@ The honest match gates found that a keeper's or defender's choices barely change
 | match-profile-b | 0.14 ± 0.05 | 0.08 ± 0.05 | 0.05 ± 0.05 | −0.01 ± 0.04 | 0.07 ± 0.02 |
 
 Before match-20 the pooled figures were −0.004 ± 0.019 and 0.040 ± 0.020. Centre-backs gain most; a defensive midfielder's choices still barely move the goals conceded, and a keeper's depend on the seed. The goals-prevented gate passes on both seeds.
+
+## Screening and saves (October 2026)
+
+Match engine **match-21** (version 0.9.0). Sessions saved on match-20 replay unchanged; `tests/match-outcome-snapshot.test.ts` keeps that path.
+
+match-20 left two positions where the choice barely moved the goals conceded: a defensive midfielder (best and worst policy 0.03 and −0.01 goals a match apart on the two seeds) and a keeper on one seed (0.01 against 0.14 on the other). Both seeds' keeper figures were within about two standard errors of each other at 300 matches, so part of the keeper's spread was sampling noise; the expected gap computed from the choices (0.058 goals) was still the smallest of the back line.
+
+- A defensive midfielder's defence share × 2.1 instead of match-20's × 1.5 (`match.defending.screening.share`), still at most 0.6: 0.26 × 2.1 = 0.546 of the opposition's goals pass through their moments. The rest of the match scores correspondingly less, so goals per match hold.
+- A keeper's saves lean harder on the attributes behind them: their attribute slope × 2.25 instead of × 1.5 (`match.defending.screening.attributeSlope`). A reference keeper is unaffected, so the choice fairness test holds.
+- Measured with the match profile at 600 matches a position on both seeds (specialised builds, worst policy less best, goals conceded a match, standard error about 0.035):
+
+| Seed            |   GK |   CB |   DM |
+| --------------- | ---: | ---: | ---: |
+| match-profile   | 0.08 | 0.15 | 0.07 |
+| match-profile-b | 0.14 | 0.14 | 0.10 |
+
+The defensive midfielder now prevents goals on both seeds, and the keeper's two figures agree within sampling error. Only the keeper, defensive-midfield and central-midfield snapshot samples changed (one central midfielder plays a holding slot), by at most two goals.
+
+## International windows the player plays (October 2026)
+
+Version 0.9.0. With **Play my international matches** on (`career.honours.playInternationals`), the week before a window, a player who would start for their senior side has the window's matches set out (`international.window`): their nation's qualifiers, keeping the qualifying fixtures' ids, or two friendlies drawn on `${seed}:window:${season}:${week}`. Continue stops on the window week until each is played or the rest are simulated; a season simulated to its end simulates them. A played match counts as a tournament match does: caps, goals and fame through the same credit, XP from the performance and decisions × opposition × importance (`international.window.importance`: qualifier 1.1, friendly 1). A qualifier's score joins its group table. With the option off, nothing changes: windows are simulated exactly as before.
+
+National sides in windows, and in tournaments opened from 0.9.0, play a style drawn once per nation and seed (`${seed}:${nation}:style`) from the club styles; earlier tournaments keep every nation balanced, so a match saved part-way through keeps its sides.

@@ -5,6 +5,9 @@ import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
+import { autoPlayCareerFixture } from '../src/engine/career/matches';
+import { windowWeeks } from '../src/engine/career/honours/international';
+import { applyHonoursAction } from '../src/engine/career/honours/actions';
 import type { World } from '../src/model/domain';
 
 /**
@@ -129,6 +132,20 @@ test('plays a tournament match for the nation, then the rest before the next sea
   await expect(page.getByText('Group matchday 1', { exact: true })).toBeVisible();
   await expect(card.getByRole('table')).toContainText('Group');
   await expect(page.getByRole('button', { name: 'Start next season' })).toHaveCount(0);
+
+  // The World screen sends the player to the tournament, and asks before simulating it.
+  await page.goto('/world?save=1');
+  await expect(page.getByRole('link', { name: 'Go to the tournament' })).toBeVisible({
+    timeout: 60000,
+  });
+  await page.getByRole('button', { name: 'Start next season', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText(
+    'remaining tournament matches will be simulated',
+  );
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Go to the tournament' }).click();
+  await expect(card).toBeVisible();
   await page.getByRole('link', { name: 'Play the match', exact: true }).click();
   await expect(page).toHaveURL(/\/match/);
 
@@ -245,4 +262,98 @@ test('shows the nation’s qualifying group and matches on the national page', a
     panel.getByRole('list', { name: 'Qualifying matches' }).getByRole('listitem'),
   ).toHaveCount(6);
   await expect(panel.getByText('To play')).toHaveCount(4);
+});
+
+/** A senior starter who plays their window matches, stopped at the first window's first match. */
+let windowCached: string | undefined;
+function windowSave(): string {
+  if (windowCached) return windowCached;
+  const base = generateWorld('window-browser', { format: 'legacy' });
+  const trial = trialOffers(base, 'country:0', 'window-browser')[0]!;
+  let world: World = createCareer(
+    base,
+    {
+      name: 'Robin Vale',
+      avatar: {
+        face: 1,
+        skin: 2,
+        hair: 3,
+        hairColor: 4,
+        facialHair: 0,
+        eyebrows: 1,
+        eyes: 2,
+        accessory: 3,
+      },
+      nationalityId: 'country:0',
+      position: 'ST',
+      foot: 'left',
+      age: 17,
+      archetype: 'finisher',
+    },
+    trial.id,
+    'window-browser',
+  );
+  const player = world.players[world.career!.playerId]!;
+  for (const key of Object.keys(player.attributes) as (keyof typeof player.attributes)[])
+    player.attributes[key] = 95;
+  world = applyHonoursAction(world, { type: 'play-internationals', on: true });
+  const window = windowWeeks(world)[0]!;
+  while (world.date.week <= window) {
+    const step = advanceCareerWeek(world, { inPlace: true });
+    if (!step.pendingFixtureId) continue;
+    const fixture = world.fixtures[step.pendingFixtureId];
+    if (!fixture) break;
+    autoPlayCareerFixture(world, fixture);
+  }
+  windowCached = JSON.stringify(
+    createSave(1, 'Window career', {
+      kind: 'world',
+      world,
+      gallery: { seed: 'window-browser', generation: 0 },
+      settings: DEFAULT_SETTINGS,
+    }),
+  );
+  return windowCached;
+}
+
+test('plays an international window match, then has the rest simulated', async ({ page }) => {
+  test.setTimeout(300000);
+  await page.goto('/saves');
+  await page
+    .locator('.slot-card')
+    .nth(0)
+    .getByLabel('Import backup — Slot 1')
+    .setInputFiles({
+      name: 'window.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(windowSave()),
+    });
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Window career');
+
+  // The hub puts the nation's match first, and the National page shows the choice.
+  await page.goto('/career?save=1');
+  await expect(page.getByText('International duty', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Match 1 of 2/)).toBeVisible();
+  await page.getByRole('link', { name: 'Play for your country', exact: true }).click();
+  const fixture = page.getByTestId('window-fixture');
+  await expect(fixture).toContainText('Match 1 of 2');
+  await fixture.getByRole('button', { name: 'Go to the pre-match briefing' }).click();
+  await expect(state(page)).toHaveAttribute('data-status', 'preview');
+  await playMatch(page);
+  await expect(page.getByTestId('career-xp')).toContainText('XP earned', { timeout: 60000 });
+
+  // The second match waits; the player has it simulated with the week instead.
+  await page.getByRole('button', { name: 'Your next fixture', exact: true }).click();
+  await expect(page.getByTestId('window-fixture')).toContainText('Match 2 of 2');
+  await page.getByRole('button', { name: 'Simulate the window', exact: true }).click();
+  await expect(page.getByTestId('window-fixture')).toHaveCount(0);
+  await expect(page.locator('.save-indicator')).toContainText('All changes saved', {
+    timeout: 60000,
+  });
+  await page.goto('/career/national?save=1');
+  const option = page.getByRole('switch', { name: 'Play my international matches' });
+  await expect(option).toBeChecked();
+  await option.click();
+  await expect(option).not.toBeChecked();
+  await expect(page.getByText('Your nation’s window matches are simulated')).toBeVisible();
 });

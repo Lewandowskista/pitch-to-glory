@@ -88,6 +88,7 @@ export function validateHonours(w: Record<string, unknown>): void {
       date(call.date);
     }
     number(honours.peakAbility, 1, 99);
+    if (honours.playInternationals !== undefined) requireValue(honours.playInternationals === true);
     if (honours.parentLegacyId !== null)
       requireValue(
         array(w.legacies).some((legacy) => object(legacy).id === honours.parentLegacyId),
@@ -199,6 +200,7 @@ export function validateHonours(w: Record<string, unknown>): void {
         for (const id of array(group, 4)) requireValue(nationIds.has(String(id)));
       if (live.careerNationId !== null) requireValue(nationIds.has(String(live.careerNationId)));
       requireValue(typeof live.inSquad === 'boolean' && typeof live.starts === 'boolean');
+      if (live.styled !== undefined) requireValue(live.styled === true);
       const ids = new Set<string>();
       for (const value of array(live.fixtures, 31)) {
         const fixture = object(value);
@@ -216,6 +218,34 @@ export function validateHonours(w: Record<string, unknown>): void {
           const pair = array(fixture[key], 2);
           requireValue(pair.length === 2);
           for (const goals of pair) number(goals, 0, 30, true);
+        }
+        requireValue((fixture.matchId === null) === (fixture.score === null));
+      }
+    }
+    // The career player's window matches (version 0.9.0).
+    if (state.window !== undefined && state.window !== null) {
+      const window = object(state.window);
+      text(window.id, 60);
+      number(window.season, 1800, Number(current.season), true);
+      number(window.week, 1, 60, true);
+      requireValue(nationIds.has(String(window.nationId)));
+      requireValue(typeof window.simulate === 'boolean');
+      const seen = new Set<string>();
+      for (const value of array(window.fixtures, 4)) {
+        const fixture = object(value);
+        text(fixture.id, 80);
+        requireValue(!seen.has(String(fixture.id)));
+        seen.add(String(fixture.id));
+        options(fixture.kind, ['qualifier', 'friendly']);
+        requireValue(
+          nationIds.has(String(fixture.homeId)) && nationIds.has(String(fixture.awayId)),
+        );
+        requireValue(fixture.homeId === window.nationId || fixture.awayId === window.nationId);
+        if (fixture.matchId !== null) text(fixture.matchId, 120);
+        if (fixture.score !== null) {
+          const score = array(fixture.score, 2);
+          requireValue(score.length === 2);
+          score.forEach((goals) => number(goals, 0, 30, true));
         }
         requireValue((fixture.matchId === null) === (fixture.score === null));
       }

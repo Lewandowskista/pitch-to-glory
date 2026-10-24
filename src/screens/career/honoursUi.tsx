@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useReducedMotion } from 'framer-motion';
 import { promiseMilestone } from './storiesUi';
 import type { AmbitionId, ManagerPromise } from '../../model/domain';
 import { ambitionName } from './ambitionText';
@@ -33,12 +32,8 @@ export function useHonoursAction() {
   return { run, error, block };
 }
 
-/** Reduced motion from the system setting or the in-game switch. */
-export function useReducedMotionSetting(): boolean {
-  const system = useReducedMotion();
-  const setting = useAppStore((s) => s.settings.reducedMotion);
-  return Boolean(system) || setting;
-}
+// Shared with the public Moment viewer, which must not load the career screens' code.
+export { useReducedMotionSetting } from '../../ui/reducedMotion';
 
 /** Turns a button's trailing chevron down, and up while `aria-expanded` is true. */
 export const EXPAND_CHEVRON =

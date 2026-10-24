@@ -91,6 +91,23 @@ export function seasonContributions(world: World): Map<string, number> {
   return points;
 }
 
+/** One player's club contribution this season so far: `seasonContributions` for them alone. */
+export function seasonContributionOf(world: World, playerId: string): number {
+  const player = world.players[playerId];
+  if (!player || !hasSeasonStatistics(world)) return 0;
+  let points = 0;
+  for (const [competitionId, clubs] of Object.entries(world.seasonStats!.competitions))
+    for (const [clubId, players] of Object.entries(clubs)) {
+      const line = players[playerId];
+      if (!line?.[0]) continue;
+      const [appearances, , goals, assists, cleanSheets] = line;
+      points +=
+        competitionWeight(world, competitionId, clubId) *
+        contribution(player.primaryPosition, { appearances, goals, assists, cleanSheets });
+    }
+  return points;
+}
+
 /** The season's end, once its tables are archived: club contributions join the record. */
 export function accrueSeason(world: World): void {
   if (!usesAchievements(world)) return;
@@ -157,9 +174,15 @@ export function creditCaps(world: World, playerIds: readonly string[], caps = 1)
 export function achievementScore(
   world: World,
   player: Pick<Player, 'id' | 'hallOfFame'>,
-  season: Map<string, number> = world.phase === 'active' ? seasonContributions(world) : new Map(),
+  /** Everyone's contributions, when scoring many players; one player's are found directly. */
+  season?: Map<string, number>,
 ): number {
-  return Math.round((player.hallOfFame ?? 0) + (season.get(player.id) ?? 0));
+  const current = season
+    ? (season.get(player.id) ?? 0)
+    : world.phase === 'active'
+      ? seasonContributionOf(world, player.id)
+      : 0;
+  return Math.round((player.hallOfFame ?? 0) + current);
 }
 
 /**

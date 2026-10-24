@@ -11,6 +11,7 @@ import type {
   Position,
   Tournament,
   TournamentFixture,
+  WindowFixture,
   World,
 } from '../../../model/domain';
 import { CONFIG } from '../../config';
@@ -428,6 +429,90 @@ export function internationalWindow(world: World): void {
   const qualifiers = windowQualifiers(world);
   careerWindow(world, qualifiers);
   if (qualifiers.length) playQualifiers(world, qualifiers);
+  // The window the player planned to play has been played or simulated.
+  state.window = null;
+}
+
+/**
+ * The week before a window (version 0.9.0): when the player plays their own window matches and
+ * starts for their senior side, the window's matches are set out to wait for them. Qualifiers
+ * keep their qualifying fixtures' ids; friendlies are drawn here.
+ */
+export function openWindow(world: World): void {
+  const career = world.career;
+  const state = world.international;
+  if (!career?.honours.playInternationals || !state || world.phase !== 'active') return;
+  const week = world.date.week + 1;
+  if (!windowWeeks(world).includes(week)) return;
+  const id = `window:${world.date.season}:${week}`;
+  if (state.window?.id === id) return;
+  const player = world.players[career.playerId]!;
+  const nation = state.nations.find((entry) => entry.countryId === player.nationalityId);
+  const call = careerCallUp(world);
+  if (!nation || call?.level !== 'senior' || !call.starts) return;
+  const qualifiers = windowQualifiers(world, week).filter(
+    (fixture) => fixture.homeId === nation.id || fixture.awayId === nation.id,
+  );
+  const rng = createRng(`${world.seed}:${id}`);
+  const opponents = state.nations.filter((entry) => entry.id !== nation.id);
+  const fixtures: WindowFixture[] = qualifiers.length
+    ? qualifiers.map((fixture) => ({
+        id: fixture.id,
+        kind: 'qualifier',
+        homeId: fixture.homeId,
+        awayId: fixture.awayId,
+        matchId: null,
+        score: null,
+      }))
+    : Array.from({ length: I.matchesPerWindow }, (_, index) => {
+        const opponent = rng.pick(opponents);
+        const home = index % 2 === 0;
+        return {
+          id: `${id}:${index}`,
+          kind: world.date.season % 2 ? 'qualifier' : 'friendly',
+          homeId: home ? nation.id : opponent.id,
+          awayId: home ? opponent.id : nation.id,
+          matchId: null,
+          score: null,
+        };
+      });
+  state.window = {
+    id,
+    season: world.date.season,
+    week,
+    nationId: nation.id,
+    fixtures,
+    simulate: false,
+  };
+}
+
+/** The career player's window match waiting this week, while they are fit to play it. */
+export function pendingWindowFixture(world: World): WindowFixture | null {
+  const window = world.international?.window;
+  const career = world.career;
+  if (!window || !career || window.simulate || world.phase !== 'active') return null;
+  if (window.season !== world.date.season || window.week !== world.date.week) return null;
+  if (career.injury) return null;
+  return window.fixtures.find((fixture) => !fixture.matchId) ?? null;
+}
+
+/**
+ * Store a window match the career player played: the fixture's result (a qualifier's in the
+ * campaign too), and their cap, goals, fame and the match's XP. Throws if already played.
+ */
+export function recordWindowMatch(
+  world: World,
+  fixture: WindowFixture,
+  match: InternationalMatch,
+  xp: number,
+): void {
+  if (fixture.matchId) throw new Error('This match has already been played');
+  const state = world.international!;
+  fixture.matchId = match.id;
+  fixture.score = [match.score[0], match.score[1]];
+  const qualifier = state.qualifying?.fixtures.find((entry) => entry.id === fixture.id);
+  if (qualifier && !qualifier.score) qualifier.score = [match.score[0], match.score[1]];
+  credit(world, match, nationOf(world, state.window!.nationId).name, xp);
 }
 
 /** The career player's window: squads named, their call-up and their matches. */
@@ -487,7 +572,41 @@ function careerWindow(world: World, qualifiers: readonly QualifyingFixture[]): v
     if (match.career) played = true;
     credit(world, match, nation.name);
   }
-  for (let index = 0; index < (own.length ? 0 : I.matchesPerWindow); index++) {
+  // A window the player set out to play (version 0.9.0): its matches they played are counted
+  // already; the rest are simulated here, a qualifier among the qualifiers above.
+  const planned =
+    state.window?.season === world.date.season && state.window.week === world.date.week
+      ? state.window
+      : null;
+  if (planned) {
+    if (planned.fixtures.some((fixture) => fixture.matchId)) played = true;
+    for (const fixture of planned.fixtures) {
+      if (fixture.matchId || qualifiers.some((entry) => entry.id === fixture.id)) continue;
+      const side = (id: string): Side => {
+        const entry = nationOf(world, id);
+        return {
+          nation: entry,
+          rating: nationRating(world, entry, call.level, squads) + (id === fixture.homeId ? 1 : 0),
+        };
+      };
+      const match = playMatch(
+        world,
+        createRng(`${world.seed}:${fixture.id}`),
+        side(fixture.homeId),
+        side(fixture.awayId),
+        call.level,
+        fixture.kind,
+        null,
+        fixture.homeId === nation.id ? 0 : 1,
+        call.starts,
+      );
+      fixture.matchId = match.id;
+      fixture.score = [match.score[0], match.score[1]];
+      if (match.career) played = true;
+      credit(world, match, nation.name);
+    }
+  }
+  for (let index = 0; index < (own.length || planned ? 0 : I.matchesPerWindow); index++) {
     const opponent = rng.pick(opponents);
     const home = index % 2 === 0;
     const own: Side = {
@@ -602,10 +721,10 @@ export function openQualifying(world: World): Qualifying | null {
 }
 
 /** This window's qualifiers, still to play: two matchdays a window. */
-function windowQualifiers(world: World): QualifyingFixture[] {
+function windowQualifiers(world: World, week = world.date.week): QualifyingFixture[] {
   const qualifying = world.international?.qualifying;
   if (!qualifying || qualifying.qualified || qualifying.year !== world.date.season + 1) return [];
-  const window = windowWeeks(world).indexOf(world.date.week);
+  const window = windowWeeks(world).indexOf(week);
   if (window < 0) return [];
   const days = new Set([window * 2 + 1, window * 2 + 2]);
   return qualifying.fixtures.filter((fixture) => days.has(fixture.matchday) && !fixture.score);
@@ -788,6 +907,7 @@ export function openTournament(world: World, year = world.date.season + 1): Live
     careerNationId: careerNation?.id ?? null,
     inSquad: Boolean(careerNation && call?.level === 'senior'),
     starts: Boolean(careerNation && call?.level === 'senior' && call.starts),
+    styled: true,
   };
   state.live = live;
   return live;

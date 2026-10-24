@@ -9,7 +9,7 @@ import { backfillSquadNumbers } from '../engine/world/squadNumbers';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
 import { validateWorld } from './worldSchema';
 import { validateMatchSession } from '../engine/match';
-import { tournamentMatchSetup } from '../engine/career/honours/nationalMatch';
+import { tournamentMatchSetup, windowMatchSetup } from '../engine/career/honours/nationalMatch';
 import { SaveError } from './errors';
 import { DEFAULT_SETTINGS, validateSettings } from './settings';
 
@@ -288,6 +288,17 @@ export function matchSessionFor(world: World, value: unknown): MatchSession | nu
     if (tournament) {
       if (setup.season !== world.date.season) return null;
       const expected = tournamentMatchSetup(world, tournament);
+      for (const key of ['home', 'away', 'players', 'selectedPlayerId', 'fixture'] as const)
+        if (JSON.stringify(setup[key]) !== JSON.stringify(expected[key])) return null;
+      return session;
+    }
+    // So must a window match (0.9.0).
+    const window = world.international?.window?.fixtures.find(
+      (fixture) => fixture.id === setup.fixture?.id,
+    );
+    if (window) {
+      if (setup.season !== world.date.season) return null;
+      const expected = windowMatchSetup(world, window);
       for (const key of ['home', 'away', 'players', 'selectedPlayerId', 'fixture'] as const)
         if (JSON.stringify(setup[key]) !== JSON.stringify(expected[key])) return null;
       return session;

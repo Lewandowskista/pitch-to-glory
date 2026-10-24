@@ -36,6 +36,38 @@ describe('bounded worker transport', () => {
     for (const packet of packets as { patches?: unknown[] }[])
       expect(packet.patches?.length ?? 0).toBeLessThanOrEqual(32);
   });
+  it('splits wide records inside the world, so no message carries one whole', async () => {
+    const many = (count: number) =>
+      Object.fromEntries(
+        Array.from({ length: count }, (_, index) => [`player:${index}`, { id: index, goals: 2 }]),
+      );
+    const world = {
+      seed: 'wide',
+      clubs: {},
+      leagues: {},
+      players: {},
+      archive: { players: many(500) },
+      seasonStats: { competitions: { league: many(300) }, version: 1 },
+    };
+    let result: unknown;
+    const largest: number[] = [];
+    const receive = createChunkReceiver((message) => {
+      result = message;
+    });
+    await sendChunked(
+      {
+        postMessage: (data) => {
+          for (const [, value] of (data as { patches?: [string[], unknown][] }).patches ?? [])
+            largest.push(JSON.stringify(value)?.length ?? 0);
+          receive({ data: structuredClone(data) });
+        },
+      },
+      { world },
+    );
+    expect(result).toEqual({ world });
+    // One archived player at most, never the archive.
+    expect(Math.max(...largest)).toBeLessThan(100);
+  });
   it('cancels a pending transfer without emitting a partial application message', async () => {
     let cancelled = false;
     const received: unknown[] = [];

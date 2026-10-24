@@ -8,6 +8,7 @@ import {
   createInternational,
   internationalWindow,
   openQualifying,
+  openWindow,
   openTournament,
   playTournament,
   tournamentYear,
@@ -100,6 +101,8 @@ export function honoursWeek(world: World): void {
     Math.round(playerAbility(world.players[career.playerId]!)),
   );
   internationalWindow(world);
+  // Next week's window, when the player plays its matches themselves.
+  openWindow(world);
   monthlyAward(world);
   ambitionsCheck(world, { hallOfFame: true });
 }

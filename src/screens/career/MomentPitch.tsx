@@ -5,7 +5,7 @@ import type { Hex, Point } from '../../model/domain';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
 import { cx } from '../../ui/kit';
-import { useReducedMotionSetting } from './honoursUi';
+import { useReducedMotionSetting } from '../../ui/reducedMotion';
 import type { Playback } from '../match/playback';
 import { kitNumberColor } from '../match/pitchArt';
 import {

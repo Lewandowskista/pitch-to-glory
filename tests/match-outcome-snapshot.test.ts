@@ -14,6 +14,7 @@ import {
   ROLE_MATCH_ENGINE,
   EXTRA_TIME_MATCH_ENGINE,
   IDENTITY_MATCH_ENGINE,
+  DEFENDING_MATCH_ENGINE,
   type MatchCommand,
   type MatchSession,
   type MatchSetup,
@@ -85,11 +86,27 @@ const MATCH_15: Record<string, { hash: string; goals: number; moments: number }>
 };
 /** The current engine (match-16, full discipline). */
 /**
- * The current engine (match-20): a back-line player's moments carry more of the opposition's
+ * The current engine (match-21): a defensive midfielder's moments carry more of the
+ * opposition's goals, and a keeper's saves lean harder on their attributes. Only the keeper,
+ * defensive midfield and central midfield samples move (one of the latter plays a holding
+ * slot); goals by at most two.
+ */
+const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
+  GK: { hash: '86a1115a4f445529158972e5', goals: 62, moments: 214 },
+  CB: { hash: '95e398e5e8bdc8062e7f8ea5', goals: 65, moments: 230 },
+  LB: { hash: '70ba050c8d69d03fe77774b0', goals: 52, moments: 233 },
+  DM: { hash: 'e4bfc9f7e709fed2d794b3f5', goals: 62, moments: 207 },
+  CM: { hash: 'd77ecbc7245b939c94e97494', goals: 71, moments: 242 },
+  AM: { hash: '94769e3efa7d09a4fab1ebcd', goals: 73, moments: 267 },
+  RW: { hash: 'b3f9fd37bef20fecfc5b12cd', goals: 53, moments: 291 },
+  ST: { hash: 'c166b294fa9869c29b4095e4', goals: 71, moments: 301 },
+};
+/**
+ * The match-20 path (before screening): a back-line player's moments carry more of the opposition's
  * goals, and attributes move defending odds further. Goals moved by at most four in a position
  * (CB 61 → 65); the winger and striker samples are unchanged.
  */
-const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
+const MATCH_20: Record<string, { hash: string; goals: number; moments: number }> = {
   GK: { hash: '237274ae2fc8025675221dee', goals: 63, moments: 214 },
   CB: { hash: '95e398e5e8bdc8062e7f8ea5', goals: 65, moments: 230 },
   LB: { hash: '70ba050c8d69d03fe77774b0', goals: 52, moments: 233 },
@@ -171,7 +188,7 @@ const STAT_KEYS = [
   'fatigue',
 ] as const;
 
-type Path = 'current' | 'match-19' | 'match-18' | 'match-17' | 'match-16' | 'match-15';
+type Path = 'current' | 'match-20' | 'match-19' | 'match-18' | 'match-17' | 'match-16' | 'match-15';
 function setupFor(position: Position, index: number, path: Path = 'current'): MatchSetup {
   const pair = index % 4 < 2 ? [clubs[0]!, clubs[1]!] : [clubs[2]!, clubs[3]!];
   const [home, away] = index % 2 ? [pair[1]!, pair[0]!] : [pair[0]!, pair[1]!];
@@ -217,10 +234,11 @@ function setupFor(position: Position, index: number, path: Path = 'current'): Ma
   // rest without either, the match-16 run without the effective role.
   if (path === 'match-15' || variant < 2) delete setup.discipline;
   const from = (paths: Path[]) => paths.includes(path) && variant >= 2;
-  if (!from(['current', 'match-19', 'match-18', 'match-17'])) delete setup.roleSlot;
-  if (!from(['current', 'match-19', 'match-18'])) delete setup.extraTimePlay;
-  if (!from(['current', 'match-19'])) delete setup.identity;
-  if (!from(['current'])) delete setup.defending;
+  if (!from(['current', 'match-20', 'match-19', 'match-18', 'match-17'])) delete setup.roleSlot;
+  if (!from(['current', 'match-20', 'match-19', 'match-18'])) delete setup.extraTimePlay;
+  if (!from(['current', 'match-20', 'match-19'])) delete setup.identity;
+  if (!from(['current', 'match-20'])) delete setup.defending;
+  if (!from(['current'])) delete setup.screening;
   return setup;
 }
 /** Tactics for the job the setup gives the player: the starting slot from match-17. */
@@ -337,7 +355,9 @@ function snapshot(path: Path) {
                 ? EXTRA_TIME_MATCH_ENGINE
                 : path === 'match-19'
                   ? IDENTITY_MATCH_ENGINE
-                  : MATCH_ENGINE_VERSION;
+                  : path === 'match-20'
+                    ? DEFENDING_MATCH_ENGINE
+                    : MATCH_ENGINE_VERSION;
       hash.update(JSON.stringify(outcomes(session, current)));
       goals += session.state.match.score[0] + session.state.match.score[1];
       moments += session.state.match.keyMoments.length;
@@ -351,6 +371,9 @@ function snapshot(path: Path) {
 describe('match outcome snapshot', { timeout: 300000 }, () => {
   it('keeps every outcome byte-identical per seed', () => {
     expect(snapshot('current')).toEqual(EXPECTED);
+  });
+  it('keeps the match-20 path (before screening) byte-identical', () => {
+    expect(snapshot('match-20')).toEqual(MATCH_20);
   });
   it('keeps the match-19 path (before decisive defending) byte-identical', () => {
     expect(snapshot('match-19')).toEqual(MATCH_19);

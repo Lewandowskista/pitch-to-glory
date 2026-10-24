@@ -26,6 +26,25 @@ export type ReleaseSection = (typeof RELEASE_SECTIONS)[number];
 
 export const PATCH_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '0.9.0',
+    date: '2026-10-25',
+    title: 'Pull on the shirt',
+    summary:
+      'Play your country’s qualifiers and friendlies yourself, keep your best international goals, and find a defensive midfielder’s and a keeper’s choices counting for more.',
+    new: [
+      'Play your international matches yourself: turn it on from the National team page, and when you start for the senior side its qualifiers and friendlies wait for you on matchday. Play them, or have the rest of the window simulated with you in it.',
+      'National sides now have their own playing styles, as clubs do, so each opponent asks something different of you.',
+      'Goals, saves and assists in your international matches are saved as Moments, and the Chronicle links to them.',
+    ],
+    improved: [
+      'As a defensive midfielder, more of the opposition’s chances now come down to your key moments, so screening well keeps more goals out.',
+      'As a keeper, your shot-stopping attributes count for more in your saves, so a strong keeper makes the difference more often.',
+      'Your career hub, Matchday and late-career saves load noticeably faster, especially on phones.',
+      'When a tournament is under way, the World screen offers to play it first and asks before simulating it.',
+      'Matches already in progress when you update finish under the rules they started with.',
+    ],
+  },
+  {
     version: '0.8.0',
     date: '2026-10-24',
     title: 'Defending that decides',

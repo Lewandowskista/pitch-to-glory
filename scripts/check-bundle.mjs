@@ -28,6 +28,7 @@ for (const route of [
   'World',
   'EditMode',
   'Match',
+  'MatchBody',
   'career/CareerNew',
   'career/CareerHub',
   'career/CareerProfile',

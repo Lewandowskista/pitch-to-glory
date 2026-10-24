@@ -4,7 +4,7 @@ import { startNextSeason } from '../engine/world/simulate';
 import { advanceCareerWeek } from '../engine/career/season';
 import { commitCareerMatch } from '../engine/career/matches';
 import { advanceTournament } from '../engine/career/honours/international';
-import { commitTournamentMatch } from '../engine/career/honours/nationalMatch';
+import { commitTournamentMatch, commitWindowMatch } from '../engine/career/honours/nationalMatch';
 import { createCareer } from '../engine/career/create';
 import { runWorldJob } from './run';
 import type { WorkerRequest } from './protocol';
@@ -56,15 +56,20 @@ scope.onmessage = createChunkReceiver<WorkerRequest>((data) => {
       // The worker owns its copy, and each checkpoint is fully posted before the next week.
       week: (world, autoPlay) => advanceCareerWeek(world, { inPlace: true, autoPlay }),
       nextSeason: (world) => startNextSeason(world, { inPlace: true }),
-      // A tournament match (review phase 3) is recorded in the international state.
-      commit: (world, session) => ({
-        world,
-        outcome: world.international?.live?.fixtures.some(
-          (fixture) => fixture.id === session.setup.fixture?.id,
-        )
-          ? commitTournamentMatch(world, session)
-          : commitCareerMatch(world, session),
-      }),
+      // A tournament or window match (review phase 3; 0.9.0) is recorded in the international
+      // state.
+      commit: (world, session) => {
+        const id = session.setup.fixture?.id;
+        const international = world.international;
+        return {
+          world,
+          outcome: international?.live?.fixtures.some((fixture) => fixture.id === id)
+            ? commitTournamentMatch(world, session)
+            : international?.window?.fixtures.some((fixture) => fixture.id === id)
+              ? commitWindowMatch(world, session)
+              : commitCareerMatch(world, session),
+        };
+      },
       tournament: (world, simulateCareer) => ({
         world,
         pendingFixtureId: advanceTournament(world, { simulateCareer }).pending?.id ?? null,

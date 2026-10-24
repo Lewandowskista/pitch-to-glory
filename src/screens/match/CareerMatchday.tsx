@@ -1,18 +1,23 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { Icon } from '../../ui/Icon';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import { StakeLine } from '../career/stakesUi';
 import type { CareerMatchOutcome } from '../../engine/career/matches';
-import type { Fixture, TournamentFixture, World } from '../../model/domain';
-import { nationOf, tournamentStep } from '../../engine/career/honours/international';
+import type { Fixture, TournamentFixture, WindowFixture, World } from '../../model/domain';
+import {
+  nationOf,
+  pendingWindowFixture,
+  tournamentStep,
+} from '../../engine/career/honours/international';
 import { NationFlag, tournamentHeading } from '../career/TournamentHub';
 import { calendarDate } from '../../engine/world/calendar';
 import { formatGameDate } from '../../i18n/calendar';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { CrestImage, JobProgress, PlayerPortrait } from '../career/shared';
-import { competitionName, leaguePosition, recentForm } from '../career/selectors';
+import { competitionName, leaguePosition, recentForm, windowTitle } from '../career/selectors';
 import { matchFormat, matchText as m } from '../../i18n/match';
 import { continueToMatchday, continueTournament } from '../career/actions';
 import { cx } from '../../ui/kit';
@@ -228,13 +233,96 @@ export function TournamentMatch({
 }) {
   const live = world.international!.live!;
   const heading = tournamentHeading(live);
+  return (
+    <NationFixture
+      world={world}
+      fixture={fixture}
+      nationId={live.careerNationId}
+      title={heading.title}
+      badge={heading.round}
+      venue={c.common.neutral}
+      testId="tournament-fixture"
+      disabled={disabled}
+      onPrepare={onPrepare}
+    />
+  );
+}
+
+/**
+ * The career player's window match (version 0.9.0): a qualifier or friendly for their nation,
+ * with the way to have the rest of the window simulated.
+ */
+export function WindowMatch({
+  world,
+  fixture,
+  disabled,
+  onPrepare,
+  onSimulate,
+}: {
+  world: World;
+  fixture: WindowFixture;
+  disabled: boolean;
+  onPrepare: () => void;
+  onSimulate: () => void;
+}) {
+  const window = world.international!.window!;
+  const index = window.fixtures.indexOf(fixture);
+  return (
+    <NationFixture
+      world={world}
+      fixture={fixture}
+      nationId={window.nationId}
+      title={windowTitle(world, fixture)}
+      badge={format(c.hub.window.match, { index: index + 1, count: window.fixtures.length })}
+      venue={fixture.homeId === window.nationId ? c.hub.window.home : c.hub.window.away}
+      testId="window-fixture"
+      disabled={disabled}
+      onPrepare={onPrepare}
+      secondary={
+        <button
+          type="button"
+          className="button match-night-button"
+          disabled={disabled}
+          onClick={onSimulate}
+        >
+          {c.hub.window.simulate}
+        </button>
+      }
+    />
+  );
+}
+
+/** A nation's match before the pre-match briefing: the two nations and the gold action. */
+function NationFixture({
+  world,
+  fixture,
+  nationId,
+  title,
+  badge,
+  venue,
+  testId,
+  disabled,
+  onPrepare,
+  secondary,
+}: {
+  world: World;
+  fixture: { homeId: string; awayId: string };
+  nationId: string | null;
+  title: string;
+  badge: string;
+  venue: string;
+  testId: string;
+  disabled: boolean;
+  onPrepare: () => void;
+  secondary?: ReactNode;
+}) {
   const side = (id: string) => {
     const nation = nationOf(world, id);
     return (
       <div className="match-fixture-side">
         <NationFlag nation={nation} className="h-12 w-[4.5rem] sm:h-16 sm:w-24" />
         <div>
-          {id === live.careerNationId && (
+          {id === nationId && (
             <span className="match-hero-eyebrow">{c.hub.tournament.yourNation}</span>
           )}
           <span className="match-fixture-name">{nation.name}</span>
@@ -245,17 +333,15 @@ export function TournamentMatch({
   return (
     <div className="match-fixture-layout">
       <section
-        aria-labelledby="tournament-fixture-heading"
+        aria-labelledby="nation-fixture-heading"
         className="match-fixture-hero"
-        data-testid="tournament-fixture"
+        data-testid={testId}
       >
         <div className="relative flex flex-wrap items-center justify-center gap-2.5">
-          <h2 id="tournament-fixture-heading" className="match-hero-eyebrow">
-            {heading.title}
+          <h2 id="nation-fixture-heading" className="match-hero-eyebrow">
+            {title}
           </h2>
-          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
-            {heading.round}
-          </span>
+          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">{badge}</span>
         </div>
         <div className="match-fixture-teams">
           {side(fixture.homeId)}
@@ -265,8 +351,8 @@ export function TournamentMatch({
           <span className="sr-only">{c.common.vs}</span>
           {side(fixture.awayId)}
         </div>
-        <p className="relative text-center text-sm font-bold">{c.common.neutral}</p>
-        <div className="relative flex justify-center">
+        <p className="relative text-center text-sm font-bold">{venue}</p>
+        <div className="relative flex flex-wrap justify-center gap-3">
           <button
             type="button"
             className="button play button-lg match-fixture-cta"
@@ -276,6 +362,7 @@ export function TournamentMatch({
             {c.report.prepare}
             <Icon name="arrow" />
           </button>
+          {secondary}
         </div>
       </section>
       <aside className="match-panel match-steps" aria-labelledby="matchday-steps">
@@ -403,7 +490,8 @@ export function CareerReportActions({
   outcome: CareerMatchOutcome;
 }) {
   const job = useAppStore((s) => s.worldJob);
-  const pending = pendingCareerFixture(world);
+  // The next club fixture, or the window's next match (0.9.0).
+  const pending = pendingCareerFixture(world) ?? pendingWindowFixture(world);
   const gained = outcome.levelsGained > 0 || world.career!.attributePoints > 0;
   return (
     <>

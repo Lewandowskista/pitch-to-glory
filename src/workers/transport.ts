@@ -18,9 +18,35 @@ const isWorld = (value: Record<string, unknown>) =>
   isObject(value.players) &&
   isObject(value.clubs) &&
   isObject(value.leagues);
+/** Whether a record has more than `limit` keys, counted no further than that. */
+function wide(value: unknown, limit: number): boolean {
+  if (!isObject(value)) return false;
+  let count = 0;
+  for (const key in value) if (Object.hasOwn(value, key) && ++count > limit) return true;
+  return false;
+}
+/**
+ * Whether a value is too big to travel as one entry: a wide record (archived players, season
+ * statistics, discipline records: megabytes in a late career), or a small record holding one
+ * (an archived season and its tables).
+ */
+function heavy(value: unknown): value is Record<string, unknown> {
+  const limit = CONFIG.workers.transportWideKeys;
+  if (!isObject(value)) return false;
+  if (wide(value, limit)) return true;
+  // A narrow record: worth looking inside only when it has few keys, like an archived season.
+  if (wide(value, CONFIG.workers.transportNarrowKeys)) return false;
+  for (const key in value) if (Object.hasOwn(value, key) && wide(value[key], limit)) return true;
+  return false;
+}
+/** A record key by key, splitting again any value too big to send whole (see `heavy`). */
 function* record(value: Record<string, unknown>, path: Path): Generator<Patch> {
   yield [path, {}];
-  for (const key of Object.keys(value)) yield [[...path, key], value[key]];
+  for (const key of Object.keys(value)) yield* entry(value[key], [...path, key]);
+}
+function* entry(value: unknown, path: Path): Generator<Patch> {
+  if (heavy(value)) yield* record(value, path);
+  else yield [path, value];
 }
 function* patches(value: unknown, path: Path = []): Generator<Patch> {
   if (Array.isArray(value)) {
@@ -44,7 +70,7 @@ function* patches(value: unknown, path: Path = []): Generator<Patch> {
         else if (Array.isArray(item)) {
           yield [location, []];
           for (let index = 0; index < item.length; index++)
-            yield [[...location, String(index)], item[index]];
+            yield* entry(item[index], [...location, String(index)]);
         } else yield [location, item];
       }
     } else {

@@ -230,6 +230,24 @@ export const careerText = {
     seasonComplete: 'Season complete',
     seasonCompleteBody: 'The tables are final. Start the next season when you are ready.',
     nextSeason: 'Start next season',
+    window: {
+      friendly: 'International friendly',
+      qualifier: 'International qualifier',
+      qualifierFor: '{name} qualifier',
+      match: 'Match {index} of {count}',
+      home: 'At home',
+      away: 'Away',
+      eyebrow: 'International duty',
+      body: 'You start for {nation} in this window. Play the match yourself, or have the window simulated with you in it.',
+      play: 'Play for your country',
+      simulate: 'Simulate the window',
+      option: 'Play my international matches',
+      optionBody:
+        'When you start for the senior side, its qualifiers and friendlies wait for you on matchday instead of being simulated. Tournament matches always wait for you.',
+      optionOn: 'You play your nation’s window matches yourself.',
+      optionOff: 'Your nation’s window matches are simulated with you in them.',
+      waiting: 'Your nation’s match is waiting.',
+    },
     tournament: {
       title: '{name} {year}',
       rounds: {

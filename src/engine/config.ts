@@ -68,6 +68,14 @@ export const CONFIG = {
       share: { GK: 1.3, CB: 1.5, LB: 1.5, RB: 1.5, DM: 1.5 } as Partial<Record<string, number>>,
       maximum: 0.6,
       attributeSlope: 1.5,
+      /**
+       * Screening (match-21), replacing the values above where given: a defensive
+       * midfielder's defence share × 2.1, and a keeper's saves an attribute slope × 2.25.
+       */
+      screening: {
+        share: { DM: 2.1 } as Partial<Record<string, number>>,
+        attributeSlope: { GK: 2.25 } as Partial<Record<string, number>>,
+      },
     },
     /**
      * A week with an opponent session in the training plan (match-19): the share of the
@@ -1096,6 +1104,8 @@ export const CONFIG = {
         tournamentLimit: 30,
         /** Tournaments played round by round (review phase 3): fixture importance by stage. */
         tournament: { importance: { group: 1.15, knockout: 1.3, final: 1.5 } },
+        /** Window matches the player plays (version 0.9.0): fixture importance by kind. */
+        window: { importance: { qualifier: 1.1, friendly: 1 } },
         /**
          * Qualification (review phase 3, step 3.3): six groups of four, home and away; the
          * winners, runners-up and best thirds go through. The home side plays a point above
@@ -1227,7 +1237,12 @@ export const CONFIG = {
     },
   },
   gallery: { clubs: 15, players: 12, ages: [17, 28, 42] as const },
-  workers: { transportBatchEntries: 32, transportYieldMs: 8 },
+  workers: {
+    transportBatchEntries: 32,
+    transportYieldMs: 8,
+    transportWideKeys: 64,
+    transportNarrowKeys: 16,
+  },
   /** Team selection (Phase 5.1): one formation-aware eleven for every match. */
   selection: {
     /** Worlds at this version pick formation-aware elevens; older worlds adopt it next season. */

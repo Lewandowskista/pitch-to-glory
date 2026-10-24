@@ -196,3 +196,27 @@ Every tolerance holds. One target is missed: a late-career save takes 3.8 s to r
 **6.4 Docs.** A current-state box tops [HANDOFF.md](HANDOFF.md), [ARCHITECTURE.md](ARCHITECTURE.md) and [REALISM.md](REALISM.md); the milestone notes are marked as history; the findings table in the plan has a status and evidence for each.
 
 **6.5 and 6.6** need people: [DEVICE-ACCEPTANCE.md](DEVICE-ACCEPTANCE.md) gained latency, frame-timing and new-feature checks (still skipped by the decision of 8 October), and [PLAYTEST.md](PLAYTEST.md) sets out the recall protocol.
+
+## After phase 6 — release 0.9.0 (25 October 2026)
+
+Everything left after phase 6 except the checks that need people (real devices, playtests).
+
+**Load times.** The career hub and Matchday load their bodies (`HubBody.tsx`, `MatchBody.tsx`) only when there is a career or a save to show; the public Moment viewer no longer loads career-screen code. On the late-career hub, the Hall of Fame standing is one pass over everyone's scores instead of a sorted table, scored once per set of records rather than once per world object; both sides' recent form and the club's season fixtures are read in one pass. The worker transport splits wide records inside a world (archived players were one 8.5 MB message), so the save arrives in small tasks.
+
+Lighthouse (M1 Pro, slow-4G mobile preset; desktop preset for the desktop row):
+
+| Page              | 0.8.0 (24 Oct) | 0.9.0          |
+| ----------------- | -------------- | -------------- |
+| Matchday (mobile) | 80, TTI 4.7 s  | 95, TTI 2.9 s  |
+| Career (mobile)   | 80, TTI 4.8 s  | 91, TTI 3.4 s  |
+| Moment (mobile)   | 86, TTI 3.8 s  | 93, TTI 3.1 s  |
+| Late hub (mobile) | 83, TBT 670 ms | 100, TBT 40 ms |
+| Every other page  | 87–100         | 86–100         |
+
+Every page passes (mobile > 85, desktop > 90, accessibility 100). Performance journeys (`npm run test:performance`): every tolerance holds; the late-career save reaches the hub in 3.3 s on the emulated phone (3.8 s before), still above the 3 s target, its long tasks down from 20 (longest 458 ms) to 5 (longest 295 ms). What remains is the save itself: 75 MB to read and hand over.
+
+**Defending (match-21).** A defensive midfielder's defence share × 2.1 and a keeper's open-play saves at attribute slope × 2.25 (BALANCING.md, "Screening and saves"). At 600 matches a position, worst policy less best, goals conceded a match: keeper 0.08 and 0.14, centre-back 0.15 and 0.14, defensive midfielder 0.07 and 0.10 on the two seeds (standard error about 0.035). Every match gate passes on both seeds.
+
+**International windows.** An option on the National team page: a senior starter plays their nation's qualifiers and friendlies on matchday, or has the rest of the window simulated (BALANCING.md, "International windows the player plays"). Off by default; with it off, windows are simulated exactly as before.
+
+**Smaller items.** National sides play their own styles (in windows, and in tournaments opened from 0.9.0). Goals, saves and assists in international matches are saved as Moments, linked from the Chronicle. The World screen offers a tournament first and asks before simulating it.

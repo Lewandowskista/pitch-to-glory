@@ -8,8 +8,12 @@ import type {
   Player,
   Position,
   TrainingPlan,
+  WindowFixture,
   World,
 } from '../../model/domain';
+import { tournamentName as honoursTournamentName } from '../../engine/career/honours/international';
+import { format } from '../../i18n';
+import { careerText as c } from '../../i18n/career';
 import {
   ATTRIBUTE_KEYS,
   KEEPER_KEYS,
@@ -139,6 +143,19 @@ const tournamentName = (world: World, id: string): string | undefined => {
   const tournament = world.international?.tournaments.find((entry) => entry.id === id);
   return tournament ? `${tournament.name} ${tournament.year}` : undefined;
 };
+/** A window match's name (0.9.0): "Continental Cup 2028 qualifier", or a friendly. */
+export function windowTitle(world: World, fixture: WindowFixture): string {
+  if (fixture.kind === 'friendly') return c.hub.window.friendly;
+  const qualifying = world.international?.qualifying;
+  return qualifying?.fixtures.some((entry) => entry.id === fixture.id)
+    ? format(c.hub.window.qualifierFor, {
+        name: format(c.hub.tournament.title, {
+          name: honoursTournamentName(world, qualifying.kind),
+          year: qualifying.year,
+        }),
+      })
+    : c.hub.window.qualifier;
+}
 export function competitionName(world: World, competitionId: string): string {
   return (
     world.leagues[competitionId]?.name ??
@@ -150,6 +167,10 @@ export function competitionName(world: World, competitionId: string): string {
       ? `${world.international.live.name} ${world.international.live.year}`
       : undefined) ??
     tournamentName(world, competitionId) ??
+    // A window the player is playing (0.9.0): its matches share one name.
+    (world.international?.window?.id === competitionId
+      ? windowTitle(world, world.international.window.fixtures[0]!)
+      : undefined) ??
     competitionId
   );
 }

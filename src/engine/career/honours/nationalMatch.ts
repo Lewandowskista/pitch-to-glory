@@ -7,6 +7,7 @@ import type {
   Player,
   Position,
   TournamentFixture,
+  WindowFixture,
   World,
 } from '../../../model/domain';
 import { CONFIG } from '../../config';
@@ -14,17 +15,22 @@ import { createRng } from '../../rng';
 import { generateCrest } from '../../assets/crest';
 import { generateKits } from '../../assets/kit';
 import { generatePlayer } from '../../world/generate';
+import { STYLES } from '../../world/catalog';
 import { FORMATIONS, type Formation } from '../../selection/formations';
 import type { MatchSession, MatchSetup } from '../../match/types';
 import { validateMatchSession } from '../../match';
 import { performanceXp } from '../../match/rewards';
 import { matchDecisions, recordDecisions } from '../coaching';
 import { assetEffects } from '../lifestyle/catalogue';
+import { chronicle } from './chronicle';
+import { captureMoments } from './moments';
 import type { CareerMatchOutcome } from '../matches';
 import {
   nationOf,
   pendingTournamentFixture,
+  pendingWindowFixture,
   recordTournamentMatch,
+  recordWindowMatch,
   selectSquad,
   tournamentStakes,
 } from './international';
@@ -61,7 +67,17 @@ const G = CONFIG.world.generation;
 const third = (colors: [Hex, Hex]): Hex =>
   colors.some((color) => color.toLowerCase() === '#ffffff') ? '#16181d' : '#ffffff';
 
-/** A nation as a club for the match engine: its colours, a plain kit and its rating. */
+/**
+ * A nation's way of playing, drawn once per nation and seed. Tournaments opened before nations
+ * had styles keep them all balanced, so a match saved part-way through keeps its sides; window
+ * matches came with styles.
+ */
+export const nationStyle = (world: World, nation: Nation): Club['playingStyle'] =>
+  world.international?.live?.styled || world.international?.window
+    ? createRng(`${world.seed}:${nation.id}:style`).pick(STYLES)
+    : 'balanced';
+
+/** A nation as a club for the match engine: its colours, a plain kit, its style and rating. */
 export function nationClub(world: World, nation: Nation, playerIds: string[]): Club {
   const rng = createRng(`${world.seed}:${nation.id}:shirt`);
   const palette: [Hex, Hex, Hex] = [nation.colors[0], nation.colors[1], third(nation.colors)];
@@ -89,7 +105,7 @@ export function nationClub(world: World, nation: Nation, playerIds: string[]): C
     reputation: nation.rating,
     finances: { balance: 0, weeklyIncome: 0, weeklyCosts: 0, transferBudget: 0, wageBudget: 0 },
     youthFocus: 50,
-    playingStyle: 'balanced',
+    playingStyle: nationStyle(world, nation),
     culture: { youth: 50, winNow: 50, fanOwned: false, discipline: 50, attacking: 50 },
     managerId: `${nation.id}:manager`,
     playerIds,
@@ -151,19 +167,55 @@ export function nationSquad(world: World, nation: Nation, tournamentId: string):
 /** The career player's tournament match as a match setup, the two nations as its sides. */
 export function tournamentMatchSetup(world: World, fixture: TournamentFixture): MatchSetup {
   const live = world.international?.live;
-  const career = world.career;
-  if (!live || !career || pendingTournamentFixture(world)?.id !== fixture.id)
+  if (!live || !world.career || pendingTournamentFixture(world)?.id !== fixture.id)
     throw new Error('This tournament match is not the career player’s to play');
+  const stakes = tournamentStakes(fixture);
+  return nationMatchSetup(world, fixture, {
+    squadId: live.id,
+    // Tournaments are played at a host's grounds: no side is at home.
+    neutral: true,
+    competitionId: live.id,
+    importance: stakes.importance,
+    knockout: fixture.stage !== 'group',
+  });
+}
+
+/** The career player's window match (version 0.9.0): the home nation at home. */
+export function windowMatchSetup(world: World, fixture: WindowFixture): MatchSetup {
+  const window = world.international?.window;
+  if (!window || !world.career || pendingWindowFixture(world)?.id !== fixture.id)
+    throw new Error('This window match is not the career player’s to play');
+  return nationMatchSetup(world, fixture, {
+    squadId: window.id,
+    neutral: false,
+    competitionId: window.id,
+    importance: I.window.importance[fixture.kind],
+    knockout: false,
+  });
+}
+
+function nationMatchSetup(
+  world: World,
+  fixture: { id: string; homeId: string; awayId: string },
+  options: {
+    /** Seeds the generated players completing each squad. */
+    squadId: string;
+    neutral: boolean;
+    competitionId: string;
+    importance: number;
+    knockout: boolean;
+  },
+): MatchSetup {
+  const career = world.career!;
   const home = nationOf(world, fixture.homeId);
   const away = nationOf(world, fixture.awayId);
-  const homeSquad = nationSquad(world, home, live.id);
-  const awaySquad = nationSquad(world, away, live.id);
+  const homeSquad = nationSquad(world, home, options.squadId);
+  const awaySquad = nationSquad(world, away, options.squadId);
   const players = Object.fromEntries(
     [...homeSquad, ...awaySquad].map((player) => [player.id, player]),
   );
   const own = players[career.playerId];
   if (!own || own.injuryId || own.fitness <= 0) throw new Error('Selected player unavailable');
-  const stakes = tournamentStakes(fixture);
   return {
     version: 1,
     seed: `${world.seed}:${fixture.id}:session`,
@@ -180,13 +232,12 @@ export function tournamentMatchSetup(world: World, fixture: TournamentFixture): 
     ),
     players,
     selectedPlayerId: career.playerId,
-    // Tournaments are played at a host's grounds: no side is at home.
-    neutral: true,
+    neutral: options.neutral,
     fixture: {
       id: fixture.id,
-      competitionId: live.id,
-      importance: stakes.importance,
-      ...(fixture.stage === 'group' ? {} : { shootoutLead: 0, extraTimeLead: 0 }),
+      competitionId: options.competitionId,
+      importance: options.importance,
+      ...(options.knockout ? { shootoutLead: 0, extraTimeLead: 0 } : {}),
     },
     formations: [nationFormation(world, home), nationFormation(world, away)],
     slotMoments: true,
@@ -197,6 +248,7 @@ export function tournamentMatchSetup(world: World, fixture: TournamentFixture): 
     extraTimePlay: true,
     identity: true,
     defending: true,
+    screening: true,
     strengthBonus: [0, 0],
   };
 }
@@ -210,11 +262,61 @@ export function tournamentMatchSetup(world: World, fixture: TournamentFixture): 
  */
 export function commitTournamentMatch(world: World, session: MatchSession): CareerMatchOutcome {
   const live = world.international?.live;
+  const fixture = live?.fixtures.find((entry) => entry.id === session.setup.fixture?.id);
+  if (!live || !fixture || !live.careerNationId) throw new Error('Not a tournament match');
+  const stakes = tournamentStakes(fixture);
+  return commitNationMatch(world, session, {
+    fixture,
+    nationId: live.careerNationId,
+    ...stakes,
+    tournamentId: live.id,
+    competitionId: live.id,
+    home: false,
+    record: (match, xp) => recordTournamentMatch(world, fixture, match, xp),
+  });
+}
+
+/**
+ * Record the career player's window match (version 0.9.0), as a tournament match is recorded:
+ * a qualifier's result counts in the campaign.
+ */
+export function commitWindowMatch(world: World, session: MatchSession): CareerMatchOutcome {
+  const window = world.international?.window;
+  const fixture = window?.fixtures.find((entry) => entry.id === session.setup.fixture?.id);
+  if (!window || !fixture) throw new Error('Not a window match');
+  return commitNationMatch(world, session, {
+    fixture,
+    nationId: window.nationId,
+    kind: fixture.kind,
+    importance: I.window.importance[fixture.kind],
+    tournamentId: null,
+    competitionId: window.id,
+    home: fixture.homeId === window.nationId,
+    record: (match, xp) => recordWindowMatch(world, fixture, match, xp),
+  });
+}
+
+/** What a nation's match records beside the shared path: its fixture, stakes and store. */
+interface NationMatchPart {
+  fixture: { id: string; homeId: string; awayId: string; matchId: string | null };
+  nationId: string;
+  kind: InternationalMatch['kind'];
+  importance: number;
+  tournamentId: string | null;
+  competitionId: string;
+  home: boolean;
+  record: (match: InternationalMatch, xp: number) => void;
+}
+function commitNationMatch(
+  world: World,
+  session: MatchSession,
+  part: NationMatchPart,
+): CareerMatchOutcome {
   const career = world.career;
   const state = session.state;
-  const fixture = live?.fixtures.find((entry) => entry.id === session.setup.fixture?.id);
-  if (!live || !career || !fixture || state.match.status !== 'finished' || !state.report)
-    throw new Error('Not a finished tournament match');
+  const fixture = part.fixture;
+  if (!career || state.match.status !== 'finished' || !state.report)
+    throw new Error('Not a finished international match');
   if (
     fixture.matchId ||
     session.setup.selectedPlayerId !== career.playerId ||
@@ -225,7 +327,7 @@ export function commitTournamentMatch(world: World, session: MatchSession): Care
     throw new Error('Match does not belong to this world');
   validateMatchSession(session);
   const playerId = career.playerId;
-  const own = fixture.homeId === live.careerNationId ? 0 : 1;
+  const own = fixture.homeId === part.nationId ? 0 : 1;
   const ownSide = <T>(pair: readonly [T, T]): [T, T] => [pair[own]!, pair[1 - own]!];
   const events = state.match.events.filter((event) => event.kind === 'goal');
   const scored = events.filter((event) => event.playerId === playerId);
@@ -262,14 +364,13 @@ export function commitTournamentMatch(world: World, session: MatchSession): Care
     high,
     Math.max(low, X.oppositionBase + opponent.rating * X.oppositionSlope),
   );
-  const stakes = tournamentStakes(fixture);
-  const xp = Math.round((performance + decisionXp) * opposition * stakes.importance);
+  const xp = Math.round((performance + decisionXp) * opposition * part.importance);
   const match: InternationalMatch = {
-    id: `intl:${world.date.season}:${world.date.week}:senior:${stakes.kind}:${fixture.homeId}:${fixture.awayId}`,
+    id: `intl:${world.date.season}:${world.date.week}:senior:${part.kind}:${fixture.homeId}:${fixture.awayId}`,
     date: { ...world.date },
     level: 'senior',
-    kind: stakes.kind,
-    tournamentId: live.id,
+    kind: part.kind,
+    tournamentId: part.tournamentId,
     homeId: fixture.homeId,
     awayId: fixture.awayId,
     score: [state.match.score[0], state.match.score[1]],
@@ -282,17 +383,36 @@ export function commitTournamentMatch(world: World, session: MatchSession): Care
     international.matches.splice(0, international.matches.length - I.matchLimit);
   const previousLevel = career.level;
   const fame = career.fame;
-  recordTournamentMatch(world, fixture, match, xp);
+  const before = new Set(world.chronicle.map((entry) => entry.id));
+  part.record(match, xp);
   recordDecisions(career, decisions);
+  // Moments, as a club match keeps them: the first goal's Chronicle entry points at the clip,
+  // otherwise the clip gets an entry of its own.
+  const momentId = captureMoments(world, session, part.importance)[0];
+  if (momentId) {
+    const index = world.chronicle.findIndex(
+      (entry) => entry.kind === 'international-goal' && !before.has(entry.id),
+    );
+    if (index >= 0) world.chronicle[index] = { ...world.chronicle[index]!, momentId };
+    else {
+      const moment = world.moments.find((entry) => entry.id === momentId)!;
+      chronicle(
+        world,
+        'moment',
+        { opponent: opponent.name, kind: moment.kind, minute: moment.minute },
+        { momentId },
+      );
+    }
+  }
   const won = penalties ? penalties[0] > penalties[1] : score[0] > score[1];
   const lost = penalties ? penalties[0] < penalties[1] : score[0] < score[1];
   const record: CareerMatchRecord = {
     fixtureId: fixture.id,
     season: world.date.season,
     week: world.date.week,
-    competitionId: live.id,
+    competitionId: part.competitionId,
     opponentId: opponent.id,
-    home: false,
+    home: part.home,
     score,
     result: won ? 'win' : lost ? 'loss' : 'draw',
     ...(penalties

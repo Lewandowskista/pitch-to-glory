@@ -670,6 +670,14 @@ export const en = {
       weekTitle: 'Week {week} of {total}',
       weekBody: 'Every league and cup in the world plays this week’s fixtures.',
       completeTitle: 'Season complete',
+      tournamentTitle: 'Your nation’s tournament',
+      tournamentBody:
+        'The season is over, and your nation is still in the tournament. Play your matches from the career hub before the new season.',
+      tournamentAction: 'Go to the tournament',
+      skipTitle: 'Start the season now?',
+      skipBody:
+        'Your nation’s remaining tournament matches will be simulated before the new season begins.',
+      skipConfirm: 'Simulate them and start',
       nextFixture: 'Next match',
       versus: 'v',
     },

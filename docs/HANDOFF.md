@@ -1,12 +1,12 @@
 # Pitch to Glory: implementation handoff
 
-> **Current state — 24 October 2026 (release 0.7.0).** Milestones 1–10 are implemented and the
+> **Current state — 25 October 2026 (release 0.9.0).** Milestones 1–10 are implemented and the
 > web game is released: every push to `main` is a release that CI (typecheck, lint, unit tests,
 > Playwright in Chromium, Firefox and WebKit) validates before deploying ([RELEASING.md](RELEASING.md)).
 > Milestone 11 (Android) has not started; Capacitor is not installed. Since 20 October the
-> [review plan](REVIEW-PLAN-2026-10-20.md) has been carried out through Phase 5, with measurements in
+> [review plan](REVIEW-PLAN-2026-10-20.md) has been carried out through Phase 6, with measurements in
 > [REVIEW-PROGRESS-2026-10-20.md](REVIEW-PROGRESS-2026-10-20.md) and rules in [BALANCING.md](BALANCING.md).
-> Live versions: save schema **22**; match engine **match-19** (earlier sessions replay on their
+> Live versions: save schema **22**; match engine **match-21** (earlier sessions replay on their
 > own engine); career development rules **3**; world flags `selectionVersion` 1,
 > `achievements` 1 and `economyVersion` 1 (adopted at a season start by older saves).
 >
@@ -177,7 +177,7 @@ Recorded on 7 October 2026 after milestone 10; see VERIFICATION.md for full evid
 
 Remaining checks and scope limits:
 
-- Under Lighthouse's slow-4G mobile preset, the career and Matchday entry pages take **3.6–3.7 seconds** to become interactive (all other audited pages 2.6–3.2 s); they need engine code before they can render.
+- Under Lighthouse's slow-4G mobile preset, the career and Matchday entry pages took 3.6–3.7 seconds to become interactive at milestone 10. From 0.9.0 they load their bodies only when there is something to show: Matchday 2.9 s, career 3.4 s, every page 86–100 (REVIEW-PROGRESS, "After phase 6"). A late-career save still takes 3.3 s to reach the hub on an emulated phone.
 - Physical mid-range laptop/phone 60fps certification and macOS/iOS Safari IndexedDB, offline and installation checks have not been completed.
 - Windows Playwright WebKit has an offline module-navigation driver limitation. Its offline tests verify actual cached responses; Chromium and Firefox exercise offline navigation/world simulation. Do not describe that as physical Safari certification.
 - Styling rule (AGENTS.md, updated with the user): new UI uses Tailwind utilities with the shared tokens (`bg-surface`, `text-muted`, `shadow-surface`, …). Screens built before milestone 4 keep their component CSS partials in `src/styles/` until a later milestone reworks them.

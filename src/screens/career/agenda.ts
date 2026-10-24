@@ -236,6 +236,26 @@ export interface AdvancePreview {
  * club's next fixture once the player can play, and the copy says the stop depends on being
  * picked.
  */
+/**
+ * The club's fixtures this season in date order, worked out once per world: the hub's preview
+ * and the agenda both read them, and a late-career world holds many thousands of fixtures.
+ * Screen worlds are never changed in place, so the world object identifies the state.
+ */
+const seasonFixtures = new WeakMap<World, { clubId: string; fixtures: Fixture[] }>();
+function clubSeasonFixtures(world: World, clubId: string | null | undefined): Fixture[] {
+  if (clubId === undefined || clubId === null) return [];
+  const known = seasonFixtures.get(world);
+  if (known?.clubId === clubId) return known.fixtures;
+  const fixtures = Object.values(world.fixtures)
+    .filter(
+      (entry) =>
+        (entry.homeId === clubId || entry.awayId === clubId) && inSeason(world, entry.date),
+    )
+    .sort((a, b) => a.date.week - b.date.week || a.date.day - b.date.day || (a.id < b.id ? -1 : 1));
+  seasonFixtures.set(world, { clubId, fixtures });
+  return fixtures;
+}
+
 export function advancePreview(world: World, session: SessionState): AdvancePreview {
   const career = world.career!;
   const from = world.date.week;
@@ -251,18 +271,9 @@ export function advancePreview(world: World, session: SessionState): AdvancePrev
   const earliest = Math.max(from + 1, fitWeek ?? 0);
   const clubId = world.players[career.playerId]?.clubId;
   const fixture =
-    Object.values(world.fixtures)
-      .filter(
-        (entry) =>
-          clubId !== undefined &&
-          (entry.homeId === clubId || entry.awayId === clubId) &&
-          inSeason(world, entry.date) &&
-          entry.date.week >= earliest &&
-          !world.results[entry.id],
-      )
-      .sort(
-        (a, b) => a.date.week - b.date.week || a.date.day - b.date.day || (a.id < b.id ? -1 : 1),
-      )[0] ?? null;
+    clubSeasonFixtures(world, clubId).find(
+      (entry) => entry.date.week >= earliest && !world.results[entry.id],
+    ) ?? null;
   const fixtureThrough = fixture ? fixture.date.week - 1 : seasonWeeks;
   // Continue stops on deadline day for any decision waiting (see engine/career/pending.ts).
   const next = nextDecisionDeadline(world);
@@ -321,14 +332,7 @@ export function seasonAgenda(world: World): AgendaWeek[] {
     entries: [],
   }));
   const at = (week: number) => weeks[week - 1];
-  for (const fixture of Object.values(world.fixtures)
-    .filter(
-      (entry) =>
-        clubId !== undefined &&
-        (entry.homeId === clubId || entry.awayId === clubId) &&
-        inSeason(world, entry.date),
-    )
-    .sort((a, b) => a.date.week - b.date.week || a.date.day - b.date.day || (a.id < b.id ? -1 : 1)))
+  for (const fixture of clubSeasonFixtures(world, clubId))
     at(fixture.date.week)?.entries.push({
       kind: 'fixture',
       fixture,

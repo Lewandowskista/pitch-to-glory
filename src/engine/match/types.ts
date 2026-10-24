@@ -33,9 +33,16 @@ export type { Tactics } from '../../model/domain';
  * affects, and a shot or carry with the weaker foot costs odds unless the player is
  * two-footed. `match-20` (review phase 6) makes defending decide more: a back-line player's
  * moments carry more of the opposition's goals, and their attributes move defending odds
- * further, so choosing well measurably prevents goals.
+ * further, so choosing well measurably prevents goals. `match-21` goes further where match-20
+ * left the choices close: a defensive midfielder's moments carry more of the opposition's
+ * goals, and a keeper's saves lean harder on the attributes behind them.
  */
-export const MATCH_ENGINE_VERSION = 'match-20';
+export const MATCH_ENGINE_VERSION = 'match-21';
+/**
+ * The engine before screening (match-21). A setup with `defending` but without `screening`
+ * still replays as it was.
+ */
+export const DEFENDING_MATCH_ENGINE = 'match-20';
 /**
  * The engine before decisive defending. A setup with `identity` but without `defending` still
  * replays as it was.
@@ -98,6 +105,7 @@ export const engineFor = (
     | 'extraTimePlay'
     | 'identity'
     | 'defending'
+    | 'screening'
   >,
 ): string =>
   !setup.formations
@@ -112,7 +120,9 @@ export const engineFor = (
               ? setup.extraTimePlay
                 ? setup.identity
                   ? setup.defending
-                    ? MATCH_ENGINE_VERSION
+                    ? setup.screening
+                      ? MATCH_ENGINE_VERSION
+                      : DEFENDING_MATCH_ENGINE
                     : IDENTITY_MATCH_ENGINE
                   : EXTRA_TIME_MATCH_ENGINE
                 : ROLE_MATCH_ENGINE
@@ -179,6 +189,11 @@ export interface MatchSetup {
    * player's moments, and attributes move defending odds further.
    */
   defending?: true;
+  /**
+   * Screening (`match-21`): a defensive midfielder's moments carry more of the opposition's
+   * goals, and a keeper's saves lean harder on their attributes.
+   */
+  screening?: true;
   /** Players serving a suspension in this fixture's competition, never picked (`match-16`). */
   suspended?: string[];
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */

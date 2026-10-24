@@ -1,6 +1,7 @@
 import type { World } from '../../model/domain';
 import { simulateWeek } from '../world/simulate';
 import { pendingCareerFixture } from './fixtures';
+import { pendingWindowFixture } from './honours/international';
 import { autoPlayCareerFixture, type CareerMatchOutcome } from './matches';
 
 /**
@@ -18,6 +19,14 @@ export function advanceCareerWeek(
     if (!options.autoPlay) return { world, pendingFixtureId: pending.id, outcomes };
     if (world === input && !options.inPlace) world = JSON.parse(JSON.stringify(input)) as World;
     outcomes.push(autoPlayCareerFixture(world, pending));
+  }
+  // The player's international window matches (version 0.9.0) come next; a season simulated
+  // to its end has them simulated with the window.
+  if (pendingWindowFixture(world)) {
+    if (!options.autoPlay)
+      return { world, pendingFixtureId: pendingWindowFixture(world)!.id, outcomes };
+    if (world === input && !options.inPlace) world = JSON.parse(JSON.stringify(input)) as World;
+    world.international!.window!.simulate = true;
   }
   return {
     world: simulateWeek(world, { inPlace: options.inPlace || world !== input }),

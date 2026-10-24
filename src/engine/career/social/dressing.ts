@@ -1,4 +1,4 @@
-import type { Clique, CliqueKind, Player, World } from '../../../model/domain';
+import type { Clique, CliqueKind, Fixture, Player, World } from '../../../model/domain';
 import { playerAbility } from '../../strength';
 import { clubStarters } from '../../selection/world';
 import { adjustRelationship, relationship } from '../market/records';
@@ -140,14 +140,35 @@ export function recentResults(
   clubId: string,
   count: number,
 ): ('win' | 'draw' | 'loss')[] {
-  return Object.values(world.fixtures)
-    .filter((f) => (f.homeId === clubId || f.awayId === clubId) && world.results[f.id])
-    .sort((a, b) => a.date.week - b.date.week || a.date.day - b.date.day || byId(a, b))
-    .slice(-count)
-    .map((fixture) => {
-      const winner = world.results[fixture.id]!.winnerId;
-      return winner === clubId ? 'win' : winner === null ? 'draw' : 'loss';
-    });
+  return recentForms(world, [clubId], count).get(clubId)!;
+}
+/** `recentResults` for several clubs in one pass over the fixtures. */
+export function recentForms(
+  world: World,
+  clubIds: readonly string[],
+  count: number,
+): Map<string, ('win' | 'draw' | 'loss')[]> {
+  const played = new Map(clubIds.map((id) => [id, [] as Fixture[]]));
+  for (const fixture of Object.values(world.fixtures)) {
+    const home = played.get(fixture.homeId);
+    const away = played.get(fixture.awayId);
+    if ((!home && !away) || !world.results[fixture.id]) continue;
+    home?.push(fixture);
+    if (away && away !== home) away.push(fixture);
+  }
+  const forms = new Map<string, ('win' | 'draw' | 'loss')[]>();
+  for (const [clubId, fixtures] of played)
+    forms.set(
+      clubId,
+      fixtures
+        .sort((a, b) => a.date.week - b.date.week || a.date.day - b.date.day || byId(a, b))
+        .slice(-count)
+        .map((fixture) => {
+          const winner = world.results[fixture.id]!.winnerId;
+          return winner === clubId ? 'win' : winner === null ? 'draw' : 'loss';
+        }),
+    );
+  return forms;
 }
 
 /**

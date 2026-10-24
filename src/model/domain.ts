@@ -762,6 +762,11 @@ export interface CareerHonours {
   peakAbility: number;
   /** The legacy of the parent, for a career played as a former player's child. */
   parentLegacyId: Id | null;
+  /**
+   * The player plays their senior side's window matches (qualifiers and friendlies) in the
+   * match engine rather than having them simulated (version 0.9.0). Absent: simulated.
+   */
+  playInternationals?: true;
 }
 export type SleeveLength = 'short' | 'long';
 export interface CareerStyle {
@@ -1856,6 +1861,32 @@ export interface InternationalState {
    * tournaments keep the fixed field.
    */
   qualifying?: Qualifying | null;
+  /**
+   * The career player's matches in the coming international window, waiting to be played
+   * (version 0.9.0). Opened the week before when they choose to play them and start for their
+   * senior side; cleared once the window's week is simulated.
+   */
+  window?: InternationalWindow | null;
+}
+/** An international window's matches for the career player's nation. */
+export interface InternationalWindow {
+  id: Id;
+  season: number;
+  week: number;
+  nationId: Id;
+  fixtures: WindowFixture[];
+  /** The player chose to have the rest simulated. */
+  simulate: boolean;
+}
+export interface WindowFixture {
+  /** A qualifier keeps its qualifying fixture's id. */
+  id: Id;
+  kind: 'qualifier' | 'friendly';
+  homeId: Id;
+  awayId: Id;
+  /** The international match, once played. */
+  matchId: Id | null;
+  score: [number, number] | null;
 }
 /** A qualifying campaign: groups of four, home and away, over the season's windows. */
 export interface Qualifying {
@@ -1904,6 +1935,12 @@ export interface LiveTournament {
   careerNationId: Id | null;
   inSquad: boolean;
   starts: boolean;
+  /**
+   * Whether its nations play their own styles in the match engine (version 0.9.0). Absent in
+   * tournaments opened before, whose nations all play a balanced game, so a match saved part-way
+   * through keeps its sides.
+   */
+  styled?: true;
 }
 export interface BackgroundResult {
   fixtureId: Id;

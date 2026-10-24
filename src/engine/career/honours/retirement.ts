@@ -139,6 +139,12 @@ interface HallOfFameEntry {
  * adopted it, by club numbers and awards (their trophies were not recorded).
  */
 export function hallOfFameTable(world: World): readonly HallOfFameEntry[] {
+  return [...hallOfFameScores(world)]
+    .map(([id, score]) => ({ id, score }))
+    .sort((a, b) => a.score - b.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+/** Everyone's Hall of Fame score by id, unsorted (see `hallOfFameTable`). */
+function hallOfFameScores(world: World): Map<string, number> {
   const scores = new Map<string, number>();
   const add = (id: string, value: number) => {
     if (!scores.has(id)) scores.set(id, value);
@@ -152,9 +158,7 @@ export function hallOfFameTable(world: World): readonly HallOfFameEntry[] {
       add(player.id, achievementScore(world, player, season));
     for (const [id, record] of Object.entries(world.archive?.players ?? {}))
       add(id, Math.round(record.hallOfFame ?? 0));
-    return [...scores]
-      .map(([id, score]) => ({ id, score }))
-      .sort((a, b) => a.score - b.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return scores;
   }
   // Before the record: other players count their awards too (their trophies were not recorded).
   const awards = new Map<string, number>();
@@ -179,9 +183,7 @@ export function hallOfFameTable(world: World): readonly HallOfFameEntry[] {
     );
   for (const [id, record] of Object.entries(world.archive?.players ?? {}))
     add(id, hallOfFameScore(record.stats));
-  return [...scores]
-    .map(([id, score]) => ({ id, score }))
-    .sort((a, b) => a.score - b.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return scores;
 }
 /** The name the world remembers someone by: a legacy, a current player or the archive. */
 function rememberedName(world: World, id: string): string {
@@ -301,9 +303,14 @@ function tableKey(world: World): string {
   ].join('|');
 }
 /** The Hall of Fame table for a world state, worked out once per week (see `tableKey`). */
+const tables = new WeakMap<World, readonly HallOfFameEntry[]>();
 export function memoisedHallOfFameTable(world: World): readonly HallOfFameEntry[] {
+  // The same world object is the same state: no need to work out its key again.
+  const known = tables.get(world);
+  if (known) return known;
   const key = tableKey(world);
   if (cachedTable?.key !== key) cachedTable = { key, table: hallOfFameTable(world) };
+  tables.set(world, cachedTable.table);
   return cachedTable.table;
 }
 /**
@@ -366,11 +373,59 @@ export function liveHallOfFame(world: World): HallOfFameStanding & { score: numb
  * from the memoised table: the career's own score is always current, everyone else's is the
  * week's. Identical to `liveHallOfFame` for the same world state.
  */
+const ranks = new WeakMap<World, HallOfFameStanding & { score: number }>();
 export function liveHallOfFameRank(world: World): HallOfFameStanding & { score: number } {
+  // The hub's honours card and ambitions ask for the same world's standing.
+  const known = ranks.get(world);
+  if (known) return known;
   const score = careerHallOfFameScore(world);
-  return {
+  const id = world.career!.playerId;
+  // One rank needs no sorted table: a pass over the scores finds it (the hub's first paint).
+  const table = tables.get(world);
+  const standing = {
     score,
-    ...standingIn(world, memoisedHallOfFameTable(world), score, world.career!.playerId),
+    ...(table ? standingIn(world, table, score, id) : standingAmong(world, score, id)),
+  };
+  ranks.set(world, standing);
+  return standing;
+}
+/**
+ * Everyone's scores for screens, kept while the records they come from are the same objects:
+ * a screen action copies only what it changes (`draftWorld`), so taking a challenge or
+ * answering the press does not score every player again.
+ */
+let sharedScores: { sources: readonly unknown[]; scores: Map<string, number> } | null = null;
+function screenScores(world: World): Map<string, number> {
+  const sources = [
+    world.players,
+    world.archive,
+    world.seasonStats,
+    world.legacies,
+    world.awards,
+    world.achievements,
+    world.leagues,
+    world.clubs,
+    world.phase,
+  ];
+  if (!sharedScores || sharedScores.sources.some((source, index) => source !== sources[index]))
+    sharedScores = { sources, scores: hallOfFameScores(world) };
+  return sharedScores.scores;
+}
+/** `standingIn` from unsorted scores, in one pass: the same rank, total and next name. */
+function standingAmong(world: World, score: number, excludeId: string): HallOfFameStanding {
+  const scores = screenScores(world);
+  let better = 0;
+  let next: { id: string; score: number } | null = null;
+  for (const [id, value] of scores) {
+    if (id === excludeId || value <= score) continue;
+    better++;
+    if (!next || value < next.score || (value === next.score && id < next.id))
+      next = { id, score: value };
+  }
+  return {
+    rank: better + 1,
+    of: scores.size + (scores.has(excludeId) ? 0 : 1),
+    next: next && { id: next.id, name: rememberedName(world, next.id), score: next.score },
   };
 }
 /**

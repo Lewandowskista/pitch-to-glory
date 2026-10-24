@@ -13,6 +13,7 @@ import { Artwork } from '../../ui/Artwork';
 import { Icon } from '../../ui/Icon';
 import { CardTitle, Panel, cx } from '../../ui/kit';
 import { QualifyingPanel } from './QualifyingPanel';
+import { useHonoursAction } from './honoursUi';
 
 const I = CONFIG.career.honours.international;
 const LEVELS: NationalLevel[] = ['senior', 'U21', 'U19'];
@@ -42,9 +43,13 @@ function NationalContent({
   const honours = career.honours;
   const nation = world.international?.nations.find((n) => n.countryId === player.nationalityId);
   const eligible = LEVELS.filter((level) => level === 'senior' || age <= I.ages[level]);
-  const level = honours.lastCallUp?.level ?? eligible[eligible.length - 1] ?? 'senior';
+  // A window set out for the player to play (0.9.0) is a senior call-up before it is named.
+  const waiting = world.international?.window?.season === world.date.season;
+  const level = waiting
+    ? 'senior'
+    : (honours.lastCallUp?.level ?? eligible[eligible.length - 1] ?? 'senior');
   const squad = world.nationalTeams[`national:${player.nationalityId}:${level}`];
-  const selected = Boolean(squad?.playerIds.includes(player.id));
+  const selected = waiting || Boolean(squad?.playerIds.includes(player.id));
   const windows = windowWeeks(world);
   const next = windows.find((week) => week >= world.date.week);
   const nations = new Map((world.international?.nations ?? []).map((n) => [n.id, n]));
@@ -217,6 +222,7 @@ function NationalContent({
             </dl>
           </div>
         </Panel>
+        <InternationalsOption career={career} />
         {tournaments.length ? (
           <Panel aria-labelledby="tournaments-heading">
             <CardTitle id="tournaments-heading">{h.national.tournaments}</CardTitle>
@@ -416,6 +422,41 @@ function Squad({
             );
           })}
       </div>
+    </Panel>
+  );
+}
+
+/** Whether the player plays their window matches themselves (0.9.0). */
+function InternationalsOption({ career }: { career: Career }) {
+  const { run, error, block } = useHonoursAction();
+  const on = Boolean(career.honours.playInternationals);
+  return (
+    <Panel aria-labelledby="play-internationals-heading" className="grid gap-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <CardTitle id="play-internationals-heading">{c.hub.window.option}</CardTitle>
+          <p className="mt-1 text-xs text-muted" role="status">
+            {on ? c.hub.window.optionOn : c.hub.window.optionOff}
+          </p>
+        </div>
+        <label className="flex min-h-11 shrink-0 cursor-pointer items-center gap-3 text-sm font-bold">
+          <span className="sr-only">{c.hub.window.option}</span>
+          <input
+            type="checkbox"
+            role="switch"
+            className="switch"
+            checked={on}
+            disabled={Boolean(block)}
+            onChange={(event) => run({ type: 'play-internationals', on: event.target.checked })}
+          />
+        </label>
+      </div>
+      <p className="max-w-[35rem] text-sm text-muted">{c.hub.window.optionBody}</p>
+      {error && (
+        <p role="alert" className="inline-error">
+          {error}
+        </p>
+      )}
     </Panel>
   );
 }
