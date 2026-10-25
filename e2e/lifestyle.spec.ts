@@ -13,6 +13,7 @@ import { makeSponsorOffer, BRAND_BY_ID, priceOf } from '../src/engine/career/lif
 import { LIFESTYLE_BY_ID } from '../src/engine/career/lifestyle/catalogue';
 import { createRng } from '../src/engine/rng';
 import { CONFIG } from '../src/engine/config';
+import { formatMoney } from '../src/i18n/locale';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
 
@@ -109,7 +110,7 @@ test('signs a sponsor, buys a car, dresses up and picks a celebration', async ({
   await page.getByRole('button', { name: 'Buy — City hatchback' }).click();
   const owned = page.getByRole('region', { name: 'Lifestyle' });
   await expect(owned.getByRole('button', { name: /Sell for .* — City hatchback/ })).toBeVisible();
-  await expect(owned.getByText(`${left.toLocaleString('en-GB')} Cr`)).toBeVisible();
+  await expect(owned.getByText(formatMoney(left))).toBeVisible();
 
   // Wardrobe: today's challenges arrive, a free hairstyle, long sleeves and a celebration.
   await openCareerPage(page, 'Wardrobe');
