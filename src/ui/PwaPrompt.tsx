@@ -1,5 +1,5 @@
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { errorCode, UnsavedWorldError } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
@@ -9,6 +9,8 @@ import { APP_VERSION } from '../release/version';
 import { acknowledgeUpdate, startupUpdateNotice } from '../release/notice';
 import { Icon } from './Icon';
 import { buttonClass } from './kit/Button';
+import { useConsentInvitation } from '../analytics';
+const ConsentInvitation = lazy(() => import('./ConsentInvitation'));
 export function PwaPrompt() {
   const [error, setError] = useState('');
   // "Updated to x.y.z": decided once per start, cleared when seen. Only the version and a tiny
@@ -21,6 +23,8 @@ export function PwaPrompt() {
   const simulating = useAppStore((state) => !!state.worldJob);
   // Never over a key moment's choices: the notice waits until the decision is made.
   const deciding = useAppStore((state) => !!state.matchSession?.state.currentMoment);
+  // The one-time analytics invitation (docs/ANALYTICS.md) waits for every other prompt.
+  const invited = useConsentInvitation();
   const {
     offlineReady: [offline, setOffline],
     needRefresh: [refresh, setRefresh],
@@ -62,7 +66,12 @@ export function PwaPrompt() {
   };
   if (deciding) return null;
   if (!offline && !refresh && !error) {
-    if (!updated || onWhatsNew) return null;
+    if (!updated || onWhatsNew)
+      return invited ? (
+        <Suspense fallback={null}>
+          <ConsentInvitation />
+        </Suspense>
+      ) : null;
     // One prompt at a time: the service worker's prompts come first.
     return (
       <div className="pwa-prompt" role="status">

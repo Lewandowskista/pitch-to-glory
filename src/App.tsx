@@ -35,6 +35,7 @@ const CareerMoments = lazyPage(() => import('./screens/career/CareerMoments'));
 const CareerLegacy = lazyPage(() => import('./screens/career/CareerLegacy'));
 const MomentViewer = lazyPage(() => import('./screens/MomentViewer'));
 const WhatsNew = lazyPage(() => import('./screens/WhatsNew'));
+const Privacy = lazyPage(() => import('./screens/Privacy'));
 export default function App() {
   return (
     <ErrorBoundary>
@@ -78,6 +79,7 @@ export default function App() {
               <Route path="career/legacy" element={<CareerLegacy />} />
               <Route path="moment" element={<MomentViewer />} />
               <Route path="whats-new" element={<WhatsNew />} />
+              <Route path="privacy" element={<Privacy />} />
               <Route
                 path="*"
                 element={
