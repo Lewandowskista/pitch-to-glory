@@ -8,8 +8,12 @@ import {
   peakValue,
   profileOffset,
   recalibratePotential,
+  isUntrained,
   ATTRIBUTE_KEYS,
+  KEEPER_KEYS,
+  type AnyAttribute,
 } from '../src/engine/ageing';
+import { CONFIG } from '../src/engine/config';
 import { createRng } from '../src/engine/rng';
 import { generateWorld } from '../src/engine/world/generate';
 import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
@@ -61,6 +65,49 @@ describe('ageing curves', () => {
     expect(playerAbility(player)).toBeGreaterThan(50);
     for (let week = 0; week < 240; week++) developWeek(player, 36, 60, rng);
     expect(player.attributes.pace).toBeLessThan(attributeTarget(profile, 'pace', 24));
+  });
+  it('develops exactly as attributeTarget says while its inputs change (target memo)', () => {
+    // The pre-1.0 weekly step, which worked out every target afresh: developWeek's once-a-season
+    // memo (review P5) must match it draw for draw as age, potential and position change.
+    const D = CONFIG.world.development;
+    const reference = (player: Player, age: number, rng: ReturnType<typeof createRng>) => {
+      const professionalism = D.professionalismBase + player.hidden.professionalism / 100;
+      const step = (values: Record<string, number>, key: AnyAttribute) => {
+        if (isUntrained(player.primaryPosition, key)) return;
+        const gap = attributeTarget(player, key, age) - values[key]!;
+        if (!gap) return;
+        const rate = gap > 0 ? D.growthPerSeason * professionalism : D.declinePerSeason;
+        if (rng.next() < Math.min(0.9, (Math.abs(gap) * rate) / 60))
+          values[key] = Math.max(1, Math.min(99, Math.round(values[key]! + Math.sign(gap))));
+      };
+      for (const key of ATTRIBUTE_KEYS) step(player.attributes, key);
+      for (const key of KEEPER_KEYS) step(player.keeperAttributes, key);
+    };
+    const start = {
+      ...profile,
+      attributes: Object.fromEntries(ATTRIBUTE_KEYS.map((key) => [key, 40])),
+      keeperAttributes: Object.fromEntries(KEEPER_KEYS.map((key) => [key, 10])),
+      hidden: { professionalism: 55 },
+    } as unknown as Player;
+    const memoised = structuredClone(start);
+    const plain = structuredClone(start);
+    const [a, b] = [createRng('memo'), createRng('memo')];
+    const changes: Record<number, (player: Player) => void> = {
+      20: (player) => (player.potential = 82),
+      45: (player) => (player.primaryPosition = 'CB'),
+      70: (player) => (player.primaryPosition = 'GK'),
+      95: (player) => (player.potential = 55),
+    };
+    for (let week = 0; week < 120; week++) {
+      changes[week]?.(memoised);
+      changes[week]?.(plain);
+      const age = 18 + Math.floor(week / 12);
+      developWeek(memoised, age, 60, a);
+      reference(plain, age, b);
+      expect(memoised.attributes).toEqual(plain.attributes);
+      expect(memoised.keeperAttributes).toEqual(plain.keeperAttributes);
+    }
+    expect(a.snapshot()).toEqual(b.snapshot());
   });
   it('recalibrates an old-style potential to the implied peak ability', () => {
     const player = {
