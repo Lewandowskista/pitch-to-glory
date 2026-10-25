@@ -100,6 +100,11 @@ interface Row {
   scaled: { hubReadyMs: number; advanceMs: number; advanceSavedMs: number } | null;
   /** Each Continue press until the matchday, in ms. */
   presses: number[];
+  /**
+   * From the first Continue press to the matchday and to saved, timed inside the page (the
+   * polled `advanceMs` and `saveMs` include Playwright's polling interval).
+   */
+  exact: { advanceMs: number | null; savedMs: number | null };
   /** The longest main-thread task during Continue. */
   advanceLongestTaskMs: number;
   /** Main-thread JavaScript loaded for the hub, gzip KB (from dist). */
@@ -163,6 +168,63 @@ const perf = (page: Page) =>
     state.events.length = 0;
     return result;
   });
+/**
+ * Watch, inside the page, for the first Continue press and then for the matchday link and the
+ * saved status, recording when each appeared.
+ */
+async function watchContinue(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const times: { start?: number; matchday?: number; saved?: number } = {};
+    (window as Window & { __continue?: typeof times }).__continue = times;
+    document.addEventListener(
+      'click',
+      (event) => {
+        const target = event.target as Element | null;
+        if (
+          times.start === undefined &&
+          target?.closest('button')?.textContent?.includes('Continue')
+        )
+          times.start = performance.now();
+      },
+      true,
+    );
+    // Saved: the last time "All changes saved" came back after the press (a write in
+    // between hides it), so a save that follows the matchday counts.
+    let shown = true;
+    const check = () => {
+      if (times.start === undefined) return;
+      if (
+        times.matchday === undefined &&
+        [...document.querySelectorAll('a')].some((a) => a.textContent?.includes('Play matchday'))
+      )
+        times.matchday = performance.now();
+      const saved = Boolean(document.body.textContent?.includes('All changes saved'));
+      if (saved && !shown) times.saved = performance.now();
+      shown = saved;
+    };
+    new MutationObserver(check).observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+  });
+}
+async function continueTimes(
+  page: Page,
+): Promise<{ advanceMs: number | null; savedMs: number | null }> {
+  return page.evaluate(() => {
+    const times = (
+      window as Window & { __continue?: { start?: number; matchday?: number; saved?: number } }
+    ).__continue;
+    const since = (at?: number) =>
+      times?.start !== undefined && at !== undefined ? Math.round(at - times.start) : null;
+    // Never shown as unsaved: saved when the matchday came.
+    return {
+      advanceMs: since(times?.matchday),
+      savedMs: since(Math.max(times?.saved ?? 0, times?.matchday ?? 0) || undefined),
+    };
+  });
+}
 async function timed(action: () => Promise<unknown>): Promise<number> {
   const started = Date.now();
   await action();
@@ -255,6 +317,9 @@ for (const fixture of FIXTURES)
       let advanceMs = 0;
       let saveMs = 0;
       const stopHeap = samplePeak(workers.heap);
+      // Exact times from inside the page as well: Playwright polls with growing intervals (up to
+      // half a second), which the polled figures include.
+      await watchContinue(page);
       const advanceThreads = await traceThreads(browser, page, async () => {
         advanceMs = await timed(async () => {
           const play = page.getByRole('link', { name: 'Play matchday' });
@@ -275,6 +340,7 @@ for (const fixture of FIXTURES)
         );
       });
       const peakHeapMB = Math.round((await stopHeap()) / 1e6);
+      const exact = await continueTimes(page);
       const advancing = await perf(page);
 
       // The live pitch: frame pacing over six seconds of play at normal speed.
@@ -350,6 +416,7 @@ for (const fixture of FIXTURES)
         threads: { hub: hubThreads, advance: advanceThreads },
         scaled,
         presses,
+        exact,
         advanceLongestTaskMs,
         hubMainJsKB,
         peakHeapMB,
