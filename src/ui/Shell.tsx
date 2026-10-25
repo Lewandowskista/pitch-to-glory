@@ -560,7 +560,8 @@ export function Shell() {
 function useAudio(settings: AudioSettings): void {
   useEffect(() => audio.configure(settings), [settings]);
   useEffect(() => {
-    const unlock = () => audio.unlock();
+    // `unlock` never rejects (src/audio/index.ts); listeners ignore what they return.
+    const unlock = () => void audio.unlock();
     const click = (event: MouseEvent) => {
       const target = (event.target as Element | null)?.closest(
         'button, a[href], summary, [role="tab"], input[type="checkbox"], input[type="radio"]',

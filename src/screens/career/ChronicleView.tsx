@@ -310,22 +310,24 @@ function ChronicleHeader({
           icon="download"
           busy={busy}
           disabled={!entries.length}
-          onClick={async () => {
-            setStatus({ tone: 'neutral', text: h.chronicle.exporting });
-            try {
-              const fonts = await posterFonts();
-              const blob = await posterPng(posterSvg(world, player, entries, fonts));
-              await platform.shareFile(
-                `${player.name.replace(/\s+/g, '-').toLowerCase()}-chronicle.png`,
-                blob,
-                'image/png',
-              );
-              track('shared', { what: 'chronicle', method: 'file' });
-              setStatus({ tone: 'success', text: h.chronicle.exported });
-            } catch {
-              setStatus({ tone: 'error', text: h.chronicle.exportFailed });
-            }
-          }}
+          onClick={() =>
+            void (async () => {
+              setStatus({ tone: 'neutral', text: h.chronicle.exporting });
+              try {
+                const fonts = await posterFonts();
+                const blob = await posterPng(posterSvg(world, player, entries, fonts));
+                await platform.shareFile(
+                  `${player.name.replace(/\s+/g, '-').toLowerCase()}-chronicle.png`,
+                  blob,
+                  'image/png',
+                );
+                track('shared', { what: 'chronicle', method: 'file' });
+                setStatus({ tone: 'success', text: h.chronicle.exported });
+              } catch {
+                setStatus({ tone: 'error', text: h.chronicle.exportFailed });
+              }
+            })()
+          }
         >
           {h.chronicle.export}
         </Button>

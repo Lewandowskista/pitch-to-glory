@@ -45,6 +45,29 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   { languageOptions: { globals: { ...globals.browser, ...globals.node } } },
   {
+    // Type-aware rules (review K11): every promise is awaited, returned, or handed off with
+    // `void` after its rejection is handled, and none is passed where a callback's result is
+    // ignored. The project service reads tsconfig.json, which covers src, tests, e2e and the
+    // TypeScript scripts.
+    files: ['**/*.{ts,tsx}'],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        {
+          // React Router types `navigate` as `void | Promise<void>` for data routers; the app
+          // uses <BrowserRouter> (src/App.tsx), whose navigate is synchronous and returns void.
+          allowForKnownSafeCalls: [
+            { from: 'package', package: 'react-router', name: 'NavigateFunction' },
+          ],
+        },
+      ],
+      '@typescript-eslint/no-misused-promises': 'error',
+    },
+  },
+  {
     files: ['src/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': hooks },
     rules: {

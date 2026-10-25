@@ -74,6 +74,22 @@ export function MomentCard({
   });
   const path = `/moment#${momentLink(moment)}`;
   const kind = h.moments.kinds[moment.kind];
+  const share = async () => {
+    let result: Awaited<ReturnType<typeof platform.shareLink>> = 'failed';
+    try {
+      result = await platform.shareLink(`${window.location.origin}${path}`, kind);
+    } catch {
+      // The adapter answers 'failed' itself; anything it throws is reported the same way.
+    }
+    if (result !== 'failed') track('shared', { what: 'moment', method: result });
+    setStatus(
+      result === 'shared'
+        ? { tone: 'success', text: h.moments.shared }
+        : result === 'copied'
+          ? { tone: 'success', text: h.moments.copied }
+          : { tone: 'error', text: h.moments.shareFailed },
+    );
+  };
   return (
     <li
       id={`moment-${moment.id}`}
@@ -144,21 +160,7 @@ export function MomentCard({
         </p>
         <div className="flex flex-wrap items-center gap-2.5">
           <ReplayButton playback={playback} />
-          <button
-            type="button"
-            className="button secondary"
-            onClick={async () => {
-              const result = await platform.shareLink(`${window.location.origin}${path}`, kind);
-              if (result !== 'failed') track('shared', { what: 'moment', method: result });
-              setStatus(
-                result === 'shared'
-                  ? { tone: 'success', text: h.moments.shared }
-                  : result === 'copied'
-                    ? { tone: 'success', text: h.moments.copied }
-                    : { tone: 'error', text: h.moments.shareFailed },
-              );
-            }}
-          >
+          <button type="button" className="button secondary" onClick={() => void share()}>
             <Glyph name="link" className="h-4 w-4" />
             {h.moments.share}
           </button>

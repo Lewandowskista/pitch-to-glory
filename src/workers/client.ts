@@ -86,10 +86,19 @@ function finish(
  * decoded here in short slices, and the store takes it when its last checkpoint has committed,
  * so the screen ends on the committed world and "All changes saved" is true when shown.
  */
-export async function startWorldJob(
+export function startWorldJob(
   type: WorldJob['type'],
   options: WorldJobOptions = {},
 ): Promise<void> {
+  // Never rejects, so callers may hand the job off with `void`: failures inside the job are
+  // reported by `finish`, and anything else (a throw while preparing it) the same way here.
+  return runJob(type, options).catch((error: unknown) => {
+    const code = errorCode(error);
+    if (current === null) finish(null, code);
+    else useAppStore.getState().worldFeedback(null, code);
+  });
+}
+async function runJob(type: WorldJob['type'], options: WorldJobOptions): Promise<void> {
   let state = useAppStore.getState();
   if (type === 'generate' && state.trainingDraft) {
     if (!(await confirmTrainingAbandonment())) return;

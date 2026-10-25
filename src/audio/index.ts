@@ -21,7 +21,7 @@ export const audio = {
     settings = next;
     player?.configure(next);
   },
-  /** Call from a user gesture. Safe to call repeatedly. */
+  /** Call from a user gesture. Safe to call repeatedly; never rejects (a failed load retries). */
   async unlock(): Promise<void> {
     if (player) {
       player.unlock();
@@ -56,7 +56,10 @@ export const audio = {
   get musicAllowed(): boolean {
     return musicAsked;
   },
-  /** Render sounds ahead of need, such as the match sounds when the match screen opens. */
+  /**
+   * Render sounds ahead of need, such as the match sounds when the match screen opens. Never
+   * rejects: a sound that fails to render is simply not played.
+   */
   async prepare(names: SoundName[]): Promise<void> {
     if (player) await player.prepare(names);
     else warm = [...new Set([...warm, ...names])];
