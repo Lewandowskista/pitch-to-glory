@@ -2007,7 +2007,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 22;
+  schemaVersion: 23;
   engineVersion: string;
   slot: SlotId;
   name: string;

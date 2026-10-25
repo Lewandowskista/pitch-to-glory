@@ -16,6 +16,7 @@ import {
 import { selectStartingPlayers } from '../src/engine/strength';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
+import { CONFIG } from '../src/engine/config';
 
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 
@@ -264,7 +265,7 @@ describe('season competition statistics', () => {
       schemaVersion: 13,
     };
     const migrated = migrateSave(JSON.parse(JSON.stringify(old)));
-    expect(migrated.schemaVersion).toBe(22);
+    expect(migrated.schemaVersion).toBe(CONFIG.saves.schemaVersion);
     if (migrated.payload.kind !== 'world') throw new Error('Expected a world save');
     const loaded = migrated.payload.world;
     expect(hasSeasonStatistics(loaded)).toBe(false);

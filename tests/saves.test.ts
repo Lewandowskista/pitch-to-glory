@@ -1,7 +1,14 @@
 import Dexie from 'dexie';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SaveDatabase, SaveRepository } from '../src/persistence/repository';
-import { createSave, migrateSave, parseSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
+import {
+  createSave,
+  migrateSave,
+  parseSave,
+  DEFAULT_SETTINGS,
+  SaveError,
+} from '../src/persistence/schema';
+import { generateWorld } from '../src/engine/world/generate';
 import { LeaseLock } from '../src/persistence/locks';
 import { CONFIG } from '../src/engine/config';
 
@@ -43,6 +50,29 @@ describe('save schema and migration', () => {
         settings: DEFAULT_SETTINGS,
       },
     });
+  });
+  it('migrates schema 22 to 23 unchanged, and refuses a save from a newer schema', () => {
+    const world = generateWorld('schema-23', { format: 'legacy' });
+    const save = createSave(1, 'Schema 22', {
+      kind: 'world',
+      world,
+      gallery: { seed: 'schema', generation: 0 },
+      settings: DEFAULT_SETTINGS,
+    });
+    expect(save.schemaVersion).toBe(23);
+    // Schema 23 changes nothing stored: a schema 22 file reads back exactly, relabelled.
+    const v22: unknown = JSON.parse(JSON.stringify({ ...save, schemaVersion: 22 }));
+    expect(migrateSave(v22)).toEqual(save);
+    // What an older build does with this build's saves: a newer schema is refused, not read.
+    const refused = (() => {
+      try {
+        migrateSave({ ...save, schemaVersion: 24 });
+      } catch (error) {
+        return error;
+      }
+    })();
+    expect(refused).toBeInstanceOf(SaveError);
+    expect((refused as SaveError).code).toBe('future');
   });
   it('rejects unsupported versions, malformed files and corrupt nested data', () => {
     const save = createSave(1, 'Test', {

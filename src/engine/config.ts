@@ -1278,7 +1278,7 @@ export const CONFIG = {
     familiarity: { natural: 90, accomplished: 55 },
   },
   saves: {
-    schemaVersion: 22,
+    schemaVersion: 23,
     slotCount: 3,
     maxFileBytes: 128 * 1024 * 1024,
     autosaveDelayMs: 450,

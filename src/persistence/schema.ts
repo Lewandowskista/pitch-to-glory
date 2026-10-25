@@ -133,6 +133,12 @@ const migrations: Readonly<Record<number, Migration>> = {
   // Hall of Fame record (`world.achievements`, `hallOfFame` on players and archived players).
   // Careers and worlds saved before keep their rules until their next season, then adopt them.
   21: (old) => ({ ...old, schemaVersion: 22 }),
+  // v23 changes nothing stored. Releases 0.4.0 to 0.9.1 added optional fields under schema 22
+  // (international windows, tournaments, career facts, growth, commitments and more), so a tab
+  // or installed app from before them could open a save that uses them. From v23 the persisted
+  // shape is checked against the schema version (`npm run check:save-shape`), and an older
+  // client refuses a newer save as written by a later version.
+  22: (old) => ({ ...old, schemaVersion: 23 }),
 };
 /** Worlds saved before v21 gain squad numbers; an in-progress match keeps replaying. */
 function withSquadNumbers(payload: unknown): unknown {

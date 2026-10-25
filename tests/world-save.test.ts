@@ -3,6 +3,7 @@ import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/per
 import { SaveDatabase, SaveRepository } from '../src/persistence/repository';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { CREST_SYMBOLS } from '../src/engine/assets/crest';
+import { CONFIG } from '../src/engine/config';
 
 describe('world milestone save upgrade', () => {
   it('migrates version 2 collections without losing their seed, preferences or revision', () => {
@@ -16,7 +17,7 @@ describe('world milestone save upgrade', () => {
       revision: 7,
     };
     const migrated = migrateSave(v2);
-    expect(migrated.schemaVersion).toBe(22);
+    expect(migrated.schemaVersion).toBe(CONFIG.saves.schemaVersion);
     expect(migrated.payload).toEqual(v2.payload);
     expect(migrated.revision).toBe(7);
   });
