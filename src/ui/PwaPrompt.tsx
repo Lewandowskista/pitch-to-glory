@@ -1,4 +1,3 @@
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { errorCode, UnsavedWorldError } from '../persistence/errors';
@@ -10,6 +9,7 @@ import { acknowledgeUpdate, startupUpdateNotice } from '../release/notice';
 import { Icon } from './Icon';
 import { buttonClass } from './kit/Button';
 import { useConsentInvitation } from '../analytics';
+import { useServiceWorker } from './serviceWorker';
 const ConsentInvitation = lazy(() => import('./ConsentInvitation'));
 export function PwaPrompt() {
   const [error, setError] = useState('');
@@ -29,7 +29,7 @@ export function PwaPrompt() {
     offlineReady: [offline, setOffline],
     needRefresh: [refresh, setRefresh],
     updateServiceWorker,
-  } = useRegisterSW({
+  } = useServiceWorker({
     onRegisterError: () => setError(t.errors.storage),
     onNeedReload: () => {
       // Activation can arrive later, including after an update in another tab.

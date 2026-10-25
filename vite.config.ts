@@ -55,7 +55,8 @@ export default defineConfig({
     tailwind(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['*.svg'],
+      // Root SVGs are precached by globPatterns (icons as manifest icons): listing them in
+      // includeAssets as well precached them twice.
       manifest: {
         name: 'Pitch to Glory',
         short_name: 'Pitch to Glory',
@@ -91,7 +92,9 @@ export default defineConfig({
         // Pixi's environment bundles (events, accessibility, filters; the web-worker variant).
         // The pitch starts its WebGL renderer with `manageImports: false` (pitchScene.ts), so
         // they are emitted but never requested, and offline play does not need them cached.
-        globIgnores: ['**/browserAll-*.js', '**/webworkerAll-*.js'],
+        // The manifest's icons are precached as manifest icons already (`icon*.svg` would
+        // otherwise be listed twice).
+        globIgnores: ['**/browserAll-*.js', '**/webworkerAll-*.js', 'icon*.svg'],
         navigateFallback: '/index.html',
         clientsClaim: true,
         // The music loop (src/assets/audio/, about 600 KB) comes in two formats and a browser
