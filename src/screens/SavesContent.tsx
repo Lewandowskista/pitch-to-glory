@@ -767,7 +767,9 @@ function SlotCard({
           <p
             className={cx(
               'slot-backup mt-1 text-xs',
-              paused ? 'font-semibold text-warning' : 'text-muted',
+              paused
+                ? 'self-start rounded-chip bg-art-gold px-2 py-0.5 font-semibold text-gold-ink'
+                : 'text-muted',
             )}
           >
             {paused
@@ -801,7 +803,7 @@ function SlotCard({
               <div key={backup.id} className="flex items-center gap-1.5">
                 <Button
                   variant="secondary"
-                  icon="history"
+                  icon="refresh"
                   className="h-auto min-w-0 flex-1 justify-start py-2 text-left"
                   disabled={actions.blocked}
                   aria-label={format(t.saves.restoreLabel, { when, detail, slot: slotName })}
