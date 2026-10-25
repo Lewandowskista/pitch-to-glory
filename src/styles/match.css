@@ -2462,6 +2462,7 @@
   display: grid;
   gap: 1rem;
   padding: 1.25rem;
+  border: 1px solid var(--color-night-line);
   border-radius: var(--radius-panel);
   background: var(--color-night);
   color: var(--color-night-ink);

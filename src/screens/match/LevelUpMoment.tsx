@@ -65,20 +65,17 @@ export function LevelUpMoment({
       // Escape closes here and stops, so the shell's Escape shortcut never adds a "back".
       onKeyDown={(event) => {
         if (event.key === 'Tab') {
-          // Focus stays in the moment: Tab past the last action returns to the first.
+          // Focus stays in the moment and moves through all its actions in order, wrapping at
+          // either end (Safari's Tab otherwise skips links and would leave the dialog).
           const actions = Array.from(
             event.currentTarget.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'),
           );
-          const first = actions[0];
-          const last = actions.at(-1);
-          const current = document.activeElement;
-          if (event.shiftKey && (current === first || !actions.includes(current as HTMLElement))) {
-            event.preventDefault();
-            last?.focus();
-          } else if (!event.shiftKey && current === last) {
-            event.preventDefault();
-            first?.focus();
-          }
+          if (actions.length === 0) return;
+          event.preventDefault();
+          const index = actions.indexOf(document.activeElement as HTMLElement);
+          const step = event.shiftKey ? -1 : 1;
+          const next = index < 0 ? (step > 0 ? 0 : actions.length - 1) : index + step;
+          actions[(next + actions.length) % actions.length]!.focus();
           return;
         }
         if (event.key !== 'Escape') return;

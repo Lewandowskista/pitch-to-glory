@@ -284,6 +284,9 @@ test('a level-up is a moment of its own, shown once and keyboard-operable', asyn
   // The points wait beside the level; spending them and coming back never repeats the moment.
   await page.locator('.match-report-points').click();
   await expect(page).toHaveURL(/\/career\/profile/);
+  // Back once the profile has settled its address (it adds the save to the URL).
+  await expect(page.getByRole('heading', { name: 'Player profile', level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/\/career\/profile\?save=1/);
   await page.goBack();
   await expect(report).toBeVisible();
   await expect(page.getByTestId('career-xp')).toContainText('XP earned');
