@@ -154,6 +154,42 @@ export function ref(value: unknown, entities: object): void {
   id(value);
   requireValue(Object.hasOwn(entities, value as string));
 }
+/**
+ * Season summaries (retention, release plan step 3.6): one a season, so a world holds as many
+ * as it has played. The engine keeps `CONFIG.world.retention.historySeasons` (plus the season
+ * just finished, until the next starts) in full; the rest are compacted to their titles.
+ * Saves from before retention keep up to 100 full seasons until their next season start.
+ */
+export const HISTORY_LIMIT = 10_000;
+export const DETAILED_HISTORY_LIMIT = 100;
+/** A compacted season: its champions and cup winners, nothing else (see `SeasonSummary`). */
+export function validateCompactSummary(
+  summary: Record<string, unknown>,
+  world: {
+    leagues: object;
+    clubs: object;
+    competitions: object;
+    leagueCount: number;
+    cupCount: number;
+    current: number;
+  },
+): void {
+  requireValue(summary.compact === true && Number(summary.season) < world.current);
+  requireValue(Object.keys(object(summary.tables)).length === 0);
+  requireValue(array(summary.movements, 0).length === 0);
+  requireValue(summary.phases === undefined && summary.ties === undefined);
+  const champions = Object.entries(object(summary.champions));
+  const cupWinners = Object.entries(object(summary.cupWinners));
+  requireValue(champions.length === world.leagueCount && cupWinners.length === world.cupCount);
+  for (const [key, club] of champions) {
+    ref(key, world.leagues);
+    ref(club, world.clubs);
+  }
+  for (const [key, club] of cupWinners) {
+    ref(key, world.competitions);
+    ref(club, world.clubs);
+  }
+}
 export function standings(
   value: unknown,
   clubIds: readonly string[],
@@ -359,7 +395,22 @@ export function validateEntities(
   }
   if (w.archive !== undefined) {
     const archive = object(w.archive);
-    requireValue(Object.keys(archive).length === 1);
+    requireValue(
+      Object.keys(archive).every((key) => key === 'players' || key === 'pruned') &&
+        archive.players !== undefined,
+    );
+    // Scores of pruned archived players (retention): distinct ascending scores, with counts.
+    if (archive.pruned !== undefined) {
+      let previous = -1;
+      for (const value of array(archive.pruned, 1_000_000)) {
+        const pair = array(value, 2);
+        requireValue(pair.length === 2);
+        number(pair[0], 0, 1e7, true);
+        number(pair[1], 1, 1e9, true);
+        requireValue(Number(pair[0]) > previous);
+        previous = Number(pair[0]);
+      }
+    }
     for (const record of Object.values(map(archive.players, 1_000_000))) {
       requireValue(!Object.hasOwn(players, String(record.id)));
       text(record.name);

@@ -23,6 +23,8 @@ import { parseSave, type AppSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { worldOperations } from '../src/workers/operations';
 import { adoptCurrentRules } from '../src/engine/world/rules';
+import { applyRetention } from '../src/engine/world/retention';
+import { compactKeeping } from '../src/engine/keeping';
 import type { World, WorldState } from '../src/model/domain';
 
 const DIRECTORY = 'tests/fixtures/saves';
@@ -103,12 +105,18 @@ async function playThrough(item: GoldenSaveEntry): Promise<void> {
   const loaded = worldOf(save);
   const world = loaded.world;
   // Migration and validation keep the release's world as it was written, but for the rules it
-  // adopts once on load (docs/COMPATIBILITY.md).
+  // adopts once on load and retention (docs/COMPATIBILITY.md).
   expect(world.date).toMatchObject({ season: item.world.season, week: item.world.week });
   const expected = structuredClone(original.payload.world);
   adoptCurrentRules(expected);
+  applyRetention(expected);
   expect(JSON.stringify(world) === JSON.stringify(expected), 'world kept').toBe(true);
   expect(adoptCurrentRules(structuredClone(world)), 'rules adopted').toEqual([]);
+  expect(applyRetention(structuredClone(world)), 'retention applied').toEqual({
+    seasons: 0,
+    pruned: 0,
+    keeping: 0,
+  });
 
   if (item.match) {
     const expectation = SESSIONS[item.match.engine] ?? 'restart';
@@ -120,7 +128,10 @@ async function playThrough(item: GoldenSaveEntry): Promise<void> {
       expect(session.engine).toBe(item.match.engine);
       expect(session.state.match.minute).toBe(item.match.minute);
       expect(session.commands).toHaveLength(item.match.commands);
-      expect(JSON.stringify(session) === JSON.stringify(original.payload.matchSession)).toBe(true);
+      // The session's copies of the players drop their derivable goalkeeping, as the world's do.
+      const kept = structuredClone(original.payload.matchSession!);
+      for (const player of Object.values(kept.setup.players)) compactKeeping(player);
+      expect(JSON.stringify(session) === JSON.stringify(kept)).toBe(true);
     } else {
       // The documented notice: the world loads, the match starts again from kick-off.
       expect(imported.recovery).toBe('match-discarded');

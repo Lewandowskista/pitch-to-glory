@@ -137,7 +137,8 @@ interface HallOfFameEntry {
  * and then id (ascending). A former career is listed with its saved honour-inclusive legacy
  * score, the same criteria a new score uses, never with its club numbers alone. Everyone else
  * is scored from the shared achievement record (`achievements.ts`); in a world that has not yet
- * adopted it, by club numbers and awards (their trophies were not recorded).
+ * adopted it, by club numbers and awards (their trophies were not recorded). Archived players
+ * pruned by retention are not listed: ranks add them from `prunedHallOfFame`.
  */
 export function hallOfFameTable(world: World): readonly HallOfFameEntry[] {
   return [...hallOfFameScores(world)]
@@ -186,6 +187,47 @@ function hallOfFameScores(world: World): Map<string, number> {
     add(id, hallOfFameScore(record.stats));
   return scores;
 }
+/**
+ * Archived players pruned by retention (`WorldArchive.pruned`) are in the Hall of Fame without
+ * a name: only their scores are kept, as `[score, players]` pairs. Their scores never change
+ * (an archived player plays no more), so ranks stay exact: everyone with a higher score, named
+ * or not, is counted. Only named players are ever given as the next name to pass.
+ */
+interface PrunedIndex {
+  /** Distinct scores, ascending. */
+  scores: number[];
+  /** Players at or above each score. */
+  atLeast: number[];
+  total: number;
+}
+const prunedIndexes = new WeakMap<readonly [number, number][], PrunedIndex>();
+function prunedIndex(world: World): PrunedIndex | null {
+  const pairs = world.archive?.pruned;
+  if (!pairs?.length) return null;
+  let index = prunedIndexes.get(pairs);
+  if (!index) {
+    const atLeast = new Array<number>(pairs.length);
+    let sum = 0;
+    for (let i = pairs.length - 1; i >= 0; i--) atLeast[i] = sum += pairs[i]![1];
+    index = { scores: pairs.map(([score]) => score), atLeast, total: sum };
+    prunedIndexes.set(pairs, index);
+  }
+  return index;
+}
+/** Pruned players in the Hall of Fame: their number, and how many score above `score`. */
+export function prunedHallOfFame(world: World, score: number): { above: number; total: number } {
+  const index = prunedIndex(world);
+  if (!index) return { above: 0, total: 0 };
+  let low = 0;
+  let high = index.scores.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (index.scores[middle]! > score) high = middle;
+    else low = middle + 1;
+  }
+  return { above: index.atLeast[low] ?? 0, total: index.total };
+}
+
 /** The name the world remembers someone by: a legacy, a current player or the archive. */
 function rememberedName(world: World, id: string): string {
   return (
@@ -218,8 +260,9 @@ function standingIn(
   excludeId: string,
 ): HallOfFameStanding {
   const above = firstAbove(table, score);
-  let better = table.length - above;
-  let of = table.length + 1;
+  const pruned = prunedHallOfFame(world, score);
+  let better = table.length - above + pruned.above;
+  let of = table.length + pruned.total + 1;
   let next: HallOfFameStanding['next'] = null;
   for (let index = above; index < table.length; index++) {
     const entry = table[index]!;
@@ -301,6 +344,7 @@ function tableKey(world: World): string {
     world.legacies.length,
     world.legacies.reduce((sum, legacy) => sum + legacy.hallOfFame.score, 0),
     Object.keys(world.archive?.players ?? {}).length,
+    prunedHallOfFame(world, 0).total,
   ].join('|');
 }
 /** The Hall of Fame table for a world state, worked out once per week (see `tableKey`). */
@@ -334,7 +378,10 @@ export function hallOfFameBelow(
   // Their rank: everyone else above them, plus the score's owner.
   const owner = table.find((other) => other.id === excludeId);
   const above =
-    table.length - firstAbove(table, entry.score) - (owner && owner.score > entry.score ? 1 : 0);
+    table.length -
+    firstAbove(table, entry.score) -
+    (owner && owner.score > entry.score ? 1 : 0) +
+    prunedHallOfFame(world, entry.score).above;
   return {
     id: entry.id,
     name: rememberedName(world, entry.id),
@@ -415,7 +462,8 @@ function screenScores(world: World): Map<string, number> {
 /** `standingIn` from unsorted scores, in one pass: the same rank, total and next name. */
 function standingAmong(world: World, score: number, excludeId: string): HallOfFameStanding {
   const scores = screenScores(world);
-  let better = 0;
+  const pruned = prunedHallOfFame(world, score);
+  let better = pruned.above;
   let next: { id: string; score: number } | null = null;
   for (const [id, value] of scores) {
     if (id === excludeId || value <= score) continue;
@@ -425,7 +473,7 @@ function standingAmong(world: World, score: number, excludeId: string): HallOfFa
   }
   return {
     rank: better + 1,
-    of: scores.size + (scores.has(excludeId) ? 0 : 1),
+    of: scores.size + pruned.total + (scores.has(excludeId) ? 0 : 1),
     next: next && { id: next.id, name: rememberedName(world, next.id), score: next.score },
   };
 }

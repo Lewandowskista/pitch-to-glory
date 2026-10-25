@@ -314,7 +314,7 @@ export function validateHonours(w: Record<string, unknown>): void {
 
   // Legacies.
   const legacyPlayers = new Set<string>();
-  for (const value of array(w.legacies, 50)) {
+  for (const value of array(w.legacies, H.legacyLimit)) {
     const legacy = object(value);
     id(legacy.id);
     ref(legacy.playerId, players);
@@ -357,7 +357,8 @@ export function validateHonours(w: Record<string, unknown>): void {
 
   // Chronicle and Moments.
   const momentIds = new Set<string>();
-  for (const value of array(w.moments, H.moments.limit * 10)) {
+  // Moments and the Chronicle are kept per career: each legacy's and the current career's.
+  for (const value of array(w.moments, H.moments.limit * (H.legacyLimit + 1))) {
     const moment = object(value);
     id(moment.id);
     requireValue(!momentIds.has(String(moment.id)));
@@ -395,7 +396,7 @@ export function validateHonours(w: Record<string, unknown>): void {
     }
   }
   const chronicleIds = new Set<string>();
-  for (const value of array(w.chronicle, H.chronicleLimit * 10)) {
+  for (const value of array(w.chronicle, H.chronicleLimit * (H.legacyLimit + 1))) {
     const entry = object(value);
     id(entry.id);
     requireValue(!chronicleIds.has(String(entry.id)));
