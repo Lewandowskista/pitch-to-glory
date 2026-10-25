@@ -320,4 +320,4 @@ export function crowd(level: number | null): void {
 }
 document.addEventListener('visibilitychange', () => configure(settings));
 // Music skipped while offline (nothing cached yet) starts once the connection returns.
-addEventListener('online', () => syncLoop(music));
+globalThis.addEventListener?.('online', () => syncLoop(music));
