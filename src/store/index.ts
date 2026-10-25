@@ -93,7 +93,7 @@ export type AppStore = SettingsSlice &
  * as its latest record: loading another save, a later state of the same career or a new world
  * drops it, while edits and saving the same career elsewhere keep it.
  */
-function reportFor(
+export function reportFor(
   result: MatchSlice['careerResult'],
   world: World | null,
 ): MatchSlice['careerResult'] {
@@ -269,6 +269,13 @@ const matchSlice: StateCreator<AppStore, [], [], MatchSlice> = (set) => ({
   careerResult: null,
   setCareerResult: (careerResult) => set({ careerResult }),
 });
+/**
+ * Whether the world is in use and must not change underneath: a world job running, a match in
+ * hand, or training being saved.
+ */
+export const worldBusy = (
+  state: Pick<AppStore, 'worldJob' | 'matchSession' | 'trainingSaving'>,
+): boolean => Boolean(state.worldJob || state.matchSession || state.trainingSaving);
 export const useAppStore = create<AppStore>()((...args) => ({
   ...settingsSlice(...args),
   ...gallerySlice(...args),
