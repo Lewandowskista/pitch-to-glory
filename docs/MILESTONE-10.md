@@ -33,6 +33,7 @@ AGENTS.md §3 and §12 milestone 10: deployment pipeline, PWA and offline polish
 
 - The save system (Dexie, validation, migrations and the engine code they use, about 90 KB gzip) left the startup bundle: it loads on first use through `persistence/lazy.ts`. Error codes and settings validation moved to light modules (`errors.ts`, `settings.ts`). A returning player's browser preloads it when idle; a first-time visitor (no save database, checked with `indexedDB.databases()`) does not download it until they create or load something.
 - The startup bundle fell from 173 KB to 80 KB gzip.
+- Later (release 1.0, step 2.8): Dexie and the validators load only in the persistence worker, and each route's budget counts what it loads before it is usable; see ARCHITECTURE.md, "Bundle budget".
 - Framer Motion loads through `LazyMotion`: components use the small `m` element, and the animation features arrive as their own chunk. The page entrance became a CSS animation that starts visible, so the first paint never waits for script.
 - Inter is one variable font (Latin, 48 KB) instead of four static weights (97 KB).
 - Saves, the one screen that needs the whole save system, renders its heading at once and loads the slot list after the first paint (`afterFirstPaint`: paint timing, then an idle moment; immediate when navigating within the app). Its time to interactive fell from 4.0 s to 2.6 s in Lighthouse's mobile run.
