@@ -1,7 +1,7 @@
 /*
  * World screen (redesign, phase 4). Most of the screen is Tailwind utilities in
  * screens/World.tsx and screens/world/*; this file keeps what utilities cannot say well: the
- * browser grid, the sticky club panel, table cells, zone chips and the hero focus ring.
+ * browser grid, the sticky club panel, table cells and zone chips.
  */
 
 /* Shell rules that historically live here: the top bar's simulation pill. */
@@ -13,11 +13,6 @@
   .simulation-link {
     display: none;
   }
-}
-
-/* On the field-green heroes the accent focus ring would vanish: use gold. */
-.world-hero :focus-visible {
-  outline-color: var(--color-gold);
 }
 
 /* Worker progress fills smoothly unless motion is reduced. */
@@ -63,7 +58,7 @@
   outline: none;
 }
 .club-identity h2:focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--focus-ring, var(--accent));
   outline-offset: 2px;
 }
 .world-jump {

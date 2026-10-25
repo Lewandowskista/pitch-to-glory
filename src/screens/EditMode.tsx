@@ -53,7 +53,7 @@ const KINDS: Kind[] = ['clubs', 'leagues', 'players'];
 const LIMIT = 60;
 /** Fields share one look; invalid values get the danger outline and tint over the utilities. */
 const field =
-  'min-h-11 w-full rounded-control border border-line bg-surface px-3 text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent aria-[invalid=true]:border-2 aria-[invalid=true]:border-danger aria-[invalid=true]:bg-danger-soft';
+  'min-h-11 w-full rounded-control border border-line bg-surface px-3 text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus-ring aria-[invalid=true]:border-2 aria-[invalid=true]:border-danger aria-[invalid=true]:bg-danger-soft';
 const eyebrow = 'text-xs font-extrabold uppercase tracking-[0.14em] text-muted';
 /** A titled block inside the club editor, set off by a hairline. */
 const SECTION = 'flex flex-col gap-3 border-t border-line pt-5';
@@ -436,7 +436,7 @@ function Editor({ world }: { world: World }) {
                       aria-current={current ? 'true' : undefined}
                       onClick={() => open(row.id)}
                       className={cx(
-                        'flex min-h-13 w-full min-w-0 items-center gap-2.5 rounded-control px-3 py-1.5 text-left text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                        'flex min-h-13 w-full min-w-0 items-center gap-2.5 rounded-control px-3 py-1.5 text-left text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
                         current
                           ? 'border-2 border-accent bg-accent-soft'
                           : 'border border-line bg-surface-soft hover:border-accent',
@@ -760,7 +760,7 @@ function ClubEditor({ world, club }: { world: World; club: Club }) {
                     id={`colour-${index}`}
                     type="color"
                     value={ok ? color.toLowerCase() : '#000000'}
-                    className="h-11 w-14 shrink-0 cursor-pointer rounded-control border border-line bg-surface p-1 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    className="h-11 w-14 shrink-0 cursor-pointer rounded-control border border-line bg-surface p-1 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                     onChange={(event) =>
                       setColors(colors.map((c2, i) => (i === index ? event.target.value : c2)))
                     }
@@ -964,7 +964,7 @@ function EditFile({ world }: { world: World }) {
         <label
           className={cx(
             buttonClass('secondary'),
-            'relative focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-accent',
+            'relative focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-focus-ring',
             block ? 'pointer-events-none opacity-60' : 'cursor-pointer',
           )}
           aria-disabled={block ? true : undefined}

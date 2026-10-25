@@ -178,7 +178,7 @@ function AmbitionChooser({ world, onDone }: { world: World; onDone: () => void }
           {a.dreamClub}
           <select
             id={`${id}-club`}
-            className="min-h-11 w-full rounded-control border border-line bg-surface px-3 font-normal text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="min-h-11 w-full rounded-control border border-line bg-surface px-3 font-normal text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             value={dream}
             onChange={(event) => setDream(event.target.value)}
           >

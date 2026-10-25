@@ -229,3 +229,78 @@ test('the keyboard reaches every main control and focus is always visible', asyn
     expect(seen.size, route).toBeGreaterThan(10);
   }
 });
+
+test('focus rings stand out on every field-green hero', async ({ page }) => {
+  test.setTimeout(180000);
+  await page.goto('/saves');
+  await page
+    .locator('.slot-card')
+    .nth(0)
+    .getByLabel('Import backup — Slot 1')
+    .setInputFiles({
+      name: 'sweep.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(careerSave()),
+    });
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career');
+  const checked: string[] = [];
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const route of [
+      '/',
+      '/career?save=1',
+      '/match?save=1',
+      '/world?save=1',
+      '/career/moments?save=1',
+    ]) {
+      await page.goto(route);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 30000 });
+      await expect(page.getByText(/Loading/)).toHaveCount(0, { timeout: 30000 });
+      const control = page
+        .locator('.bg-field-stripes, .match-fixture-hero, .match-selection-hero')
+        .locator('a[href]:visible, button:not(:disabled):visible')
+        .first();
+      // The landing and the hub always have one; other heroes depend on the career's state.
+      await page.waitForLoadState('networkidle');
+      if (['/', '/career?save=1'].includes(route)) await expect(control).toBeVisible();
+      else if (!(await control.count())) continue;
+      // Retried, since a screen can still re-render its hero as its data settles.
+      await expect(async () => {
+        // A key press first, so the browser treats the focus that follows as keyboard focus.
+        await page.keyboard.press('Shift');
+        await control.focus();
+        const ring = await control.evaluate((element) => {
+          const style = getComputedStyle(element);
+          const channels = (colour: string) => (colour.match(/[\d.]+/g) ?? []).map(Number);
+          const luminance = ([r, g, b]: number[]) => {
+            const linear = (value: number) => {
+              const v = value / 255;
+              return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+            };
+            return 0.2126 * linear(r!) + 0.7152 * linear(g!) + 0.0722 * linear(b!);
+          };
+          const contrast = (a: number[], b: number[]) => {
+            const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+            return (high! + 0.05) / (low! + 0.05);
+          };
+          return {
+            visible:
+              element.matches(':focus-visible') &&
+              style.outlineStyle !== 'none' &&
+              parseFloat(style.outlineWidth) >= 2,
+            // Against both bands of the mowing stripes (--color-field, --color-field-stripe).
+            contrast: Math.min(
+              contrast(channels(style.outlineColor), [7, 94, 69]),
+              contrast(channels(style.outlineColor), [10, 106, 78]),
+            ),
+            colour: style.outlineColor,
+          };
+        });
+        expect(ring.visible, `${scheme} ${route}`).toBe(true);
+        expect(ring.contrast, `${scheme} ${route} ${ring.colour}`).toBeGreaterThanOrEqual(3);
+      }).toPass({ timeout: 15000 });
+      checked.push(`${scheme} ${route}`);
+    }
+  }
+  expect(checked.length).toBeGreaterThanOrEqual(4);
+});

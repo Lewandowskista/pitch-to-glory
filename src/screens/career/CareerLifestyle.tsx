@@ -667,7 +667,7 @@ function Assets({ world, career, action }: { world: World; career: Career; actio
                     {STAFF_SPECIALITIES[asset.itemId]!.map((speciality) => (
                       <label
                         key={speciality}
-                        className="relative flex min-h-10 cursor-pointer items-center rounded-chip px-2.5 text-[0.8125rem] font-bold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
+                        className="relative flex min-h-10 cursor-pointer items-center rounded-chip px-2.5 text-[0.8125rem] font-bold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-focus-ring"
                       >
                         <input
                           type="radio"
