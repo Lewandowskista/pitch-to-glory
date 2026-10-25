@@ -29,9 +29,16 @@ export type AppSave = Omit<SaveFile, 'payload'> & {
 /**
  * `match-discarded`: a match in progress could not be resumed. `changes-discarded`: the slot's
  * latest small changes (stored as patches, step 3.4) no longer applied, so the world loaded as it
- * was last written whole.
+ * was last written whole. `salvaged-…`: the world passed its checks only without an optional
+ * part (`salvage.ts`, step 4.4), named, or `salvaged` for several.
  */
-export type SaveRecovery = 'match-discarded' | 'changes-discarded';
+export type SaveRecovery =
+  | 'match-discarded'
+  | 'changes-discarded'
+  | 'salvaged-feed'
+  | 'salvaged-statistics'
+  | 'salvaged-history'
+  | 'salvaged';
 const invalid = (): never => {
   throw new SaveError('invalid');
 };

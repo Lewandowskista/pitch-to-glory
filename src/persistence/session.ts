@@ -15,6 +15,8 @@ import { COMMITMENTS } from '../engine/career/commitments';
 import type { AppSave } from './schema';
 import type { LoadedSave, SaveWriteReceipt } from './localRepository';
 import type { BackupFile } from './backup';
+import type { BackupKind } from './backups';
+import { backupFileName, recoveryFileName } from './files';
 import { combineReceipt } from './receipts';
 import { compactSession } from './matchRecord';
 import { PersistenceInterrupted } from './workerClient';
@@ -477,6 +479,51 @@ export async function exportSlotBackup(slot: SlotId): Promise<BackupFile> {
   assertNotSimulating();
   await autosave.flush();
   return own(slot, () => saves.exportBackup(slot));
+}
+/**
+ * Replace a slot that will not load with one of its rotating backups (step 4.3) and load it.
+ * The persistence worker checks the backup in full before replacing anything.
+ */
+export async function restoreSlot(
+  slot: SlotId,
+  backup: BackupKind,
+  expected: number | null,
+): Promise<boolean> {
+  assertNotSimulating();
+  if (!(await confirmTrainingAbandonment())) return false;
+  assertNotSimulating();
+  expected = await flushExpected(slot, expected);
+  await own(slot, async () => {
+    const previous = useAppStore.getState().activeSave?.slot;
+    const restored = await saves.restore(slot, backup, expected);
+    if (previous && previous !== slot) await slotLocks.release(previous);
+    applyLoaded(restored);
+  });
+  return true;
+}
+/** One backup generation as a file, assembled like a recovery copy (never validated). */
+export async function exportBackupGeneration(slot: SlotId, backup: BackupKind) {
+  await autosave.settle();
+  return saves.exportGeneration(slot, backup);
+}
+/**
+ * A backup file of this tab's session, saved or not: checked where it passes, otherwise an
+ * unchecked recovery copy (named so). For when a save failed, storage being full among others.
+ */
+export async function exportUnsavedCopy(): Promise<{ name: string; backup: BackupFile } | null> {
+  const active = useAppStore.getState().activeSave;
+  if (!active) return null;
+  const payload = snapshot();
+  const { slot, name } = active;
+  try {
+    const backup = await saves.serialize(slot, name, payload);
+    return { name: backupFileName('unsaved', backup.compressed), backup };
+  } catch (error) {
+    // Too large is not a failed check: an unchecked copy is no smaller.
+    if (errorCode(error) === 'large') throw error;
+    const backup = await saves.serializeUnvalidated(slot, name, payload);
+    return { name: recoveryFileName('unsaved', backup.compressed), backup };
+  }
 }
 /**
  * A recovery copy of a slot that will not load: its stored records, unvalidated. Waits for a

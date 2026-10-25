@@ -101,6 +101,14 @@ export const en = {
         'Your world loaded safely, but a match in progress was saved by an older version of the game and could not be resumed. Start it again from Matchday.',
       'changes-discarded':
         'Your world loaded safely, but your most recent changes since the last completed week could not be restored. Check your latest decisions before you continue.',
+      'salvaged-feed':
+        'Your save loaded, but its social feed was damaged and has been cleared. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
+      'salvaged-statistics':
+        'Your save loaded, but this season’s competition statistics were damaged and have been set aside; they start again next season. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
+      'salvaged-history':
+        'Your save loaded, but the charts of your morale, form and growth were damaged and have been cleared. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
+      salvaged:
+        'Your save loaded, but some damaged parts were set aside: the social feed, this season’s statistics, your history charts or your latest changes. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
     },
     reloadSave: 'Reload saved game',
     recoverTitle: 'Reload the saved game?',
@@ -388,6 +396,8 @@ export const en = {
     simulation: 'The world could not advance. Your last completed week is retained. Try again.',
     'match-active': 'Finish your match on Matchday before advancing or replacing this world.',
     storage: 'The browser could not access local storage. Check available space and try again.',
+    quota:
+      'Storage is full — export a backup and free space on this device, for example by deleting a save you no longer need.',
     render: 'The clubhouse could not open.',
     renderBody: 'Reload the page to try again. Your saves stay on this device.',
     reload: 'Reload page',
