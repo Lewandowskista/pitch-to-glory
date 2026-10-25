@@ -4,6 +4,7 @@ import { CONFIG } from '../../engine/config';
 import { nextCareerFixture } from '../../engine/career/fixtures';
 import {
   activeLoan,
+  agreedPreContract,
   bridgeWage,
   careerContract,
   careerSelection,
@@ -366,7 +367,11 @@ function Requests({ world, career }: { world: World; career: Career }) {
               ? format(m.requests.askStates.cooldown, {
                   week: market.renewalAskAfter?.week ?? '',
                 })
-              : m.requests.askStates[ask]}
+              : ask === 'pre-contract'
+                ? format(m.requests.askStates['pre-contract'], {
+                    club: world.clubs[agreedPreContract(world)!.clubId]?.name ?? '',
+                  })
+                : m.requests.askStates[ask]}
         </p>
       </div>
       <div>
@@ -951,6 +956,10 @@ function Talks({
   const disabled = Boolean(block) || !isOpen || windowClosed;
   const player = world.players[world.career!.playerId]!;
   const fit = cultureFit(world, player, club).value;
+  // Renewal talks left open beside an agreed free move (saves from before 0.9.1): signing
+  // cancels the move, so it is said here and confirmed first.
+  const move = offer.kind === 'renewal' && isOpen ? agreedPreContract(world) : undefined;
+  const moveClub = move ? (world.clubs[move.clubId]?.name ?? '') : '';
   return (
     <div className="grid gap-5">
       <HeroPanel aria-labelledby="talks-heading" markings>
@@ -1021,6 +1030,11 @@ function Talks({
       {offer.kind === 'renewal' && (
         <TalksNote label={m.kinds[offer.kind]}>{m.talks.renewalNote}</TalksNote>
       )}
+      {move && (
+        <TalksNote label={m.kinds['pre-contract']} strong>
+          {format(m.talks.renewalCancels, { club: moveClub })}
+        </TalksNote>
+      )}
       {!isOpen && (
         <TalksNote label={m.statuses[offer.status]} strong>
           {m.talks.closed}
@@ -1044,7 +1058,8 @@ function Talks({
               negotiation={negotiation}
               disabled={disabled}
               onAccept={() => {
-                if (run({ type: 'accept', offerId: offer.id })) setOutcome('accept');
+                if (move) confirm.open('renew');
+                else if (run({ type: 'accept', offerId: offer.id })) setOutcome('accept');
               }}
               onDecline={() => confirm.open('decline')}
             />
@@ -1062,6 +1077,18 @@ function Talks({
         )
       )}
       {negotiation && <Rounds world={world} offer={offer} negotiation={negotiation} />}
+      {confirm.value === 'renew' && move && (
+        <Dialog
+          title={m.talks.renewConfirmTitle}
+          body={format(m.talks.renewConfirmBody, { club: moveClub })}
+          confirmLabel={m.talks.renewConfirm}
+          onClose={confirm.close}
+          onConfirm={() => {
+            confirm.close();
+            if (run({ type: 'accept', offerId: offer.id })) setOutcome('accept');
+          }}
+        />
+      )}
       {confirm.value === 'decline' && (
         <Dialog
           title={m.talks.declineTitle}
@@ -1489,7 +1516,7 @@ function CounterForm({
             {ROLE_ORDER.map((option) => (
               <label
                 key={option}
-                className="relative flex min-h-11 cursor-pointer items-center justify-center rounded-chip px-1 text-center text-[0.8125rem] leading-tight font-extrabold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
+                className="relative flex min-h-11 cursor-pointer items-center justify-center rounded-chip px-1 text-center text-[0.8125rem] leading-tight font-extrabold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-focus-ring"
               >
                 <input
                   type="radio"

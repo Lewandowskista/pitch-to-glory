@@ -120,6 +120,8 @@ export const marketText = {
       trust: 'The manager’s trust is too low to ask for a new contract.',
       'on-loan': 'Contract talks wait until your loan ends.',
       talking: 'Contract talks are already open.',
+      'pre-contract':
+        'You have agreed to join {club} next season, so contract talks here are closed.',
     },
     transferRequest: 'Hand in a transfer request',
     transferRequestBody:
@@ -205,6 +207,11 @@ export const marketText = {
     preContract:
       'A free move when your contract ends. You join {club} at the start of next season.',
     renewalNote: 'Terms replace your current contract from today.',
+    renewalCancels: 'Signing these terms cancels your agreed free move to {club}.',
+    renewConfirmTitle: 'Stay and cancel your move?',
+    renewConfirmBody:
+      'You agreed to join {club} at the end of the season. Signing new terms here cancels that agreement.',
+    renewConfirm: 'Sign and stay',
     rounds: 'Talks so far',
     roundClub: '{club} offered',
     roundPlayer: 'You asked',
@@ -321,6 +328,7 @@ export const marketText = {
     goTransfers: 'See transfers',
     goMedia: 'Go to the media room',
     goClub: 'Go to Club life',
+    goStory: 'Decide on the hub',
     goRival: 'See your rival',
     goLifestyle: 'Go to Lifestyle',
     goWardrobe: 'Go to the wardrobe',
@@ -432,7 +440,7 @@ export const marketText = {
     },
     'pre-contract-agreed': {
       subject: 'Free transfer agreed with {club}',
-      body: 'You join {club} when your contract ends, at the start of {season}.',
+      body: 'You join {club} when your contract ends, at the start of {season}. Contract talks with your current club are closed.',
     },
     'renewal-signed': {
       subject: 'New contract signed',

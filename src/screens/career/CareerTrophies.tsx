@@ -14,7 +14,7 @@ import type {
 } from '../../model/domain';
 import { CONTINENTAL_IDS, groupTable } from '../../engine/world/continental';
 import { rivalOf } from '../../engine/career/social';
-import { trophyName } from '../../engine/career/honours/trophies';
+import { tournamentPart, trophyName } from '../../engine/career/honours/trophies';
 import { liveHallOfFameRank } from '../../engine/career/honours/retirement';
 import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { format } from '../../i18n';
@@ -119,9 +119,10 @@ function honoursOf(world: World, player: Player) {
   return {
     trophies: world.trophies.filter((trophy) => trophy.playerIds.includes(player.id)),
     awards: world.awards.filter((award) => award.winnerIds.includes(player.id)),
-    tournaments: (world.international?.tournaments ?? []).filter(
-      (t) => t.career?.inSquad && t.career.stage === 'winner',
-    ),
+    tournaments: (world.international?.tournaments ?? []).filter((t) => {
+      const part = tournamentPart(world, player.id, t);
+      return part?.inSquad && part.stage === 'winner';
+    }),
   };
 }
 

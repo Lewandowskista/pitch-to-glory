@@ -243,6 +243,9 @@
 
 /* The scoreboard bar: always dark. */
 .match-bar {
+  /* The light theme's accent ring would vanish on the night bar too. */
+  --focus-ring: var(--color-hero-focus);
+  container: match-bar / inline-size;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -259,20 +262,32 @@
   flex: 1 1 520px;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'home score away clock competition'
+    'home score away state competition';
   align-items: center;
-  gap: 0.75rem 1.125rem;
+  gap: 0.125rem 1.125rem;
+}
+/* Below about 1500px the controls take their own row, so the names keep theirs. */
+@container match-bar (max-width: 74rem) {
+  .match-scoreboard {
+    flex-basis: 100%;
+  }
 }
 .match-team {
   display: flex;
+  container-type: inline-size;
   min-width: 0;
   align-items: center;
   gap: 0.625rem;
 }
 .match-team.is-home {
+  grid-area: home;
   justify-content: flex-end;
   text-align: right;
 }
 .match-team.is-away {
+  grid-area: away;
   flex-direction: row-reverse;
   justify-content: flex-end;
 }
@@ -280,8 +295,15 @@
   display: grid;
   min-width: 0;
 }
+/* Breaks only between words: two lines at most, then an ellipsis. */
 .match-team-text strong {
-  overflow-wrap: anywhere;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
   font-size: 1.0625rem;
   font-weight: 800;
   line-height: 1.15;
@@ -290,6 +312,21 @@
   display: none;
   font-weight: 800;
   font-size: 0.8125rem;
+}
+/* A side too narrow for a name shows the club's mark; the name stays for screen readers. */
+@container (max-width: 10rem) {
+  .match-team-text strong {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .match-team-mark {
+    display: block;
+    font-size: 1.0625rem;
+  }
 }
 .match-team-meta {
   color: var(--color-night-muted);
@@ -307,6 +344,7 @@
 }
 .match-score {
   display: grid;
+  grid-area: score;
   justify-items: center;
   gap: 0.3rem;
   min-width: 7rem;
@@ -332,10 +370,11 @@
   flex-basis: 0;
 }
 .match-clock {
-  display: grid;
-  grid-template-columns: auto auto;
+  display: flex;
+  grid-area: clock;
+  align-self: end;
   align-items: center;
-  column-gap: 0.5rem;
+  gap: 0.5rem;
 }
 .match-clock-dot {
   width: 9px;
@@ -355,13 +394,16 @@
   line-height: 1;
 }
 .match-clock-state {
-  grid-column: 1 / -1;
+  grid-area: state;
+  align-self: start;
+  max-width: 11rem;
   color: var(--color-night-muted);
   font-size: 0.75rem;
   font-weight: 700;
 }
 .match-competition {
   display: grid;
+  grid-area: competition;
   max-width: 13rem;
   padding: 0.25rem 0.6rem;
   border: 1px solid var(--color-night-line);
@@ -1119,7 +1161,8 @@
   border-radius: var(--radius-control);
   background: var(--surface);
 }
-.match-choice[data-quality='strong'] {
+/* A choice your trait helps: gold, with the chip saying so. */
+.match-choice[data-trait] {
   border: 2px solid var(--color-gold);
   background: var(--art-gold);
 }
@@ -1166,12 +1209,24 @@
   color: var(--on-accent);
 }
 .match-choice-chance {
+  display: grid;
   grid-row: 1 / span 2;
   grid-column: 3;
+  justify-items: end;
   font-family: var(--font-display);
   font-size: 1.875rem;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+/* Narrow, so three choices side by side keep room for their names. */
+.match-choice-chance small {
+  max-width: 3.75rem;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: right;
 }
 .match-choice > button > strong {
   grid-row: 1;
@@ -1201,9 +1256,13 @@
   background: var(--art-blue);
   color: var(--info);
 }
-.match-choice[data-quality='strong'] .match-quality {
+.match-trait-chip {
+  display: inline-flex;
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--radius-chip);
   background: var(--color-gold);
   color: var(--color-on-gold);
+  font-weight: 800;
 }
 .match-choice-bar {
   grid-column: 1 / -1;
@@ -1222,9 +1281,6 @@
 }
 .match-choice[data-quality='risky'] .match-choice-bar > span {
   background: var(--info);
-}
-.match-choice[data-quality='strong'] .match-choice-bar > span {
-  background: var(--meter-gold);
 }
 .match-choice-hint {
   display: flex;
@@ -1854,7 +1910,7 @@
   font-weight: 800;
 }
 .match-segment:has(input:focus-visible) {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--focus-ring, var(--accent));
   outline-offset: 2px;
 }
 .match-kickoff {
@@ -2016,6 +2072,7 @@
 }
 .match-selection-hero,
 .match-fixture-hero {
+  --focus-ring: var(--color-hero-focus);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -2192,7 +2249,7 @@
   pointer-events: none;
 }
 .match-team-option:has(input:focus-visible) {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--focus-ring, var(--accent));
   outline-offset: 2px;
 }
 .match-team-option > span {
@@ -2906,6 +2963,9 @@
 @media (max-width: 1150px) {
   .match-scoreboard {
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'home score away clock'
+      'home score away state';
   }
   .match-competition {
     display: none;
@@ -2957,9 +3017,11 @@
   }
   .match-scoreboard {
     grid-template-columns: auto auto auto minmax(0, 1fr);
-    gap: 0.5rem;
+    gap: 0 0.5rem;
   }
+  /* Phones always show the marks, so a side sizes to its crest and mark. */
   .match-team {
+    container-type: normal;
     gap: 0.375rem;
   }
   .match-team.is-home,
@@ -2992,19 +3054,26 @@
     width: 64px;
     height: 4px;
   }
-  .match-clock {
+  .match-clock,
+  .match-clock-state {
     justify-self: end;
     min-width: 0;
     text-align: right;
-  }
-  .match-clock-state {
-    overflow-wrap: anywhere;
   }
   .match-clock-minute {
     font-size: 1.375rem;
   }
   .match-clock-state {
     font-size: 0.6875rem;
+  }
+  /* A narrow phone or large text keeps the state to its first words ("Key moment"). */
+  .match-scoreboard {
+    container-type: inline-size;
+  }
+  @container (max-width: 18rem) {
+    .match-clock-rest {
+      display: none;
+    }
   }
   .match-controls {
     gap: 0.5rem;

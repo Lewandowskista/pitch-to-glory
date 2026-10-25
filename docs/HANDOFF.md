@@ -14,6 +14,10 @@
 > deployment and CI are history: the site is deployed and CI runs on every push. For what is
 > current, read this box, [REVIEW-PROGRESS-2026-10-20.md](REVIEW-PROGRESS-2026-10-20.md) and the
 > findings table in [REVIEW-PLAN-2026-10-20.md](REVIEW-PLAN-2026-10-20.md).
+>
+> **Next: release 1.0.** The [25 October review](APP-REVIEW-2026-10-25.md) and its
+> [implementation plan](RELEASE-1.0-PLAN.md) (draft, awaiting the decisions at its end) define the
+> work for 1.0.0.
 
 Prepared on **6 October 2026** and updated the same day after the post-milestone-3 hardening pass, for continuing development in Claude Code or another coding agent. This document indexes every implementation document and records the state at handoff. It is a navigation and continuity aid; [AGENTS.md](../AGENTS.md) remains the complete product specification and source of truth.
 

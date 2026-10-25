@@ -19,10 +19,11 @@ import {
 } from './marketUi';
 import { deadlineItems, type Priority } from './agenda';
 import { Glyph, type GlyphName } from './honoursUi';
+import { messageLink } from './inboxLinks';
 
 /** The two-pane inbox, with the list and the reader side by side (Tailwind `lg`). */
 const WIDE = '(min-width: 1024px)';
-/** Messages about the national team, which link to its page. */
+/** Messages about the national team. */
 const NATIONAL = new Set(['call-up', 'tournament', 'qualified', 'missed-qualification']);
 function useWide(): boolean {
   return useSyncExternalStore(
@@ -42,49 +43,6 @@ export default function CareerInbox() {
       {({ world }) => <InboxContent world={world} />}
     </CareerPage>
   );
-}
-
-/** Where a message's action leads: open talks, the agent, or the transfers page. */
-export function messageLink(
-  world: World,
-  message: InboxMessage,
-  save: string | null,
-): { to: string; label: string } | null {
-  const suffix = save ? `save=${save}` : '';
-  const join = (path: string, query = '') =>
-    `${path}${query || suffix ? '?' : ''}${[query, suffix].filter(Boolean).join('&')}`;
-  if (message.actionId) {
-    const offer = world.offers.find((entry) => entry.id === message.actionId);
-    if (offer && (offer.status === 'terms' || offer.status === 'agreed'))
-      return {
-        to: join('/career/transfers', `offer=${encodeURIComponent(offer.id)}`),
-        label: m.inbox.goTalks,
-      };
-  }
-  if (message.subjectKey === 'press-request')
-    return { to: join('/career/media'), label: m.inbox.goMedia };
-  if (message.subjectKey.startsWith('sponsor-') || message.subjectKey === 'asset-sold')
-    return { to: join('/career/lifestyle'), label: m.inbox.goLifestyle };
-  if (['award', 'golden-ball', 'trophy', 'record'].includes(message.subjectKey))
-    return {
-      to: join(
-        '/career/trophies',
-        message.subjectKey === 'golden-ball' ? `ceremony=${message.params.season}` : '',
-      ),
-      label: m.inbox.goTrophies,
-    };
-  if (NATIONAL.has(message.subjectKey))
-    return { to: join('/career/national'), label: m.inbox.goNational };
-  if (message.subjectKey === 'fame-level')
-    return { to: join('/career/wardrobe'), label: m.inbox.goWardrobe };
-  if (message.subjectKey === 'rival-transfer')
-    return { to: join('/career/rival'), label: m.inbox.goRival };
-  if (message.subjectKey.startsWith('promise-'))
-    return { to: join('/career/club'), label: m.inbox.goClub };
-  if (message.subjectKey.startsWith('agent-'))
-    return { to: join('/career/agent'), label: m.inbox.goAgent };
-  if (message.subjectKey === 'new-manager' || message.subjectKey === 'welcome-market') return null;
-  return { to: join('/career/transfers'), label: m.inbox.goTransfers };
 }
 
 /** Which kind of message this is, from its subject: the chip on each row. */

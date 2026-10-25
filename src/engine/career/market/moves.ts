@@ -284,6 +284,14 @@ export function signRenewal(world: World, offer: TransferOffer, terms: ContractT
   world.contracts[old.id] = contract;
   if (terms.signingBonus > 0) pay(world, terms.signingBonus);
   offer.status = 'completed';
+  // New terms here end any free move agreed or under discussion (version 0.9.1), so the
+  // season's end keeps the renewal and pays no second loyalty bonus.
+  for (const other of world.offers) {
+    if (other.kind !== 'pre-contract' || (other.status !== 'terms' && other.status !== 'agreed'))
+      continue;
+    other.status = other.status === 'terms' ? 'expired' : 'collapsed';
+    if (other.negotiationId) world.negotiations[other.negotiationId]!.status = 'expired';
+  }
   adjustRelationship(
     world,
     'manager',

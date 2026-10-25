@@ -913,6 +913,24 @@ export function openTournament(world: World, year = world.date.season + 1): Live
   return live;
 }
 
+/**
+ * The career leaves international football (version 0.9.1): a tournament under way plays on
+ * without them, as a simulated tournament, and a window they set out to play is dropped, so the
+ * next career never inherits their squad place, starts or matches. Replaces the state rather
+ * than changing it, as retiring copies only part of the world.
+ */
+export function leaveInternationalFootball(world: World): void {
+  const state = world.international;
+  if (!state) return;
+  const live = state.live;
+  const held = Boolean(live && (live.careerNationId !== null || live.inSquad || live.starts));
+  if (!held && !state.window) return;
+  const next = { ...state };
+  if (live && held) next.live = { ...live, careerNationId: null, inSquad: false, starts: false };
+  if (state.window) next.window = null;
+  world.international = next;
+}
+
 export const nationOf = (world: World, id: string) =>
   world.international!.nations.find((nation) => nation.id === id)!;
 
@@ -979,6 +997,9 @@ export function recordTournamentMatch(
   squads = new Map<string, Player[]>(),
 ): void {
   if (fixture.matchId) throw new Error('This match has already been played');
+  // A knockout has a winner (0.9.1): a level one is decided on penalties.
+  if (fixture.stage !== 'group' && match.score[0] === match.score[1] && !match.penalties)
+    throw new Error('A level knockout needs its shootout');
   const live = world.international!.live!;
   fixture.matchId = match.id;
   fixture.score = [match.score[0], match.score[1]];
@@ -1075,19 +1096,35 @@ function tableOf(
 }
 const groupTable = (live: LiveTournament, group: readonly string[]): string[] =>
   groupStandings(live, group).map((row) => row.nationId);
-const fixtureWinner = (fixture: TournamentFixture): string | null =>
-  fixture.penalties
-    ? fixture.penalties[0] > fixture.penalties[1]
-      ? fixture.homeId
-      : fixture.awayId
-    : fixture.score && fixture.score[0] !== fixture.score[1]
-      ? fixture.score[0] > fixture.score[1]
-        ? fixture.homeId
-        : fixture.awayId
-      : null;
+/**
+ * A played knockout's winner. One recorded level without a shootout (the career player was
+ * off the pitch for it, before 0.9.1) is settled first, so an older save's bracket goes on.
+ */
+function knockoutWinner(world: World, fixture: TournamentFixture): string {
+  if (!fixture.score) throw new Error('A knockout cannot be decided before it is played');
+  settleKnockout(world, fixture);
+  const [home, away] = fixture.penalties ?? fixture.score;
+  return home > away ? fixture.homeId : fixture.awayId;
+}
+/**
+ * Decide a played knockout left level without penalties: a shootout drawn from the world's
+ * seed as a club tie's is, written to the fixture and its match record. Deterministic, and a
+ * no-op for every other fixture.
+ */
+function settleKnockout(world: World, fixture: TournamentFixture): void {
+  const score = fixture.score;
+  if (fixture.stage === 'group' || !score || score[0] !== score[1] || fixture.penalties) return;
+  const B = CONFIG.world.background;
+  const rng = createRng(`${world.seed}:${fixture.id}:penalties`);
+  const homeWins = rng.next() < B.penaltyWinnerChance;
+  const loser = rng.int(B.penaltyLoserGoals[0], B.penaltyLoserGoals[1]);
+  fixture.penalties = homeWins ? [loser + 1, loser] : [loser, loser + 1];
+  const match = world.international!.matches.find((entry) => entry.id === fixture.matchId);
+  if (match && !match.penalties) match.penalties = [fixture.penalties[0], fixture.penalties[1]];
+}
 
 /** Draw the next knockout round from the last one's results, or the groups'. */
-function nextRound(live: LiveTournament): void {
+function nextRound(world: World, live: LiveTournament): void {
   const round = live.round + 1;
   if (round <= GROUP_ROUNDS.length) {
     live.round = round;
@@ -1109,7 +1146,7 @@ function nextRound(live: LiveTournament): void {
   } else
     teams = live.fixtures
       .filter((fixture) => fixture.round === live.round)
-      .map((fixture) => fixtureWinner(fixture)!);
+      .map((fixture) => knockoutWinner(world, fixture));
   for (let index = 0; index < teams.length; index += 2)
     live.fixtures.push({
       id: `${live.id}:${KNOCKOUT[round]}:${index / 2}`,
@@ -1128,7 +1165,7 @@ function nextRound(live: LiveTournament): void {
 function closeTournament(world: World, live: LiveTournament): Tournament {
   const state = world.international!;
   const final = live.fixtures.find((fixture) => fixture.stage === 'final')!;
-  const winnerId = fixtureWinner(final)!;
+  const winnerId = knockoutWinner(world, final);
   const runnerUpId = winnerId === final.homeId ? final.awayId : final.homeId;
   let stage: NonNullable<Tournament['career']>['stage'] = 'group';
   if (live.careerNationId) {
@@ -1197,7 +1234,7 @@ export function advanceTournament(
         simulateFixture(world, live, fixture, squads);
     if (pending) return { pending, tournament: null };
     if (live.round === 6) return { pending: null, tournament: closeTournament(world, live) };
-    nextRound(live);
+    nextRound(world, live);
   }
   throw new Error('The tournament did not finish');
 }

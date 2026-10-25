@@ -194,6 +194,12 @@ export interface MatchSetup {
    * goals, and a keeper's saves lean harder on their attributes.
    */
   screening?: true;
+  /**
+   * The late-winner and late-equaliser headlines (0.9.1) ask that the player's late goal
+   * decided the result, not only that they scored late. Narrative only, so the engine is
+   * unchanged; absent in sessions saved before, which keep the headline they finished with.
+   */
+  decidingHeadline?: true;
   /** Players serving a suspension in this fixture's competition, never picked (`match-16`). */
   suspended?: string[];
   /** Each side's team-strength bonus from its manager's ability (0 when absent). */

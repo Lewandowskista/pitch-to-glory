@@ -15,20 +15,13 @@ import { Factors, signedPercent, strongest } from './Shared';
 import { TacticalCam } from './TacticalCam';
 import { shirtNumbers } from './pitchArt';
 import { COMPACT_ASPECT, focusFrames, momentCamera, replayIds, type CastMember } from './cam';
+import { chanceMeaning, choiceQuality } from './choices';
 
 const u = m.ui;
 const percent = (value: number) => (value * 100).toFixed(value < 0.1 ? 1 : 0);
 const attributeName = (name: string) =>
   t.world.attributes[name as keyof typeof t.world.attributes] ?? name;
 
-export type ChoiceQuality = 'strong' | 'safe' | 'good' | 'risky';
-/** How a choice reads at a glance; the pill writes it, the colour only repeats it. */
-export function choiceQuality(choice: DecisionChoice, traits: readonly string[]): ChoiceQuality {
-  if (choice.traitId && traits.includes(choice.traitId)) return 'strong';
-  if (choice.probability >= 0.65) return 'safe';
-  if (choice.probability >= 0.45) return 'good';
-  return 'risky';
-}
 /** The one factor that moved this choice most, as "Opposition quality −5.0%". */
 function reasonOf(factors: ProbabilityFactor[]): string {
   const up = strongest(factors, 1);
@@ -43,15 +36,7 @@ function reasonOf(factors: ProbabilityFactor[]): string {
 }
 
 /** What each outcome leads to, so the player sees the risk as well as the chance. */
-function ChoiceHint({
-  choice,
-  id,
-  traits,
-}: {
-  choice: DecisionChoice;
-  id: string;
-  traits: string[];
-}) {
+function ChoiceHint({ choice, id }: { choice: DecisionChoice; id: string }) {
   const { stakes } = choice;
   return (
     <p className="match-choice-hint" id={id}>
@@ -91,13 +76,6 @@ function ChoiceHint({
         // The foot it is made with (match-19): the weaker one says so.
         <span className={cx(choice.foot.weak && 'match-tag')}>
           {m.foot[choice.foot.weak ? 'weak' : 'strong'][choice.foot.side]}
-        </span>
-      )}
-      {choice.traitId && traits.includes(choice.traitId) && (
-        <span className="match-tag">
-          {matchFormat(m.traitActive, {
-            trait: c.skillNames[choice.traitId] ?? m.traits[choice.traitId] ?? choice.traitId,
-          })}
         </span>
       )}
     </p>
@@ -273,10 +251,20 @@ export function DecisionPanel({
           style={{ '--choices': moment.choices.length } as CSSProperties}
         >
           {moment.choices.map((choice, index) => {
-            const quality = choiceQuality(choice, traits);
+            const quality = choiceQuality(choice);
             const chance = Math.round(choice.probability * 100);
+            // A trait the player owns that helps this choice: its own chip, beside the quality.
+            const trait =
+              choice.traitId && traits.includes(choice.traitId)
+                ? (c.skillNames[choice.traitId] ?? m.traits[choice.traitId] ?? choice.traitId)
+                : null;
             return (
-              <div className="match-choice" key={choice.id} data-quality={quality}>
+              <div
+                className="match-choice"
+                key={choice.id}
+                data-quality={quality}
+                data-trait={trait ? '' : undefined}
+              >
                 <button
                   data-choice={choice.id}
                   data-sound="none"
@@ -285,20 +273,27 @@ export function DecisionPanel({
                 >
                   <span className="match-choice-top">
                     <kbd className="match-choice-number">{index + 1}</kbd>
+                    {/* The chance says what it is a chance of: "4% to score". */}
                     <span className="match-choice-chance">
-                      {chance}%<span className="sr-only"> {m.ui.successChance}</span>
+                      {chance}%{' '}
+                      <small>{u.chanceMeans[chanceMeaning(moment.situationId, choice.id)]}</small>
                     </span>
                   </span>
                   <strong>{matchLabel(choice.labelKey)}</strong>
                   <span className="match-choice-reason">
                     <span className="match-quality">{u.quality[quality]}</span>
+                    {trait && (
+                      <span className="match-trait-chip">
+                        {matchFormat(m.traitActive, { trait })}
+                      </span>
+                    )}
                     {reasonOf(choice.factors) && <span>{reasonOf(choice.factors)}</span>}
                   </span>
                   <span className="match-choice-bar" aria-hidden="true">
                     <span style={{ width: `${chance}%` }} />
                   </span>
                 </button>
-                <ChoiceHint choice={choice} id={`choice-hint-${choice.id}`} traits={traits} />
+                <ChoiceHint choice={choice} id={`choice-hint-${choice.id}`} />
                 <details
                   onKeyDown={(event) => {
                     // Escape closes an open breakdown first, before it means "back".

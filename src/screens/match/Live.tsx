@@ -20,7 +20,7 @@ export type LiveStatus = 'preview' | 'live' | 'decision' | 'halftime' | 'finishe
 export function commentaryText(event: MatchEvent): string {
   return matchFormat(matchLabel(event.commentaryKey), event.commentaryParams ?? {});
 }
-/** A club's three-letter mark for the phone scoreboard. */
+/** A club's three-letter mark for the phone scoreboard and a side too narrow for its name. */
 const mark = (name: string) =>
   name
     .replace(/[^A-Za-zÀ-ÿ]/g, '')
@@ -88,8 +88,10 @@ export function Scoreboard({
     const finalLine = status === 'finished' ? scorers(club.id) : '';
     // Players sent off (match-16): a red card for each beside the name.
     const reds = (index === 0 ? state.match.home : state.match.away).sentOffIds?.length ?? 0;
+    // A name breaks only between words. One that still does not fit ends in an ellipsis, or
+    // gives way to the mark on a narrow side; the tooltip and screen readers keep it whole.
     return (
-      <div className={cx('match-team', index === 0 ? 'is-home' : 'is-away')}>
+      <div className={cx('match-team', index === 0 ? 'is-home' : 'is-away')} title={club.name}>
         <span className="match-team-text">
           <strong>
             {club.name}
@@ -171,11 +173,12 @@ export function Scoreboard({
           <span className="match-clock-minute">
             {matchFormat(m.minute, { minute: state.match.minute })}
           </span>
-          <span className="match-clock-state">
-            {state_}
-            {status === 'decision' && <span className="match-clock-rest"> · {u.takeYourTime}</span>}
-          </span>
         </div>
+        {/* Its own grid area under the clock, so it never runs into the away side. */}
+        <span className="match-clock-state">
+          {state_}
+          {status === 'decision' && <span className="match-clock-rest"> · {u.takeYourTime}</span>}
+        </span>
         <span className="match-competition">
           {competition}
           {stadium && status === 'preview' && <span className="match-stadium">{stadium}</span>}

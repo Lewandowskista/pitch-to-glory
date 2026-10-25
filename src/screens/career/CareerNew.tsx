@@ -573,7 +573,7 @@ function ChoiceCard({
   return (
     <label
       className={cx(
-        'relative flex min-w-0 cursor-pointer rounded-control border-2 transition-colors hover:border-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent',
+        'relative flex min-w-0 cursor-pointer rounded-control border-2 transition-colors hover:border-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus-ring',
         checked ? 'border-accent bg-accent-soft' : 'border-line bg-surface',
         className,
       )}
@@ -826,7 +826,7 @@ function AppearanceStep({ draft, update, club }: StepProps & { club: Club | unde
                   <label
                     key={age}
                     className={cx(
-                      'relative grid min-h-11 cursor-pointer place-items-center rounded-chip text-sm has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent',
+                      'relative grid min-h-11 cursor-pointer place-items-center rounded-chip text-sm has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-focus-ring',
                       shown === age ? 'bg-accent font-extrabold text-on-accent' : 'font-semibold',
                     )}
                   >
@@ -911,7 +911,7 @@ function AppearanceStep({ draft, update, club }: StepProps & { club: Club | unde
                 <label
                   key={option}
                   className={cx(
-                    'relative block cursor-pointer rounded-control border-2 p-1 transition-colors hover:border-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent',
+                    'relative block cursor-pointer rounded-control border-2 p-1 transition-colors hover:border-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus-ring',
                     chosen === option ? 'border-accent bg-accent-soft' : 'border-line bg-surface',
                   )}
                 >
@@ -1256,7 +1256,7 @@ function TrialStep({
                 <label
                   key={club.id}
                   className={cx(
-                    'relative flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-panel border-2 bg-surface transition-colors hover:border-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent',
+                    'relative flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-panel border-2 bg-surface transition-colors hover:border-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus-ring',
                     chosen ? 'border-accent shadow-surface' : 'border-line',
                   )}
                 >

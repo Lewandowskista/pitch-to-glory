@@ -261,6 +261,26 @@ describe('career match accounting', () => {
     ]);
   });
 
+  it('decides a tie left level by a session the player left before the shootout (0.9.1)', () => {
+    const world = clone(national);
+    const league = Object.values(world.leagues).find((l) => l.tier === 1)!;
+    const [homeId, awayId] = league.clubIds;
+    const fixture = playoff(world, homeId!, awayId!, 'session-no-shootout');
+    const { played } = levelPlayed(world, fixture);
+    // Extra time played in the session and still level; no kick and no shootout settled.
+    const final = finalizeFixture(world, fixture, {
+      ...played,
+      extraTime: { score: [0, 0], goals: [] },
+    });
+    expect(final.score).toEqual([1, 1]);
+    expect(final.penalties).not.toBeNull();
+    expect(Math.abs(final.penalties![0] - final.penalties![1])).toBe(1);
+    expect(final.decided).toBe('penalties');
+    expect(final.winnerId).toBe(
+      final.penalties![0] > final.penalties![1] ? fixture.homeId : fixture.awayId,
+    );
+  });
+
   it('plays extra time with only the players on the pitch at 90 minutes', () => {
     const world = clone(national);
     const league = Object.values(world.leagues).find((l) => l.tier === 1)!;

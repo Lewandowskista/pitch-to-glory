@@ -18,7 +18,7 @@ import { generatePlayer } from '../../world/generate';
 import { STYLES } from '../../world/catalog';
 import { FORMATIONS, type Formation } from '../../selection/formations';
 import type { MatchSession, MatchSetup } from '../../match/types';
-import { validateMatchSession } from '../../match';
+import { sessionPenalties, validateMatchSession } from '../../match';
 import { performanceXp } from '../../match/rewards';
 import { matchDecisions, recordDecisions } from '../coaching';
 import { assetEffects } from '../lifestyle/catalogue';
@@ -249,6 +249,7 @@ function nationMatchSetup(
     identity: true,
     defending: true,
     screening: true,
+    decidingHeadline: true,
     strengthBonus: [0, 0],
   };
 }
@@ -337,7 +338,10 @@ function commitNationMatch(
   const extraTime: [number, number] | null = state.regulation
     ? [score[0] - regulation[0], score[1] - regulation[1]]
     : null;
-  const penalties = state.penalties ? ownSide(state.penalties) : null;
+  // A level knockout always has its shootout (0.9.1): settled in the session, or drawn here the
+  // same way when the player was off the pitch for it.
+  const shootout = sessionPenalties(session);
+  const penalties = shootout ? ownSide(shootout) : null;
   const rating = state.report.rating;
   const objectives = state.report.objectives;
   const minutes = state.selectedPlayerMinutes;
@@ -374,7 +378,7 @@ function commitNationMatch(
     homeId: fixture.homeId,
     awayId: fixture.awayId,
     score: [state.match.score[0], state.match.score[1]],
-    penalties: state.penalties ? [state.penalties[0], state.penalties[1]] : null,
+    penalties: shootout,
     career: { rating, goals: scored.length, assists: assisted.length },
   };
   const international = world.international!;

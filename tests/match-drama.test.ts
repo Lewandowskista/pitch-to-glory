@@ -17,9 +17,9 @@ import {
   type MatchSession,
   type MatchSetup,
 } from '../src/engine/match';
-import { HEADLINE_KINDS, HEADLINE_VARIANTS } from '../src/engine/match/headlines';
+import { HEADLINE_KINDS, HEADLINE_VARIANTS, headlineKind } from '../src/engine/match/headlines';
 import { hasMatchLabel, matchFormat, matchLabel, situationText } from '../src/i18n/match';
-import type { Position } from '../src/model/domain';
+import type { MatchEvent, Position } from '../src/model/domain';
 
 /**
  * Key moments that follow the game (engine match-12): late moments in close games, set pieces
@@ -398,6 +398,103 @@ describe('key moments that follow the game', () => {
       expect(hasMatchLabel(s.headlineKey)).toBe(true);
     }
   });
+
+  it('call a late winner or equaliser only when the player’s late goal decided it (0.9.1)', () => {
+    const base = play(createMatchSession(setupFor('ST', 'late-goals', 0), tactics));
+    expect(base.setup.decidingHeadline).toBe(true);
+    const own = ownSide(base);
+    const ids = [base.setup.home.id, base.setup.away.id];
+    const me = base.setup.selectedPlayerId;
+    const mate = (own === 0 ? base.state.match.home : base.state.match.away).starterIds.find(
+      (id) => id !== me,
+    )!;
+    const them = (own === 0 ? base.state.match.away : base.state.match.home).starterIds[0]!;
+    /** The finished match with only these goals: [scorer, minute], the player's own first. */
+    const story = (goals: [string, number][], deciding = true): MatchSession => {
+      const session = structuredClone(base);
+      if (!deciding) delete session.setup.decidingHeadline;
+      const s = session.state;
+      s.sentOff = undefined;
+      s.match.keyMoments = [];
+      s.match.score = [0, 0];
+      s.stats.goals = goals.filter(([id]) => id === me).length;
+      s.match.events = goals.map(([playerId, minute], index) => {
+        const side = playerId === them ? 1 - own : own;
+        s.match.score[side]!++;
+        const event: MatchEvent = {
+          id: `goal:${index}`,
+          minute,
+          kind: 'goal',
+          playerId,
+          teamId: ids[side]!,
+          point: { x: 50, y: 50 },
+          commentaryKey: 'match.commentary.goal',
+          outcome: null,
+        };
+        return event;
+      });
+      return session;
+    };
+    const kindOf = (session: MatchSession) => headlineKind(session, 6.8);
+    // The player's 86th-minute goal is cancelled out; a teammate's 90th wins it.
+    const notWinner: [string, number][] = [
+      [me, 86],
+      [them, 88],
+      [mate, 90],
+    ];
+    expect(kindOf(story(notWinner))).not.toBe('late-winner');
+    // A session saved before keeps the headline it finished with.
+    expect(kindOf(story(notWinner, false))).toBe('late-winner');
+    // The player's own late goal puts the side ahead for good.
+    expect(
+      kindOf(
+        story([
+          [mate, 10],
+          [them, 40],
+          [me, 89],
+        ]),
+      ),
+    ).toBe('late-winner');
+    expect(
+      kindOf(
+        story([
+          [them, 20],
+          [me, 87],
+          [mate, 92],
+        ]),
+      ),
+    ).not.toBe('late-winner');
+    // A late equaliser must be the goal that left it level.
+    expect(
+      kindOf(
+        story([
+          [me, 86],
+          [them, 88],
+        ]),
+      ),
+    ).not.toBe('late-equaliser');
+    expect(
+      kindOf(
+        story([
+          [them, 30],
+          [me, 88],
+        ]),
+      ),
+    ).toBe('late-equaliser');
+    // Played matches agree: a late winner is the side's last goal, the player's, late.
+    for (let index = 0; index < 80; index++) {
+      const session = play(
+        createMatchSession(setupFor('ST', `late-winner:${index}`, index), tactics),
+      );
+      if (session.state.headlineKey.split('.')[2] !== 'late-winner') continue;
+      const side = ownSide(session) === 0 ? session.setup.home.id : session.setup.away.id;
+      const last = session.state.match.events
+        .filter((e) => e.kind === 'goal' && e.teamId === side)
+        .at(-1)!;
+      expect(last.playerId).toBe(session.setup.selectedPlayerId);
+      expect(last.minute).toBeGreaterThanOrEqual(85);
+    }
+  }, 60000);
 
   it('rate a better player higher in the same matches', () => {
     const mean = (shift: number) => {

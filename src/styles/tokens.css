@@ -12,6 +12,11 @@
   --color-hero-eyebrow: #d9e2b7;
   --color-on-gold: #153c2d;
   /*
+   * The focus ring on field-green heroes, where the accent ring would vanish into the grass
+   * (WCAG 2.4.7): bg-field-stripes and the match heroes set --focus-ring to it.
+   */
+  --color-hero-focus: #efcf63;
+  /*
    * Night chrome: the always-dark surfaces of match screens and dark-tone panels. Fixed in
    * both themes (bg-night, bg-night-soft, border-night-line, text-night-ink, text-mint).
    */
@@ -68,6 +73,8 @@
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
+  /* Keyboard focus (outline-focus-ring): the accent, or gold where a hero sets --focus-ring. */
+  --color-focus-ring: var(--focus-ring, var(--accent));
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   /* Neutral information and "risky but fair" states: never good or bad, so never green or red. */

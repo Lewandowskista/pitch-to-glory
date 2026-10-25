@@ -75,7 +75,9 @@ export function headlineKind(session: MatchSession, rating: number): HeadlineKin
   const own = setup.players[id]!.clubId === setup.home.id ? 0 : 1;
   const margin = m.score[own]! - m.score[1 - own]!;
   const goals = s.stats.goals;
-  const lateGoal = m.events.some((e) => e.kind === 'goal' && e.playerId === id && e.minute >= LATE);
+  const lateGoal = setup.decidingHeadline
+    ? decidingGoalIsLate(session, own, margin)
+    : m.events.some((e) => e.kind === 'goal' && e.playerId === id && e.minute >= LATE);
   const back = ['GK', 'CB', 'LB', 'RB', 'DM'].includes(setup.players[id]!.primaryPosition);
   const savedPenalty = m.keyMoments.some(
     (moment) =>
@@ -106,6 +108,29 @@ export function headlineKind(session: MatchSession, rating: number): HeadlineKin
   if (margin > 0) return rating >= STAR ? 'strong-win' : 'win';
   if (margin === 0) return 'draw';
   return rating >= STAR ? 'strong-loss' : 'loss';
+}
+
+/**
+ * The player scored the goal that decided a one-goal win or a draw, late (0.9.1): the side's
+ * last goal in a one-goal win, which put it ahead for good, or the match's last goal in a
+ * draw, which levelled it for good.
+ */
+function decidingGoalIsLate(session: MatchSession, own: number, margin: number): boolean {
+  const setup = session.setup;
+  const goals = session.state.match.events.filter((e) => e.kind === 'goal');
+  const ownId = own === 0 ? setup.home.id : setup.away.id;
+  const deciding =
+    margin === 1
+      ? goals.filter((e) => e.teamId === ownId).at(-1)
+      : margin === 0
+        ? goals.at(-1)
+        : undefined;
+  return Boolean(
+    deciding &&
+    deciding.teamId === ownId &&
+    deciding.playerId === setup.selectedPlayerId &&
+    deciding.minute >= LATE,
+  );
 }
 
 export function resultKind(session: MatchSession): ResultKind {

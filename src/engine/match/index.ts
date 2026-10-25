@@ -331,6 +331,7 @@ export function createMatchSetup(
           identity: true as const,
           defending: true as const,
           screening: true as const,
+          decidingHeadline: true as const,
           ...(options.prepared ? { prepared: true as const } : {}),
           ...(options.suspended?.some((id) => id !== selectedPlayerId)
             ? { suspended: options.suspended.filter((id) => id !== selectedPlayerId) }
@@ -1274,15 +1275,36 @@ function startExtraTime(session: MatchSession): void {
  * kick or save as the background moves it, with the loser's tally from the same range.
  */
 function settleShootout(session: MatchSession): void {
-  const s = session.state,
-    B = CONFIG.world.background;
-  const kick = s.shootout;
+  session.state.penalties = shootoutDraw(session);
+}
+/** The shootout's tallies, home first, from the session's own stream and the player's kick. */
+function shootoutDraw(session: MatchSession): [number, number] {
+  const B = CONFIG.world.background;
+  const kick = session.state.shootout;
   const homeSide = selectedSide(session.setup) === 0;
   const shift = kick ? (kick.success ? 1 : -1) * B.shootoutKick : 0;
   const rng = createRng(`${session.setup.seed}:penalties`);
   const homeWins = rng.next() < B.penaltyWinnerChance + (homeSide ? shift : -shift);
   const loser = rng.int(B.penaltyLoserGoals[0], B.penaltyLoserGoals[1]);
-  s.penalties = homeWins ? [loser + 1, loser] : [loser, loser + 1];
+  return homeWins ? [loser + 1, loser] : [loser, loser + 1];
+}
+/**
+ * The shootout a finished session's tie needs (0.9.1), home first: the one settled in the
+ * session, or, when the player was substituted or sent off before a level knockout's shootout,
+ * the same draw without their kick. Read at commit and never stored in the session, so saved
+ * sessions replay exactly as they were. Null when the match needs no shootout, and on engines
+ * before match-18, whose shootouts are drawn by the world.
+ */
+export function sessionPenalties(session: MatchSession): [number, number] | null {
+  const s = session.state,
+    lead = session.setup.fixture?.shootoutLead;
+  if (s.penalties) return [s.penalties[0], s.penalties[1]];
+  return s.match.status === 'finished' &&
+    extraTimeEngine(session.setup) &&
+    lead !== undefined &&
+    s.match.score[0] - s.match.score[1] + lead === 0
+    ? shootoutDraw(session)
+    : null;
 }
 /**
  * A level knockout at full time (match-13): the player takes a shootout kick, or faces them in

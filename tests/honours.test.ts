@@ -32,9 +32,11 @@ import {
   recordTournamentMatch,
   tournamentStakes,
   retirementState,
+  tournamentStep,
   windowWeeks,
   type Clip,
 } from '../src/engine/career/honours';
+import { hashSeed } from '../src/engine/rng';
 import { honoursSeasonEnd } from '../src/engine/career/honours/week';
 import {
   careerTotals,
@@ -462,6 +464,70 @@ describe('international tournaments', () => {
     expect(next.international!.tournaments.at(-1)?.id).toBe('tournament:2028');
     validDone(next);
   }, 120000);
+
+  it('hands a retiring player’s tournament place to nobody (0.9.1)', () => {
+    const all = finishTournament(named().world)!;
+    const { world: before, live } = named();
+    const nationId = live.careerNationId!;
+    expect(nationId).not.toBeNull();
+    // A window the player set out to play is dropped with the place.
+    before.international!.window = {
+      id: 'window:test',
+      season: before.date.season,
+      week: 1,
+      nationId,
+      fixtures: [],
+      simulate: false,
+    };
+    before.players[before.career!.playerId]!.birthSeason =
+      before.date.season - H.retirement.optionalAge;
+    const retired = applyHonoursAction(before, { type: 'retire' });
+    expect(before.international!.live!.careerNationId).toBe(nationId);
+    expect(retired.international!.live).toMatchObject({
+      careerNationId: null,
+      inSquad: false,
+      starts: false,
+    });
+    expect(retired.international!.window).toBeNull();
+    validLive(retired);
+    const legacy = retired.legacies.at(-1)!;
+    const guest = retired.international!.nations.find(
+      (nation) =>
+        nation.countryId &&
+        nation.countryId !== draft.nationalityId &&
+        live.groups.some((group) => group.includes(nation.id)),
+    )!;
+    // A save from 0.9.0 kept the place through the retirement: a new career clears it too.
+    const stale = clone(retired);
+    Object.assign(stale.international!.live!, { careerNationId: nationId, inSquad: true });
+    const drafts: [World, CareerDraft][] = [
+      [retired, { ...draft, name: 'Sam Vale', age: 16, parentLegacyId: legacy.id }],
+      [retired, { ...draft, name: 'Alex Moreau', nationalityId: guest.countryId! }],
+      [stale, { ...draft, name: 'Sam Vale', age: 16, parentLegacyId: legacy.id }],
+    ];
+    for (const [from, next] of drafts) {
+      const trial = trialOffers(from, next.nationalityId, 'after-retirement')[0]!;
+      const world = createCareer(from, next, trial.id, 'after-retirement');
+      const own = world.career!.playerId;
+      expect(world.international!.live!.careerNationId).toBeNull();
+      expect(tournamentStep(world)).toBeNull();
+      expect(pendingTournamentFixture(world)).toBeNull();
+      // The tournament plays on as a simulated one, to the same result.
+      const { pending, tournament } = advanceTournament(world);
+      expect(pending).toBeNull();
+      expect(tournament).toMatchObject({ winnerId: all.winnerId, career: null });
+      expect(tournament!.matchIds).toHaveLength(31);
+      expect(world.career!.honours.caps).toEqual({ U19: 0, U21: 0, senior: 0 });
+      expect(
+        world.chronicle.filter(
+          (entry) =>
+            entry.playerId === own &&
+            ['cap', 'international-goal', 'tournament'].includes(entry.kind),
+        ),
+      ).toHaveLength(0);
+      validDone(world);
+    }
+  }, 120000);
 });
 
 describe('retirement and legacy', () => {
@@ -518,6 +584,23 @@ describe('retirement and legacy', () => {
       params: { parent: legacy.name },
     });
     expect(() => validateDraft(world, child)).toThrow();
+    valid(world);
+  }, 120000);
+
+  it('starts a child named exactly as the parent under an id of their own (0.9.1)', () => {
+    // The first career's id still comes from its name alone.
+    const first = career.career!.playerId;
+    expect(first).toBe(`career:${hashSeed(`honours-tests:${draft.name}`)}`);
+    const retired = applyHonoursAction(aged(season, 34), { type: 'retire' });
+    const child = { ...draft, parentLegacyId: retired.legacies.at(-1)!.id };
+    const trial = trialOffers(retired, 'country:0', 'honours-tests')[0]!;
+    const world = createCareer(retired, child, trial.id, 'honours-tests');
+    const id = world.career!.playerId;
+    expect(id).not.toBe(first);
+    expect(world.players[first]).toMatchObject({ name: draft.name, retired: true });
+    expect(world.players[id]!.name).toBe(draft.name);
+    expect(world.legacies.at(-1)!.childPlayerId).toBe(id);
+    expect(createCareer(retired, child, trial.id, 'honours-tests').career!.playerId).toBe(id);
     valid(world);
   }, 120000);
 

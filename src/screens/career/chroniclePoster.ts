@@ -4,6 +4,7 @@ import type { ChronicleEntry, Player, World } from '../../model/domain';
 import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { renderCrest } from '../../engine/assets/crest';
 import { careerTotals } from '../../engine/career/honours/retirement';
+import { tournamentPart } from '../../engine/career/honours/trophies';
 import { TONE, uid } from '../../engine/assets/illustration';
 import { trophyKindFor, trophyShapes, type TrophyKind } from '../../engine/assets/trophies';
 import { format } from '../../i18n';
@@ -55,8 +56,11 @@ function posterTrophies(world: World, player: Player): TrophyKind[] {
     ...world.awards
       .filter((award) => award.winnerIds.includes(player.id))
       .map((award) => ({ season: award.season, kind: trophyKindFor(award.kind) })),
-    ...(world.career?.playerId === player.id ? (world.international?.tournaments ?? []) : [])
-      .filter((t) => t.career?.inSquad && t.career.stage === 'winner')
+    ...(world.international?.tournaments ?? [])
+      .filter((t) => {
+        const part = tournamentPart(world, player.id, t);
+        return part?.inSquad && part.stage === 'winner';
+      })
       .map((t) => ({ season: t.year, kind: trophyKindFor(t.kind) })),
   ];
   return won.sort((a, b) => a.season - b.season).map((entry) => entry.kind);

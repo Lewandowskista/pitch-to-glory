@@ -36,7 +36,7 @@ export const ui = {
   eyebrow: 'text-xs font-bold uppercase tracking-[0.12em] text-accent',
   muted: 'text-sm text-muted',
   chip: chipClass('accent'),
-  focus: 'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent',
+  focus: 'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
   /** Helper text under a heading or label. */
   helper: 'mt-helper text-sm text-muted',
   /** A row of actions after content: clear of the prose above, evenly spaced, wrapping. */
