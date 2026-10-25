@@ -2,6 +2,7 @@ import type { FoundationState, WorldState, SlotId } from '../model/domain';
 import { LocalSaveRepository, type SaveDatabase } from './localRepository';
 import { createSave, parseSave, unvalidatedSave, type AppSave } from './schema';
 import { combineReceipt, withoutWorld } from './receipts';
+import type { WorldPatch } from '../workers/worldPatch';
 
 // The local save repository with the tab repository's interface (browserRepository.ts), for
 // Node tests, tools and migrations. The app never loads this on the main thread: there,
@@ -13,10 +14,14 @@ export class SaveRepository extends LocalSaveRepository {
     super(database, tabOwner);
   }
   /** As the tab repository: save preferences and the match session, keeping the world. */
-  async writeWithoutWorldChange(value: AppSave, expectedRevision: number): Promise<AppSave> {
+  async writeWithoutWorldChange(
+    value: AppSave,
+    expectedRevision: number,
+    worldPatches?: WorldPatch[],
+  ): Promise<AppSave> {
     if (value.payload.kind !== 'world') return this.write(value, expectedRevision);
     const receipt = await this.writeWithoutWorld(
-      withoutWorld({ ...value, payload: value.payload }),
+      withoutWorld({ ...value, payload: value.payload }, worldPatches),
       expectedRevision,
     );
     return combineReceipt(receipt, value.payload);

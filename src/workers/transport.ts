@@ -1,7 +1,7 @@
 // Large worlds are delivered in bounded messages. Both sender and receiver yield
 // between batches, instead of cloning a 40–100 MB graph in a single UI task.
 import { CONFIG } from '../engine/config';
-type Endpoint = { postMessage(message: unknown): void };
+type Endpoint = { postMessage(message: unknown, transfer?: Transferable[]): void };
 type Path = string[];
 type Patch = [Path, unknown];
 type Packet = {
@@ -11,8 +11,13 @@ type Packet = {
   patches?: Patch[];
 };
 let sequence = 0;
+// Binary data (world bytes) is a leaf: never walked index by index.
 const isObject = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
+  value !== null &&
+  typeof value === 'object' &&
+  !Array.isArray(value) &&
+  !ArrayBuffer.isView(value) &&
+  !(value instanceof ArrayBuffer);
 const isWorld = (value: Record<string, unknown>) =>
   typeof value.seed === 'string' &&
   isObject(value.players) &&
@@ -74,15 +79,43 @@ function* patches(value: unknown, path: Path = []): Generator<Patch> {
         } else yield [location, item];
       }
     } else {
-      for (const key of Object.keys(value)) yield* patches(value[key], [...path, key]);
+      // Only the way down to a world is opened; everything else travels whole.
+      for (const key of Object.keys(value)) {
+        const item = value[key];
+        if (holdsWorld(item, 3)) yield* patches(item, [...path, key]);
+        else yield [[...path, key], item];
+      }
     }
   } else yield [path, value];
 }
+/** Whether a world sits in `value`, at most `depth` levels down (a request, a save, a payload). */
+function holdsWorld(value: unknown, depth: number): boolean {
+  if (Array.isArray(value)) {
+    if (depth <= 0 || value.length > CONFIG.workers.transportNarrowKeys) return false;
+    return value.some((item) => holdsWorld(item, depth - 1));
+  }
+  if (!isObject(value)) return false;
+  if (isWorld(value)) return true;
+  if (depth <= 0 || wide(value, CONFIG.workers.transportNarrowKeys)) return false;
+  for (const key in value)
+    if (Object.hasOwn(value, key) && holdsWorld(value[key], depth - 1)) return true;
+  return false;
+}
+/**
+ * Send `message`. A message without a world goes as one structured clone (with `transfer`, such
+ * as world bytes, moved rather than copied); one holding a world is split into bounded batches.
+ */
 export async function sendChunked(
   endpoint: Endpoint,
   message: unknown,
   cancelled: () => boolean = () => false,
+  transfer: Transferable[] = [],
 ): Promise<void> {
+  if (!holdsWorld(message, 4)) {
+    if (cancelled()) return;
+    endpoint.postMessage(message, transfer);
+    return;
+  }
   const id = ++sequence;
   endpoint.postMessage({ __ptgTransport: 1, id, kind: 'start' } satisfies Packet);
   let batch: Patch[] = [],

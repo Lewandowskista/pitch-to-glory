@@ -23,7 +23,12 @@ export type AppSave = Omit<SaveFile, 'payload'> & {
   /** Set when loading had to discard a stale or invalid match session; never persisted. */
   recovery?: SaveRecovery;
 };
-export type SaveRecovery = 'match-discarded';
+/**
+ * `match-discarded`: a match in progress could not be resumed. `changes-discarded`: the slot's
+ * latest small changes (stored as patches, step 3.4) no longer applied, so the world loaded as it
+ * was last written whole.
+ */
+export type SaveRecovery = 'match-discarded' | 'changes-discarded';
 const invalid = (): never => {
   throw new SaveError('invalid');
 };

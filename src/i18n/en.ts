@@ -99,6 +99,8 @@ export const en = {
     notices: {
       'match-discarded':
         'Your world loaded safely, but a match in progress was saved by an older version of the game and could not be resumed. Start it again from Matchday.',
+      'changes-discarded':
+        'Your world loaded safely, but your most recent changes since the last completed week could not be restored. Check your latest decisions before you continue.',
     },
     reloadSave: 'Reload saved game',
     recoverTitle: 'Reload the saved game?',

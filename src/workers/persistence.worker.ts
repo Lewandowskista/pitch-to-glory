@@ -43,6 +43,10 @@ export async function executePersistenceRequest(
       const value = await repository.writeWithoutWorld(request.value, request.expectedRevision);
       return { requestId: request.requestId, ok: true, value };
     }
+    if (request.operation === 'write-world') {
+      const value = await repository.writeWorld(request.value, request.expectedRevision);
+      return { requestId: request.requestId, ok: true, value };
+    }
     if (request.operation === 'export') {
       return {
         requestId: request.requestId,
@@ -70,7 +74,7 @@ export async function executePersistenceRequest(
     }
     const value =
       request.operation === 'read'
-        ? await repository.read(request.slot)
+        ? await repository.load(request.slot)
         : request.operation === 'list'
           ? await repository.list()
           : request.operation === 'write'
@@ -92,8 +96,8 @@ export async function executePersistenceRequest(
       !Array.isArray(value) &&
       value.payload.kind === 'world'
     ) {
-      const { world: _world, ...payload } = value.payload;
-      void _world;
+      const { world: _world, matchSession: _session, ...payload } = value.payload;
+      void [_world, _session];
       return { requestId: request.requestId, ok: true, value: { ...value, payload } };
     }
     return { requestId: request.requestId, ok: true, value };
@@ -117,21 +121,38 @@ if (typeof self !== 'undefined' && typeof document === 'undefined') {
   const channel =
     typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(SAVE_CHANNEL);
   let queue: Promise<void> = Promise.resolve();
+  /**
+   * Every request gets a reply (S9): a failure anywhere, even in sending the reply, answers
+   * `ok: false` rather than leaving the tab's autosave waiting.
+   */
+  const reply = async (request: PersistenceRequest) => {
+    let response: PersistenceResponse;
+    try {
+      response = await executePersistenceRequest(request);
+    } catch {
+      response = { requestId: request.requestId, ok: false, code: 'storage' };
+    }
+    if (response.ok && MUTATIONS.has(request.operation))
+      try {
+        channel?.postMessage({ database: request.database });
+      } catch {
+        // The announcement only refreshes save lists; the write itself succeeded.
+      }
+    try {
+      await sendChunked(scope, response);
+    } catch {
+      scope.postMessage({ requestId: request.requestId, ok: false, code: 'storage' });
+    }
+  };
   const receive = createChunkReceiver<PersistenceRequest>((request) => {
+    if (!request || typeof request.requestId !== 'string') return;
     // Leases touch only their own store, so they never wait behind a large save (as when the
     // tab kept them itself); their small replies go out whole, beside any chunked reply.
     if (isLeaseOperation(request.operation)) {
-      void executePersistenceRequest(request).then((response) => scope.postMessage(response));
+      void reply(request);
       return;
     }
-    queue = queue
-      .catch(() => {})
-      .then(async () => {
-        const response = await executePersistenceRequest(request);
-        if (response.ok && MUTATIONS.has(request.operation))
-          channel?.postMessage({ database: request.database });
-        await sendChunked(scope, response);
-      });
+    queue = queue.catch(() => {}).then(() => reply(request));
   });
   scope.onmessage = receive;
 }
