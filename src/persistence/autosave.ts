@@ -20,6 +20,18 @@ export class AutosaveQueue {
     this.queue = this.queue.catch(() => {}).then(this.write);
     return this.queue;
   }
+  /**
+   * Run another write in this queue (a world worker checkpoint), so writes to the slot never
+   * interleave and each sees the revision the previous one left.
+   */
+  run<T>(task: () => Promise<T>): Promise<T> {
+    const result = this.queue.catch(() => {}).then(task);
+    this.queue = result.then(
+      () => {},
+      () => {},
+    );
+    return result;
+  }
   afterMatch(): Promise<void> {
     return this.flush();
   }
