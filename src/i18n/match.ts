@@ -125,7 +125,7 @@ export const matchText = {
   stakeConcedeDirect: 'If it fails: a goal conceded',
   stakeSafe: 'If it fails: no counter risk',
   uses: 'Uses {attributes}',
-  traitActive: 'Your trait helps: {trait}',
+  traitActive: 'Trait: {trait}',
   foot: {
     strong: { left: 'Left foot', right: 'Right foot' },
     weak: { left: 'Left foot (your weaker)', right: 'Right foot (your weaker)' },
@@ -290,11 +290,21 @@ export const matchText = {
     paused: 'Match paused',
     takeYourTime: 'take your time',
     choose: 'Choose your action',
+    /** A choice's chance, banded: 65% and up is safe, 45% and up good, below that risky. */
     quality: {
-      strong: 'Strong',
       safe: 'Safe',
       good: 'Good',
       risky: 'Risky',
+    },
+    /** What a choice's chance is the chance of, after the percentage ("4% to score"). */
+    chanceMeans: {
+      score: 'to score',
+      keepOut: 'to keep it out',
+      complete: 'to complete',
+      through: 'to get through',
+      stop: 'to stop the attack',
+      first: 'to get there first',
+      success: 'to come off',
     },
     successChance: 'Success chance',
     escNote: 'Esc closes the breakdown first, then means back.',

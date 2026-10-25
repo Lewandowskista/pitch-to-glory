@@ -65,8 +65,9 @@
   background: #efcf63;
   color: #163728;
 }
+/* The accent, or the gold a field-green hero sets in --focus-ring (tokens.css). */
 :focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--focus-ring, var(--accent));
   outline-offset: 4px;
 }
 input:focus-visible {

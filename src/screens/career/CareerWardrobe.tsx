@@ -528,7 +528,7 @@ function KitOptions({
           {(['short', 'long'] as const).map((value) => (
             <label
               key={value}
-              className="flex min-h-11 cursor-pointer items-center justify-center rounded-chip font-bold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
+              className="flex min-h-11 cursor-pointer items-center justify-center rounded-chip font-bold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-focus-ring"
             >
               <input
                 type="radio"

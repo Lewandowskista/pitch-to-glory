@@ -6,6 +6,7 @@ import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 
 let backupPath: string;
 let fatiguedBackupPath: string;
+let longNamesBackupPath: string;
 test.beforeAll(async ({ browserName }, workerInfo) => {
   const world = generateWorld('match-browser', { format: 'legacy' });
   const save = createSave(1, 'Matchday test', {
@@ -29,6 +30,16 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
       createSave(1, 'Captain match', { ...save.payload, kind: 'world', world: tired }),
     ),
   );
+  // Ordinary but long club names, which the scoreboard once broke mid-word (review U2).
+  const named = structuredClone(world);
+  Object.values(named.clubs).forEach((club, index) => {
+    club.name = index % 2 ? 'Matlock Albion' : 'Featherstonehaugh Rovers';
+  });
+  longNamesBackupPath = `artifacts/match-names-${browserName}-${workerInfo.workerIndex}.json`;
+  await writeFile(
+    longNamesBackupPath,
+    JSON.stringify(createSave(1, 'Long names', { ...save.payload, kind: 'world', world: named })),
+  );
 });
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
@@ -44,13 +55,13 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(async ({ page }) => {
   expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
-async function prepare(page: Page, keeper = false, tired = false) {
+async function prepare(page: Page, keeper = false, tired = false, backup?: string) {
   await page.goto('/saves');
   await page
     .locator('.slot-card')
     .nth(0)
     .getByLabel('Import backup — Slot 1')
-    .setInputFiles(tired ? fatiguedBackupPath : backupPath);
+    .setInputFiles(backup ?? (tired ? fatiguedBackupPath : backupPath));
   await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
   await page
     .getByRole('navigation')
@@ -194,6 +205,59 @@ test('keeper decisions work in simulation-only mode with large mobile text', asy
   await page.screenshot({ path: `artifacts/match-mobile-${browserName}.png`, fullPage: true });
   await finish(page);
   await expect(page.getByRole('heading', { name: 'Your match report', exact: true })).toBeVisible();
+});
+test('the scoreboard keeps long club names whole beside the clock at 1440 × 900', async ({
+  page,
+}) => {
+  test.setTimeout(90000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await prepare(page, false, false, longNamesBackupPath);
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  await pause(page);
+  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
+  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
+  // Each chance says what it is a chance of ("79% to score").
+  await expect(page.locator('.match-choice-chance').first()).toHaveText(
+    /^\d+% to (score|complete|get through|stop the attack|keep it out|get there first)$/,
+  );
+  const names = page.locator('.match-scoreboard .match-team-text strong');
+  await expect(names).toHaveText([
+    /^(Featherstonehaugh Rovers|Matlock Albion)$/,
+    /^(Featherstonehaugh Rovers|Matlock Albion)$/,
+  ]);
+  const layout = await page.evaluate(() => {
+    const box = (element: Element | null) => element!.getBoundingClientRect();
+    const overlaps = (a: DOMRect, b: DOMRect) =>
+      a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    // A word broken across lines has client rects on more than one line.
+    const broken: string[] = [];
+    const shown: boolean[] = [];
+    for (const name of document.querySelectorAll('.match-scoreboard .match-team-text strong')) {
+      shown.push(box(name).width > 40);
+      const walker = document.createTreeWalker(name, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode())
+        for (const word of node.textContent!.matchAll(/\S+/g)) {
+          const range = document.createRange();
+          range.setStart(node, word.index!);
+          range.setEnd(node, word.index! + word[0].length);
+          const lines = new Set(
+            [...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)),
+          );
+          if (lines.size > 1) broken.push(word[0]);
+        }
+    }
+    const state = box(document.querySelector('.match-clock-state'));
+    return {
+      broken,
+      shown,
+      overlap: [...document.querySelectorAll('.match-scoreboard .match-team')].some((team) =>
+        overlaps(state, box(team)),
+      ),
+    };
+  });
+  expect(layout.broken).toEqual([]);
+  expect(layout.shown).toEqual([true, true]);
+  expect(layout.overlap).toBe(false);
 });
 test('playback pauses when hidden and the pitch survives resize and context loss', async ({
   page,

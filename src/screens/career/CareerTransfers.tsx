@@ -1516,7 +1516,7 @@ function CounterForm({
             {ROLE_ORDER.map((option) => (
               <label
                 key={option}
-                className="relative flex min-h-11 cursor-pointer items-center justify-center rounded-chip px-1 text-center text-[0.8125rem] leading-tight font-extrabold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-accent"
+                className="relative flex min-h-11 cursor-pointer items-center justify-center rounded-chip px-1 text-center text-[0.8125rem] leading-tight font-extrabold has-[:checked]:bg-accent has-[:checked]:text-on-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-focus-ring"
               >
                 <input
                   type="radio"

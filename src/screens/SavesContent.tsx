@@ -619,7 +619,7 @@ function SlotCard({
             <label
               className={cx(
                 buttonClass('tool'),
-                'relative has-[input:focus-visible]:outline-3 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-accent',
+                'relative has-[input:focus-visible]:outline-3 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus-ring',
                 actions.blocked ? 'cursor-not-allowed opacity-55' : 'cursor-pointer',
               )}
             >

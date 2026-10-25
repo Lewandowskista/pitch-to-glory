@@ -33,7 +33,11 @@ artboard hex differs slightly from `src/styles/tokens.css`, the token wins.
 - **Targets ≥ 44px.** Buttons, tabs, filters, summaries and icon buttons already are. Keep
   custom rows at `min-h-11` or more.
 - **Focus** is global: a 3px accent outline, 4px out (`:focus-visible` in `base.css`). Do not
-  remove it; inside tight tab bars use `outline-offset: 2px`.
+  remove it; inside tight tab bars use `outline-offset: 2px`. The colour is
+  `var(--focus-ring, var(--accent))` (utility `outline-focus-ring`): field-green heroes
+  (`bg-field-stripes`, the match heroes) and the match bar set `--focus-ring` to the gold
+  `--color-hero-focus`, since the accent ring vanishes on green. A new green or night surface
+  with controls sets it too.
 - **Motion** respects reduced motion (the system setting and the in-game switch). Use CSS
   guarded by `:root:not([data-reduced-motion='true'])` inside
   `@media (prefers-reduced-motion: no-preference)`, or Framer Motion (which reads the setting
