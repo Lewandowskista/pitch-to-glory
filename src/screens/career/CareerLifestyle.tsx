@@ -36,8 +36,9 @@ import { renderLifestyle } from '../../engine/assets/lifestyle';
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
+import { plural } from '../../i18n/locale';
 import { Button, CardTitle, Chip, Panel, StatusLine, cx } from '../../ui/kit';
-import { CareerPage, filterButton, plural, ui } from './shared';
+import { CareerPage, filterButton, ui } from './shared';
 import { ActionError, BlockNote, money, weekly } from './marketUi';
 import { fameName, useLifestyleAction } from './lifestyleUi';
 import { LifeIcon, type LifeIconName } from './lifeIcons';
@@ -206,7 +207,7 @@ function FameCard({ career }: { career: Career }) {
                     >
                       <LifeIcon name={UNLOCK_ICON[key]} className="h-[1.125rem] w-[1.125rem]" />
                     </span>
-                    {plural(unlocks[key], l.fame.unlocksOne[key], l.fame.unlocks[key])}
+                    {plural(unlocks[key], l.fame.unlocks[key])}
                   </li>
                 ))}
             </ul>
@@ -276,9 +277,9 @@ function DealCard({ world, deal, action }: { world: World; deal: Sponsorship; ac
           {deal.obligations.map((obligation) => {
             const progress = obligationProgress(world, deal, obligation);
             const met = obligationMet(world, deal, obligation);
-            const label = format(
-              (obligation.target === 1 && l.sponsors.obligationsOne[obligation.kind]) ||
-                l.sponsors.obligations[obligation.kind],
+            const label = plural(
+              obligation.target,
+              l.sponsors.obligations[obligation.kind as keyof typeof l.sponsors.obligations],
               { target: obligation.target },
             );
             if (offered)
@@ -510,7 +511,7 @@ function ShopItem({ world, item, action }: { world: World; item: LifestyleItem; 
         : wait > 0
           ? {
               chip: l.lifestyle.cooldownChip,
-              reason: plural(wait, l.lifestyle.cooldownNextWeek, l.lifestyle.cooldownWeeks),
+              reason: plural(wait, l.lifestyle.cooldownWeeks),
               kind: 'cooldown',
             }
           : cash < price

@@ -47,7 +47,8 @@ import { track } from '../analytics';
 import { format, t } from '../i18n';
 import { careerText as c } from '../i18n/career';
 import { editText as e } from '../i18n/edit';
-import { CrestImage, plural, useEditBlock, useRestoredWorld } from './career/shared';
+import { plural } from '../i18n/locale';
+import { CrestImage, useEditBlock, useRestoredWorld } from './career/shared';
 
 type Kind = 'clubs' | 'leagues' | 'players';
 const KINDS: Kind[] = ['clubs', 'leagues', 'players'];
@@ -931,9 +932,9 @@ function EditFile({ world }: { world: World }) {
           {any
             ? format(e.file.summary, {
                 list: [
-                  plural(counts.clubs, e.file.counts.club, e.file.counts.clubs),
-                  plural(counts.leagues, e.file.counts.league, e.file.counts.leagues),
-                  plural(counts.players, e.file.counts.player, e.file.counts.players),
+                  plural(counts.clubs, e.file.counts.clubs),
+                  plural(counts.leagues, e.file.counts.leagues),
+                  plural(counts.players, e.file.counts.players),
                 ].join(' · '),
               })
             : e.file.none}

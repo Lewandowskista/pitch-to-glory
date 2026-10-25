@@ -1,5 +1,6 @@
+import { LOCALE, plurals, type Translations } from './locale';
 /** Team selection and its explanation (Phase 5.1). */
-export const selectionText = {
+const selectionTextEn = {
   title: 'Selection',
   briefing: 'How the manager picked you',
   picked: 'You were picked to start: a {chance}% chance came up for this match.',
@@ -10,8 +11,10 @@ export const selectionText = {
   lineBased: 'This season the manager still picks by position lines; formations start next season.',
   inTeam: 'In the eleven as {position}.',
   inTeamFamiliar: 'In the eleven as {position}, {fit}% familiar.',
-  outside: 'Next in line for {position}, behind {names}.',
-  outsideMany: '{places} players ahead of you for {position}, starting with {names}.',
+  outside: plurals({
+    one: 'Next in line for {position}, behind {names}.',
+    other: '{places} players ahead of you for {position}, starting with {names}.',
+  }),
   outsideLine: '{places} ahead of you in your line.',
   chance: 'Chance of starting the next match',
   noFixture: 'No fixture to pick for until the next one is scheduled.',
@@ -30,7 +33,6 @@ export const selectionText = {
     secondary: '{fit}% familiar',
     unfamiliar: 'out of position',
   },
-  and: ' and ',
   /** The Club page's selection card (redesign phase 3). */
   club: {
     next: 'Next: {club} ({venue})',
@@ -40,3 +42,6 @@ export const selectionText = {
     you: 'You',
   },
 } as const;
+export const selectionText = (
+  { en: selectionTextEn } satisfies Translations<typeof selectionTextEn>
+)[LOCALE];

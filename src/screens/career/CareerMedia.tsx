@@ -5,8 +5,9 @@ import { rivalOf } from '../../engine/career/social';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { socialText as s } from '../../i18n/social';
+import { formatNumber, plural } from '../../i18n/locale';
 import { Button, CardTitle, Chip, KeyHint, Panel, cx } from '../../ui/kit';
-import { CareerPage, plural, ui, useSaveLink } from './shared';
+import { CareerPage, ui, useSaveLink } from './shared';
 import { BlockNote, ActionError } from './marketUi';
 import { EffectChips, mediaText, Portrait, useSocialAction } from './socialUi';
 import { LifeIcon } from './lifeIcons';
@@ -15,7 +16,6 @@ import { track } from '../../analytics';
 type Filter = keyof typeof s.media.filters;
 const FILTERS = Object.keys(s.media.filters) as Filter[];
 const CLIQUES: readonly CliqueKind[] = ['seniors', 'young', 'core', 'internationals'];
-const integer = new Intl.NumberFormat('en-GB');
 
 export default function CareerMedia() {
   return (
@@ -69,7 +69,7 @@ function MediaContent({ world, career }: { world: World; career: Career }) {
                 <h3 className="text-[0.9375rem] font-bold">{s.media.earlier}</h3>
                 <details className="group mt-0.5">
                   <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-2 text-sm font-bold text-accent [&::-webkit-details-marker]:hidden">
-                    {plural(earlier.length, s.media.showEarlierOne, s.media.showEarlier)}
+                    {plural(earlier.length, s.media.showEarlier)}
                     <LifeIcon
                       name="chevronDown"
                       className="h-4 w-4 transition-transform group-open:rotate-180"
@@ -349,7 +349,7 @@ function Coverage({ career }: { career: Career }) {
           {career.social.answered}
         </span>
         <span className="font-semibold">
-          {career.social.answered === 1 ? s.media.answeredLabelOne : s.media.answeredLabel}
+          {plural(career.social.answered, s.media.answeredLabel)}
         </span>
       </p>
     </Panel>
@@ -500,7 +500,7 @@ function Post({ item, world }: { item: MediaItem; world: World }) {
           filled={item.sentiment > 0}
           className="h-3.5 w-3.5"
         />
-        {format(s.media.likes, { count: integer.format(item.likes) })}
+        {format(s.media.likes, { count: formatNumber(item.likes) })}
       </p>
     </li>
   );

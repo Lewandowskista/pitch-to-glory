@@ -1,8 +1,9 @@
 import { en } from './en';
-export { en as t };
-export function format(template: string, params: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (match, key: string) => String(params[key] ?? match));
-}
+import { LOCALE, type Translations } from './locale';
+
+/** The shell's copy, in the active language (`locale.ts`). */
+export const t = ({ en } satisfies Translations<typeof en>)[LOCALE];
+export { format } from './locale';
 export function errorText(code: string): string {
-  return en.errors[code as keyof typeof en.errors] ?? en.errors.storage;
+  return t.errors[code as keyof typeof t.errors] ?? t.errors.storage;
 }

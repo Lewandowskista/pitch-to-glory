@@ -1,5 +1,6 @@
+import { LOCALE, plurals, type Translations } from './locale';
 /** Social copy (milestone 6): club life, morale, dressing room, rival and media. */
-export const socialText = {
+const socialTextEn = {
   titles: { club: 'Club life', media: 'Media', rival: 'Rival' },
   memory: {
     title: 'What they remember',
@@ -29,6 +30,7 @@ export const socialText = {
     target: 'This week’s target: {target}',
     noTarget: 'The first weekly review comes at the end of this week.',
     chart: 'Morale and form, week by week',
+    chartLabel: 'Morale and form, week by week: Morale {morale}, Form {form}',
     chartTable: 'Morale and form by week',
     week: 'Week',
     seasonWeek: '{season} · W{week}',
@@ -148,8 +150,7 @@ export const socialText = {
     },
     trend: { up: 'rising', down: 'falling', steady: 'steady' },
     moraleTrend: 'Morale {value} · {trend}',
-    formNote: 'Last {count} matches: {ratings}',
-    formNoteOne: 'Last match: {ratings}',
+    formNote: plurals({ one: 'Last match: {ratings}', other: 'Last {count} matches: {ratings}' }),
     formNone: 'No matches played yet.',
     lowers: 'Lowers',
     raises: 'Raises',
@@ -172,8 +173,10 @@ export const socialText = {
     choose: 'Your answer',
     answered: 'You answered: {answer}',
     earlier: 'Earlier questions',
-    showEarlier: 'Show {count} earlier questions',
-    showEarlierOne: 'Show 1 earlier question',
+    showEarlier: plurals({
+      one: 'Show 1 earlier question',
+      other: 'Show {count} earlier questions',
+    }),
     showMore: 'Show more posts',
     showing: 'Showing {shown} of {total} posts',
     silence: 'You stayed silent.',
@@ -201,8 +204,7 @@ export const socialText = {
     coverage: 'Media coverage',
     coverageBody: 'Recent coverage feeds your morale. It fades week by week.',
     kinds: { press: 'Press conference', interview: 'Interview' },
-    answeredCount: '{count} questions answered',
-    answeredOne: '1 question answered',
+    answeredCount: plurals({ one: '1 question answered', other: '{count} questions answered' }),
     coverageLevel: 'Coverage',
     keyHint: 'Press 1–3 to choose an answer.',
     authorKinds: {
@@ -218,8 +220,7 @@ export const socialText = {
     keyHintBefore: 'Press',
     keyHintAfter: 'to choose an answer.',
     coverageScale: { critical: 'Critical', neutral: 'Neutral', glowing: 'Glowing' },
-    answeredLabel: 'questions answered',
-    answeredLabelOne: 'question answered',
+    answeredLabel: plurals({ one: 'question answered', other: 'questions answered' }),
     groupsBody: 'Your answers to the press move these groups.',
   },
   press: {
@@ -415,10 +416,14 @@ export const socialText = {
     verdicts: { ahead: 'you finished ahead.', behind: 'your rival finished ahead.' },
     portrait: 'Portrait of {name}',
     intro: {
-      ahead: 'You are {count} goals ahead of {rival} this season. Here is where you stand.',
-      aheadOne: 'You are a goal ahead of {rival} this season. Here is where you stand.',
-      behind: '{rival} is {count} goals ahead of you this season. Here is where you stand.',
-      behindOne: '{rival} is a goal ahead of you this season. Here is where you stand.',
+      ahead: plurals({
+        one: 'You are a goal ahead of {rival} this season. Here is where you stand.',
+        other: 'You are {count} goals ahead of {rival} this season. Here is where you stand.',
+      }),
+      behind: plurals({
+        one: '{rival} is a goal ahead of you this season. Here is where you stand.',
+        other: '{rival} is {count} goals ahead of you this season. Here is where you stand.',
+      }),
       level: 'You and {rival} are level on goals this season. Here is where you stand.',
       none: 'A rival of your generation and position will emerge as your career takes shape.',
     },
@@ -465,3 +470,6 @@ export const socialText = {
     entry: 'You said: "{answer}" {rival} hit back: "{reply}"',
   },
 };
+export const socialText = ({ en: socialTextEn } satisfies Translations<typeof socialTextEn>)[
+  LOCALE
+];

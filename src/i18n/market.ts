@@ -1,14 +1,15 @@
-import { squadRoleNames } from './squadRoles';
-import { disciplineText } from './discipline';
+import { squadRoleNamesEn } from './squadRoles';
+import { disciplineTextEn } from './discipline';
+import { LOCALE, plurals, type Translations } from './locale';
 
 /** Market copy (milestone 5): contracts, transfers, loans, negotiation, agents and inbox. */
-export const marketText = {
+const marketTextEn = {
   titles: { transfers: 'Transfers and contract', agent: 'Agent', inbox: 'Inbox' },
   sectionNames: { transfers: 'Transfers', agent: 'Agent', inbox: 'Inbox' },
   eyebrow: 'The market',
-  money: '{amount} Cr',
-  perWeek: '{amount} Cr / week',
-  roles: squadRoleNames,
+  /** A weekly amount; `{money}` is formatted by `formatMoney` (i18n/locale.ts). */
+  perWeek: '{money} / week',
+  roles: squadRoleNamesEn,
   roleBodies: {
     key: 'Starts whenever fit.',
     rotation: 'Starts most matches.',
@@ -62,8 +63,10 @@ export const marketText = {
       'when the contract ends, {club} can keep you for one more season on the same terms.',
     optionUsed: 'already used. When this contract ends, the choice is yours.',
     decisionTitle: 'Your contract ends with this season',
-    decisionOffers: '{count} interested clubs have opened talks: see the offers above.',
-    decisionOffersOne: 'One interested club has opened talks: see the offer above.',
+    decisionOffers: plurals({
+      one: 'One interested club has opened talks: see the offer above.',
+      other: '{count} interested clubs have opened talks: see the offers above.',
+    }),
     decisionNoOffers: 'No club has opened talks yet.',
     decisionDefault:
       'If you agree nothing before the next season starts, you stay at {club} on a one-season deal at {wage}.',
@@ -149,22 +152,23 @@ export const marketText = {
     open: 'Open talks',
     view: 'View talks',
     history: 'Earlier offers',
-    showEarlier: 'Show {count} earlier offers',
-    showEarlierOne: 'Show 1 earlier offer',
+    showEarlier: plurals({ one: 'Show 1 earlier offer', other: 'Show {count} earlier offers' }),
     loanTerms: '{role} · {club} pays {share}% of your wage',
     bids: 'Bids: {bids}',
     clause: 'Release clause met',
     pageBody:
       'Answer the offers on the table, see who is watching you, and decide when to push for a move.',
-    waiting: '{count} waiting for your answer',
-    waitingOne: '1 waiting for your answer',
-    tierAbove: '{count} tiers above {club}',
-    tierAboveOne: 'One tier above {club}',
+    waiting: plurals({
+      one: '1 waiting for your answer',
+      other: '{count} waiting for your answer',
+    }),
+    tierAbove: plurals({ one: 'One tier above {club}', other: '{count} tiers above {club}' }),
     tierSame: 'Same tier as {club}',
-    tierBelow: '{count} tiers below {club}',
-    tierBelowOne: 'One tier below {club}',
+    tierBelow: plurals({ one: 'One tier below {club}', other: '{count} tiers below {club}' }),
     abroad: 'Abroad: {country}',
-    openWith: ' with {club}',
+    /** The buttons' accessible names: the visible label with the club. */
+    openWith: 'Open talks with {club}',
+    viewWith: 'View talks with {club}',
   },
   talks: {
     title: 'Talks with {club}',
@@ -174,19 +178,18 @@ export const marketText = {
       title: 'Playing time there',
       inTeam:
         'You would start at {position} ({fit}% fit) under their manager, and start about {chance}% of matches.',
-      oneOutside:
-        'You would compete at {position} ({fit}% fit), one place outside the eleven behind {ahead}. Expect to start about {chance}% of matches.',
-      outside:
-        'You would compete at {position} ({fit}% fit), {places} places outside the eleven behind {ahead}. Expect to start about {chance}% of matches.',
-      and: ' and ',
+      outside: plurals({
+        one: 'You would compete at {position} ({fit}% fit), one place outside the eleven behind {ahead}. Expect to start about {chance}% of matches.',
+        other:
+          'You would compete at {position} ({fit}% fit), {places} places outside the eleven behind {ahead}. Expect to start about {chance}% of matches.',
+      }),
     },
     clubOption:
       'Every contract includes a club option: when it ends, {club} can keep you for one more season on the same terms.',
     yourTerms: 'Your counter-offer',
     wage: 'Weekly wage',
     years: 'Length',
-    yearsValue: '{count} more seasons',
-    yearsOne: '1 more season',
+    yearsValue: plurals({ one: '1 more season', other: '{count} more seasons' }),
     role: 'Squad role',
     clause: 'Release clause',
     clauseNone: 'No release clause',
@@ -199,8 +202,10 @@ export const marketText = {
     declineBody: 'The offer is withdrawn and {club} will wait for the next window.',
     acceptLoan: 'Accept the loan',
     declineLoan: 'Decline the loan',
-    patience: '{count} more counter-offers before they lose patience',
-    patienceOne: 'One more counter-offer before they lose patience',
+    patience: plurals({
+      one: 'One more counter-offer before they lose patience',
+      other: '{count} more counter-offers before they lose patience',
+    }),
     patienceNone: 'Their patience has run out: another demand they cannot meet ends the talks.',
     agentRead: '{agent} thinks they could go to about {wage}.',
     noAgent: 'Without an agent you only see the club’s offer. An agent reads their limits.',
@@ -249,6 +254,9 @@ export const marketText = {
     agentUnder: '{amount} under your agent’s estimate',
     agentOver: '{amount} over your agent’s estimate',
     agentAt: 'right at your agent’s estimate',
+    /** The wage hint: `{wage}` and `{agent}` are the clauses above. */
+    wageHint: '{wage}.',
+    wageHintAgent: '{wage}, {agent}.',
   },
   interest: {
     title: 'Scouting interest',
@@ -258,8 +266,7 @@ export const marketText = {
     weeks: '{weeks} weeks observed',
     loan: 'Loan',
     abroad: 'Abroad',
-    count: '{count} clubs',
-    countOne: '1 club',
+    count: plurals({ one: '1 club', other: '{count} clubs' }),
   },
   moves: {
     title: 'Career moves',
@@ -460,7 +467,7 @@ export const marketText = {
       body: 'Your contract ran out, so {club} took up their option for one more season, to the end of {season}.',
     },
     // A ban starts (the discipline phase); `messageText` words the matches, scope and reason.
-    suspended: disciplineText.message,
+    suspended: disciplineTextEn.message,
     dropped: {
       subject: 'Left out against {opponent}',
       body: 'The manager left you out of the side to face {opponent}. Form, fitness and trust decide who plays.',
@@ -515,3 +522,6 @@ export const marketText = {
     manager: '{name} · Manager',
   },
 };
+export const marketText = ({ en: marketTextEn } satisfies Translations<typeof marketTextEn>)[
+  LOCALE
+];

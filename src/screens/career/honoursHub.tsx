@@ -13,14 +13,13 @@ import { Dialog } from '../../ui/Dialog';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
 import { careerText as c } from '../../i18n/career';
+import { formatNumber, plural } from '../../i18n/locale';
 import { Button, ButtonLink, CardTitle, Panel, cx } from '../../ui/kit';
-import { plural } from './shared';
 import { Glyph, useHonoursAction } from './honoursUi';
 import { useUrlDialog } from './useUrlDialog';
 import { withSave } from './agenda';
 
 const R = CONFIG.career.honours.retirement;
-const integer = new Intl.NumberFormat('en');
 
 /**
  * "Hall of Fame #4 of 3,812": where the career stands right now, scored as retirement will
@@ -34,7 +33,7 @@ export function HallOfFameRankLine({ world, className }: { world: World; classNa
     <p className={className} data-testid="hall-of-fame-rank">
       {format(h.hallOfFameLive.line, {
         rank: standing.rank,
-        of: integer.format(standing.of),
+        of: formatNumber(standing.of),
       })}
     </p>
   );
@@ -101,11 +100,10 @@ export function HonoursSummary({
         <div className="min-w-0 flex-1 basis-48">
           <CardTitle id="honours-summary-heading">{h.hub.honours}</CardTitle>
           <p className="mt-0.5 text-[0.8125rem] text-muted">
-            {plural(trophies, h.legacy.trophy, h.legacy.trophies)} ·{' '}
-            {plural(awards, h.legacy.award, h.legacy.awards)}
+            {plural(trophies, h.legacy.trophies)} · {plural(awards, h.legacy.awards)}
           </p>
           <p className="text-[0.8125rem]">
-            {plural(caps, h.hub.cap, h.hub.caps)} · {plural(goals, h.hub.goal, h.hub.goals)}
+            {plural(caps, h.hub.caps)} · {plural(goals, h.hub.goals)}
           </p>
           <HallOfFameRankLine world={world} className="text-[0.8125rem] font-bold" />
         </div>

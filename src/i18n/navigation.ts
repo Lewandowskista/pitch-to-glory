@@ -1,8 +1,9 @@
+import { LOCALE, type Translations } from './locale';
 /**
  * Career navigation copy (Phase 3.1). Kept apart from the screen copy, because the app shell
  * loads it on every page.
  */
-export const navigationText = {
+const navigationTextEn = {
   groups: {
     overview: 'Overview',
     player: 'Player',
@@ -40,3 +41,6 @@ export const navigationText = {
   moreHint: 'Start a career to add your trophies, chronicle and best moments here.',
   unread: '{count} unread',
 } as const;
+export const navigationText = (
+  { en: navigationTextEn } satisfies Translations<typeof navigationTextEn>
+)[LOCALE];

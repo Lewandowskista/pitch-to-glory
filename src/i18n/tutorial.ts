@@ -1,5 +1,6 @@
+import { LOCALE, type Translations } from './locale';
 /** Tutorial copy (milestone 9): the first career week and the first match. */
-export const tutorialText = {
+const tutorialTextEn = {
   label: 'Tutorial',
   progress: 'Step {step} of {total}',
   next: 'Next',
@@ -64,3 +65,6 @@ export const tutorialText = {
     },
   },
 } as const;
+export const tutorialText = ({ en: tutorialTextEn } satisfies Translations<typeof tutorialTextEn>)[
+  LOCALE
+];

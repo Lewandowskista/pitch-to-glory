@@ -1482,9 +1482,54 @@ Career navigation (`src/screens/career/navigation.ts`) groups the career pages i
 
 The career agenda (`src/screens/career/agenda.ts`) derives everything the hub and the Calendar page (`/career/calendar`) show from the saved world, with no new stored state: the priority queue (a recovery choice, then the match, then deadlines by date, then unspent points), the season week by week, what Continue will simulate and which deadlines would lapse on the way, and a digest of the simulated weeks. The hub writes the week an advance started to the URL (`since`), so the digest survives a refresh; nothing predicts selection or results.
 
-English UI strings live in `src/i18n/en.ts`, `match.ts` and `pitch.ts`; generated names and recipe identifiers are data. CSS tokens define theme colors, spacing, radii, fonts and shadows, and are exposed to Tailwind utilities through `@theme inline`. New UI uses utilities; screens built before milestone 4 keep their component CSS partials until reworked. Fonts are bundled locally from licensed font packages. Route and reward transitions honour reduced motion.
+English UI strings live in the copy modules under `src/i18n/` (the shell's `en.ts`, and one module per area, split by route for bundle size), served through the locale seam (Localization, below); generated names and recipe identifiers are data. CSS tokens define theme colors, spacing, radii, fonts and shadows, and are exposed to Tailwind utilities through `@theme inline`. New UI uses utilities; screens built before milestone 4 keep their component CSS partials until reworked. Fonts are bundled locally from licensed font packages. Route and reward transitions honour reduced motion.
 
 Vite PWA precaches route chunks, both workers, SVG icons and fonts after one connected visit. Updates flush autosave before activation. Netlify preserves deep-link refresh. CI runs types, lint, Vitest, build and Chromium/Firefox/WebKit tests; deployment requires configured secrets. Nothing has been deployed by these milestones.
+
+## Localization
+
+The game ships in English, and every string, number, date and plural goes through one seam, `src/i18n/locale.ts` (release 1.0 plan, step 2.6), so adding a language is translation work rather than a code change on every screen.
+
+**The registry.** `LOCALES` lists each language with its BCP 47 formatting tag (English formats as `en-GB`, as the game always has), its currency template (`{amount} Cr`) and its ordinal suffixes. `LOCALE` is the active language. Each copy module keeps its English table and serves it through the registry, typed by that table:
+
+```ts
+const careerTextEn = { … };
+export const careerText = ({ en: careerTextEn } satisfies Translations<typeof careerTextEn>)[LOCALE];
+```
+
+`Translations<T>` requires a table for every language in `LOCALES`, each of type `Translation<T>`: the English shape with its strings widened to `string` (so `as const` literals do not bind a translation), its tuples and functions kept. The shell's `t` (`src/i18n/index.ts`) is served the same way from `en`. Imports did not change: screens still import `careerText` or `t`, and each copy module stays its own file, so the per-route copy split (the bundle budget) is untouched. The registry is an object literal indexed by a constant rather than a function call on purpose: Rollup sees through it to the English table, so a route that imports a copy module without reading it still leaves it out. A call, even one marked pure, made every route with a rating badge load the whole career copy (about 13 KB gzip). Where one English table reuses another's words (career's `common.level` is the kit's), it reads the other module's English table (`kitTextEn`); a translation reuses its own. The seam cost 0.4 KB gzip in the entry (106.7 → 107.1 KB) and at most 0.8 KB on any route's static load (MatchBody 242.0 → 242.8 KB); the hub's usable load grew 1.4 KB (287.9 → 289.3 KB, 67 files) because the preseason copy now has its own chunk, which in turn took 25 KB off the Preseason page (221.1 → 196.3 KB static), no longer tied to the market screens through `honoursUi.ordinal`.
+
+**Helpers.** Screens never build a formatter or pick a word form themselves:
+
+| Helper                                          | Use                                                                                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `format(template, params)`                      | Fill `{name}` placeholders (re-exported from `src/i18n/index.ts`).                                                         |
+| `plural(count, forms, params?)`                 | Pick the form for `count` with `Intl.PluralRules` and fill `{count}` and `params`. `pluralForm` returns the unfilled form. |
+| `plurals({ one, other, … })`                    | Declare a copy entry as plural forms (CLDR categories `zero`, `one`, `two`, `few`, `many`, `other`; `other` required).     |
+| `ordinal(n)`                                    | "1st", "22nd", from the language's ordinal rules.                                                                          |
+| `formatNumber(n, options?)`, `formatInteger(n)` | Grouped numbers ("12,500"); options as `Intl.NumberFormat`'s.                                                              |
+| `formatMoney(amount)`                           | Credits, rounded: "12,500 Cr".                                                                                             |
+| `formatDate(value, options?)`                   | Real-world dates and times (release dates). Game dates use `formatGameDate` in `i18n/calendar.ts`.                         |
+| `formatList(items, type?)`                      | Names in running text: "A and B", "A, B and C".                                                                            |
+
+Formatters are cached per option set. The ESLint rule in `eslint.config.js` rejects a literal locale (`'en'`, `` `en` ``, `['en-GB']`) passed to an `Intl` constructor or a `toLocale…String` call anywhere but `locale.ts`, in `src`, `tests`, `e2e` and `scripts`. The save slots' timestamp deliberately keeps the browser's own date format (`Intl.DateTimeFormat(undefined, …)`).
+
+**Writing copy.** A count's wording is a `plurals` entry, never a `xOne`/`x` pair chosen with `=== 1`; keep `{count}` in a form when the layout draws the count apart (`pluralForm` splits around it). A sentence is one template with placeholders, never pieces joined in code: the Continue preview, the wage hint in talks, the report maps' labels and tallies, the morale chart label, the hub description with the recovery prompt and the offer buttons' accessible names were rewritten this way. `tests/locale.test.ts` pins representative English output of the helpers and templates against the code they replaced.
+
+**What remains for a translation** (none of it changes English output):
+
+- Clause placeholders: some templates take a phrase another template produced, such as the wage hint's `{wage}` and `{agent}` clauses or the Continue preview's `{action}`, a priority label lower-cased with `lowerFirst`. A language whose grammar needs to inflect those phrases would need whole-sentence variants.
+- Lists and labels joined in code with `·`, `, ` or `→` (fixture and club metadata, attribute lists, the training plan's ` · mentor session`, the Gallery colours label) and value pairs such as `{cols.ga} 2/1 · {cols.xp} +40` on the profile's match history.
+- Two-count labels without plural forms (`Pass map: {attempts} attempts, {completed} completed`, `{seconds} seconds of play`) read "1 attempts" at a count of one; they need a form per count or a rewording.
+- Tournament and season names built as `{name} {year}`, and the award name with its month in brackets (`honoursUi.tsx`).
+- The patch notes (`i18n/patchNotes.ts`) stay English, like the CHANGELOG they generate; game dates use abbreviated English month and weekday names from `i18n/calendar.ts`.
+
+**Adding a language:**
+
+1. Add it to `LOCALES` in `locale.ts` with its formatting tag, currency template and ordinal forms. The build now fails in every copy module until it provides the new table.
+2. Write each module's table beside the English one (or in a sibling file the module imports) and add it to the module's registry object: `{ en: careerTextEn, es: careerTextEs }`. Plural entries may use the categories the language needs.
+3. Choose the language before the copy modules evaluate: make `LOCALE` read the player's setting (stored with the preferences) and reload the page when it changes. Once `LOCALE` is no longer a constant, every language's copy ships in each module's chunk, and the registry lookups can no longer be resolved at build time; check `scripts/check-bundle.mjs` and, if the cost matters, build one bundle per language with `LOCALE` defined at build time.
+4. Translate the strings that are not copy modules: `index.html`'s title and share tags, the web app manifest, and the release notes if wanted.
 
 ## Bundle budget
 

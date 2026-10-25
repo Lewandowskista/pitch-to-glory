@@ -1,4 +1,5 @@
 import { matchLabel } from './match';
+import { LOCALE, type Translations } from './locale';
 
 /*
  * Copy that only the post-match report shows: the morning headline and the touchline
@@ -9,7 +10,7 @@ import { matchLabel } from './match';
  * Morning headlines (engine match-12): three per story of the match. Parameters: {player},
  * {club}, {opponent}, {score} (own goals first), {goals}, {assists}.
  */
-const headlines: Record<string, [string, string, string]> = {
+const headlinesEn: Record<string, [string, string, string]> = {
   'late-winner': [
     '{player} breaks {opponent} hearts at the death',
     'Late, late show: {player} snatches it for {club}',
@@ -146,13 +147,14 @@ const headlines: Record<string, [string, string, string]> = {
     'Early bath for {player} in {club}’s {score} with {opponent}',
   ],
 };
+const headlines = ({ en: headlinesEn } satisfies Translations<typeof headlinesEn>)[LOCALE];
 const headlineText: Record<string, string> = Object.fromEntries(
   Object.entries(headlines).flatMap(([kind, lines]) =>
     lines.map((text, index) => [`match.headline.${kind}.${index}`, text]),
   ),
 );
 /** Touchline reactions (engine match-12) by result and how the player played. */
-const reactionText: Record<string, string> = {
+const reactionTextEn: Record<string, string> = {
   'match.reaction.manager.win.star':
     'Outstanding. You won us that game, and everyone in the dressing room knows it.',
   'match.reaction.manager.win.solid': 'Good win, good shift. Keep doing the simple things well.',
@@ -185,6 +187,7 @@ const reactionText: Record<string, string> = {
   'match.reaction.fans.sent-off.draw': 'That red card cost us two points.',
   'match.reaction.fans.sent-off.loss': 'Sent off and beaten. Not a day to remember.',
 };
+const reactionText = ({ en: reactionTextEn } satisfies Translations<typeof reactionTextEn>)[LOCALE];
 
 const reportText: Record<string, string> = { ...headlineText, ...reactionText };
 /** True when a report key has its own copy (tests use it to catch untranslated engine keys). */

@@ -597,7 +597,3 @@ export function XpBar({ career }: { career: Career }) {
   const { into, needed } = levelProgress(career);
   return <KitXpBar level={career.level} into={into} needed={needed} />;
 }
-
-export function plural(count: number, one: string, many: string): string {
-  return count === 1 ? one : format(many, { count });
-}

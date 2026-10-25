@@ -1,5 +1,6 @@
+import { LOCALE, plurals, type Translations } from './locale';
 /** Honours copy (milestone 8): national team, awards, trophies, Chronicle, Moments, legacy. */
-export const honoursText = {
+const honoursTextEn = {
   titles: {
     national: 'National team',
     trophies: 'Trophy cabinet',
@@ -57,10 +58,8 @@ export const honoursText = {
     never: 'You have not been called up yet.',
     caps: 'Caps',
     goals: 'Goals',
-    cap: 'cap',
-    capsWord: 'caps',
-    goal: '1 goal',
-    goalsCount: '{count} goals',
+    capsWord: plurals({ one: 'cap', other: 'caps' }),
+    goalsCount: plurals({ one: '1 goal', other: '{count} goals' }),
     windows: 'International windows this season: weeks {weeks}.',
     squad: 'Latest {level} squad',
     squadEmpty: 'No squad named yet. Squads are named in each international window.',
@@ -153,7 +152,7 @@ export const honoursText = {
     ],
     yourNth: 'Your {nth} Golden Ball',
     theirNth: '{nth} Golden Ball',
-    earlier: { one: 'Show 1 earlier season', many: 'Show {count} earlier seasons' },
+    earlier: plurals({ one: 'Show 1 earlier season', other: 'Show {count} earlier seasons' }),
     fewer: 'Show fewer seasons',
     none: 'No Golden Ball has been awarded yet. It is presented at the end of each season.',
     season: 'Season awards',
@@ -162,7 +161,10 @@ export const honoursText = {
     teamLineOut: 'Team of the season: you were not picked',
     seasonEmpty: 'Season awards are presented at the end of the season.',
     columns: { season: 'Season', award: 'Award', winner: 'Winner', value: 'Value' },
-    values: { goals: '{value} league goals', goalsOne: '1 league goal', points: '{value} pts' },
+    values: {
+      goals: plurals({ one: '1 league goal', other: '{value} league goals' }),
+      points: '{value} pts',
+    },
     scope:
       'League awards count matches in that league only, even after a player moves on. Young player of the year and the Golden Ball count all club competitions.',
   },
@@ -189,13 +191,17 @@ export const honoursText = {
       'Every trophy, award and record from your career so far, and where you stand in the Golden Ball race.',
     summary: 'Honours so far',
     counts: {
-      club: { one: '1 club trophy', many: '{count} club trophies' },
-      individual: { one: '1 individual award', many: '{count} individual awards' },
-      international: { one: '1 international honour', many: '{count} international honours' },
+      /** The count is drawn large: keep `{count}` in every form. */
+      club: plurals({ one: '{count} club trophy', other: '{count} club trophies' }),
+      individual: plurals({ one: '{count} individual award', other: '{count} individual awards' }),
+      international: plurals({
+        one: '{count} international honour',
+        other: '{count} international honours',
+      }),
     },
     across: '{honours} across {clubs}',
-    honours: { one: '1 honour', many: '{count} honours' },
-    clubs: { one: '1 club', many: '{count} clubs' },
+    honours: plurals({ one: '1 honour', other: '{count} honours' }),
+    clubs: plurals({ one: '1 club', other: '{count} clubs' }),
     intlMeta: '{year} · {nation} · {stage}',
     national: 'National team',
   },
@@ -213,7 +219,7 @@ export const honoursText = {
     showGroups: 'Show groups and knockouts',
     youAreIn: 'Your club is in this cup',
     notIn: 'your club is not in this cup',
-    groupsCount: { one: '1 group', many: '{count} groups' },
+    groupsCount: plurals({ one: '1 group', other: '{count} groups' }),
     groupStage: 'Group stage',
     played: '{stage} played',
     next: '{stage} next',
@@ -231,13 +237,13 @@ export const honoursText = {
     season: 'Season {season}',
     seasonLine: '{apps} · {goals} · {assists}',
     counts: {
-      apps: { one: '1 appearance', many: '{count} appearances' },
-      goals: { one: '1 goal', many: '{count} goals' },
-      assists: { one: '1 assist', many: '{count} assists' },
-      cleanSheets: { one: '1 clean sheet', many: '{count} clean sheets' },
-      weeks: { one: '1 week', many: '{count} weeks' },
-      careerGoals: { one: '1 career goal', many: '{count} career goals' },
-      caps: { one: '1 cap', many: '{count} caps' },
+      apps: plurals({ one: '1 appearance', other: '{count} appearances' }),
+      goals: plurals({ one: '1 goal', other: '{count} goals' }),
+      assists: plurals({ one: '1 assist', other: '{count} assists' }),
+      cleanSheets: plurals({ one: '1 clean sheet', other: '{count} clean sheets' }),
+      weeks: plurals({ one: '1 week', other: '{count} weeks' }),
+      careerGoals: plurals({ one: '1 career goal', other: '{count} career goals' }),
+      caps: plurals({ one: '1 cap', other: '{count} caps' }),
     },
     empty: 'Your story begins with your first match.',
     emptyLine: 'Season {season} · {club}',
@@ -258,8 +264,8 @@ export const honoursText = {
     pair: 'Seasons {from} and {to}',
     show: 'Show {seasons} · {entries}',
     hide: 'Hide these seasons',
-    seasons: { one: '1 season', many: '{count} seasons' },
-    entriesCount: { one: '1 entry', many: '{count} entries' },
+    seasons: plurals({ one: '1 season', other: '{count} seasons' }),
+    entriesCount: plurals({ one: '1 entry', other: '{count} entries' }),
     summary: '{range} · {seasons} · {entries}',
     earlier: 'Show earlier seasons',
     latestOnly: 'Show the latest season only',
@@ -321,10 +327,10 @@ export const honoursText = {
     title: 'Saved clips',
     pageBody:
       'Your most memorable moments, kept as clips: goals, saves, last-ditch challenges and assists. Replay them here or send a link that replays the clip from its seed.',
-    count: {
+    count: plurals({
       one: '1 clip · the latest {limit} are kept',
-      many: '{count} clips · the latest {limit} are kept',
-    },
+      other: '{count} clips · the latest {limit} are kept',
+    }),
     savedBecause: 'Saved because:',
     focused: 'Opened from your Chronicle',
     time: '{now} s / {total} s',
@@ -441,7 +447,7 @@ export const honoursText = {
   legacy: {
     title: 'Legacies',
     body: 'Careers that have ended in this world. The world carries on, so the next story can start where this one stopped.',
-    careers: { one: '1 career in this world', many: '{count} careers in this world' },
+    careers: plurals({ one: '1 career in this world', other: '{count} careers in this world' }),
     selectorLine: '{position} · {from}–{to}',
     joined: 'Joined {season}',
     showAll: 'Show all {count}',
@@ -462,10 +468,8 @@ export const honoursText = {
     hallLine: 'Hall of Fame #{rank} of {of}',
     clubs: 'Clubs',
     honoursTitle: 'Trophies and awards',
-    trophy: '1 trophy',
-    trophies: '{count} trophies',
-    award: '1 individual award',
-    awards: '{count} individual awards',
+    trophies: plurals({ one: '1 trophy', other: '{count} trophies' }),
+    awards: plurals({ one: '1 individual award', other: '{count} individual awards' }),
     records: 'Records broken',
     noRecords: 'No world records.',
     peak: 'Peak ability {value}',
@@ -485,10 +489,8 @@ export const honoursText = {
   },
   hub: {
     honours: 'Honours',
-    cap: '1 cap',
-    caps: '{count} caps',
-    goal: '1 international goal',
-    goals: '{count} international goals',
+    caps: plurals({ one: '1 cap', other: '{count} caps' }),
+    goals: plurals({ one: '1 international goal', other: '{count} international goals' }),
     open: 'Trophy cabinet',
   },
   messages: {
@@ -543,3 +545,6 @@ export const honoursText = {
     ahead: 'Ahead of {name}, #{rank}',
   },
 };
+export const honoursText = ({ en: honoursTextEn } satisfies Translations<typeof honoursTextEn>)[
+  LOCALE
+];

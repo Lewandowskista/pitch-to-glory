@@ -1,12 +1,15 @@
-import { format } from './index';
+import { format, LOCALE, type Translations } from './locale';
 
 /** Real-calendar dates for fixtures ("Sat 14 Nov"). See `engine/world/calendar.ts`. */
-export const calendarText = {
+const calendarTextEn = {
   weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
   months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
   date: '{weekday} {day} {month}',
   dateYear: '{weekday} {day} {month} {year}',
 } as const;
+export const calendarText = ({ en: calendarTextEn } satisfies Translations<typeof calendarTextEn>)[
+  LOCALE
+];
 
 /** "Sat 14 Nov" (or "Sat 14 Nov 2026" with `withYear`) for a calendar date. */
 export function formatGameDate(

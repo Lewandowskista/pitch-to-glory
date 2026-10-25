@@ -9,6 +9,7 @@ import type { ChronicleEntry, World } from '../../model/domain';
 import { format } from '../../i18n';
 import { honoursText as h } from '../../i18n/honours';
 import { careerText as c } from '../../i18n/career';
+import { ordinal, plural } from '../../i18n/locale';
 import { money } from './marketUi';
 import { useEditBlock } from './shared';
 import { audio } from '../../audio';
@@ -38,21 +39,6 @@ export { useReducedMotionSetting } from '../../ui/reducedMotion';
 /** Turns a button's trailing chevron down, and up while `aria-expanded` is true. */
 export const EXPAND_CHEVRON =
   '[&>svg:last-child]:rotate-90 [&>svg:last-child]:transition-transform aria-expanded:[&>svg:last-child]:-rotate-90';
-
-/** English ordinal: 1st, 2nd, 3rd, 11th, 21st, 92nd. */
-export function ordinal(value: number): string {
-  const tens = value % 100;
-  const suffix =
-    tens >= 11 && tens <= 13
-      ? 'th'
-      : (({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[value % 10] ?? 'th');
-  return `${value}${suffix}`;
-}
-
-/** `count` with the singular or plural noun phrase, e.g. "1 goal" / "4 goals". */
-export function counted(count: number, forms: { one: string; many: string }): string {
-  return format(count === 1 ? forms.one : forms.many, { count });
-}
 
 const GLYPHS = {
   trophy:
@@ -150,23 +136,23 @@ export const CHRONICLE_GLYPH: Record<ChronicleEntry['kind'], GlyphName> = {
 export function chronicleSentence(world: World, entry: ChronicleEntry): string {
   const p: Record<string, string | number> = { ...entry.params };
   const C = h.chronicle.counts;
-  if (entry.kind === 'injury' && typeof p.weeks === 'number') p.weeks = counted(p.weeks, C.weeks);
+  if (entry.kind === 'injury' && typeof p.weeks === 'number') p.weeks = plural(p.weeks, C.weeks);
   if (entry.kind === 'retirement') {
-    if (typeof p.appearances === 'number') p.appearances = counted(p.appearances, C.apps);
-    if (typeof p.goals === 'number') p.goals = counted(p.goals, C.goals);
+    if (typeof p.appearances === 'number') p.appearances = plural(p.appearances, C.apps);
+    if (typeof p.goals === 'number') p.goals = plural(p.goals, C.goals);
   }
   if (entry.kind === 'goal-milestone' && typeof p.goals === 'number')
-    p.goals = counted(p.goals, C.careerGoals);
+    p.goals = plural(p.goals, C.careerGoals);
   if (entry.kind === 'clean-sheet-milestone' && typeof p.cleanSheets === 'number')
-    p.cleanSheets = counted(p.cleanSheets, C.cleanSheets);
+    p.cleanSheets = plural(p.cleanSheets, C.cleanSheets);
   if (entry.kind === 'assist-milestone' && typeof p.assists === 'number')
-    p.assists = counted(p.assists, C.assists);
+    p.assists = plural(p.assists, C.assists);
   if (entry.kind === 'apps-milestone' && typeof p.appearances === 'number')
-    p.appearances = counted(p.appearances, C.apps);
+    p.appearances = plural(p.appearances, C.apps);
   if (entry.kind === 'moment' && typeof p.minute === 'number') p.minute = ordinal(p.minute);
-  if (entry.kind === 'rival' && typeof p.goals === 'number') p.goals = counted(p.goals, C.goals);
+  if (entry.kind === 'rival' && typeof p.goals === 'number') p.goals = plural(p.goals, C.goals);
   if (entry.kind === 'rival' && typeof p.cleanSheets === 'number')
-    p.cleanSheets = counted(p.cleanSheets, C.cleanSheets);
+    p.cleanSheets = plural(p.cleanSheets, C.cleanSheets);
   const club = entry.clubId ? world.clubs[entry.clubId]?.name : undefined;
   if (club && p.club === undefined) p.club = club;
   if (typeof p.fee === 'number') p.fee = money(p.fee);

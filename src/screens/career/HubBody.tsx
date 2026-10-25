@@ -37,16 +37,7 @@ import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { calendarDate } from '../../engine/world/calendar';
 import { formatGameDate } from '../../i18n/calendar';
-import {
-  CrestImage,
-  JobProgress,
-  Meter,
-  PlayerPortrait,
-  XpBar,
-  plural,
-  ui,
-  useEditBlock,
-} from './shared';
+import { CrestImage, JobProgress, Meter, PlayerPortrait, XpBar, ui, useEditBlock } from './shared';
 import {
   competitionName,
   windowTitle,
@@ -84,9 +75,10 @@ import { lifestyleText as l } from '../../i18n/lifestyle';
 import { honoursText as h } from '../../i18n/honours';
 import { fameName, useChallengeRefresh } from './lifestyleUi';
 import { HallOfFameRankLine, HonoursSummary } from './honoursHub';
-import { Glyph, ordinal, useHonoursAction, type GlyphName } from './honoursUi';
+import { Glyph, useHonoursAction, type GlyphName } from './honoursUi';
 import { Tutorial } from '../../ui/TutorialLoader';
 import { agendaText as a } from '../../i18n/agenda';
+import { ordinal, plural } from '../../i18n/locale';
 import {
   advancePreview,
   hubPriorities,
@@ -711,7 +703,7 @@ function NextMatch({
             </span>
             <div className="min-w-0">
               <p className="font-bold">
-                {format(injury.weeksRemaining === 1 ? c.hub.injuredHeroOne : c.hub.injuredHero, {
+                {plural(injury.weeksRemaining, c.hub.injuredHero, {
                   weeks: injury.weeksRemaining,
                   injury: c.injuries[injury.kind as keyof typeof c.injuries] ?? injury.kind,
                 })}
@@ -971,13 +963,13 @@ function PlayerCard({
         <PointsLink
           to="/career/profile"
           count={career.attributePoints}
-          label={plural(career.attributePoints, c.common.attributePoint, c.common.attributePoints)}
+          label={plural(career.attributePoints, c.common.attributePoints)}
           action={c.hub.allocate}
         />
         <PointsLink
           to="/career/skills"
           count={career.skillPoints}
-          label={plural(career.skillPoints, c.common.skillPoint, c.common.skillPoints)}
+          label={plural(career.skillPoints, c.common.skillPoints)}
           action={c.hub.unlock}
         />
       </div>
@@ -1055,11 +1047,9 @@ function LastResult({
             <Chip tone="accent">
               {format(c.hub.yourRating, { rating: last.rating.toFixed(1) })}
             </Chip>
-            {last.goals > 0 && (
-              <Chip tone="gold-soft">{plural(last.goals, c.hub.goal, c.hub.goals)}</Chip>
-            )}
+            {last.goals > 0 && <Chip tone="gold-soft">{plural(last.goals, c.hub.goals)}</Chip>}
             {last.assists > 0 && (
-              <Chip tone="gold-soft">{plural(last.assists, c.hub.assist, c.hub.assists)}</Chip>
+              <Chip tone="gold-soft">{plural(last.assists, c.hub.assists)}</Chip>
             )}
             {last.cleanSheet && <Chip tone="accent">{c.hub.cleanSheet}</Chip>}
             <Chip tone="neutral">{format(c.hub.xpChip, { xp: last.xp })}</Chip>
@@ -1142,9 +1132,9 @@ function SeasonStats({
       {league.apps > 0 && (
         <p className="text-[0.8125rem] text-muted">
           {format(c.hub.leagueLine, {
-            goals: plural(league.goals, c.hub.goal, c.hub.goals),
-            assists: plural(league.assists, c.hub.assist, c.hub.assists),
-            apps: plural(league.apps, c.hub.game, c.hub.games),
+            goals: plural(league.goals, c.hub.goals),
+            assists: plural(league.assists, c.hub.assists),
+            apps: plural(league.apps, c.hub.games),
           })}
         </p>
       )}
@@ -1514,11 +1504,7 @@ function InjuryBox({ world, injury }: { world: World; injury: Injury }) {
   };
   const misses = (week: number) => {
     const count = matchesBefore(world, week);
-    return count === 0
-      ? c.hub.missesNone
-      : count === 1
-        ? c.hub.missesOne
-        : format(c.hub.misses, { count });
+    return count === 0 ? c.hub.missesNone : plural(count, c.hub.misses);
   };
   const fact = 'rounded-full bg-surface-soft px-2.5 py-0.5';
   const choice =
@@ -1532,10 +1518,8 @@ function InjuryBox({ world, injury }: { world: World; injury: Injury }) {
             {c.injuries[injury.kind as keyof typeof c.injuries] ?? injury.kind}
           </p>
           <p className="mt-1 text-sm">
-            {injury.weeksRemaining === 1
-              ? c.hub.injuryOutOne
-              : format(c.hub.injuryOut, { weeks: injury.weeksRemaining })}{' '}
-            · {c.injuryCause[injury.cause]}
+            {plural(injury.weeksRemaining, c.hub.injuryOut, { weeks: injury.weeksRemaining })} ·{' '}
+            {c.injuryCause[injury.cause]}
           </p>
         </div>
         {world.phase === 'active' && (
@@ -1812,11 +1796,7 @@ function TrainingSummary({ career }: { career: Career }) {
       title={c.hub.training}
       glyph="boot"
       tour="training"
-      value={
-        sessions === 1
-          ? c.hub.tileValues.trainingOne
-          : format(c.hub.tileValues.training, { count: sessions })
-      }
+      value={plural(sessions, c.hub.tileValues.training)}
       to="/career/training"
       link={c.hub.editTraining}
     >
@@ -1891,7 +1871,7 @@ function FameSummary({ world }: { world: World }) {
       </p>
       <p>
         {format(l.hub.challenges, { done: ready, total: world.challenges.length })} ·{' '}
-        {format(l.wardrobe.tokens, { count: career.style.tokens })}
+        {plural(career.style.tokens, l.wardrobe.tokens)}
       </p>
     </Tile>
   );
@@ -1914,24 +1894,20 @@ function HonoursTile({ world }: { world: World }) {
       id="honours-summary-heading"
       title={h.hub.honours}
       glyph="trophy"
-      value={
-        trophies === 1
-          ? c.hub.tileValues.honoursOne
-          : format(c.hub.tileValues.honours, { count: trophies })
-      }
+      value={plural(trophies, c.hub.tileValues.honours)}
       to="/career/trophies"
       link={h.hub.open}
     >
       <p className="text-muted">
         {format(c.hub.honoursLine, {
-          trophies: plural(trophies, h.legacy.trophy, h.legacy.trophies),
-          awards: plural(awards, h.legacy.award, h.legacy.awards),
+          trophies: plural(trophies, h.legacy.trophies),
+          awards: plural(awards, h.legacy.awards),
         })}
       </p>
       <p>
         {format(c.hub.capsLine, {
-          caps: plural(caps, h.hub.cap, h.hub.caps),
-          goals: plural(goals, h.hub.goal, h.hub.goals),
+          caps: plural(caps, h.hub.caps),
+          goals: plural(goals, h.hub.goals),
         })}
       </p>
       <HallOfFameRankLine world={world} className="font-bold" />
@@ -1982,11 +1958,7 @@ function MarketTile({ world }: { world: World }) {
       id="market-tile-heading"
       title={m.hub.market}
       glyph="transfer"
-      value={
-        following === 1
-          ? c.hub.tileValues.marketOne
-          : format(c.hub.tileValues.market, { count: following })
-      }
+      value={plural(following, c.hub.tileValues.market)}
       to="/career/transfers"
       link={m.hub.seeMarket}
     >

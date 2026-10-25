@@ -1,5 +1,6 @@
+import { LOCALE, type Translations } from './locale';
 /** Story arcs (Phase 6): the manager's development promise. */
-export const storiesText = {
+const storiesTextEn = {
   promise: {
     title: 'The manager’s challenge',
     milestone: {
@@ -62,3 +63,6 @@ export const storiesText = {
     },
   },
 } as const;
+export const storiesText = ({ en: storiesTextEn } satisfies Translations<typeof storiesTextEn>)[
+  LOCALE
+];

@@ -6,9 +6,9 @@ import { useAppStore } from '../../store';
 import { format } from '../../i18n';
 import { reviewText as r } from '../../i18n/review';
 import { honoursText as h } from '../../i18n/honours';
+import { ordinal } from '../../i18n/locale';
 import { ambitionName } from './ambitionText';
 import { competitionName } from './selectors';
-import { ordinal } from './honoursUi';
 import { withSave } from './agenda';
 import { ui } from './shared';
 

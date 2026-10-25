@@ -1,3 +1,4 @@
+import { LOCALE, type Translations } from './locale';
 /** The weather as the match reports it, with its intensity (engine match-15). */
 const weatherNames = {
   light: { clear: 'Sunny spells', rain: 'Light rain', snow: 'Light snow', wind: 'A breeze' },
@@ -12,7 +13,7 @@ const pitchNames = {
   frozen: 'Frozen pitch',
 } as const;
 
-export const matchText = {
+const matchTextEn = {
   saveHint: 'Save your world to keep this match after refreshing or closing the browser.',
   weatherNames,
   pitchNames,
@@ -423,12 +424,13 @@ export const matchText = {
     whatNext: 'What next',
   },
 } as const;
+export const matchText = ({ en: matchTextEn } satisfies Translations<typeof matchTextEn>)[LOCALE];
 
 /**
  * Key-moment framings (engine match-12): three per situation, naming the people in it.
  * Parameters: {opponent}, {minute}, {keeper}, {defender}, {attacker}, {teammate}.
  */
-const situationFramings: Record<string, [string, string, string]> = {
+const situationFramingsEn: Record<string, [string, string, string]> = {
   'box-chance': [
     'You are in the box with the ball at your feet and only {keeper} to beat.',
     'The ball breaks to you twelve yards out. {defender} is scrambling across.',
@@ -520,13 +522,16 @@ const situationFramings: Record<string, [string, string, string]> = {
     'Penalty to {opponent}. {attacker} steps up. Everyone is looking at you.',
   ],
 };
+const situationFramings = (
+  { en: situationFramingsEn } satisfies Translations<typeof situationFramingsEn>
+)[LOCALE];
 const situationVariants: Record<string, string> = Object.fromEntries(
   Object.entries(situationFramings).flatMap(([id, lines]) =>
     lines.map((text, index) => [`match.situation.${id}.${index}`, text]),
   ),
 );
 /** Commentary templates: three variants per outcome, picked deterministically by the engine. */
-const commentary: Record<string, [string, string, string]> = {
+const commentaryEn: Record<string, [string, string, string]> = {
   attempt: [
     '{player} lets fly from a promising position.',
     'A strike from {player} tests the goalkeeper.',
@@ -888,7 +893,8 @@ const commentary: Record<string, [string, string, string]> = {
     'Pandemonium! {player} has won it late on!',
   ],
 };
-const engineText: Record<string, string> = {
+const commentary = ({ en: commentaryEn } satisfies Translations<typeof commentaryEn>)[LOCALE];
+const engineTextEn: Record<string, string> = {
   ...Object.fromEntries(
     Object.entries(commentary).flatMap(([key, lines]) =>
       lines.map((text, index) => [`match.commentary.${key}.${index}`, text]),
@@ -1052,6 +1058,7 @@ const engineText: Record<string, string> = {
     'Hold your shape, protect the space, and choose your tackles carefully.',
   'match.instructions.keeper': 'Command your area and keep your distribution composed.',
 };
+const engineText = ({ en: engineTextEn } satisfies Translations<typeof engineTextEn>)[LOCALE];
 /** True when a key has its own copy (tests use it to catch untranslated engine keys). */
 export function hasMatchLabel(key: string): boolean {
   return key in engineText;

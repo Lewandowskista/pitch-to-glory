@@ -1,5 +1,6 @@
+import { LOCALE, type Translations } from './locale';
 /** The manager's pre-match plan on the hub (phase 7, C2; `engine/career/brief.ts`). */
-export const briefText = {
+const briefTextEn = {
   label: 'Manager’s plan',
   /** The bold first line, by the player's expected role. */
   roles: {
@@ -78,3 +79,4 @@ export const briefText = {
     discipline: 'Stick to the plan and keep your shape for the whole game.',
   },
 };
+export const briefText = ({ en: briefTextEn } satisfies Translations<typeof briefTextEn>)[LOCALE];

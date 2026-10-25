@@ -1,6 +1,7 @@
-import { celebrationCommentary, celebrationNames } from './celebrations';
+import { celebrationCommentaryEn, celebrationNamesEn } from './celebrations';
+import { LOCALE, plurals, type Translations } from './locale';
 /** Lifestyle copy (milestone 7): fame, sponsors, lifestyle, wardrobe, celebrations, challenges. */
-export const lifestyleText = {
+const lifestyleTextEn = {
   titles: { lifestyle: 'Lifestyle', wardrobe: 'Wardrobe and celebrations' },
   sectionNames: { lifestyle: 'Lifestyle', wardrobe: 'Wardrobe' },
   eyebrow: 'Fame and style',
@@ -27,14 +28,9 @@ export const lifestyleText = {
     body: 'Fame grows with good performances, goals, the press and signature celebrations in big matches. It unlocks sponsors, style and lifestyle.',
     next: 'At the next level',
     unlocks: {
-      cosmetics: '{count} new looks',
-      brands: '{count} new sponsors',
-      items: '{count} new purchases',
-    },
-    unlocksOne: {
-      cosmetics: '1 new look',
-      brands: '1 new sponsor',
-      items: '1 new purchase',
+      cosmetics: plurals({ one: '1 new look', other: '{count} new looks' }),
+      brands: plurals({ one: '1 new sponsor', other: '{count} new sponsors' }),
+      items: plurals({ one: '1 new purchase', other: '{count} new purchases' }),
     },
     nothing: 'Nothing new, but more fame still brings bigger sponsors.',
     ladder: 'Fame levels 1 to {max}, level {level} reached',
@@ -73,24 +69,20 @@ export const lifestyleText = {
       cars: 'Cars',
       tech: 'Tech',
     },
+    /** Each obligation by its target: `plural(target, obligations[kind], { target })`. */
     obligations: {
-      starts: 'Start {target} matches',
-      goals: 'Score {target} goals',
-      'clean-sheets': 'Keep {target} clean sheets',
-      press: 'Answer {target} press questions',
-      rating: 'Average a rating of {target}',
-      boots: 'Wear their boots',
-      image: 'Keep fan affection at {target} or more',
-      appearances: 'Make {target} sponsor appearances',
+      starts: plurals({ one: 'Start 1 match', other: 'Start {target} matches' }),
+      goals: plurals({ one: 'Score 1 goal', other: 'Score {target} goals' }),
+      'clean-sheets': plurals({ one: 'Keep 1 clean sheet', other: 'Keep {target} clean sheets' }),
+      press: plurals({ one: 'Answer 1 press question', other: 'Answer {target} press questions' }),
+      rating: plurals({ other: 'Average a rating of {target}' }),
+      boots: plurals({ other: 'Wear their boots' }),
+      image: plurals({ other: 'Keep fan affection at {target} or more' }),
+      appearances: plurals({
+        one: 'Make 1 sponsor appearance',
+        other: 'Make {target} sponsor appearances',
+      }),
     },
-    /** Singular forms of `obligations`, used when the target is 1. */
-    obligationsOne: {
-      starts: 'Start 1 match',
-      goals: 'Score 1 goal',
-      'clean-sheets': 'Keep 1 clean sheet',
-      press: 'Answer 1 press question',
-      appearances: 'Make 1 sponsor appearance',
-    } as Record<string, string>,
     progress: '{progress} / {target}',
     met: 'Met',
     offerLabel: '{brand} offer',
@@ -167,8 +159,10 @@ export const lifestyleText = {
     ownedChip: 'Yours',
     ownedReason: 'You already have this',
     cooldownChip: 'Too soon',
-    cooldownNextWeek: 'You can do this again next week',
-    cooldownWeeks: 'You can do this again in {count} weeks',
+    cooldownWeeks: plurals({
+      one: 'You can do this again next week',
+      other: 'You can do this again in {count} weeks',
+    }),
     buy: 'Buy',
     sell: 'Sell for {amount}',
     invest: 'Invest',
@@ -266,9 +260,8 @@ export const lifestyleText = {
     },
     equipped: 'Wearing',
     unlock: 'Unlock',
-    tokens: '{count} style tokens',
+    tokens: plurals({ one: '1 style token', other: '{count} style tokens' }),
     tokensBody: 'Earned from challenges. Spend them on looks before your fame unlocks them.',
-    tokensOne: '1 style token',
     price: '{tokens} tokens',
     facialHairNote: 'Facial hair grows in with age. These previews show it at {age}.',
     intro:
@@ -290,8 +283,10 @@ export const lifestyleText = {
     choose: 'Make signature',
     none: 'No signature celebration',
     preview: 'Preview of {name}',
-    uses: '{count} big-match celebrations so far',
-    usesOne: '1 big-match celebration so far',
+    uses: plurals({
+      one: '1 big-match celebration so far',
+      other: '{count} big-match celebrations so far',
+    }),
     descriptions: {
       'celebration:fist-pump': 'A clenched fist to the crowd',
       'celebration:arms-wide': 'Arms out, soaking it in',
@@ -306,8 +301,8 @@ export const lifestyleText = {
       'celebration:backflip': 'A full backflip',
       'celebration:ice-cold': 'Stands still, unbothered',
     } as Record<string, string>,
-    names: celebrationNames,
-    commentary: celebrationCommentary,
+    names: celebrationNamesEn,
+    commentary: celebrationCommentaryEn,
     fame: 'Signature celebration in a big match: +{fame} fame',
   },
   challenges: {
@@ -320,30 +315,24 @@ export const lifestyleText = {
     reward: '{tokens} tokens',
     rewardCosmetic: '{tokens} tokens + {item}',
     progress: '{progress} / {target}',
+    /** Each challenge by its target: `plural(target, kinds[kind], { target })`. */
     kinds: {
-      play: 'Play {target} matches',
-      goals: 'Score {target} goals',
-      assists: 'Make {target} assists',
-      wins: 'Win {target} matches',
-      rating: 'Earn a 7.0+ rating {target} times',
-      'clean-sheets': 'Keep {target} clean sheets',
-      press: 'Answer {target} press questions',
-      weeks: 'Play through {target} weeks',
-      xp: 'Earn {target} XP',
-      commitments: 'Keep {target} weekly commitments',
-    },
-    /** Singular forms of `kinds`, used when the target is 1. */
-    kindsOne: {
-      play: 'Play 1 match',
-      goals: 'Score 1 goal',
-      assists: 'Make 1 assist',
-      wins: 'Win 1 match',
-      rating: 'Earn a 7.0+ rating once',
-      'clean-sheets': 'Keep 1 clean sheet',
-      press: 'Answer 1 press question',
-      weeks: 'Play through 1 week',
-      xp: 'Earn 1 XP',
-      commitments: 'Keep 1 weekly commitment',
+      play: plurals({ one: 'Play 1 match', other: 'Play {target} matches' }),
+      goals: plurals({ one: 'Score 1 goal', other: 'Score {target} goals' }),
+      assists: plurals({ one: 'Make 1 assist', other: 'Make {target} assists' }),
+      wins: plurals({ one: 'Win 1 match', other: 'Win {target} matches' }),
+      rating: plurals({
+        one: 'Earn a 7.0+ rating once',
+        other: 'Earn a 7.0+ rating {target} times',
+      }),
+      'clean-sheets': plurals({ one: 'Keep 1 clean sheet', other: 'Keep {target} clean sheets' }),
+      press: plurals({ one: 'Answer 1 press question', other: 'Answer {target} press questions' }),
+      weeks: plurals({ one: 'Play through 1 week', other: 'Play through {target} weeks' }),
+      xp: plurals({ one: 'Earn 1 XP', other: 'Earn {target} XP' }),
+      commitments: plurals({
+        one: 'Keep 1 weekly commitment',
+        other: 'Keep {target} weekly commitments',
+      }),
     },
     needsMinutes: 'Needs match minutes',
     swap: 'Swap for something you can do now',
@@ -351,8 +340,7 @@ export const lifestyleText = {
       'You are out of the side, so this one is out of reach. Swap it once for a goal off the pitch, for the same reward.',
     swapped: 'Swapped while you were out',
     reward_got: 'Reward collected!',
-    toGo: '{count} to go',
-    toGoOne: '1 to go',
+    toGo: plurals({ one: '1 to go', other: '{count} to go' }),
     ready: '{count} ready to claim',
     renews: { daily: 'New ones at midnight', weekly: 'New ones on Monday' },
     claimLabel: 'Claim {reward} for {challenge}',
@@ -414,8 +402,8 @@ export const lifestyleText = {
     },
   } as Record<string, { subject: string; body: string }>,
   /** Phase 7 (C10): big-match uses of each celebration, on its Wardrobe tile. */
-  celebrationUses: {
-    one: '1 big-match use',
-    many: '{count} big-match uses',
-  },
+  celebrationUses: plurals({ one: '1 big-match use', other: '{count} big-match uses' }),
 };
+export const lifestyleText = (
+  { en: lifestyleTextEn } satisfies Translations<typeof lifestyleTextEn>
+)[LOCALE];

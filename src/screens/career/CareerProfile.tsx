@@ -41,7 +41,7 @@ import {
   type MatchResult,
 } from '../../ui/kit';
 import { PositionPitch, type PitchPosition } from '../../ui/kit/PositionPitch';
-import { CareerPage, CrestImage, plural, ui, useEditBlock, useSaveLink } from './shared';
+import { CareerPage, CrestImage, ui, useEditBlock, useSaveLink } from './shared';
 import {
   attributeGroups,
   competitionName,
@@ -53,12 +53,12 @@ import { SkillGlyph } from './skillGlyphs';
 import { usePhone } from './usePhone';
 import { CardMark } from './disciplineUi';
 import { cardsLine, disciplineText as d } from '../../i18n/discipline';
+import { formatMoney, plural } from '../../i18n/locale';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
 const skillName = (id: string) => c.skillNames[id] ?? id;
 const PAGE = 20;
-const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
 const HEX = '[clip-path:polygon(50%_0,100%_22%,100%_78%,50%_100%,0_78%,0_22%)]';
 const RESULT: Record<CareerMatchRecord['result'], MatchResult> = { win: 'W', draw: 'D', loss: 'L' };
 
@@ -483,7 +483,7 @@ function Attributes({
                           : format(c.profile.raise, {
                               attribute: attributeName(key),
                               value: value + 1,
-                              cost: plural(cost, c.common.attributePoint, c.common.attributePoints),
+                              cost: plural(cost, c.common.attributePoints),
                             })
                       }
                       aria-describedby={reason ? `reason-${key}` : undefined}
@@ -546,7 +546,7 @@ function PointsBar({ points }: { points: number }) {
       </span>
       <span className="min-w-0 flex-1">
         <strong className="block font-extrabold">
-          {plural(points, c.profile.pointsAvailableOne, c.profile.pointsAvailable)}
+          {plural(points, c.profile.pointsAvailable)}
         </strong>
         <span className="block text-xs text-muted">{c.profile.pointsSave}</span>
       </span>
@@ -653,7 +653,7 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
             [c.profile.contractRole, c.profile.roles[contract.role]],
             [
               c.profile.contractWage,
-              format(mk.perWeek, { amount: integer.format(contract.weeklyWage) }),
+              format(mk.perWeek, { money: formatMoney(contract.weeklyWage) }),
             ],
             [
               c.profile.contractEnds,
@@ -662,10 +662,7 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
                 year: ends.year,
               }),
             ],
-            [
-              c.profile.contractGoalBonus,
-              format(mk.money, { amount: integer.format(contract.goalBonus) }),
-            ],
+            [c.profile.contractGoalBonus, formatMoney(contract.goalBonus)],
           ].map(([term, value]) => (
             <div key={term} className="min-w-0">
               <dt className="text-xs text-muted">{term}</dt>
@@ -678,7 +675,7 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
       )}
       {scouting > 0 && (
         <p className="mt-3 rounded-control bg-art-gold px-3 py-2.5 text-[0.8125rem] font-semibold text-gold-ink">
-          {plural(scouting, c.profile.scoutingOne, c.profile.scouting)}
+          {plural(scouting, c.profile.scouting)}
         </p>
       )}
     </Panel>
@@ -816,7 +813,7 @@ function Hidden({ world, player }: { world: World; player: Player }) {
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <CardTitle id="hidden-heading">{c.profile.hidden}</CardTitle>
         <span className="text-[0.8125rem] font-semibold text-muted">
-          {plural(played, c.profile.hiddenCountOne, c.profile.hiddenCount)}
+          {plural(played, c.profile.hiddenCount)}
         </span>
       </div>
       <p className={ui.helper}>{c.profile.hiddenBody}</p>

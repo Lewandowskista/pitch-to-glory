@@ -7,10 +7,11 @@ import { track } from '../../analytics';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
+import { ordinal, plural } from '../../i18n/locale';
 import { CONFIG } from '../../engine/config';
 import { ButtonLink, CardTitle, HeroPanel, Panel, StatusLine, cx } from '../../ui/kit';
 import { CareerPage, CrestImage, useSaveLink } from './shared';
-import { counted, Glyph, ordinal, useReducedMotionSetting, type GlyphName } from './honoursUi';
+import { Glyph, useReducedMotionSetting, type GlyphName } from './honoursUi';
 import { ClipPitch, ClipProgress, ReplayButton, useClipPlayback } from './MomentPitch';
 
 export default function CareerMoments() {
@@ -200,7 +201,7 @@ function MomentsContent({ world, playerId }: { world: World; playerId: string })
           <p className="mt-1 max-w-[38.75rem] text-muted">{h.moments.body}</p>
         </div>
         <span className="text-[0.8125rem] font-semibold text-muted">
-          {format(counted(moments.length, h.moments.count), {
+          {format(plural(moments.length, h.moments.count), {
             limit: CONFIG.career.honours.moments.limit,
           })}
         </span>

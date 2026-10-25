@@ -1,13 +1,12 @@
-import { format } from './index';
+import { format, LOCALE, plural, plurals, type Translations } from './locale';
 
 /**
  * Cards and suspensions on the career screens (the discipline phase): the hub, calendar and
  * selection lines, the profile's record, season statistics and the inbox message. The match
  * screens' card copy lives in `match.ts`, loaded with the match.
  */
-export const disciplineText = {
-  matchesOne: '{count} match',
-  matchesOther: '{count} matches',
+export const disciplineTextEn = {
+  matches: plurals({ one: '{count} match', other: '{count} matches' }),
   /** A short status, beside a fixture or on the hub. */
   suspended: 'Suspended · {matches}',
   /** The status in a sentence: the next fixtures in a scope are missed. */
@@ -45,10 +44,13 @@ export const disciplineText = {
     body: 'You will miss {club}’s next {matches} in {scope}, for {reason}. The manager picks the side without you until the ban is served.',
   },
 } as const;
+export const disciplineText = (
+  { en: disciplineTextEn } satisfies Translations<typeof disciplineTextEn>
+)[LOCALE];
 
 /** "1 match", "3 matches". */
 export function matchesLabel(count: number): string {
-  return format(count === 1 ? disciplineText.matchesOne : disciplineText.matchesOther, { count });
+  return plural(count, disciplineText.matches);
 }
 /** A season's or a career's cards in words: "3 yellow, 1 red". */
 export function cardsLine(yellow: number, red: number): string {

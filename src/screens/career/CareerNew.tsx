@@ -39,6 +39,7 @@ import type {
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
+import { formatNumber } from '../../i18n/locale';
 import { CrestImage, JobProgress, useRestoredWorld } from './shared';
 import { POSITIONS } from './selectors';
 import { track } from '../../analytics';
@@ -1160,8 +1161,8 @@ function WorldStep({ draft, update }: StepProps) {
           </ul>
           <p className="text-[0.8125rem] text-muted">
             {format(c.wizard.built, {
-              clubs: Object.keys(usable.clubs).length.toLocaleString('en'),
-              players: Object.keys(usable.players).length.toLocaleString('en'),
+              clubs: formatNumber(Object.keys(usable.clubs).length),
+              players: formatNumber(Object.keys(usable.players).length),
             })}
           </p>
         </section>
@@ -1290,7 +1291,7 @@ function TrialStep({
                     <TrialFact label={c.wizard.trialLeague}>{league?.name ?? ''}</TrialFact>
                     <TrialFact label={c.wizard.trialStadium}>
                       {`${club.stadium.name} · ${format(c.wizard.capacity, {
-                        count: club.stadium.capacity.toLocaleString('en'),
+                        count: formatNumber(club.stadium.capacity),
                       })}`}
                     </TrialFact>
                     <TrialFact label={c.wizard.trialReputation}>

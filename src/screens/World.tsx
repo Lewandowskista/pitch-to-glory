@@ -29,9 +29,9 @@ import { nextCareerFixture, pendingCareerFixture } from '../engine/career/fixtur
 import { calendarDate, getSeasonWeeks } from '../engine/world/calendar';
 import { formatGameDate } from '../i18n/calendar';
 import { careerText as c } from '../i18n/career';
+import { formatNumber } from '../i18n/locale';
 import { continueToMatchday, simulateCareerSeason } from './career/actions';
 
-const integer = new Intl.NumberFormat('en');
 const nationalViews = ['table', 'fixtures', 'playoffs', 'cup', 'history'] as const;
 const legacyViews = ['table', 'fixtures', 'cup', 'history'] as const;
 function queryInteger(value: string | null, fallback: number, min: number, max: number): number {
@@ -267,7 +267,7 @@ export default function WorldScreen() {
                 <div key={label} className="flex min-w-0 flex-col gap-0.5 bg-surface px-5 py-3.5">
                   <dt className="text-xs font-bold text-muted">{label}</dt>
                   <dd className="font-display text-[2rem] leading-none tabular-nums sm:text-[2.5rem]">
-                    {integer.format(Number(value))}
+                    {formatNumber(Number(value))}
                   </dd>
                 </div>
               ))}
