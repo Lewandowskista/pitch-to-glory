@@ -3,6 +3,9 @@ const pitchCopyEn = {
   label:
     'Live football pitch. Home players have solid outlines; away players have dashed outer rings. Your player has a gold ring and a You label.',
   fallback: 'Using the accessible pitch view. Match decisions and controls remain available.',
+  /** The pitch failed altogether (release 1.0 step 4.2): even the SVG view could not load. */
+  missing:
+    'The pitch could not be drawn. Follow the match in the commentary; decisions and controls still work.',
   home: 'Home · solid outline',
   away: 'Away · dashed ring',
   selected: 'You · gold ring',
