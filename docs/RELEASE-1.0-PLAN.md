@@ -190,8 +190,10 @@ depend on Phases 2–9, and every later phase adds its events here.
   it later. The client is lazy-loaded after first paint and stays under 3 KB gzip. Allow the
   PostHog host in `connect-src` in `public/_headers`.
 - **Configuration.** The project key and host come from `VITE_POSTHOG_KEY` and
-  `VITE_POSTHOG_HOST`. Without a key (development, tests, forks), analytics is off. Preview
-  deployments tag events with `environment: preview`.
+  `VITE_POSTHOG_HOST`, read at build time. The site is built in GitHub Actions, so they are
+  GitHub repository variables passed to the build step in `ci.yml` (set on 25 October), and
+  `.env.local` locally. Without a key (tests, forks), analytics is off. Preview deployments
+  tag events with `environment: preview`.
 - **Tier 1, anonymous, on by default with an opt-out in Settings.** No identifier is stored
   anywhere; events are sent personless (`$process_person_profile: false`) with an in-memory,
   per-page-load session id. Covers performance, errors, and match and balance statistics.
@@ -245,8 +247,8 @@ All events carry the app version, save schema, match engine, world format, devic
 dashboards exist; the consent states behave as above in all three engines; the client adds at
 most 3 KB gzip and nothing to the critical path.
 
-**Needs from you:** a PostHog EU project (its project API key goes into the Cloudflare Pages
-environment as `VITE_POSTHOG_KEY`) and, for the dashboard script, a personal API key kept locally.
+**Needs from you:** done — the PostHog EU project exists and its project key is set. For the
+dashboard script, a personal API key kept in `.env.local`, never committed.
 
 ---
 
