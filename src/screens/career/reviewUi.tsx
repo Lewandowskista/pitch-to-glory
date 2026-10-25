@@ -161,20 +161,17 @@ export function SeasonReviewPanel({ world, className = '' }: { world: World; cla
           <div>
             <h3 className="text-sm font-bold">{format(r.rival, { rival: review.rival.name })}</h3>
             <p className="mt-1 text-sm">
-              {format(
-                review.rival.goals === review.rival.rivalGoals
-                  ? r.rivalLevel
-                  : review.rival.goals > review.rival.rivalGoals
-                    ? r.rivalAhead
-                    : r.rivalBehind,
-                {
-                  rival: review.rival.name,
-                  goals: review.rival.goals,
-                  rivalGoals: review.rival.rivalGoals,
-                  rating: review.rival.rating.toFixed(2),
-                  rivalRating: review.rival.rivalRating.toFixed(2),
-                },
-              )}
+              {format(r.rivalVerdict[review.rival.measure][review.rival.verdict], {
+                rival: review.rival.name,
+                goals: review.rival.goals,
+                rivalGoals: review.rival.rivalGoals,
+                assists: review.rival.assists,
+                rivalAssists: review.rival.rivalAssists,
+                cleanSheets: review.rival.cleanSheets,
+                rivalCleanSheets: review.rival.rivalCleanSheets,
+                rating: review.rival.rating.toFixed(2),
+                rivalRating: review.rival.rivalRating.toFixed(2),
+              })}
             </p>
           </div>
         )}

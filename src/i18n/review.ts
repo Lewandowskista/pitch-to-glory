@@ -35,11 +35,25 @@ export const reviewText = {
   honours: 'Honours',
   noHonours: 'No silverware this time.',
   rival: 'Against {rival}',
-  rivalAhead:
-    'You finished ahead: {goals} goals to {rivalGoals}, rating {rating} to {rivalRating}.',
-  rivalBehind:
-    '{rival} had the better season: goals {rivalGoals} to your {goals}, rating {rivalRating} to {rating}.',
-  rivalLevel: 'Neck and neck: level on goals, rating {rating} to {rivalRating}.',
+  /** Judged by the line's output: goals and assists, or clean sheets for the back line. */
+  rivalVerdict: {
+    goals: {
+      ahead:
+        'You finished ahead: {goals} goals and {assists} assists to {rivalGoals} and {rivalAssists}, rating {rating} to {rivalRating}.',
+      behind:
+        '{rival} had the better season: {rivalGoals} goals and {rivalAssists} assists to your {goals} and {assists}, rating {rivalRating} to {rating}.',
+      level:
+        'Neck and neck: {goals} goals and {assists} assists to {rivalGoals} and {rivalAssists}, rating {rating} to {rivalRating}.',
+    },
+    'clean-sheets': {
+      ahead:
+        'You finished ahead: {cleanSheets} clean sheets to {rivalCleanSheets}, rating {rating} to {rivalRating}.',
+      behind:
+        '{rival} had the better season: {rivalCleanSheets} clean sheets to your {cleanSheets}, rating {rivalRating} to {rating}.',
+      level:
+        'Neck and neck: {cleanSheets} clean sheets to {rivalCleanSheets}, rating {rating} to {rivalRating}.',
+    },
+  },
   ambitions: 'Ambitions reached',
   chronicle: 'Read the season in your Chronicle',
   cabinet: 'Trophy cabinet',

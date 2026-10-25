@@ -5,6 +5,8 @@ import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { gradeFor, seasonReview } from '../src/engine/career/review';
+import { format } from '../src/i18n';
+import { reviewText as r } from '../src/i18n/review';
 
 const draft: CareerDraft = {
   name: 'Robin Vale',
@@ -70,6 +72,59 @@ describe('the end-of-season review', () => {
     // The title adds the club-success weight to a season that had no outcome of its own.
     const W = CONFIG.career.review.weights.clubSuccess;
     if (plain.outcome === null) expect(review.score).toBe(Math.min(100, plain.score + W));
+  });
+
+  it('compares a keeper with the rival by clean sheets and a striker by goals (C15)', () => {
+    /** The season as both lines stand: no goals or assists, the same average rating. */
+    const shaped = (position: 'GK' | 'ST') => {
+      const world = clone(complete);
+      const player = world.players[world.career!.playerId]!;
+      player.primaryPosition = position;
+      const season = world.date.season;
+      const matches = world.career!.matches.filter((m) => m.season === season);
+      matches.forEach((m, index) => {
+        m.goals = 0;
+        m.assists = 0;
+        m.rating = 7;
+        m.cleanSheet = index < 10;
+      });
+      const rivalry = world.rivalries[0]!;
+      const rival = world.players[rivalry.rivalPlayerId]!;
+      const start = rivalry.seasonStart;
+      rival.stats.appearances = start.appearances + matches.length;
+      rival.stats.goals = start.goals;
+      rival.stats.assists = start.assists;
+      rival.stats.ratingTotal = start.ratingTotal + 7 * matches.length;
+      rival.stats.cleanSheets = (start.cleanSheets ?? rival.stats.cleanSheets) + 4;
+      return seasonReview(world)!.rival!;
+    };
+    expect(
+      complete.career!.matches.filter((m) => m.season === complete.date.season).length,
+    ).toBeGreaterThan(10);
+    const keeper = shaped('GK');
+    expect(keeper).toMatchObject({
+      measure: 'clean-sheets',
+      verdict: 'ahead',
+      cleanSheets: 10,
+      rivalCleanSheets: 4,
+      goals: 0,
+      rivalGoals: 0,
+    });
+    const keeperText = format(r.rivalVerdict[keeper.measure][keeper.verdict], {
+      ...keeper,
+      rival: keeper.name,
+    });
+    expect(keeperText).toContain('10 clean sheets to 4');
+    expect(keeperText).not.toMatch(/[{}]/);
+    // The same season for a striker is level: neither scored nor made a goal.
+    const striker = shaped('ST');
+    expect(striker).toMatchObject({ measure: 'goals', verdict: 'level', goals: 0, rivalGoals: 0 });
+    const strikerText = format(r.rivalVerdict[striker.measure][striker.verdict], {
+      ...striker,
+      rival: striker.name,
+    });
+    expect(strikerText).toContain('0 goals and 0 assists');
+    expect(strikerText).not.toMatch(/[{}]/);
   });
 
   it('grades by bands', () => {
