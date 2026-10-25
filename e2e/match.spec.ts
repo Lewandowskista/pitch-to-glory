@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { isAbortedLoad, isBrowserNoise, readBackup, skipTutorial } from './support';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { CONFIG } from '../src/engine/config';
@@ -158,7 +158,7 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
     .click();
   const download = page.waitForEvent('download');
   await page.locator('.slot-card').first().getByRole('button', { name: 'Export backup' }).click();
-  const saved = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
+  const saved = JSON.parse(await readBackup((await (await download).path())!));
   expect(saved.schemaVersion).toBe(CONFIG.saves.schemaVersion);
   expect(saved.payload.matchSession.state.match.status).toBe('finished');
   expect(

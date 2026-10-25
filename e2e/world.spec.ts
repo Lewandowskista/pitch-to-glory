@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
-import { mkdir, readFile } from 'node:fs/promises';
+import { isAbortedLoad, isBrowserNoise, readBackup, skipTutorial } from './support';
+import { mkdir, stat } from 'node:fs/promises';
 import { CONFIG } from '../src/engine/config';
 
 test.beforeEach(async ({ page }) => {
@@ -173,8 +173,11 @@ test('worker advances, autosaves, finishes and rolls over a reproducible season'
   const downloadPromise = page.waitForEvent('download');
   await page.locator('.slot-card').first().getByRole('button', { name: 'Export backup' }).click();
   const backupPath = (await (await downloadPromise).path())!;
-  const json = await readFile(backupPath, 'utf8');
-  console.log(`Completed-season backup: ${Buffer.byteLength(json, 'utf8')} bytes`);
+  const json = await readBackup(backupPath);
+  console.log(
+    `Completed-season backup: ${Buffer.byteLength(json, 'utf8')} bytes of JSON, ` +
+      `${(await stat(backupPath)).size} bytes as a file`,
+  );
   const saved = JSON.parse(json);
   expect(saved.schemaVersion).toBe(CONFIG.saves.schemaVersion);
   expect(saved.payload.kind).toBe('world');

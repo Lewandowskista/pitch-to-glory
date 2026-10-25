@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import {
   backupFile,
+  type BackupPayload,
   isAbortedLoad,
   isBrowserNoise,
   JOURNEY_DRAFT,
@@ -50,7 +51,7 @@ const WIDTHS = [360, 390, 768, 1366, 1440];
 /** Every width at normal text, then a phone at the largest font scale. */
 const LAYOUTS = [...WIDTHS.map((width) => ({ width, scale: 1 })), { width: 390, scale: 1.3 }];
 
-let backup: string;
+let backup: BackupPayload;
 test.beforeAll(() => {
   expect(PLAYER).toHaveLength(40);
   const draft = { ...JOURNEY_DRAFT, name: PLAYER };

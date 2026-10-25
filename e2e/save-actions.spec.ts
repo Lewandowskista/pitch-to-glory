@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { skipTutorial } from './support';
+import { readBackup, skipTutorial } from './support';
 
 const backups: string[] = [];
 test.beforeAll(async ({ browserName }, workerInfo) => {
@@ -165,7 +165,7 @@ function stored(page: Page, store: 'saves' | 'worlds', slot: number) {
   );
 }
 const recoveryName = (slot: number) =>
-  new RegExp(`^pitch-to-glory-slot-${slot}-recovery-\\d{4}-\\d{2}-\\d{2}\\.json$`);
+  new RegExp(`^pitch-to-glory-slot-${slot}-recovery-\\d{4}-\\d{2}-\\d{2}\\.json\\.gz$`);
 
 test('a slot that will not load can still be exported as a recovery copy', async ({ page }) => {
   test.setTimeout(180000);
@@ -194,7 +194,7 @@ test('a slot that will not load can still be exported as a recovery copy', async
   await alert.getByRole('button', { name: 'Export a recovery copy' }).click();
   let file = await download;
   expect(file.suggestedFilename()).toMatch(recoveryName(2));
-  expect(JSON.parse(await readFile((await file.path())!, 'utf8'))).toMatchObject({
+  expect(JSON.parse(await readBackup((await file.path())!))).toMatchObject({
     format: 'pitch-to-glory',
     name: 'Football world',
     payload: { kind: 'world', world: { phase: 'broken' } },
@@ -209,7 +209,7 @@ test('a slot that will not load can still be exported as a recovery copy', async
   await cards.nth(2).getByRole('button', { name: 'Export a recovery copy — Slot 3' }).click();
   file = await download;
   expect(file.suggestedFilename()).toMatch(recoveryName(3));
-  expect(JSON.parse(await readFile((await file.path())!, 'utf8'))).toMatchObject({
+  expect(JSON.parse(await readBackup((await file.path())!))).toMatchObject({
     name: 'Artwork gallery',
     payload: { kind: 'bogus' },
   });
@@ -226,4 +226,37 @@ test('a slot that will not load can still be exported as a recovery copy', async
 
   // Exporting never repaired or rewrote what is stored.
   expect([await stored(page, 'worlds', 2), await stored(page, 'saves', 3)]).toEqual(before);
+});
+
+test.describe('in a browser without compression streams', () => {
+  // The app's service worker must not answer for the worker script this test rewrites.
+  test.use({ serviceWorkers: 'block' });
+  test('backups are plain JSON, and import back', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Only Chromium routes a dedicated worker’s script');
+    test.setTimeout(120000);
+    // Every supported browser has CompressionStream: take it away from the persistence worker.
+    await page.route(/persistence\.worker-[\w-]+\.js$/, async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        body: `self.CompressionStream = undefined;\n${await response.text()}`,
+      });
+    });
+    await skipTutorial(page);
+    await page.goto('/saves');
+    const cards = page.locator('.slot-card');
+    await cards.nth(0).getByLabel('Import backup — Slot 1').setInputFiles(backups[2]!);
+    await expect(cards.nth(0).getByRole('heading')).toHaveText('Artwork gallery', {
+      timeout: 30000,
+    });
+    const download = page.waitForEvent('download');
+    await cards.nth(0).getByRole('button', { name: 'Export backup' }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^pitch-to-glory-slot-1-\d{4}-\d{2}-\d{2}\.json$/);
+    const path = (await file.path())!;
+    expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({ name: 'Artwork gallery' });
+    await cards.nth(1).getByLabel('Import backup — Slot 2').setInputFiles(path);
+    await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
+    await expect(cards.nth(1).getByRole('heading')).toHaveText('Artwork gallery');
+  });
 });
