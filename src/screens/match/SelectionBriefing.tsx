@@ -1,5 +1,5 @@
 import type { World } from '../../model/domain';
-import { careerSelection } from '../../engine/career/market';
+import { careerSelection } from '../../engine/career/market/rules';
 import { clubFormation, usesFormations } from '../../engine/selection/world';
 import { format } from '../../i18n';
 import { selectionText as s } from '../../i18n/selection';

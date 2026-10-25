@@ -7,13 +7,11 @@ import { Page } from '../../ui/Page';
 import { Icon } from '../../ui/Icon';
 import { Artwork } from '../../ui/Artwork';
 import { clubDress, renderAvatar } from '../../engine/assets/avatar';
-import { renderCrest } from '../../engine/assets/crest';
 import { levelProgress } from '../../engine/career/progression';
 import { errorCode } from '../../persistence/errors';
 import { mayHaveSaves, persistence } from '../../persistence/lazy';
 import type { SlotListing } from '../../persistence/localRepository';
-import type { Career, Club, Crest, Player, SlotId, World } from '../../model/domain';
-import { cancelWorldJob } from '../../workers/client';
+import type { Career, Club, Player, SlotId, World } from '../../model/domain';
 import { errorText, format, t } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
@@ -21,8 +19,11 @@ import { honoursText } from '../../i18n/honours';
 import { cardTitleClass, PageHeader, panelClass } from '../../ui/kit/Panel';
 import { chipClass, CountBadge } from '../../ui/kit/Chip';
 import { Meter as KitMeter, XpBar as KitXpBar, type MeterTone } from '../../ui/kit/Meter';
-import { Button, ButtonLink, Spinner } from '../../ui/kit/Button';
+import { ButtonLink, Spinner } from '../../ui/kit/Button';
 import { StatusLine } from '../../ui/kit/StatusLine';
+import { CrestImage } from './portraits';
+export { CrestImage, PlayerPortrait } from './portraits';
+export { JobProgress } from './jobProgress';
 
 /**
  * Shared Tailwind class strings, so every career card reads as one family. They are the UI
@@ -574,43 +575,6 @@ function NoCareerInWorld() {
   );
 }
 
-/** A bust portrait in the club's home kit and crest, or the neutral shirt without a club. */
-export function PlayerPortrait({
-  player,
-  age,
-  club,
-  className = '',
-}: {
-  player: Player;
-  age: number;
-  club?: Club | null;
-  className?: string;
-}) {
-  const svg = useMemo(
-    () => renderAvatar(player.avatar, age, clubDress(club)),
-    [player.avatar, age, club],
-  );
-  return <Artwork svg={svg} alt={format(c.wizard.previewAlt, { age })} className={className} />;
-}
-export function CrestImage({
-  crest,
-  alt,
-  className = '',
-  founded,
-}: {
-  crest: Crest;
-  alt: string;
-  className?: string;
-  /** Show the club's founding-year ribbon (large crests on club pages only). */
-  founded?: number;
-}) {
-  const svg = useMemo(
-    () => renderCrest(crest, founded === undefined ? {} : { founded }),
-    [crest, founded],
-  );
-  return <Artwork svg={svg} alt={alt} className={className} />;
-}
-
 /** A 0–100 career meter (form, morale, fitness, fatigue): the kit's `Meter`. */
 export function Meter({
   label,
@@ -632,56 +596,6 @@ export function Meter({
 export function XpBar({ career }: { career: Career }) {
   const { into, needed } = levelProgress(career);
   return <KitXpBar level={career.level} into={into} needed={needed} />;
-}
-
-/** Live progress of a world job with its cancel control. */
-export function JobProgress() {
-  const job = useAppStore((s) => s.worldJob);
-  if (!job || job.type === 'commit-match') return null;
-  const total = Math.max(1, job.totalWeeks);
-  return (
-    <section
-      aria-label={c.hub.simulating}
-      className="flex flex-wrap items-center gap-4 rounded-control border border-line bg-surface-soft p-4"
-    >
-      <div className="min-w-0 flex-1 basis-48">
-        <strong className="block text-sm" role="status">
-          {job.cancelling
-            ? c.hub.cancelling
-            : job.type === 'generate'
-              ? c.wizard.building
-              : job.type === 'create-career'
-                ? c.wizard.signing
-                : job.type === 'tournament'
-                  ? c.hub.tournament.simulating
-                  : c.hub.simulating}
-        </strong>
-        {job.totalWeeks > 1 && (
-          <span className="text-xs text-muted">
-            {format(c.hub.progress, { completed: job.completedWeeks, total: job.totalWeeks })}
-          </span>
-        )}
-        <div
-          role="progressbar"
-          aria-label={c.hub.simulating}
-          aria-valuemin={0}
-          aria-valuemax={total}
-          aria-valuenow={Math.min(total, job.completedWeeks)}
-          className="mt-2 h-2 overflow-hidden rounded-full bg-line"
-        >
-          <span
-            className="block h-full rounded-full bg-accent transition-[width] duration-300"
-            style={{ width: `${Math.min(100, (job.completedWeeks / total) * 100)}%` }}
-          />
-        </div>
-      </div>
-      {job.type !== 'create-career' && (
-        <Button variant="secondary" disabled={job.cancelling} onClick={cancelWorldJob}>
-          {c.hub.cancel}
-        </Button>
-      )}
-    </section>
-  );
 }
 
 export function plural(count: number, one: string, many: string): string {

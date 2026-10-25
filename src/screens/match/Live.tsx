@@ -4,12 +4,12 @@ import type { MatchSession } from '../../engine/match';
 import { attacksRightAt, fullTime } from '../../engine/match';
 import { renderAvatar } from '../../engine/assets/avatar';
 import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
-import { lifestyleText as l } from '../../i18n/lifestyle';
+import { celebrationCommentary } from '../../i18n/celebrations';
 import { Artwork } from '../../ui/Artwork';
 import { Icon } from '../../ui/Icon';
 import { cx } from '../../ui/kit';
 import { ClubBadge, Factors, strongest, verdictOf } from './Shared';
-import { kitAppearance } from './Maps';
+import { kitAppearance } from './pitchKit';
 import { buildFeed, type FeedRow, type NarrationLine } from './feed';
 import { selectedSide, surname } from './cam';
 
@@ -643,7 +643,7 @@ export function CommentaryCard({
                 row.event?.kind === 'goal' &&
                 row.event.playerId === setup.selectedPlayerId && (
                   <p className="match-celebration">
-                    {matchFormat(l.celebrations.commentary, {
+                    {matchFormat(celebrationCommentary, {
                       player: setup.players[row.event.playerId]?.name ?? '',
                       name: celebration,
                     })}

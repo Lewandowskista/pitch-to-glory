@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Point, ReplayFrame } from '../../model/domain';
 import type { MatchSetup } from '../../engine/match';
 import { matchFormat, matchText } from '../../i18n/match';
-import { kitAppearance } from './Maps';
+import { kitAppearance } from './pitchKit';
 import { kitNumberColor, pitchArt, shirtNumber } from './pitchArt';
 import { useSvgPlayback } from './useSvgPlayback';
 import {

@@ -5,7 +5,7 @@ import { Application, Container, Graphics, Text } from 'pixi.js';
 import type { Club, Point, ReplayFrame } from '../../model/domain';
 import { isPassBeat } from './cam';
 import { OFF_ANIMATION } from '../../engine/match/parked';
-import { kitAppearance } from './Maps';
+import { kitAppearance } from './pitchKit';
 import { preparePlayback, samplePlayback, type Playback } from './playback';
 import {
   ballAtFeet,

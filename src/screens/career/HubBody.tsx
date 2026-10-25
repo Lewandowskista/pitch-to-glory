@@ -85,7 +85,7 @@ import { honoursText as h } from '../../i18n/honours';
 import { fameName, useChallengeRefresh } from './lifestyleUi';
 import { HallOfFameRankLine, HonoursSummary } from './honoursHub';
 import { Glyph, ordinal, useHonoursAction, type GlyphName } from './honoursUi';
-import { Tutorial } from '../../ui/Tutorial';
+import { Tutorial } from '../../ui/TutorialLoader';
 import { agendaText as a } from '../../i18n/agenda';
 import {
   advancePreview,

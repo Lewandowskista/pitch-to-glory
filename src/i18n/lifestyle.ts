@@ -1,3 +1,4 @@
+import { celebrationCommentary, celebrationNames } from './celebrations';
 /** Lifestyle copy (milestone 7): fame, sponsors, lifestyle, wardrobe, celebrations, challenges. */
 export const lifestyleText = {
   titles: { lifestyle: 'Lifestyle', wardrobe: 'Wardrobe and celebrations' },
@@ -305,21 +306,8 @@ export const lifestyleText = {
       'celebration:backflip': 'A full backflip',
       'celebration:ice-cold': 'Stands still, unbothered',
     } as Record<string, string>,
-    names: {
-      'celebration:fist-pump': 'Fist pump',
-      'celebration:arms-wide': 'Arms wide',
-      'celebration:knee-slide': 'Knee slide',
-      'celebration:badge-kiss': 'Badge kiss',
-      'celebration:corner-flag': 'Corner-flag dance',
-      'celebration:airplane': 'Aeroplane',
-      'celebration:shush': 'Shush the crowd',
-      'celebration:robot': 'The robot',
-      'celebration:spin': 'Spin',
-      'celebration:cartwheel': 'Cartwheel',
-      'celebration:backflip': 'Backflip',
-      'celebration:ice-cold': 'Ice cold',
-    } as Record<string, string>,
-    commentary: '{player} celebrates: {name}!',
+    names: celebrationNames,
+    commentary: celebrationCommentary,
     fame: 'Signature celebration in a big match: +{fame} fame',
   },
   challenges: {

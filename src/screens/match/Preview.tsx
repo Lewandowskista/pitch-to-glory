@@ -24,7 +24,7 @@ import type { Club, Hex, Lineup, Objective } from '../../model/domain';
 
 type MatchObjectiveKind = Objective['kind'];
 import { ClubBadge, FootballerAvatar } from './Shared';
-import { kitAppearance } from './Maps';
+import { kitAppearance } from './pitchKit';
 import { kitNumberColor } from './pitchArt';
 
 const u = m.ui;

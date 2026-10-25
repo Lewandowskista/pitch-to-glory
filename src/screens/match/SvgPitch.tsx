@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import type { Point, ReplayFrame } from '../../model/domain';
-import { kitAppearance, PitchMarkings } from './Maps';
+import { kitAppearance, PitchMarkings } from './pitchKit';
 import { pitchCopy as copy } from '../../i18n/pitch';
 import type { PitchProps } from './Pitch';
 import {
