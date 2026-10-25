@@ -32,6 +32,19 @@ the persisted shape needs a schema bump, enforced by `npm run check:save-shape`
 ([RELEASING.md](RELEASING.md), "Save schema"). Schema 23 is the 1.0 line: it adds no stored
 field, and its migration adopts the current rules (below).
 
+### Database
+
+The IndexedDB database (`pitch-to-glory`, `SaveDatabase` in
+`src/persistence/localRepository.ts`) has its own version, independent of the save schema.
+Version 6 (0.3.0 to 0.10.0) holds `saves`, `worlds`, `matches` and `leases`. Version 7 (1.0,
+release plan step 4.3) adds `backups` and `backupData` for the rotating backups and changes
+nothing stored: the upgrade only creates the two tables. A build before 1.0 still opens a
+version 7 database (Dexie 4 opens a newer database at its installed version), reads and writes
+its slots as before and ignores the backups; deleting a slot there leaves that slot's backups
+behind until 1.0 replaces or deletes them. A tab that has the database open when another tab
+upgrades it closes its connection (`versionchange`) and cannot save until it reloads, as with
+every earlier upgrade; release plan step 4.1 coordinates updates across open tabs.
+
 ### Match engine
 
 A match in progress is saved as its setup, its initial tactics and its command log
