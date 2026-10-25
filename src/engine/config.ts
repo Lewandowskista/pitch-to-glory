@@ -1237,6 +1237,16 @@ export const CONFIG = {
     transportYieldMs: 8,
     transportWideKeys: 64,
     transportNarrowKeys: 16,
+    /**
+     * Weekly checkpoints the world worker may run ahead of storage (release 1.0 step 3.3): it
+     * waits before simulating further while this many are still being written. A crash loses
+     * at most these weeks, never a committed one.
+     */
+    maxUncommittedWeeks: 2,
+    /** Longest slice of the UI thread spent decoding a published world before yielding. */
+    decodeSliceMs: 8,
+    /** A world change smaller than this is sent to the world worker as patches. */
+    maxSyncPatches: 20000,
   },
   /** Team selection (Phase 5.1): one formation-aware eleven for every match. */
   selection: {
@@ -1279,6 +1289,19 @@ export const CONFIG = {
     autosaveDelayMs: 450,
     leaseDurationMs: 30000,
     heartbeatMs: 5000,
+    /**
+     * UI changes stored as patches beside the world (release 1.0 step 3.4) before the next
+     * whole write: at most this many, of at most this many characters of JSON.
+     */
+    maxWorldPatches: 2000,
+    maxPatchBytes: 512 * 1024,
+    /**
+     * Persistence watchdog (step 4.5, S9): a request without a reply in this long restarts the
+     * persistence worker and fails with `storage`. Leases answer quickly; a load, import or
+     * export of a 100 MB save on a slow phone can take a minute.
+     */
+    leaseTimeoutMs: 20000,
+    requestTimeoutMs: 180000,
   },
   accessibility: {
     minFontScale: 0.85,

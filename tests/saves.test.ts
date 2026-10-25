@@ -104,6 +104,7 @@ describe('IndexedDB repository', () => {
     });
     await repo.write(save, null);
     expect(await repo.read(1)).toEqual({ ...save, revision: 1 });
+    expect((await repo.load(1))?.stored).toEqual({ pristine: true, patches: 0, patchBytes: 0 });
     expect((await repo.list()).map((listing) => listing.status)).toEqual([
       'ready',
       'empty',

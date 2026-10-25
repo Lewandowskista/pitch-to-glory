@@ -12,6 +12,7 @@ import { executePersistenceRequest } from '../src/workers/persistence.worker';
 import type { PersistenceOperation } from '../src/persistence/workerClient';
 import type { World } from '../src/model/domain';
 import { nationalWorld } from './support/world';
+import { decodeWorldBytes } from '../src/workers/worldCodec';
 
 const databases: SaveDatabase[] = [];
 const setup = () => {
@@ -116,6 +117,12 @@ describe('save timestamps after a clock change (S1)', () => {
   });
 });
 
+/** Damage slot 1's stored world (stored as an object, the pre-1.0 form, which still reads). */
+async function damage(db: SaveDatabase): Promise<void> {
+  const record = (await db.worlds.get(1))!;
+  const stored = (record.bytes ? decodeWorldBytes(record.bytes) : record.world) as World;
+  await db.worlds.put({ slot: 1, world: { ...stored, phase: 'broken' as never } });
+}
 describe('recovery export (S3)', () => {
   const stored = async (db: SaveDatabase, slot: 1 | 2 | 3) =>
     structuredClone(
@@ -126,8 +133,7 @@ describe('recovery export (S3)', () => {
     const { db, repo } = setup();
     await repo.write(worldSave(), null);
     // A validator regression, or damage: the world no longer passes its checks.
-    const record = (await db.worlds.get(1))!;
-    await db.worlds.put({ ...record, world: { ...record.world, phase: 'broken' as never } });
+    await damage(db);
     await expect(repo.read(1)).rejects.toMatchObject({ code: 'invalid' });
     await expect(repo.exportJSON(1)).rejects.toMatchObject({ code: 'invalid' });
     // The slot list reads metadata only, so the slot still looks ready.
@@ -171,8 +177,7 @@ describe('recovery export (S3)', () => {
   it('runs in the persistence worker, including the unchecked copy of an unsaved session', async () => {
     const { db, repo } = setup();
     await repo.write(worldSave(), null);
-    const record = (await db.worlds.get(1))!;
-    await db.worlds.put({ ...record, world: { ...record.world, phase: 'broken' as never } });
+    await damage(db);
     let sequence = 0;
     const request = (operation: PersistenceOperation) =>
       executePersistenceRequest(

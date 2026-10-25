@@ -2,11 +2,14 @@
 export { saves, slotLocks } from './runtime';
 export {
   autosave,
+  commitCheckpoint,
   deleteSlot,
   exportSlotJSON,
   exportSlotRecovery,
   importSlot,
   loadSlot,
+  publishedStored,
+  recoverCommitted,
   reloadActiveSlot,
   saveSlot,
   saveTrainingDraft,

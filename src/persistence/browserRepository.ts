@@ -1,6 +1,12 @@
 import type { FoundationState, WorldState, SlotId } from '../model/domain';
 import type { AppSave } from './schema';
-import type { SaveWriteReceipt, SlotListing } from './localRepository';
+import type {
+  EncodedWorldSave,
+  LoadedSave,
+  SaveWriteReceipt,
+  SlotListing,
+} from './localRepository';
+import type { WorldPatch } from '../workers/worldPatch';
 import type { LeaseStore } from './locks';
 import type { PersistenceOperation } from './protocol';
 import { persistenceRequest } from './workerClient';
@@ -18,8 +24,10 @@ export class WorkerSaveRepository {
     private readonly database: string,
     private readonly tabOwner: string,
   ) {}
-  private request<T>(operation: PersistenceOperation): Promise<T> {
-    return persistenceRequest<T>(this.database, this.tabOwner, operation);
+  private request<T>(operation: PersistenceOperation, transfer?: Transferable[]): Promise<T> {
+    return transfer
+      ? persistenceRequest<T>(this.database, this.tabOwner, operation, transfer)
+      : persistenceRequest<T>(this.database, this.tabOwner, operation);
   }
   /** A change this tab made: its own save lists refresh even without BroadcastChannel. */
   private async changed<T>(result: Promise<T>): Promise<T> {
@@ -27,8 +35,16 @@ export class WorkerSaveRepository {
     for (const listener of this.listeners) listener();
     return value;
   }
-  read(slot: SlotId): Promise<AppSave | undefined> {
+  /** A slot's save, with what a later write needs to know about its storage. */
+  load(slot: SlotId): Promise<LoadedSave | undefined> {
     return this.request({ operation: 'read', slot });
+  }
+  async read(slot: SlotId): Promise<AppSave | undefined> {
+    const loaded = await this.load(slot);
+    if (!loaded) return undefined;
+    const { stored: _stored, ...save } = loaded;
+    void _stored;
+    return save;
   }
   list(): Promise<SlotListing[]> {
     return this.request({ operation: 'list' });
@@ -87,16 +103,31 @@ export class WorkerSaveRepository {
    * Save preferences and the match session while the world graph is unchanged. Match
    * checkpoints use this every simulated minute, so it never transfers or stores the world.
    */
-  async writeWithoutWorldChange(value: AppSave, expectedRevision: number): Promise<AppSave> {
+  async writeWithoutWorldChange(
+    value: AppSave,
+    expectedRevision: number,
+    worldPatches?: WorldPatch[],
+  ): Promise<AppSave> {
     if (value.payload.kind !== 'world') return this.write(value, expectedRevision);
     const receipt = await this.changed(
       this.request<SaveWriteReceipt>({
         operation: 'write-without-world',
-        value: withoutWorld({ ...value, payload: value.payload }),
+        value: withoutWorld({ ...value, payload: value.payload }, worldPatches),
         expectedRevision,
       }),
     );
     return combineReceipt(receipt, value.payload);
+  }
+  /**
+   * A whole world from the world worker's bytes. The bytes move to the persistence worker
+   * without a copy (they are unusable here afterwards) and are stored without being parsed.
+   */
+  writeWorld(value: EncodedWorldSave, expectedRevision: number | null): Promise<SaveWriteReceipt> {
+    return this.changed(
+      this.request<SaveWriteReceipt>({ operation: 'write-world', value, expectedRevision }, [
+        value.bytes.buffer,
+      ]),
+    );
   }
   remove(slot: SlotId, expectedRevision: number | null): Promise<void> {
     return this.changed(this.request({ operation: 'remove', slot, expectedRevision }));

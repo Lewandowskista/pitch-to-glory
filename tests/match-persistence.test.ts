@@ -137,33 +137,56 @@ describe('saved interactive matches', () => {
     const result = await request(command);
     expect(result).toMatchObject({
       ok: true,
-      value: { revision: 2, payload: { matchSession, settings: { reducedMotion: true } } },
+      value: { revision: 2, payload: { settings: { reducedMotion: true } } },
     });
     if (!result.ok || !result.value || Array.isArray(result.value) || !('payload' in result.value))
       throw new Error('Expected receipt');
+    // The receipt carries neither the world nor the session: the tab holds both.
     expect(result.value.payload).not.toHaveProperty('world');
+    expect(result.value.payload).not.toHaveProperty('matchSession');
     expect(await request(command)).toMatchObject({ ok: false, code: 'conflict' });
-    expect((await db.worlds.get(1))?.world).toEqual(world);
-    expect((await db.matches.get(1))?.session).toEqual(matchSession);
+    expect((await db.worlds.get(1))?.bytes).toBeInstanceOf(Uint8Array);
+    // Stored as setup and commands (step 3.5); a load replays it to the same session.
+    const stored = (await db.matches.get(1))?.session;
+    expect(stored).not.toHaveProperty('state');
+    expect(stored).toMatchObject({
+      commands: matchSession.commands,
+      progress: { minute: matchSession.state.match.minute },
+    });
     const read = await new LocalSaveRepository(db).read(1);
     expect(read?.payload.kind === 'world' && read.payload.matchSession).toEqual(matchSession);
+    expect(read?.payload.kind === 'world' && read.payload.world).toEqual(world);
     expect(read?.payload.settings.reducedMotion).toBe(true);
-    const invalidMatch = structuredClone(matchSession);
-    invalidMatch.state.match.minute = 90;
+    // A forged state never reaches storage: only the commands are kept, and they replay.
+    const forged = structuredClone(matchSession);
+    forged.state.match.minute = 90;
     expect(
       await request({
         ...command,
-        value: { ...command.value, matchSession: invalidMatch },
+        value: { ...command.value, matchSession: forged },
         expectedRevision: 2,
+      }),
+    ).toMatchObject({ ok: true, value: { revision: 3 } });
+    const replayed = await new LocalSaveRepository(db).read(1);
+    expect(replayed?.payload.kind === 'world' && replayed.payload.matchSession).toEqual(
+      matchSession,
+    );
+    // A command that is not a command, or a session of another world, is refused.
+    const broken = { ...matchSession, commands: [{ type: 'teleport' }] };
+    expect(
+      await request({
+        ...command,
+        value: { ...command.value, matchSession: broken as never },
+        expectedRevision: 3,
       }),
     ).toMatchObject({ ok: false, code: 'invalid' });
     expect(
       await request({
         ...command,
         value: { ...command.value, worldId: 'world:other' },
-        expectedRevision: 2,
+        expectedRevision: 3,
       }),
     ).toMatchObject({ ok: false, code: 'invalid' });
-    expect((await db.saves.get(1))?.revision).toBe(2);
+    expect((await db.saves.get(1))?.revision).toBe(3);
   });
 });

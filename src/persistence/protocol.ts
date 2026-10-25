@@ -1,8 +1,13 @@
-import type { FoundationState, GalleryState, Settings, WorldState, SlotId } from '../model/domain';
-import type { MatchSession } from '../engine/match/types';
+import type { FoundationState, WorldState, SlotId } from '../model/domain';
 import type { SaveError } from './errors';
 import type { AppSave } from './schema';
-import type { SaveWriteReceipt, SlotListing } from './localRepository';
+import type {
+  EncodedWorldSave,
+  LoadedSave,
+  SaveWithoutWorld,
+  SaveWriteReceipt,
+  SlotListing,
+} from './localRepository';
 
 // The messages between a tab and the persistence worker. Kept apart from the client
 // (workerClient.ts), so bundling the worker never bundles the client that starts it.
@@ -10,18 +15,9 @@ export type PersistenceOperation =
   | { operation: 'read'; slot: SlotId }
   | { operation: 'list' }
   | { operation: 'write'; value: AppSave; expectedRevision: number | null }
-  | {
-      operation: 'write-without-world';
-      value: {
-        slot: SlotId;
-        worldId: string;
-        updatedAt: string;
-        gallery: GalleryState;
-        settings: Settings;
-        matchSession: MatchSession | null;
-      };
-      expectedRevision: number;
-    }
+  | { operation: 'write-without-world'; value: SaveWithoutWorld; expectedRevision: number }
+  /** A whole world from the world worker's bytes (moved, not copied), stored unparsed. */
+  | { operation: 'write-world'; value: EncodedWorldSave; expectedRevision: number | null }
   | {
       operation: 'create';
       slot: SlotId;
@@ -50,6 +46,7 @@ export type PersistenceOperation =
 export const MUTATIONS: ReadonlySet<PersistenceOperation['operation']> = new Set([
   'write',
   'write-without-world',
+  'write-world',
   'create',
   'import',
   'remove',
@@ -68,6 +65,7 @@ export type PersistenceResponse =
       ok: true;
       value:
         | AppSave
+        | LoadedSave
         | SaveWriteReceipt
         | SlotListing[]
         | { name: string; json: string }
