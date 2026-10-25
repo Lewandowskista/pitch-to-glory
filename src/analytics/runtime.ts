@@ -5,7 +5,8 @@ import { useAppStore } from '../store';
 import { ANALYTICS, analyticsConfig } from './config';
 import { createClient } from './client';
 import { randomId } from './consent';
-import type { EventName, PropertyValue } from './events';
+import type { EventName } from './events';
+import { deviceContext } from '../diagnostics/device';
 import type { Tracked } from '.';
 
 /**
@@ -53,24 +54,6 @@ export const routePattern = (pathname: string): string => {
   const path = pathname.replace(/\/+$/, '') || '/';
   return ROUTES.has(path) ? path : 'other';
 };
-
-/** Coarse device facts: enough to compare phones with desktops, too coarse to single one out. */
-export function deviceContext(): Record<string, PropertyValue> {
-  const cores = navigator.hardwareConcurrency || 0;
-  const memory = (navigator as { deviceMemory?: number }).deviceMemory;
-  const width = window.innerWidth;
-  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-  const low = cores <= 2 || (memory !== undefined && memory <= 2);
-  const high = cores >= 8 && (memory === undefined || memory >= 8);
-  return {
-    device_class: low ? 'low' : high ? 'high' : 'mid',
-    cores: cores <= 2 ? 2 : cores <= 4 ? 4 : cores <= 8 ? 8 : 16,
-    ...(memory !== undefined ? { memory: Math.min(memory, 8) } : {}),
-    viewport:
-      width < 480 ? 'xs' : width < 768 ? 'sm' : width < 1024 ? 'md' : width < 1440 ? 'lg' : 'xl',
-    input: coarse ? 'touch' : 'pointer',
-  };
-}
 
 /** Navigation timings of this page load, in milliseconds from its start. */
 function loadTimings(): Record<string, number> {

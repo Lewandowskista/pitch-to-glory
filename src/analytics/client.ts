@@ -1,4 +1,5 @@
 import type { PlatformAdapter } from '../platform';
+import { scrubMessage as scrub } from '../diagnostics/scrub';
 import { ANALYTICS, type AnalyticsConfig } from './config';
 import { readConsent, subscribeConsent, type ConsentStore } from './consent';
 import {
@@ -43,24 +44,13 @@ export interface AnalyticsClient {
 }
 
 const SAFE = /^[\w.:/+-]{1,64}$/;
-const IDENTIFIER = /^'[A-Za-z_$][\w$]*'$|^"[A-Za-z_$][\w$]*"$/;
 
 /**
- * An error message without what could identify a player or their device: addresses, file paths
- * and quoted text become placeholders, digits become `#`, and the result is cut to 120
- * characters. Quoted single identifiers, such as the property in "reading 'skills'", stay.
+ * An error message without what could identify a player or their device (the shared scrubber,
+ * src/diagnostics/scrub.ts): addresses, file paths and quoted text become placeholders, digits
+ * become `#`, and the result is cut to 120 characters.
  */
-export function scrubMessage(message: unknown): string {
-  return String(message ?? '')
-    .replace(/\b[a-z][\w+.-]*:\/\/\S*/gi, '<url>')
-    .replace(/(['"`])(?:(?!\1).)*\1/g, (quoted) => (IDENTIFIER.test(quoted) ? quoted : '<text>'))
-    .replace(/(?:[A-Za-z]:)?(?:[\\/][\w.@~-]+){2,}[\\/]?/g, '<path>')
-    .replace(/\S+@\S+\.\w+/g, '<email>')
-    .replace(/\d+/g, '#')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, ANALYTICS.errorLength);
-}
+export const scrubMessage = (message: unknown): string => scrub(message, ANALYTICS.errorLength);
 
 /** The allow-listed, well-formed properties of an event; everything else is dropped. */
 export function allowedProperties(
