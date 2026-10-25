@@ -20,6 +20,14 @@ const shellNotes = withNotes(staticFiles(entry));
 if (shellNotes.length) throw new Error(`The app shell bundles the patch notes (${shellNotes})`);
 if (!withNotes(staticFiles(manifest['src/screens/WhatsNew.tsx'])).length)
   throw new Error('The What’s new screen does not carry the patch notes');
+/**
+ * The 1.0 budget (docs/RELEASE-1.0-PLAN.md, Phase 3): shell + route at most 280 KB gzip. REPORTED
+ * until phase 3 (with step 2.8's headroom) meets it and sets `asserted`; the 300 KB limit above
+ * stays asserted.
+ */
+const BUDGET_1_0 = { kilobytes: 280, asserted: false, phase: 3 };
+const overBudget = [];
+let routes = 0;
 for (const route of [
   'Menu',
   'Gallery',
@@ -52,6 +60,7 @@ for (const route of [
   'WhatsNew',
   'Privacy',
 ]) {
+  routes++;
   const visited = new Set();
   let bytes = 0;
   function visit(chunk) {
@@ -73,5 +82,13 @@ for (const route of [
   console.log(
     `${route} initial JavaScript (shell + route): ${(bytes / 1024).toFixed(1)} KB gzip (budget: 300 KB).`,
   );
+  if (bytes > BUDGET_1_0.kilobytes * 1024) overBudget.push(`${route} ${(bytes / 1024).toFixed(1)}`);
 }
+const budgetLine = `1.0 budget: shell + route ≤ ${BUDGET_1_0.kilobytes} KB gzip — ${
+  overBudget.length
+    ? `${overBudget.length} of ${routes} routes over (${overBudget.join(', ')} KB)`
+    : 'met'
+}`;
+if (BUDGET_1_0.asserted && overBudget.length) throw new Error(budgetLine);
+console.log(`${budgetLine} (reported, asserted from phase ${BUDGET_1_0.phase}).`);
 console.log(`Entry output: ${(statSync(`dist/${entry.file}`).size / 1024).toFixed(1)} KB.`);
