@@ -25,10 +25,11 @@ describe('the tab’s save repository', () => {
     request.mockResolvedValue(undefined);
     const saves = new WorkerSaveRepository('db', 'tab-a');
     await saves.read(2);
-    await saves.validateJSON('{}');
+    const file = new Blob(['{}']);
+    await saves.validateFile(file);
     expect(request.mock.calls).toEqual([
       ['db', 'tab-a', { operation: 'read', slot: 2 }],
-      ['db', 'tab-a', { operation: 'validate', json: '{}' }],
+      ['db', 'tab-a', { operation: 'validate', file }],
     ]);
   });
 

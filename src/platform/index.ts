@@ -5,6 +5,11 @@ export interface PlatformAdapter {
   /** Share a link through the system share sheet, or copy it; reports which happened. */
   shareLink(url: string, title: string): Promise<'shared' | 'copied' | 'failed'>;
   readFile(file: File): Promise<string>;
+  /**
+   * A picked file's contents as a `Blob`, for a worker to read (save backups, which may be
+   * gzip): size-checked here, never read on the main thread.
+   */
+  readFileBlob(file: File): Promise<Blob>;
   requestPersistentStorage(): Promise<boolean>;
   isStoragePersistent(): Promise<boolean>;
   haptic(kind: 'selection' | 'success'): Promise<void>;
@@ -75,6 +80,11 @@ export const platform: PlatformAdapter = {
   async readFile(file) {
     if (file.size > CONFIG.saves.maxFileBytes) throw new Error('large');
     return file.text();
+  },
+  async readFileBlob(file) {
+    // The plain-JSON limit; a gzip backup's own, smaller limit is checked where it is read.
+    if (file.size > CONFIG.saves.maxFileBytes) throw new Error('large');
+    return file;
   },
   async requestPersistentStorage() {
     return (await navigator.storage?.persist?.()) ?? false;

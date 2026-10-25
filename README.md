@@ -86,7 +86,7 @@ Six real countries — England, France, Spain, Germany, Italy and Portugal — w
 
 - **Accessible**: every screen checked with axe against WCAG 2.1 AA (no serious or critical issues) in light and dark themes; full keyboard play (Space, 1–4, arrows, Escape, `?`); screen-reader labels; text size from 85% to 130%; reduced motion; a simulation-only mode; colour-blind-safe kit choice.
 - **Fast**: a startup bundle of 80 KB gzipped, with everything else loaded on demand. Mobile Lighthouse performance 86–95 and accessibility 100 on every audited page.
-- **Yours**: no ads, no account, no personal tracking without your say-so: anonymous play statistics can be switched off in Settings, and following your play over time is opt-in ([privacy](docs/ANALYTICS.md)). Three save slots in your browser, backup export and import, and offline play after the first visit. All art is procedural SVG and every sound is synthesised on your device.
+- **Yours**: no ads, no account, no personal tracking without your say-so: anonymous play statistics can be switched off in Settings, and following your play over time is opt-in ([privacy](docs/ANALYTICS.md)). Three save slots in your browser, compact backup files to export and import (gzip, about an eighth of the save's size; older plain JSON backups still import), and offline play after the first visit. All art is procedural SVG and every sound is synthesised on your device.
 - **Easy to find your way**: the career is grouped into five sections (Overview, Player, Club, Life and History), each opening with page tabs that never move. On phones a five-slot tab bar and a More sheet replace sideways scrolling, and Back closes the sheet.
 - **Guided**: a short tour during your first week and your first match.
 
@@ -122,7 +122,7 @@ flowchart LR
 
 - **A pure engine.** Everything that decides results lives in `src/engine/`: plain, deterministic TypeScript with a seedable RNG and no browser globals or imports (enforced by lint). The same code runs in the UI, in Web Workers and in Node tests, so any career or match replays exactly from its seed.
 - **Workers for heavy work.** Season simulation and save validation run off the main thread, with progress and cancellation, so the interface never freezes.
-- **Saves you can trust.** Versioned save schema (now 16) with migrations from every earlier version, strict validation of every record, revision checks, and one browser tab per save slot.
+- **Saves you can trust.** Versioned save schema (now 16) with migrations from every earlier version, strict validation of every record, revision checks, and one browser tab per save slot. Backups are packed and unpacked as gzip in the persistence worker, within a 128 MB limit on the save itself.
 - **Code-split by route.** Each screen is its own chunk; PixiJS, the save system, audio and animation features load only when needed.
 
 ### The match engine is calibrated

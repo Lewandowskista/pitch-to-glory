@@ -25,6 +25,9 @@ import { worldOperations } from '../src/workers/operations';
 import { adoptCurrentRules } from '../src/engine/world/rules';
 import { applyRetention } from '../src/engine/world/retention';
 import { compactKeeping } from '../src/engine/keeping';
+import { executePersistenceRequest } from '../src/workers/persistence.worker';
+import type { PersistenceOperation } from '../src/persistence/protocol';
+import { isGzip, unpackBackup, type BackupFile } from '../src/persistence/backup';
 import type { World, WorldState } from '../src/model/domain';
 
 const DIRECTORY = 'tests/fixtures/saves';
@@ -206,6 +209,56 @@ async function playThrough(item: GoldenSaveEntry): Promise<void> {
   expect(content(second.json) === content(first.json), 'round trip').toBe(true);
 }
 
+/**
+ * Step 3.7: a plain backup from a past release imports through the persistence worker as the
+ * Saves screen sends it, exports as gzip, and the gzip file imports back to the same save: its
+ * JSON byte for byte the plain export's, and a second export identical but for slot and time.
+ */
+async function gzipRoundTrip(item: GoldenSaveEntry): Promise<void> {
+  const json = read(item);
+  const db = new SaveDatabase(`golden-gzip-${item.file}-${Date.now()}`);
+  databases.push(db);
+  const repository = new LocalSaveRepository(db);
+  let sequence = 0;
+  const request = async (operation: PersistenceOperation) => {
+    const response = await executePersistenceRequest(
+      { ...operation, database: db.name, requestId: `gzip-${++sequence}` },
+      () => db,
+    );
+    if (!response.ok) throw new Error(`${operation.operation} failed: ${response.code}`);
+    return response.value;
+  };
+  const exported = async (slot: 1 | 2) =>
+    (await request({ operation: 'export', slot })) as BackupFile;
+  const time = async <T>(work: () => Promise<T>): Promise<[T, number]> => {
+    const start = performance.now();
+    const result = await work();
+    return [result, Math.round(performance.now() - start)];
+  };
+  const [, plainImport] = await time(() =>
+    request({ operation: 'import', file: new Blob([json]), slot: 1, expectedRevision: null }),
+  );
+  const [first, exportMs] = await time(() => exported(1));
+  expect(first.compressed).toBe(true);
+  expect(await isGzip(first.file)).toBe(true);
+  const plain = (await repository.exportJSON(1)).json;
+  const unpacked = await unpackBackup(first.file);
+  expect(unpacked.json === plain, 'gzip holds the plain export byte for byte').toBe(true);
+  expect(unpacked.bytes).toBe(Buffer.byteLength(plain, 'utf8'));
+  const [, gzipImport] = await time(() =>
+    request({ operation: 'import', file: first.file, slot: 2, expectedRevision: null }),
+  );
+  const second = await exported(2);
+  const again = (await unpackBackup(second.file)).json;
+  expect(again === (await repository.exportJSON(2)).json).toBe(true);
+  expect(content(again) === content(plain), 'gzip round trip').toBe(true);
+  console.log(
+    `${item.file}: ${(first.bytes / 2 ** 20).toFixed(1)} MiB JSON, ` +
+      `${(first.file.size / 2 ** 20).toFixed(1)} MiB gzip; import plain ${plainImport} ms, ` +
+      `export gzip ${exportMs} ms, import gzip ${gzipImport} ms`,
+  );
+}
+
 describe('golden saves from past releases', () => {
   it('lists every required release in a manifest that matches the committed files', () => {
     const files = manifest.fixtures.map((item) => item.file);
@@ -237,5 +290,8 @@ describe('golden saves from past releases', () => {
   }, 600_000);
   it('0.9.1 national world in its second season: loads, simulates and round trips [slow]', async () => {
     await playThrough(entry('v0.9.1-season.json.br'));
+  }, 600_000);
+  it('0.9.1 national world in its second season: a gzip export re-imports byte-identically [slow]', async () => {
+    await gzipRoundTrip(entry('v0.9.1-season.json.br'));
   }, 600_000);
 });

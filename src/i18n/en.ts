@@ -236,6 +236,10 @@ export const en = {
     imported: 'Save imported.',
     deleted: 'Save deleted.',
     exported: 'Backup downloaded.',
+    exportNearLimit:
+      'This save holds {size} MB of data, close to the 128 MB a backup can hold: keep an eye on its size.',
+    exportLarge:
+      'This save holds more than the 128 MB of data a backup can hold, so it was not exported: the file could not be imported again.',
     export: 'Export backup',
     exportRecovery: 'Export a recovery copy',
     recoveryExported:
@@ -284,7 +288,7 @@ export const en = {
     protected: 'Your browser granted persistent storage.',
     notProtected:
       'Your browser did not grant persistence. Download a backup to keep your saves safe.',
-    wrongFile: 'Choose a Pitch to Glory JSON backup.',
+    wrongFile: 'Choose a Pitch to Glory backup file.',
     unsaved: 'Unsaved session',
     damaged: 'Unreadable save',
     damagedBody:

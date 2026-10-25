@@ -14,7 +14,7 @@ import { useAppStore } from '../store';
 import { useAutosave } from '../hooks/useAutosave';
 import { errorCode } from '../persistence/errors';
 import { loadedPersistence, persistence, preloadPersistence } from '../persistence/lazy';
-import { recoveryFileName } from '../persistence/files';
+import { backupFileName, backupType, recoveryFileName } from '../persistence/files';
 import { platform } from '../platform';
 import { Icon, type IconName } from './Icon';
 import { Dialog } from './Dialog';
@@ -383,26 +383,34 @@ export function Shell() {
                       // Validation and serialization of a large world run in the persistence worker.
                       void persistence()
                         .then(async (p) => {
+                          // The worker also compresses the file where the browser can.
                           const snapshot = p.snapshot();
                           const file = await p.saves
                             .serialize(active.slot, active.name, snapshot)
                             .then((checked) => ({
-                              name: 'pitch-to-glory-unsaved.json',
-                              json: checked.json,
+                              name: backupFileName('unsaved', checked.compressed),
+                              backup: checked,
                             }))
                             // A session that no longer passes its checks is still worth keeping:
                             // download it unchecked, named as a recovery copy.
-                            .catch(async () => ({
-                              name: recoveryFileName('unsaved'),
-                              json: (
-                                await p.saves.serializeUnvalidated(
-                                  active.slot,
-                                  active.name,
-                                  snapshot,
-                                )
-                              ).json,
-                            }));
-                          await platform.saveFile(file.name, file.json, 'application/json');
+                            .catch(async (error: unknown) => {
+                              // Too large is not a failed check: an unchecked copy is no smaller.
+                              if (errorCode(error) === 'large') throw error;
+                              const backup = await p.saves.serializeUnvalidated(
+                                active.slot,
+                                active.name,
+                                snapshot,
+                              );
+                              return {
+                                name: recoveryFileName('unsaved', backup.compressed),
+                                backup,
+                              };
+                            });
+                          await platform.saveFile(
+                            file.name,
+                            file.backup.file,
+                            backupType(file.backup.compressed),
+                          );
                           track('export_done', { what: 'unsaved' });
                         })
                         .catch((error) =>

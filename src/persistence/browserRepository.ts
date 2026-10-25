@@ -9,6 +9,7 @@ import type {
 import type { WorldPatch } from '../workers/worldPatch';
 import type { LeaseStore } from './locks';
 import type { PersistenceOperation } from './protocol';
+import type { BackupFile } from './backup';
 import { persistenceRequest } from './workerClient';
 import { combineReceipt, withoutWorld } from './receipts';
 import { SAVE_CHANNEL } from './database';
@@ -96,8 +97,9 @@ export class WorkerSaveRepository {
     );
     return combineReceipt(receipt, value.payload);
   }
-  import(json: string, slot: SlotId, expectedRevision: number | null): Promise<AppSave> {
-    return this.changed(this.request({ operation: 'import', json, slot, expectedRevision }));
+  /** Import a picked backup file (plain JSON or gzip), read and checked in the worker. */
+  import(file: Blob, slot: SlotId, expectedRevision: number | null): Promise<AppSave> {
+    return this.changed(this.request({ operation: 'import', file, slot, expectedRevision }));
   }
   /**
    * Save preferences and the match session while the world graph is unchanged. Match
@@ -149,19 +151,21 @@ export class WorkerSaveRepository {
     );
     return combineReceipt(receipt, payload);
   }
-  validateJSON(json: string): Promise<void> {
-    return this.request({ operation: 'validate', json });
+  /** Check a picked backup file without storing it. */
+  validateFile(file: Blob): Promise<void> {
+    return this.request({ operation: 'validate', file });
   }
-  exportJSON(slot: SlotId): Promise<{ name: string; json: string }> {
+  /** A slot's backup file, gzip where the browser can compress (`backup.ts`). */
+  exportBackup(slot: SlotId): Promise<BackupFile> {
     return this.request({ operation: 'export', slot });
   }
   /** A slot's stored records, unvalidated, for a slot that will not load. */
-  exportRecovery(slot: SlotId): Promise<{ name: string; json: string }> {
+  exportRecovery(slot: SlotId): Promise<BackupFile> {
     return this.request({ operation: 'export-recovery', slot });
   }
   /** Serialize an unsaved in-memory snapshot as a backup file, off the main thread. */
   serialize(slot: SlotId, name: string, payload: FoundationState | WorldState) {
-    return this.request<{ name: string; json: string }>({
+    return this.request<BackupFile>({
       operation: 'serialize',
       slot,
       name,
@@ -170,7 +174,7 @@ export class WorkerSaveRepository {
   }
   /** As `serialize`, without validation: the fallback when the snapshot no longer passes it. */
   serializeUnvalidated(slot: SlotId, name: string, payload: FoundationState | WorldState) {
-    return this.request<{ name: string; json: string }>({
+    return this.request<BackupFile>({
       operation: 'serialize',
       slot,
       name,

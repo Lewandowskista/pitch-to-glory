@@ -111,6 +111,14 @@ cover them.
   `tests/golden-saves.test.ts`.
 - **Matches in progress resume only on the current engine and, while one is kept, the previous
   one.** Any older session restarts from kick-off with a notice.
+- **Backup files from every release import.** From 1.0 an export is a gzip file
+  (`pitch-to-glory-slot-<n>-<date>.json.gz`; plain `.json` in a browser without
+  `CompressionStream`). Import tells the two apart by the file's first bytes, not its name, so
+  the plain JSON backups of 0.1.0 to 0.10.0 import as before, renamed or not, and a 1.0 backup
+  unpacked by the operating system imports too. Both are held to 128 MiB of uncompressed JSON.
+  A release before 1.0 cannot read a gzip backup: export from 1.0 is one way, as with any save
+  from a newer schema. `tests/backup-file.test.ts` and the gzip round trip in
+  `tests/golden-saves.test.ts` cover this.
 
 | Release        | Schema | Engine                   | Resumes sessions from         | Rule flags adopted                  |
 | -------------- | ------ | ------------------------ | ----------------------------- | ----------------------------------- |

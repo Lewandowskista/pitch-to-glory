@@ -2,7 +2,9 @@ import type { ConsoleMessage, Page } from '@playwright/test';
 import type { World } from '../src/model/domain';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { buildNationalCareer, playNationalCareer } from '../tests/support/fixtures';
 import { fixtureDirectory, fixturePath, writeFixture } from '../tests/support/store';
 
@@ -36,15 +38,31 @@ export function nationalCareer(seed: string, draft: Partial<CareerDraft> = {}): 
   const trial = trialOffers(base, full.nationalityId, seed)[0]!;
   return createCareer(base, full, trial.id, seed);
 }
+/** A file for `setInputFiles`, given as a buffer (at most 50 MB). */
+export interface BackupPayload {
+  name: string;
+  mimeType: string;
+  buffer: Buffer;
+}
 /**
- * A save written to a file for `setInputFiles`, which takes a buffer of at most 50 MB: a national
- * world after a played season is larger. Returns the file's path.
+ * A save as the game exports it since 1.0 (step 3.7): a gzip backup, passed to `setInputFiles`
+ * as a buffer. Compressed, a national world after a played season (over 50 MB as JSON) fits the
+ * buffer limit, so no file is written; importing it exercises the gzip path in every browser.
  */
-export function backupFile(name: string, json: string): string {
-  mkdirSync('artifacts', { recursive: true });
-  const path = `artifacts/${name}-${process.pid}.json`;
-  writeFileSync(path, json);
-  return path;
+export function backupFile(name: string, json: string): BackupPayload {
+  return {
+    name: `${name}.json.gz`,
+    mimeType: 'application/gzip',
+    buffer: gzipSync(json, { level: 1 }),
+  };
+}
+/**
+ * A downloaded backup's JSON: gzip (an export since 1.0), or plain JSON where the browser could
+ * not compress. Told apart by the gzip magic bytes, as the game does.
+ */
+export async function readBackup(path: string): Promise<string> {
+  const bytes = await readFile(path);
+  return (bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes) : bytes).toString('utf8');
 }
 /**
  * The unit tests' shared national career after its first season, before the rollover

@@ -9,6 +9,7 @@ import {
 import { LeaseLock } from '../persistence/leaseLock';
 import { SAVE_CHANNEL } from '../persistence/database';
 import { createChunkReceiver, sendChunked } from './transport';
+import { packBackup, unpackBackup } from '../persistence/backup';
 
 const databases = new Map<string, SaveDatabase>();
 function databaseFor(name: string): SaveDatabase {
@@ -25,7 +26,8 @@ export async function executePersistenceRequest(
 ): Promise<PersistenceResponse> {
   try {
     if (request.operation === 'validate') {
-      parseSave(request.json);
+      const { json, bytes } = await unpackBackup(request.file);
+      parseSave(json, bytes);
       return { requestId: request.requestId, ok: true, value: undefined };
     }
     if (request.operation === 'lease-acquire' || request.operation === 'lease-release') {
@@ -47,19 +49,13 @@ export async function executePersistenceRequest(
       const value = await repository.writeWorld(request.value, request.expectedRevision);
       return { requestId: request.requestId, ok: true, value };
     }
-    if (request.operation === 'export') {
-      return {
-        requestId: request.requestId,
-        ok: true,
-        value: await repository.exportJSON(request.slot),
-      };
-    }
-    if (request.operation === 'export-recovery') {
-      return {
-        requestId: request.requestId,
-        ok: true,
-        value: await repository.exportRecovery(request.slot),
-      };
+    // Exports leave as backup files, compressed here (step 3.7), never on the tab's thread.
+    if (request.operation === 'export' || request.operation === 'export-recovery') {
+      const { name, json } =
+        request.operation === 'export'
+          ? await repository.exportJSON(request.slot)
+          : await repository.exportRecovery(request.slot);
+      return { requestId: request.requestId, ok: true, value: await packBackup(name, json) };
     }
     if (request.operation === 'serialize') {
       const { recovery: _recovery, ...file } = request.unvalidated
@@ -69,7 +65,15 @@ export async function executePersistenceRequest(
       return {
         requestId: request.requestId,
         ok: true,
-        value: { name: request.name, json: JSON.stringify(file) },
+        value: await packBackup(request.name, JSON.stringify(file)),
+      };
+    }
+    if (request.operation === 'import') {
+      const { json, bytes } = await unpackBackup(request.file);
+      return {
+        requestId: request.requestId,
+        ok: true,
+        value: await repository.import(json, request.slot, request.expectedRevision, bytes),
       };
     }
     const value =
@@ -84,11 +88,9 @@ export async function executePersistenceRequest(
                   createSave(request.slot, request.name, request.payload),
                   request.expectedRevision,
                 )
-              : request.operation === 'import'
-                ? await repository.import(request.json, request.slot, request.expectedRevision)
-                : await repository
-                    .remove(request.slot, request.expectedRevision)
-                    .then(() => undefined);
+              : await repository
+                  .remove(request.slot, request.expectedRevision)
+                  .then(() => undefined);
     // Write receipts never echo the world back to the UI thread, which already holds it.
     if (
       (request.operation === 'write' || request.operation === 'create') &&
