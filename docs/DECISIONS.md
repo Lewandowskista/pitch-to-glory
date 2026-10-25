@@ -306,3 +306,23 @@ behind the cut and its limits.
   Squashing them would save little code and would change the order in which records are
   attached for the oldest saves, which the golden saves do not cover (none is older than schema
   22), so the risk outweighs the gain.
+
+## Retention: what a long world forgets (release 1.0 step 3.6)
+
+The rules and measurements are in [BALANCING.md](BALANCING.md#retention-release-plan-step-36);
+what old saves get on load is in [COMPATIBILITY.md](COMPATIBILITY.md#retention).
+
+- **Old seasons keep their titles, not their tables.** Seasons older than the last 15 keep
+  champions, division champions and cup winners only. Their league tables, movement and play-offs
+  cannot be recovered once compacted, so the World archive says so for those seasons. No career
+  record, trophy, award, legacy, Chronicle entry or Hall of Fame rank reads them.
+- **Pruned players keep their place, not their name.** An archived player nobody names and outside
+  the 5,000 best records leaves the archive, and only their score stays. Ranks and totals ("#4 of
+  58,868") are exact. "Next to pass" and "just ahead of" name only remembered players, so deep in
+  the table the named player may not be the very next score.
+- **Awards were not compacted.** The existing trim (400 recent awards, with every career's awards
+  and every Golden Ball kept whole) already bounds them; only the validator cap moved to the
+  bound's worst case.
+- **Not done:** keepers' untrained outfield attributes (15 per keeper, about 0.6 MB) are still
+  stored, since every engine path reads `attributes` directly; and international tournaments are
+  still trimmed at 30, which can drop a long-retired career's tournament wins from its cabinet.

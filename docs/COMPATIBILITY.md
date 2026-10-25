@@ -66,6 +66,34 @@ Fame points); the engine reads none of them, so the migration gives the session'
 adopted values and the match still resumes. What adoption part-way through a season means for
 records is in [DECISIONS.md](DECISIONS.md) ("The 1.0 compatibility cut").
 
+### Retention
+
+A long world keeps what any screen, record, Chronicle, legacy or Hall of Fame rank reads, and
+stops storing the rest ([BALANCING.md](BALANCING.md#retention-release-plan-step-36), release
+plan step 3.6). `applyRetention` (`src/engine/world/retention.ts`) runs at every season start
+and, for a save from an earlier release, in the schema 23 migration right after
+`adoptCurrentRules`. It is deterministic (no random draws) and idempotent. What a save gets when
+it loads:
+
+- **Season summaries.** All but the last 15 keep only their champions, division champions and
+  cup winners (`SeasonSummary.compact`); their tables, movement and play-offs are dropped. The
+  World archive says so for those seasons.
+- **Archived players.** Once the world is on the shared Hall of Fame record (version 1), the
+  archive keeps everyone the world still names (legacies with their children, teammates and
+  mentees, records, awards and their shortlists, managers who played, the career's facts and
+  stories, rivals, edits, this season's statistics and discipline) and the 5,000 best Hall of
+  Fame records. The rest leave the archive and their scores join `WorldArchive.pruned`, so every
+  rank, and every legacy's stored rank, stays exact. A world that adopts the record at its next
+  season start (between seasons, or without complete season statistics) is pruned then.
+- **Goalkeeping.** An outfield player's untrained goalkeeping, which never changes, is no
+  longer stored; it reads back from the player's id with the same values (`keeperAttributesOf`).
+  A saved match session's copies of those players drop it too, so the session still resumes.
+
+A save already written by a 1.0 preview at schema 23 skips the migration and gets the same
+retention at its next season start. Nothing a player earned is touched: awards keep the rules
+they had (a career's, a legacy's and every Golden Ball kept whole, others trimmed at 400), and
+Moments and the Chronicle stay bounded per career.
+
 ### Legacy worlds
 
 Worlds made before the national pyramid (`World.format` absent or `'legacy'`: six fictional
