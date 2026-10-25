@@ -318,6 +318,13 @@ export const CONFIG = {
     },
     /** Simulated career matches pick among choices within this many expected goals of the best. */
     autoPlayMargin: 0.02,
+    /**
+     * The value hint beside each key-moment choice (release 1.0, step 5.1; presentation only):
+     * choices within `tie` expected goals of the best are "best value", those `costly` or more
+     * below it are "costly", the rest "even". A moment whose choices all lie within `tie` of
+     * each other shows every choice as even.
+     */
+    valueHint: { tie: 0.002, costly: 0.01 },
     xp: {
       perMinute: 0.5,
       ratingThreshold: 5.5,
@@ -1326,6 +1333,12 @@ export const CONFIG = {
     maxFontScale: 1.3,
     /** Smallest CIELAB difference (CIE76) between shirt colours for every kind of vision. */
     kitClash: 22,
+    /**
+     * Smallest CIE76 difference between a team's colour and a surface it is drawn on (the pitch,
+     * a card, the scoreboard) for every kind of vision; below it the colour gets an outline there,
+     * or another colour of its kit on the pitch when it vanishes even with typical vision.
+     */
+    surfaceClash: 15,
   },
   world: {
     nationalWeeksPerSeason: 60,

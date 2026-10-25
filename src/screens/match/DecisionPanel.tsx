@@ -15,7 +15,8 @@ import { Factors, signedPercent, strongest } from './Shared';
 import { TacticalCam } from './TacticalCam';
 import { shirtNumbers } from './pitchArt';
 import { COMPACT_ASPECT, focusFrames, momentCamera, replayIds, type CastMember } from './cam';
-import { chanceMeaning, choiceQuality } from './choices';
+import { chanceMeaning, choiceQuality, choiceWorth, type ChoiceWorth } from './choices';
+import { CONFIG } from '../../engine/config';
 
 const u = m.ui;
 const percent = (value: number) => (value * 100).toFixed(value < 0.1 ? 1 : 0);
@@ -33,6 +34,35 @@ function reasonOf(factors: ProbabilityFactor[]): string {
         : down
       : (up ?? down);
   return top ? `${matchLabel(top.labelKey)} ${signedPercent(top.contribution)}` : '';
+}
+
+/** Expected goals with a true minus sign and three decimals: "+0.042", "−0.010". */
+const goals = (value: number) => {
+  const shown = Math.abs(value).toFixed(3);
+  return `${Number(shown) === 0 ? '' : value > 0 ? '+' : '−'}${shown}`;
+};
+
+/** In the breakdown: what the value hint weighed, and what the three hints mean. */
+function ValueBreakdown({ worth }: { worth: ChoiceWorth }) {
+  return (
+    <div className="match-value-breakdown">
+      <h4 className="match-factors-title">{u.valueTitle}</h4>
+      <p>
+        <span className="match-value-pill" data-value={worth.value}>
+          {u.value[worth.value]}
+        </span>{' '}
+        {matchFormat(u.valueLine, {
+          net: goals(worth.net),
+          for: worth.for.toFixed(3),
+          against: worth.against.toFixed(3),
+          best: goals(worth.best),
+        })}
+      </p>
+      <p className="match-card-note">
+        {matchFormat(u.valueExplain, { costly: CONFIG.match.valueHint.costly.toFixed(2) })}
+      </p>
+    </div>
+  );
 }
 
 /** What each outcome leads to, so the player sees the risk as well as the chance. */
@@ -201,6 +231,7 @@ export function DecisionPanel({
     [session.setup, moment, compact],
   );
   const numbers = useMemo(() => shirtNumbers(session.setup.players), [session.setup.players]);
+  const worth = useMemo(() => choiceWorth(moment.choices), [moment.choices]);
   return (
     <section
       className={`match-panel match-decision${camera ? ' match-pitch-panel' : ''}`}
@@ -252,6 +283,7 @@ export function DecisionPanel({
         >
           {moment.choices.map((choice, index) => {
             const quality = choiceQuality(choice);
+            const value = worth.get(choice.id)!;
             const chance = Math.round(choice.probability * 100);
             // A trait the player owns that helps this choice: its own chip, beside the quality.
             const trait =
@@ -263,6 +295,7 @@ export function DecisionPanel({
                 className="match-choice"
                 key={choice.id}
                 data-quality={quality}
+                data-value={value.value}
                 data-trait={trait ? '' : undefined}
               >
                 <button
@@ -282,6 +315,10 @@ export function DecisionPanel({
                   <strong>{matchLabel(choice.labelKey)}</strong>
                   <span className="match-choice-reason">
                     <span className="match-quality">{u.quality[quality]}</span>
+                    {/* What it is worth, beside how likely it is (review M14). */}
+                    <span className="match-value-pill" data-value={value.value}>
+                      {u.value[value.value]}
+                    </span>
                     {trait && (
                       <span className="match-trait-chip">
                         {matchFormat(m.traitActive, { trait })}
@@ -307,6 +344,7 @@ export function DecisionPanel({
                 >
                   <summary>{m.transparency}</summary>
                   <Factors factors={choice.factors} total={choice.probability} />
+                  <ValueBreakdown worth={value} />
                   {choice.booking && <BookingBreakdown booking={choice.booking} />}
                   <p className="match-esc-note">{u.escNote}</p>
                 </details>
