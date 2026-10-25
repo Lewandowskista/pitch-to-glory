@@ -13,7 +13,7 @@ import {
 } from '../../engine/career/social';
 import { careerSelection, relationshipValue } from '../../engine/career/market';
 import { nextCareerFixture } from '../../engine/career/fixtures';
-import { clubFormation, usesFormations } from '../../engine/selection/world';
+import { clubFormation } from '../../engine/selection/world';
 import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { Artwork } from '../../ui/Artwork';
 import { Icon } from '../../ui/Icon';
@@ -535,7 +535,6 @@ function SelectionCard({ world, club }: { world: World; club: Club }) {
   const fixture = nextCareerFixture(world);
   const injured = Boolean(world.career?.injury);
   const selection = fixture && !injured ? careerSelection(world, fixture) : null;
-  const formations = usesFormations(world);
   const opponent = fixture
     ? world.clubs[fixture.homeId === club.id ? fixture.awayId : fixture.homeId]
     : undefined;
@@ -555,7 +554,7 @@ function SelectionCard({ world, club }: { world: World; club: Club }) {
           </span>
         )}
       </div>
-      {selection && formations ? (
+      {selection ? (
         <>
           <div className="flex flex-wrap items-center gap-3.5">
             <FormationPitch world={world} club={club} selection={selection} />
@@ -571,9 +570,7 @@ function SelectionCard({ world, club }: { world: World; club: Club }) {
       ) : (
         <>
           <p className="text-[0.8125rem] text-muted">
-            {formations
-              ? format(sel.formationClub, { formation: clubFormation(world, club) })
-              : sel.lineBased}
+            {format(sel.formationClub, { formation: clubFormation(world, club) })}
           </p>
           {selection ? (
             <SelectionReasons world={world} selection={selection} />

@@ -138,20 +138,18 @@ export function commitCareerMatch(
       }
     return result;
   };
-  const cards: FixtureCard[] | undefined = session.setup.discipline
-    ? state.match.events.flatMap((event) =>
-        event.kind === 'card' && event.card && event.playerId
-          ? [
-              {
-                playerId: event.playerId,
-                teamId: event.teamId,
-                minute: Math.max(1, event.minute),
-                card: event.card,
-              },
-            ]
-          : [],
-      )
-    : undefined;
+  const cards: FixtureCard[] = state.match.events.flatMap((event) =>
+    event.kind === 'card' && event.card && event.playerId
+      ? [
+          {
+            playerId: event.playerId,
+            teamId: event.teamId,
+            minute: Math.max(1, event.minute),
+            card: event.card,
+          },
+        ]
+      : [],
+  );
   const onPitch = (lineup: { starterIds: string[]; sentOffIds?: string[] }) =>
     lineup.starterIds.filter((id) => !lineup.sentOffIds?.includes(id));
   // Regulation is everything to 90 minutes; extra time played in the session (match-18) is
@@ -178,7 +176,7 @@ export function commitCareerMatch(
     },
     onPitch: { home: onPitch(state.match.home), away: onPitch(state.match.away) },
     selected: { playerId, rating: state.report.rating },
-    ...(cards ? { cards } : {}),
+    cards,
     ...(state.shootout
       ? {
           shootout: {

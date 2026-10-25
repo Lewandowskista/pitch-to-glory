@@ -4,7 +4,7 @@ import { createCareer, trialOffers, type CareerDraft } from '../src/engine/caree
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { GROWTH_SOURCES, growthOf } from '../src/engine/career/growth';
 import { developCareer, focusWeights } from '../src/engine/career/training';
-import { startNextSeason } from '../src/engine/world/simulate';
+import { adoptCurrentRules } from '../src/engine/world/rules';
 import { createRng } from '../src/engine/rng';
 import { CONFIG } from '../src/engine/config';
 import {
@@ -121,15 +121,15 @@ describe('growth by source', () => {
     expect(grow(3)).toBeGreaterThan(grow(2));
   });
 
-  it('adopts rules 3 at a season start, keeping a rules-2 career’s records', async () => {
-    // A season played under rules 2, at its end.
+  it('adopts rules 3 when an older save loads, keeping a rules-2 career’s records', async () => {
+    // A career saved under rules 2 (docs/COMPATIBILITY.md).
     const world = await nationalCareerSeason();
     world.career!.developmentRules = 2;
     const availability = clone(world).career!.availability;
     const conditioning = world.career!.conditioning;
-    const next = startNextSeason(world);
-    expect(next.career!.developmentRules).toBe(3);
-    expect(next.career!.availability).toEqual(availability);
-    expect(next.career!.conditioning).toBe(conditioning);
+    expect(adoptCurrentRules(world)).toEqual(['developmentRules']);
+    expect(world.career!.developmentRules).toBe(3);
+    expect(world.career!.availability).toEqual(availability);
+    expect(world.career!.conditioning).toBe(conditioning);
   }, 300000);
 });

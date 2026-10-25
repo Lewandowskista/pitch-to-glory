@@ -12,6 +12,7 @@ import {
 } from '../src/engine/ageing';
 import { createRng } from '../src/engine/rng';
 import { generateWorld } from '../src/engine/world/generate';
+import { adoptCurrentRules } from '../src/engine/world/rules';
 import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
 import { playerAbility } from '../src/engine/strength';
 
@@ -102,13 +103,16 @@ describe('world equilibrium', () => {
     for (const [index, value] of end.entries())
       expect(Math.abs(value - start[index]!)).toBeLessThan(4);
   }, 120000);
-  it('legacy-compat: recalibrates worlds saved before development version 2 once', () => {
+  it('legacy-compat: recalibrates worlds saved before development version 2 once, on load', () => {
     const world = generateWorld('old-world', { format: 'legacy' });
     delete world.developmentVersion;
     const player = Object.values(world.players)[3]!;
     player.potential = 99;
-    const next = simulateWeek(world);
-    expect(next.developmentVersion).toBe(2);
-    expect(next.players[player.id]!.potential).toBeLessThan(99);
+    expect(adoptCurrentRules(world)).toEqual(['developmentVersion']);
+    expect(world.developmentVersion).toBe(2);
+    expect(world.players[player.id]!.potential).toBeLessThan(99);
+    const recalibrated = JSON.stringify(world);
+    expect(adoptCurrentRules(world)).toEqual([]);
+    expect(JSON.stringify(world)).toBe(recalibrated);
   });
 });

@@ -7,8 +7,7 @@ import {
   applyMatchCommand,
   createMatchSession,
   createMatchSetup,
-  engineFor,
-  EXTRA_TIME_MATCH_ENGINE,
+  isCurrentSetup,
   MATCH_ENGINE_VERSION,
   SITUATION_BY_ID,
   validateMatchSession,
@@ -67,8 +66,6 @@ function context(
     teammateFinishing: 60,
     consistencyShift: 0,
     chemistry: 60,
-    latest: true,
-    stackImpact: true,
     ...extra,
   };
 }
@@ -198,14 +195,10 @@ describe('engine match-19', () => {
     return session;
   };
 
-  it('is played by new setups, and setups without it keep match-18', () => {
+  it('is played by new setups', () => {
     const setup = createMatchSetup(world, home.id, away.id, selected, 'identity:1');
     expect(setup.identity).toBe(true);
-    expect(engineFor(setup)).toBe(MATCH_ENGINE_VERSION);
-    const older = structuredClone(setup);
-    delete older.defending;
-    delete older.identity;
-    expect(engineFor(older)).toBe(EXTRA_TIME_MATCH_ENGINE);
+    expect(isCurrentSetup(setup)).toBe(true);
   });
 
   it('plays, replays and validates a whole match', () => {

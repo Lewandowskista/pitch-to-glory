@@ -6,6 +6,7 @@ import { attachSocial } from '../engine/career/social/week';
 import { attachLifestyle } from '../engine/career/lifestyle/week';
 import { attachHonours } from '../engine/career/honours/week';
 import { backfillSquadNumbers } from '../engine/world/squadNumbers';
+import { adoptCurrentRules } from '../engine/world/rules';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
 import { validateWorld } from './worldSchema';
 import { validateMatchSession } from '../engine/match';
@@ -133,13 +134,52 @@ const migrations: Readonly<Record<number, Migration>> = {
   // Hall of Fame record (`world.achievements`, `hallOfFame` on players and archived players).
   // Careers and worlds saved before keep their rules until their next season, then adopt them.
   21: (old) => ({ ...old, schemaVersion: 22 }),
-  // v23 changes nothing stored. Releases 0.4.0 to 0.9.1 added optional fields under schema 22
+  // v23 adds no stored field. Releases 0.4.0 to 0.9.1 added optional fields under schema 22
   // (international windows, tournaments, career facts, growth, commitments and more), so a tab
   // or installed app from before them could open a save that uses them. From v23 the persisted
   // shape is checked against the schema version (`npm run check:save-shape`), and an older
-  // client refuses a newer save as written by a later version.
-  22: (old) => ({ ...old, schemaVersion: 23 }),
+  // client refuses a newer save as written by a later version. The 1.0 compatibility cut
+  // (docs/COMPATIBILITY.md, decision D3) also adopts the current world and career rules here,
+  // once, instead of at the next season start.
+  22: (old) => ({ ...old, schemaVersion: 23, payload: withCurrentRules(old.payload) }),
 };
+/**
+ * v23: a world from an earlier release adopts the current rule flags (`adoptCurrentRules`).
+ * Adoption can change three things a saved match session holds copies of: club finances (the
+ * economy's running costs), players' potential (development version 2) and their Hall of Fame
+ * points (the achievement record). The match engine reads none of them, so a session's copies
+ * of clubs and players that matched the world before adoption take the adopted values and
+ * replay unchanged; anything else is left for `matchSessionFor` to judge.
+ */
+function withCurrentRules(payload: unknown): unknown {
+  try {
+    const p = object(payload);
+    if (p.kind !== 'world') return payload;
+    const world = object(p.world) as unknown as World;
+    object(world.players);
+    object(world.clubs);
+    const setup = p.matchSession === undefined ? null : object(object(p.matchSession).setup);
+    const clubs = setup ? [object(setup.home), object(setup.away)] : [];
+    const players = setup ? object(setup.players) : {};
+    const same = (copy: unknown, original: unknown) =>
+      original !== undefined && JSON.stringify(copy) === JSON.stringify(original);
+    const clubIds = clubs
+      .filter((club) => same(club, world.clubs[String(club.id)]))
+      .map((club) => String(club.id));
+    const playerIds = Object.keys(players).filter((id) => same(players[id], world.players[id]));
+    if (!adoptCurrentRules(world).length || !setup) return payload;
+    for (const [key, club] of [
+      ['home', clubs[0]],
+      ['away', clubs[1]],
+    ] as const)
+      if (clubIds.includes(String(club!.id)))
+        setup[key] = structuredClone(world.clubs[String(club!.id)]);
+    for (const id of playerIds) players[id] = structuredClone(world.players[id]);
+  } catch {
+    // Validation reports the problem.
+  }
+  return payload;
+}
 /** Worlds saved before v21 gain squad numbers; an in-progress match keeps replaying. */
 function withSquadNumbers(payload: unknown): unknown {
   try {

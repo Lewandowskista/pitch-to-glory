@@ -126,8 +126,6 @@ function contexts(position: Position, value = 60): DecisionContext[] {
     teammateFinishing: 60,
     consistencyShift: 0,
     chemistry: 60,
-    // The current engine's appended choices (Track the runner, match-15) are judged too.
-    latest: true,
   }));
 }
 const sideOf = (s: MatchSetup) => (s.players[s.selectedPlayerId]!.clubId === s.home.id ? 0 : 1);
@@ -339,12 +337,8 @@ describe('decision fairness', () => {
     for (const position of ['CB', 'LB', 'DM'] as const) {
       const context = contexts(position).find((c) => c.situation.id === 'defend-attack')!;
       const choices = buildChoices(context);
-      // Appended, never inserted, so choice indices keep their meaning; earlier engines never
-      // offer it.
+      // Appended, never inserted, so choice indices keep their meaning.
       expect(choices.map((c) => c.id)).toEqual(['intercept', 'tackle', 'jockey', 'track-runner']);
-      expect(buildChoices({ ...context, latest: false }).map((c) => c.id)).not.toContain(
-        'track-runner',
-      );
       const impacts = choices.map(expectedImpact);
       const mean = impacts.reduce((n, i) => n + i.net, 0) / impacts.length;
       const track = expectedImpact(choices.at(-1)!);
@@ -590,17 +584,6 @@ describe('match edge cases', () => {
     expect(
       poor.factors.find((f) => f.labelKey === 'match.factor.pitch.heavy')!.contribution,
     ).toBeLessThan(0);
-    // Earlier engines keep one combined factor.
-    const legacy = buildChoices({
-      ...context,
-      latest: false,
-      pitchCondition: 40,
-      weather: 'rain',
-    }).find((c) => c.id === 'take-on')!;
-    expect(
-      legacy.factors.find((f) => f.labelKey === 'match.factor.conditions')!.contribution,
-    ).toBeLessThan(0);
-    expect(legacy.factors.some((f) => f.labelKey.startsWith('match.factor.weather.'))).toBe(false);
   });
   it('has copy for every situation, choice, factor and commentary line the engine emits', () => {
     const keys = new Set<string>();

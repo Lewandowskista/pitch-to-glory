@@ -45,13 +45,6 @@ describe('weather intensity and pitch state (match-15)', () => {
     expect(counts.steady / 600).toBeGreaterThan(0.33);
     expect(counts.heavy / 600).toBeGreaterThan(0.24);
   });
-  it('keeps no intensity on earlier engines', () => {
-    const setup = createMatchSetup(world, clubs[0]!.id, clubs[1]!.id, striker, 'conditions-old');
-    delete setup.occasions;
-    const match = createMatchSession(setup, tactics).state.match;
-    expect(match.weatherIntensity).toBeUndefined();
-    expect(match.pitchState).toBeUndefined();
-  });
   it('derives the pitch without a draw: snow freezes, rain soaks, a poor surface is heavy', () => {
     expect(pitchStateFor('snow', 95, 'steady')).toBe('frozen');
     expect(pitchStateFor('snow', 95, 'light')).toBe('heavy');
@@ -67,6 +60,11 @@ describe('weather intensity and pitch state (match-15)', () => {
   });
   it('keeps the average weather where the combined factor had it', () => {
     const K = CONFIG.match.conditions;
+    // The combined weather-and-pitch factor of the engines before match-15, for comparison.
+    const COMBINED = {
+      technical: { clear: 0, rain: -0.06, wind: 0, snow: -0.1 },
+      direct: { clear: 0, rain: -0.02, wind: -0.08, snow: -0.05 },
+    };
     const mean = INTENSITIES.reduce(
       (sum, intensity) => sum + K.intensityWeights[intensity] * K.intensity[intensity],
       0,
@@ -78,7 +76,7 @@ describe('weather intensity and pitch state (match-15)', () => {
         (sum, i) => sum + K.intensityWeights[i] * weatherEffect('direct', weather, i),
         0,
       );
-      expect(direct).toBeCloseTo(K.direct[weather], 10);
+      expect(direct).toBeCloseTo(COMBINED.direct[weather], 10);
       // Close control on a good surface: weather and pitch together, within a point of before.
       const technical = INTENSITIES.reduce((sum, i) => {
         const state = pitchStateFor(weather, 90, i);
@@ -88,7 +86,7 @@ describe('weather intensity and pitch state (match-15)', () => {
             (weatherEffect('technical', weather, i) + pitchEffect('technical', weather, state, 90))
         );
       }, 0);
-      expect(Math.abs(technical - K.technical[weather])).toBeLessThan(0.011);
+      expect(Math.abs(technical - COMBINED.technical[weather])).toBeLessThan(0.011);
     }
     // A poor surface costs what it did, whatever the sky.
     expect(pitchEffect('technical', 'clear', 'heavy', 50)).toBeCloseTo(-20 * K.pitchSlope, 10);
@@ -153,7 +151,6 @@ describe('weather intensity and pitch state (match-15)', () => {
       teammateFinishing: 60,
       consistencyShift: 0,
       chemistry: 60,
-      latest: true,
     };
     const takeOn = buildChoices(context).find((c) => c.id === 'take-on')!;
     const pitch = takeOn.factors.find((f) => f.labelKey === 'match.factor.pitch.heavy')!;

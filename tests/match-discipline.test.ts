@@ -8,7 +8,6 @@ import {
   createMatchSetup,
   validateMatchSession,
   MATCH_ENGINE_VERSION,
-  OCCASIONS_MATCH_ENGINE,
   OFF_ANIMATION,
   PARKED,
   type MatchSession,
@@ -38,13 +37,6 @@ function play(setup: MatchSetup, keep?: (session: MatchSession) => void): MatchS
 const matches = (['ST', 'CB', 'CM', 'GK'] as const).flatMap((position) =>
   [0, 1, 2, 3, 4].map((n) => play(setupFor(position, `discipline-${position}-${n}`))),
 );
-/** The same fixtures on the match-15 path: cosmetic yellow cards only. */
-const cosmetic = (setup: MatchSetup): MatchSetup => {
-  const copy = structuredClone(setup);
-  delete copy.discipline;
-  return copy;
-};
-const matches15 = matches.map((session) => play(cosmetic(session.setup)));
 
 describe('the matchday bench (match-15)', () => {
   it('names at most seven substitutes, with a reserve keeper when the squad has one', () => {
@@ -72,12 +64,6 @@ describe('the matchday bench (match-15)', () => {
           ).toBe(true);
       }
     }
-  });
-  it('keeps the whole squad on the bench on earlier engines', () => {
-    const legacy = setupFor('ST', 'discipline-legacy');
-    delete legacy.occasions;
-    const team = createMatchSession(legacy, tactics).state.match.home;
-    expect(team.benchIds.length).toBeGreaterThan(CONFIG.match.benchSize);
   });
 });
 
@@ -132,54 +118,6 @@ describe('managers’ substitutions (match-15)', () => {
     )!;
     expect(off).toBeDefined();
     expect(session.state.match.home.starterIds).toContain(off.receiverId);
-  });
-});
-
-describe('cosmetic yellow cards (match-15)', () => {
-  it('books players weighted by aggression and tackling, never twice and never a keeper', () => {
-    let cards = 0;
-    const booked: number[] = [];
-    for (const session of matches15) {
-      expect(session.engine).toBe(OCCASIONS_MATCH_ENGINE);
-      const yellow = session.state.match.events.filter((e) => e.kind === 'card');
-      cards += yellow.length;
-      for (const card of yellow) {
-        expect(card.card).toBe('yellow');
-        expect(card.commentaryKey).toMatch(/^match\.commentary\.card\.\d$/);
-        expect(session.setup.players[card.playerId!]!.primaryPosition).not.toBe('GK');
-        booked.push(session.setup.players[card.playerId!]!.attributes.aggression);
-      }
-      const ids = yellow.map((e) => e.playerId);
-      expect(new Set(ids).size).toBe(ids.length);
-    }
-    // About 3.6 a match.
-    expect(cards / matches15.length).toBeGreaterThan(2);
-    expect(cards / matches15.length).toBeLessThan(5.5);
-  });
-  it('never changes an outcome', () => {
-    const rate = CONFIG.match.discipline.perTeamPerMinute;
-    try {
-      for (const session of matches15.slice(0, 8)) {
-        (CONFIG.match.discipline as { perTeamPerMinute: number }).perTeamPerMinute = 0;
-        const quiet = play(session.setup);
-        (CONFIG.match.discipline as { perTeamPerMinute: number }).perTeamPerMinute = rate;
-        const outcome = (s: MatchSession) => ({
-          score: s.state.match.score,
-          shots: [s.state.stats.homeShots, s.state.stats.awayShots],
-          rating: s.state.report!.rating,
-          decisions: s.state.match.events.flatMap((e) =>
-            e.outcome && !e.outcome.input.momentId.startsWith('routine:')
-              ? [[e.outcome.input, e.outcome.roll, e.outcome.probability]]
-              : [],
-          ),
-          lineups: [s.state.match.home.starterIds, s.state.match.away.starterIds],
-        });
-        expect(quiet.state.match.events.some((e) => e.kind === 'card')).toBe(false);
-        expect(outcome(quiet)).toEqual(outcome(session));
-      }
-    } finally {
-      (CONFIG.match.discipline as { perTeamPerMinute: number }).perTeamPerMinute = rate;
-    }
   });
 });
 

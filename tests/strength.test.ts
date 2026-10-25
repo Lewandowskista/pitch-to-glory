@@ -120,26 +120,4 @@ describe('shared strength model', () => {
       ]);
     }
   });
-  it('keeps the line-based eleven in a world saved before formations', () => {
-    const before: World = { ...world, selectionVersion: undefined };
-    const next = simulateWeek(before);
-    const fixtures = fixturesOf(before, next);
-    expect(fixtures.length).toBeGreaterThan(20);
-    for (const fixture of fixtures) {
-      const home = world.clubs[fixture.homeId]!,
-        away = world.clubs[fixture.awayId]!;
-      const [lambdaHome, lambdaAway] = expectedGoals(
-        teamStrength(home.reputation, selectStartingPlayers(squad(world, home))) +
-          managerStrengthBonus(world.managers[home.managerId]!.ability),
-        teamStrength(away.reputation, selectStartingPlayers(squad(world, away))) +
-          managerStrengthBonus(world.managers[away.managerId]!.ability),
-        !!fixture.neutral,
-      );
-      const rng = createRng(`${world.seed}:result:${fixture.id}`);
-      expect(next.results[fixture.id]!.score).toEqual([
-        poisson(rng, lambdaHome),
-        poisson(rng, lambdaAway),
-      ]);
-    }
-  });
 });

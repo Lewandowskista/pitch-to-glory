@@ -708,7 +708,7 @@ From the [October 20 review](APP-REVIEW-2026-10-20.md) (R9) and the [plan](REVIE
 
 **Retirement.** Only age forces it (38). Decline no longer ends a career, and there is no path around the forced age: rollover retires through the same `retirementState` the hub reads. Playing on is discouraged by faster decline instead.
 
-**Development rules 2 (`career.developmentRules`).** New careers start with it. Careers saved before adopt it when their next season starts (schema 21). Conditioning is taken from their current training plan, and availability from their last eight appearances, all counted as played. Nothing changes part-way through a season.
+**Development rules 2 (`career.developmentRules`).** New careers start with it. Careers saved before adopted it when their next season started (schema 21); from 1.0 they adopt the current rules when loaded ([COMPATIBILITY.md](COMPATIBILITY.md)). Conditioning is taken from their current training plan, and availability from their last eight appearances, all counted as played. Nothing changes part-way through a season.
 
 **Playing time (rules 2, `career/availability.ts`).** Each week the career club's fixtures are recorded from the player's side: played (with minutes), benched while fit, injured, or not yet registered. The last 16 are kept. Passive growth's playing share is `Σ min(90, minutes) / (90 × n)` over the last `n ≤ 8` fixtures that were played or benched within a season's length of weeks.
 
@@ -780,7 +780,7 @@ Every player, the career included, earns Hall of Fame points by the same rules. 
 
 `tests/achievements.test.ts` asserts that they stay within 25% of each other.
 
-**Older worlds** adopt the record at their next season start (schema 21, `world.achievements.since`):
+**Older worlds** adopt the record when loaded (from 1.0, `adoptAchievementsNow`; part-way through a season this season's contributions accrue at its end and its decided titles are credited), or at their next season start when between seasons or without complete season statistics (`world.achievements.since`):
 
 - Players are seeded from their kept statistics at their current club's tier weight, plus awards still on record.
 - Archived players and older legacies use the tier-3 weight, because their level was never kept. Legacies are rescored by the same rules from their saved record.
@@ -807,7 +807,7 @@ From the [October 20 review](APP-REVIEW-2026-10-20.md) (R5, R6, R7), plan steps 
 
 Decisions recorded before schema 22 count only for the bad-luck note.
 
-**Training shapes growth (2.4, development rules 3).** Passive growth multiplies each attribute's rate by its focus weight. The attributes the week's sessions (and extra session) focus on get `focusRatio` (2) times the weight of the rest. Weights are normalised to average 1 over the attributes still below their soft cap, so total growth is unchanged. A plan with no attribute focus, or one covering every attribute (the balanced default), leaves every weight at 1. Careers on rules 2 adopt rules 3 at their next season start.
+**Training shapes growth (2.4, development rules 3).** Passive growth multiplies each attribute's rate by its focus weight. The attributes the week's sessions (and extra session) focus on get `focusRatio` (2) times the weight of the rest. Weights are normalised to average 1 over the attributes still below their soft cap, so total growth is unchanged. A plan with no attribute focus, or one covering every attribute (the balanced default), leaves every weight at 1. Careers on rules 2 adopt rules 3 when loaded (from 1.0; before, at their next season start).
 
 **Growth by source (2.4).** `career.growth` counts whole attribute points per season from playing (passive growth), training, spent points and skills, and points lost to age (the last 25 seasons are kept). The profile's season card shows it, and the career profile records it per season with a `--policy` (default, focused, recovery, no-points, loyal, mover, minutes).
 
@@ -900,7 +900,7 @@ Morale, trust and fans are career averages. A social week buys morale (+4 to +6)
 | Coach        | development (training gains ×1.15) or extra sessions (mentor session gains ×1.3)                                                  |
 | Analyst      | decision coaching (+2 XP per key decision that comes off) or scouting (every match prepared for, as a week studying the opponent) |
 
-**Club finances (`economyVersion` 1).** New worlds start on it; older worlds adopt it at their next season start. Constants in `world.background.economy`.
+**Club finances (`economyVersion` 1).** New worlds start on it; older worlds adopt it when loaded (from 1.0; before, at their next season start), with running costs set from what peers pay at that moment. Constants in `world.background.economy`.
 
 - Running costs are set at generation and every season start from what a club's peers pay: the median wage bill of clubs within 2 reputation points (widened to at least 15 clubs). Costs leave a club paying that median 85% of its earnings for wages (at least 1,300 a week left). Measuring pay from the world keeps the calibration right as players and wages develop, and at low reputation, where the minimum wage dominates.
 - The wage budget is what a club earns for wages: income less running costs, less any debt spread over 104 weeks. Savings are a cushion, not a budget, and the budget falls as well as rises.

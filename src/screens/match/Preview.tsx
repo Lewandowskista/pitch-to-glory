@@ -1,5 +1,4 @@
 import {
-  conditionsEffect,
   pitchEffect,
   positionFamily,
   rolePosition,
@@ -208,28 +207,25 @@ export function Preview({
   // The opposition's way of playing and what it means for this match (match-19).
   const opponentClub = ownClub.id === setup.home.id ? setup.away : setup.home;
   const matchup =
-    setup.identity && opponentClub.playingStyle !== 'balanced'
+    opponentClub.playingStyle !== 'balanced'
       ? matchFormat(matchLabel(`match.matchup.${opponentClub.playingStyle}`), {
           opponent: opponentClub.name,
         })
       : null;
   const signed = (value: number) =>
     `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(Math.round(value * 100))}%`;
-  // Engine match-15 reports how hard it rains, blows or snows and the pitch's state, and the
-  // two are separate factors; earlier sessions have one combined conditions effect.
-  const intensity = state.match.weatherIntensity;
+  // How hard it rains, blows or snows and the pitch's state are separate factors (match-15).
+  const intensity = state.match.weatherIntensity ?? 'steady';
   const pitch =
     state.match.pitchState ??
     pitchStateFor(state.match.weather, state.match.pitchCondition, intensity);
   const effect = (sensitivity: 'technical' | 'direct') =>
-    intensity
-      ? weatherEffect(sensitivity, state.match.weather, intensity) +
-        pitchEffect(sensitivity, state.match.weather, pitch, state.match.pitchCondition)
-      : conditionsEffect(sensitivity, state.match.weather, state.match.pitchCondition);
+    weatherEffect(sensitivity, state.match.weather, intensity) +
+    pitchEffect(sensitivity, state.match.weather, pitch, state.match.pitchCondition);
   const technical = effect('technical');
   const direct = effect('direct');
   const weatherIcon = useMemo(
-    () => renderWeather(state.match.weather, intensity ?? 'steady'),
+    () => renderWeather(state.match.weather, intensity),
     [state.match.weather, intensity],
   );
   const pitchIcon = useMemo(() => renderPitch(pitch), [pitch]);

@@ -11,7 +11,6 @@ import {
   contractAskState,
   contractExpiring,
   canRequestLoan,
-  lineOf,
   managerTrust,
   marketValue,
   openOffers,
@@ -246,7 +245,6 @@ function PlayingTime({
   const selection = career.market.selection;
   const fixture = nextCareerFixture(world);
   const chance = fixture && !player.injuryId ? careerSelection(world, fixture) : null;
-  const line = lineOf(player.primaryPosition);
   const manager = club ? world.managers[club.managerId] : undefined;
   const low = chance ? chance.probability < 0.5 : false;
   return (
@@ -270,22 +268,15 @@ function PlayingTime({
             tone={low ? 'danger' : 'accent'}
             numberTone={low ? 'danger' : 'accent'}
             note={
-              chance.competition.formation ? (
-                <>
-                  {competitionLine(world, chance)}{' '}
-                  <Link
-                    className="font-bold text-accent underline underline-offset-3"
-                    to={withSave('/career/club', params.get('save'))}
-                  >
-                    {m.playing.reasons}
-                  </Link>
-                </>
-              ) : (
-                format(m.playing.chanceBody, {
-                  count: MK.slots[line],
-                  line: m.playing.lines[line],
-                })
-              )
+              <>
+                {competitionLine(world, chance)}{' '}
+                <Link
+                  className="font-bold text-accent underline underline-offset-3"
+                  to={withSave('/career/club', params.get('save'))}
+                >
+                  {m.playing.reasons}
+                </Link>
+              </>
             }
           />
         ) : (

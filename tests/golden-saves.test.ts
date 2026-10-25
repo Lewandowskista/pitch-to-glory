@@ -22,6 +22,7 @@ import { LocalSaveRepository, SaveDatabase } from '../src/persistence/localRepos
 import { parseSave, type AppSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { worldOperations } from '../src/workers/operations';
+import { adoptCurrentRules } from '../src/engine/world/rules';
 import type { World, WorldState } from '../src/model/domain';
 
 const DIRECTORY = 'tests/fixtures/saves';
@@ -40,11 +41,12 @@ const REQUIRED = [
  * How each fixture's match in progress loads today: `resume` replays it under its own engine,
  * `restart` means this build no longer supports that engine, so loading discards the session
  * with the `match-discarded` notice and the fixture is played again from kick-off. The 1.0
- * compatibility cut (step 2.4, decision D3) moves sessions from before match-21 to `restart`.
+ * compatibility cut (step 2.4, decision D3) moved sessions from before match-21 to `restart`
+ * (docs/COMPATIBILITY.md).
  */
 const SESSIONS: Record<string, 'resume' | 'restart'> = {
-  'match-16': 'resume',
-  'match-20': 'resume',
+  'match-16': 'restart',
+  'match-20': 'restart',
   'match-21': 'resume',
 };
 const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
@@ -100,9 +102,13 @@ async function playThrough(item: GoldenSaveEntry): Promise<void> {
   expect(save.revision).toBe(imported.revision);
   const loaded = worldOf(save);
   const world = loaded.world;
-  // Migration and validation keep the release's world as it was written.
+  // Migration and validation keep the release's world as it was written, but for the rules it
+  // adopts once on load (docs/COMPATIBILITY.md).
   expect(world.date).toMatchObject({ season: item.world.season, week: item.world.week });
-  expect(JSON.stringify(world) === JSON.stringify(original.payload.world), 'world kept').toBe(true);
+  const expected = structuredClone(original.payload.world);
+  adoptCurrentRules(expected);
+  expect(JSON.stringify(world) === JSON.stringify(expected), 'world kept').toBe(true);
+  expect(adoptCurrentRules(structuredClone(world)), 'rules adopted').toEqual([]);
 
   if (item.match) {
     const expectation = SESSIONS[item.match.engine] ?? 'restart';
@@ -209,10 +215,10 @@ describe('golden saves from past releases', () => {
     await playThrough(entry('v0.3.0-legacy-match.json.br'));
   }, 120_000);
   // Heavy: national worlds. Candidates for the `slow` project.
-  it('0.3.0 national world mid-match (match-16): loads, finishes, commits, simulates and round trips [slow]', async () => {
+  it('0.3.0 national world mid-match (match-16, restarts): loads, finishes, commits, simulates and round trips [slow]', async () => {
     await playThrough(entry('v0.3.0-match.json.br'));
   }, 600_000);
-  it('0.8.0 national world mid-match (match-20): loads, finishes, commits, simulates and round trips [slow]', async () => {
+  it('0.8.0 national world mid-match (match-20, restarts): loads, finishes, commits, simulates and round trips [slow]', async () => {
     await playThrough(entry('v0.8.0-match.json.br'));
   }, 600_000);
   it('0.9.1 national world mid-match (match-21): loads, finishes, commits, simulates and round trips [slow]', async () => {

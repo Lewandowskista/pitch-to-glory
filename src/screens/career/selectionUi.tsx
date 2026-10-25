@@ -22,7 +22,6 @@ export function competitionLine(world: World, selection: Selection): string {
     return competition.fit < 100
       ? format(t.inTeamFamiliar, { position, fit: competition.fit })
       : format(t.inTeam, { position });
-  if (!competition.formation) return format(t.outsideLine, { places: competition.placesOutside });
   const names = formatList(competition.aheadIds.map((id) => world.players[id]?.name ?? id));
   return plural(competition.placesOutside, t.outside, {
     places: competition.placesOutside,
@@ -115,15 +114,13 @@ export function FormationPitch({
   const formation = competition.formation;
   const playerId = world.career?.playerId;
   const target = useMemo(() => {
-    if (!formation) return -1;
     const slots = FORMATION_SLOTS[formation];
     if (competition.inTeam && playerId) {
-      const at = clubLineup(world, club)?.starterIds.indexOf(playerId) ?? -1;
+      const at = clubLineup(world, club).starterIds.indexOf(playerId);
       if (at >= 0) return at;
     }
     return slots.findIndex((slot) => slot.position === competition.position);
   }, [world, club, formation, competition.inTeam, competition.position, playerId]);
-  if (!formation) return null;
   const slots = FORMATION_SLOTS[formation];
   const mine = slots[target];
   const label = format(t.club.pitch, {

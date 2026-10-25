@@ -6,9 +6,8 @@ import { CONFIG } from '../config';
  * Discipline and the managers' substitutions (engine match-15, redesign step M7; full
  * discipline from match-16, the discipline phase).
  *
- * On match-15 yellow cards are cosmetic (decision 5): drawn on their own stream, they never move
- * an outcome roll and change nobody's strength, and nobody is booked twice. Match-16 draws its
- * cards on `${seed}:cards:${minute}` with second yellows and straight reds (`cardsOfMinute`),
+ * Cards are drawn on `${seed}:cards:${minute}` with second yellows and straight reds
+ * (`cardsOfMinute`),
  * the same draw the background world uses (`drawCard`), and gives defending choices a booking
  * risk (`bookingRisk`). AI substitutions follow a plan drawn once per match on
  * `${seed}:ai-subs`, and who comes off is drawn at the minute, so a replay makes the same changes.
@@ -27,44 +26,10 @@ function weighted(ids: readonly string[], weight: (id: string) => number, roll: 
   return ids[ids.length - 1];
 }
 
-/**
- * The yellow cards of a minute: each side is booked with probability `perTeamPerMinute`, and
- * the player is drawn among its outfielders on the pitch not yet booked, weighted by
- * aggression and tackling. Two draws a side every minute, so the stream never shifts.
- */
-export function bookings(
-  seed: string,
-  minute: number,
-  lineups: readonly [Lineup, Lineup],
-  players: Readonly<Record<string, Player>>,
-  booked: ReadonlySet<string>,
-): { side: 0 | 1; playerId: string }[] {
-  const rng = createRng(`${seed}:discipline:${minute}`);
-  const cards: { side: 0 | 1; playerId: string }[] = [];
-  for (const side of [0, 1] as const) {
-    const booking = rng.next(),
-      who = rng.next();
-    if (booking >= D.perTeamPerMinute) continue;
-    const pool = lineups[side].starterIds.filter(
-      (id) => !booked.has(id) && players[id] && players[id].primaryPosition !== 'GK',
-    );
-    const id = weighted(
-      pool,
-      (candidate) => {
-        const a = players[candidate]!.attributes;
-        return D.base + a.aggression * D.aggression + a.tackling * D.tackling;
-      },
-      who,
-    );
-    if (id) cards.push({ side, playerId: id });
-  }
-  return cards;
-}
-
 const F = CONFIG.match.cards;
 const B = CONFIG.match.booking;
 
-/** A player's weight for a card: the cosmetic cards' formula. */
+/** A player's weight for a card: aggression and tackling. */
 export function cardWeight(player: Pick<Player, 'attributes'>): number {
   return (
     D.base + player.attributes.aggression * D.aggression + player.attributes.tackling * D.tackling

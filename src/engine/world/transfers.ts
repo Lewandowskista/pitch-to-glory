@@ -13,7 +13,7 @@ import { CONFIG } from '../config';
 import type { Rng } from '../rng';
 import { playerAbility } from '../strength';
 import { effectiveAbility } from '../selection/lineup';
-import { clubLineup, usesFormations } from '../selection/world';
+import { clubLineup } from '../selection/world';
 import { marketValue } from '../career/market/rules';
 import { refreshDressingRoom } from './dressing';
 import { recordEvent } from './events';
@@ -32,7 +32,7 @@ interface Weakest {
 /** The starting slot a club would most improve by signing for it (outfield only). */
 function weakestSlot(world: World, club: Club): Weakest | null {
   const lineup = clubLineup(world, club);
-  if (!lineup || lineup.starterIds.length < 11) return null;
+  if (lineup.starterIds.length < 11) return null;
   let weakest: Weakest | null = null;
   lineup.starterIds.forEach((id, index) => {
     if (index === 0) return;
@@ -88,9 +88,9 @@ export function transferPlayer(
   refreshDressingRoom(world, buyer);
 }
 
-/** One transfer week of AI business. Worlds without formations keep their older exchanges. */
+/** One transfer week of AI business, in national worlds (legacy worlds keep their exchanges). */
 export function aiTransferWindow(world: World, rng: Rng): number {
-  if (!usesFormations(world) || world.format !== 'national-v1') return 0;
+  if (world.format !== 'national-v1') return 0;
   const careerId = world.career?.playerId;
   const protectedIds = new Set<Id>([
     ...(careerId ? [careerId] : []),

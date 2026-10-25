@@ -170,7 +170,7 @@ describe('retirement under late decline', () => {
     expect(retired.career).toBeUndefined();
   }, 120000);
 
-  it('adopts the rules with a new season, keeping saved careers valid', () => {
+  it('adopts the rules when an older save loads, keeping saved careers valid', () => {
     const world = clone(season);
     delete world.career!.developmentRules;
     delete world.career!.conditioning;
@@ -180,11 +180,13 @@ describe('retirement under late decline', () => {
       gallery: { seed: 'l', generation: 0 },
       settings: DEFAULT_SETTINGS,
     });
+    expect(parseSave(JSON.stringify(save))).toEqual(save);
+    // The same career saved by an earlier release adopts the rules in the migration.
     const old: unknown = JSON.parse(JSON.stringify({ ...save, schemaVersion: 21 }));
     const migrated = migrateSave(old);
     expect(migrated.schemaVersion).toBe(CONFIG.saves.schemaVersion);
-    expect(parseSave(JSON.stringify(save))).toEqual(save);
-    const next = startNextSeason(world);
+    if (migrated.payload.kind !== 'world') throw new Error('Expected a world');
+    const next = migrated.payload.world;
     const player = next.players[next.career!.playerId]!;
     expect(next.career!.developmentRules).toBe(3);
     expect(next.career!.conditioning).toBe(planConditioning(player, next.career!.training));

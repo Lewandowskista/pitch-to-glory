@@ -747,20 +747,14 @@ export function HalfTimePanel({
               </svg>
             </span>
             <strong>
-              {response === 'role'
-                ? m.roleTalk
-                : response === 'complain' && setup.occasions
-                  ? m.demand
-                  : m[response]}
+              {response === 'role' ? m.roleTalk : response === 'complain' ? m.demand : m[response]}
             </strong>
             <span>
               {response === 'role'
                 ? m.roleBody
                 : response === 'motivate'
                   ? m.motivateBody
-                  : setup.occasions
-                    ? m.demandBody
-                    : m.complainBody}
+                  : m.demandBody}
             </span>
           </button>
         ))}
