@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import type { Career, NationalLevel, Player, World } from '../../model/domain';
 import { CONFIG } from '../../engine/config';
 import { windowWeeks } from '../../engine/career/honours';
-import { lineOf } from '../../engine/career/market/rules';
+import { compareDates, lineOf } from '../../engine/career/market/rules';
+import { tournamentPart } from '../../engine/career/honours/trophies';
 import { renderTrophy } from '../../engine/assets/trophies';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
@@ -55,11 +56,18 @@ function NationalContent({
   const nations = new Map((world.international?.nations ?? []).map((n) => [n.id, n]));
   const matches = (world.international?.matches ?? [])
     .filter(
-      (m) => nation && (m.homeId === nation.id || m.awayId === nation.id) && m.career !== undefined,
+      (m) =>
+        nation &&
+        (m.homeId === nation.id || m.awayId === nation.id) &&
+        m.career !== undefined &&
+        // A same-nation child's list never shows the parent's matches as their own.
+        world.legacies.every((legacy) => compareDates(m.date, legacy.retiredAt) > 0),
     )
     .slice(-12)
     .reverse();
-  const tournaments = [...(world.international?.tournaments ?? [])].reverse();
+  const tournaments = [...(world.international?.tournaments ?? [])]
+    .reverse()
+    .map((tournament) => ({ ...tournament, career: tournamentPart(world, player.id, tournament) }));
   const short = h.levelShort[level];
   const flag = useMemo(
     () =>
