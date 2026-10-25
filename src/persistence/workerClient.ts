@@ -31,11 +31,15 @@ export type PersistenceOperation =
   | { operation: 'import'; json: string; slot: SlotId; expectedRevision: number | null }
   | { operation: 'validate'; json: string }
   | { operation: 'export'; slot: SlotId }
+  /** A slot's stored records, unvalidated, for a slot that will not load. */
+  | { operation: 'export-recovery'; slot: SlotId }
   | {
       operation: 'serialize';
       slot: SlotId;
       name: string;
       payload: FoundationState | WorldState;
+      /** Skip validation: a recovery copy of a session that no longer passes it. */
+      unvalidated?: boolean;
     }
   | { operation: 'remove'; slot: SlotId; expectedRevision: number | null };
 export type PersistenceRequest = PersistenceOperation & {

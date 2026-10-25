@@ -19,7 +19,11 @@ export function useAutosave(): void {
           void persistence()
             .then((p) => p.autosave.afterMatch())
             .catch(() => {});
-        } else void persistence().then((p) => p.autosave.schedule());
+        } else
+          void persistence()
+            .then((p) => p.autosave.schedule())
+            // The save system failed to load: say so, so the change is not silently unsaved.
+            .catch(() => useAppStore.getState().setSaveStatus('error', 'storage'));
       }
     });
     const flush = () => {

@@ -41,6 +41,14 @@ const date = (value: unknown): string => {
     ? result
     : invalid();
 };
+/**
+ * The time a write stores: never before the save was created. A device clock behind a save's
+ * creation time (or a file made on a device whose clock ran ahead) must not leave a save that
+ * reads as invalid, so every write stores the later of the two.
+ */
+export function notBefore(updatedAt: string, createdAt: string): string {
+  return Date.parse(updatedAt) < Date.parse(createdAt) ? createdAt : updatedAt;
+}
 export function validateSlot(slot: number): asserts slot is SlotId {
   if (![1, 2, 3].includes(slot)) invalid();
 }
@@ -236,8 +244,9 @@ export function migrateSave(value: unknown): AppSave {
   if (typeof save.slot !== 'number') invalid();
   validateSlot(save.slot as number);
   const createdAt = date(save.createdAt);
-  const updatedAt = date(save.updatedAt);
-  if (Date.parse(updatedAt) < Date.parse(createdAt)) invalid();
+  // Saves written by 0.9.0 and earlier on a device whose clock ran behind can be stamped
+  // before their creation; read them as updated when they were created rather than reject them.
+  const updatedAt = notBefore(date(save.updatedAt), createdAt);
   const { payload, recovery } = validatePayload(save.payload);
   return {
     format: 'pitch-to-glory',
@@ -330,6 +339,28 @@ export function parseSave(json: string): AppSave {
     invalid();
   }
   return migrateSave(value);
+}
+/**
+ * A backup envelope around a snapshot that no longer passes validation, so the player can
+ * still keep it. Never migrated or checked; importing it later validates it as usual.
+ */
+export function unvalidatedSave(
+  slot: SlotId,
+  name: string,
+  payload: FoundationState | WorldState,
+): AppSave {
+  const now = new Date().toISOString();
+  return {
+    format: 'pitch-to-glory',
+    schemaVersion: CONFIG.saves.schemaVersion,
+    engineVersion: ENGINE_VERSION,
+    slot,
+    name,
+    createdAt: now,
+    updatedAt: now,
+    revision: 0,
+    payload,
+  };
 }
 export function createSave(slot: SlotId, name: string, payload: FoundationState): FoundationSave;
 export function createSave(
