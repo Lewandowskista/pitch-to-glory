@@ -4,7 +4,6 @@ import { useAppStore } from '../../store';
 import { Icon } from '../../ui/Icon';
 import { fixtureKind, nextCareerFixture, pendingCareerFixture } from '../../engine/career/fixtures';
 import { StakeLine } from '../career/stakesUi';
-import type { CareerMatchOutcome } from '../../engine/career/matches';
 import type { Fixture, TournamentFixture, WindowFixture, World } from '../../model/domain';
 import {
   nationOf,
@@ -484,17 +483,10 @@ export function CareerNoMatch({ world }: { world: World }) {
 }
 
 /** Actions after a recorded career match: no replay, only the way forward. */
-export function CareerReportActions({
-  world,
-  outcome,
-}: {
-  world: World;
-  outcome: CareerMatchOutcome;
-}) {
+export function CareerReportActions({ world }: { world: World }) {
   const job = useAppStore((s) => s.worldJob);
   // The next club fixture, or the window's next match (0.9.0).
   const pending = pendingCareerFixture(world) ?? pendingWindowFixture(world);
-  const gained = outcome.levelsGained > 0 || world.career!.attributePoints > 0;
   return (
     <>
       {pending ? (
@@ -528,19 +520,10 @@ export function CareerReportActions({
           <Icon name="arrow" />
         </button>
       ) : null}
+      {/* Points to spend are offered beside the level in the report, not in this bar. */}
       <Link className="button match-night-button" to="/career">
         {c.report.hub}
       </Link>
-      {gained && (
-        <Link className="button match-night-button" to="/career/profile">
-          {c.report.allocate}
-        </Link>
-      )}
-      {world.career!.skillPoints > 0 && (
-        <Link className="button match-night-button" to="/career/skills">
-          {c.report.unlock}
-        </Link>
-      )}
       <div className="basis-full">
         <JobProgress />
       </div>

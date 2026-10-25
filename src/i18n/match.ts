@@ -410,11 +410,7 @@ const matchTextEn = {
     lineupYou:
       '{club} in {formation}: eleven players in formation, attacking up. You wear number {number}, with a gold ring.',
     attackingUp: '{formation} · attacking up',
-    recorded: 'Recorded to your career',
     headlineLine: '{home} {homeScore}–{awayScore} {away} · {stadium}',
-    finalWon: 'Won',
-    finalDrew: 'Drew',
-    finalLost: 'Lost',
     xpTitle: 'How your XP was worked out',
     xpPerformance: 'Performance',
     xpOpposition: 'Opposition strength',

@@ -472,10 +472,18 @@ export default function MatchBody() {
           .join(' · ')
       : m.friendly;
   const inMatch = Boolean(session) && status !== 'preview' && status !== 'finished';
+  // The report: a finished session, or a recorded career match kept in memory. Both mount the
+  // same report at the same place, so recording the result never remounts or reflows it.
+  const committed =
+    careerResult && world?.career && (!session || status === 'finished') ? careerResult : null;
+  const reportSession = committed?.session ?? (status === 'finished' ? session : null);
   const numbers = session ? shirtNumbers(session.setup.players) : undefined;
   return (
     <Page className={`match-page${inMatch ? ' is-live' : ''}`}>
-      <header className={`page-heading match-heading${inMatch ? ' is-quiet' : ''}`}>
+      {/* During play the scoreboard leads, and the report has its own title: one heading. */}
+      <header
+        className={`page-heading match-heading${inMatch || reportSession ? ' is-quiet' : ''}`}
+      >
         <div>
           {/* The competition (or a friendly); never a repeat of the title. */}
           {(careerFixture || !world?.career) && (
@@ -545,18 +553,42 @@ export default function MatchBody() {
           </div>
           <FootballIllustration kind="match" />
         </section>
+      ) : reportSession ? (
+        <Report
+          session={reportSession}
+          {...(committed
+            ? {
+                career: {
+                  outcome: committed.outcome,
+                  recording: false,
+                  onRecord: recordResult,
+                  actions: <CareerReportActions world={world} />,
+                },
+              }
+            : reportSession.setup.fixture
+              ? {
+                  career: {
+                    outcome: null,
+                    recording: job?.type === 'commit-match',
+                    onRecord: recordResult,
+                    actions: null,
+                  },
+                }
+              : {
+                  onAgain: () => {
+                    setOutcomeId(null);
+                    setPlaying(false);
+                    useAppStore
+                      .getState()
+                      .setMatchSession(
+                        createMatchSession(reportSession.setup, reportSession.initialTactics),
+                      );
+                  },
+                  onNew: reset,
+                })}
+        />
       ) : !session && world.career ? (
-        careerResult ? (
-          <Report
-            session={careerResult.session}
-            career={{
-              outcome: careerResult.outcome,
-              recording: false,
-              onRecord: recordResult,
-              actions: <CareerReportActions world={world} outcome={careerResult.outcome} />,
-            }}
-          />
-        ) : pending ? (
+        pending ? (
           <CareerFixture
             world={world}
             fixture={pending}
@@ -721,28 +753,6 @@ export default function MatchBody() {
                 setPlaying(false);
               }}
               onNewFixture={careerFixture ? undefined : reset}
-            />
-          ) : status === 'finished' && careerFixture ? (
-            <Report
-              session={session}
-              career={{
-                outcome: null,
-                recording: job?.type === 'commit-match',
-                onRecord: recordResult,
-                actions: null,
-              }}
-            />
-          ) : status === 'finished' ? (
-            <Report
-              session={session}
-              onAgain={() => {
-                setOutcomeId(null);
-                setPlaying(false);
-                useAppStore
-                  .getState()
-                  .setMatchSession(createMatchSession(session.setup, session.initialTactics));
-              }}
-              onNew={reset}
             />
           ) : (
             <div className={`match-live-layout${deciding ? ' is-deciding' : ''}`} ref={layoutRef}>
