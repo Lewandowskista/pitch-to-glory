@@ -1,6 +1,6 @@
 # Release 1.0 implementation plan — 25 October 2026
 
-Status: **draft, awaiting the decisions at the end.** This plan turns the
+Status: **approved 25 October 2026**, with the decisions at the end. This plan turns the
 [25 October review](APP-REVIEW-2026-10-25.md) into the work for release 1.0.0. Finding IDs (M, C,
 W, S, P, U, K, G) refer to that review. Work in reviewable phases, keep the app runnable, stop
 with a summary after each phase, and track results in a matching `RELEASE-1.0-PROGRESS.md`.
@@ -172,6 +172,81 @@ that meets it.
 
 **Acceptance:** MatchBody ≤ 280 KB; most suites run on the national-mini world; golden fixtures pass;
 every 2.3 target is reported; the compatibility doc and its version test exist.
+
+---
+
+## Workstream A — Analytics (ships to `main` early, as 0.10.0)
+
+Decided 25 October (D4): product analytics on **PostHog EU** with **two-tier consent**, so balance,
+performance and engagement can be seen and analysed. It ships to `main` ahead of 1.0, so real
+players' data from 0.10 gives a baseline that the 1.0 retunes are judged against. It does not
+depend on Phases 2–9, and every later phase adds its events here.
+
+### A.1 Client and consent — M
+
+- **A tiny client, not the SDK.** `src/analytics/` batches events and sends them to PostHog's EU
+  capture endpoint with `fetch(…, { keepalive: true })`, flushing on `visibilitychange` and every
+  30 s. Network access goes through a `send` method on the platform adapter, so Android can swap
+  it later. The client is lazy-loaded after first paint and stays under 3 KB gzip. Allow the
+  PostHog host in `connect-src` in `public/_headers`.
+- **Configuration.** The project key and host come from `VITE_POSTHOG_KEY` and
+  `VITE_POSTHOG_HOST`. Without a key (development, tests, forks), analytics is off. Preview
+  deployments tag events with `environment: preview`.
+- **Tier 1, anonymous, on by default with an opt-out in Settings.** No identifier is stored
+  anywhere; events are sent personless (`$process_person_profile: false`) with an in-memory,
+  per-page-load session id. Covers performance, errors, and match and balance statistics.
+- **Tier 2, opt-in.** One friendly prompt after the first match: "Help shape the game: share how
+  you play over time." Only with consent does the client store a random install id (behind the
+  platform adapter) and send person profiles, which power retention and engagement analysis.
+  Withdrawing consent deletes the id; a new consent gets a new one.
+- **Never sent:** typed names, seeds, save contents, free text, or anything that identifies a
+  person. Players, clubs and nations appear only as ids and bucketed numbers. A unit test checks
+  every event's properties against an allow-list.
+- **Privacy page** (brought forward from 9.1) explaining both tiers in plain words, linked from
+  Settings and the prompt. The "no tracking" copy becomes "no ads, no account, no personal
+  tracking without your say-so". A short legal check of the wording before 1.0 (with D7).
+
+### A.2 Events — M
+
+All events carry the app version, save schema, match engine, world format, device class (from
+`hardwareConcurrency`, `deviceMemory` and viewport) and the event's own properties.
+
+| Area        | Events                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Funnel      | `landing_viewed`, `wizard_step` (step, quick start), `world_built` (ms), `career_created` (position, archetype, nation, start tier), `first_key_moment`, `match_finished` (count 1, 5, 10), `season_finished`                                                                                                                                                                                                                                       |
+| Balance     | `key_moment` (situation, position, choice id, stated chance, success, chosen and best expected value; sampled if volume needs it), `match_result` (tier, competition kind, position, minutes, rating, goals, assists, decisions, sim-only, played or simulated), `level_up`, `skill_unlocked`, `season_summary` (age, tier, club reputation, level, fame band, wealth band, awards, Hall of Fame rank band), `transfer`, `retired` (age, rank band) |
+| Performance | `app_loaded` (navigation and TTI timings), `continue_timed` (weeks, ms to matchday and to saved, save size band), `season_simulated` (ms), `save_failed` (kind), `error` (from the diagnostics ring buffer in 4.7, message hashed and truncated, no stack paths with user data), `pitch_fps` (p50 and p95 per match)                                                                                                                                |
+| Engagement  | `session_started` and `session_ended` (length, screens visited), `route_viewed`, feature use (`press_answered`, `story_resolved`, `sponsor_decided`, `shared`, `export_done`), `setting_changed` (setting, not value text)                                                                                                                                                                                                                          |
+
+### A.3 Seeing and analysing — S–M
+
+- **Three PostHog dashboards**, defined in `docs/ANALYTICS.md` as HogQL queries and created with
+  PostHog's API from a script (`npm run analytics:dashboards`, with a personal API key kept out of
+  the repo):
+  - **Balance:** stated vs realised success by situation and choice; pick rates and dominant
+    choices; rating distribution by position; goals per match by tier; level and fame by age;
+    Hall of Fame rank by position.
+  - **Performance:** Continue and load times p50/p95 by device class and save size; errors and
+    save failures by version; pitch frame rate.
+  - **Engagement:** the landing → first key moment → match five → season one funnel; D1, D7 and
+    D30 retention (opted-in players); session length; feature use; play vs simulate share.
+- **Balance gates meet live data.** `docs/ANALYTICS.md` maps each 2.3 gate to its live query, so
+  a gate's headless result can be compared with real players'.
+- **Feature flags** for A/B balance tests are available but unused until a phase needs one.
+
+### A.4 Tests — S
+
+- Unit: consent gating (tier 1 off sends nothing; tier 2 off stores no id), the property
+  allow-list, batching and flush.
+- e2e: with no key, no request leaves the page; with a key and tier 1 off, none reaches the
+  PostHog host; the CSP allows the host.
+
+**Acceptance:** events arrive in the PostHog project from a production build; the three
+dashboards exist; the consent states behave as above in all three engines; the client adds at
+most 3 KB gzip and nothing to the critical path.
+
+**Needs from you:** a PostHog EU project (its project API key goes into the Cloudflare Pages
+environment as `VITE_POSTHOG_KEY`) and, for the dashboard script, a personal API key kept locally.
 
 ---
 
@@ -416,7 +491,7 @@ REALISM.md exactly; the save-size gate holds.
 | Step | Change                                                                                                                                                                                                                                                                                                                           | Findings          | Size |
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---- |
 | 9.1  | **Feedback and privacy.** "Report a bug / send feedback" in Settings and the menu: a prefilled issue or email with version, schema, engine and seed, and optionally the diagnostics from 4.7 and an exported save. A short privacy page.                                                                                         | G3                | S    |
-| 9.2  | **Funnel measurement**, if D4 approves: Cloudflare Web Analytics plus six to eight anonymous aggregate counters (wizard step reached, world built, first key moment, match one done, week five, season one done, returned on day two), no identifiers; the "no tracking" copy reworded to match.                                 | G4                | S    |
+| 9.2  | **Analytics review before launch**: the Workstream A dashboards checked against the 2.3 gates and the playtests; any P1 they raise resolved.                                                                                                                                                                                     | G4                | S    |
 | 9.3  | **Legal hygiene.** A non-affiliation notice on the landing page and in About; `reference` names stripped from production bundles; descriptive labels instead of real league names in the rules panel; a short legal check of club nicknames (D7).                                                                                | G9                | S    |
 | 9.4  | **Landing and install.** A headline that leads with the hook, the key-moment sample animated above the fold, and wide and narrow manifest screenshots.                                                                                                                                                                           | G8                | S    |
 | 9.5  | **Share cards** for results with a rating, promotion, trophies, the Golden Ball and the legacy, offered right after the event; Moment links in the path so they get their own preview image (if D6 includes it).                                                                                                                 | G11               | M    |
@@ -448,7 +523,7 @@ Depending on D6: difficulty presets and Ironman (G12), scenario starts (G13) and
 
 ## Order and parallel work
 
-Phases 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 is the recommended order for one implementer.
+Phase 1, then Workstream A (released as 0.10.0 so live data accumulates), then Phases 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 is the recommended order for one implementer.
 
 - Phase 3 rewrites the worker and persistence core, so it comes before the gameplay phases.
 - Gameplay is ordered by impact: the match first, then pacing, the career, and the world.
@@ -499,26 +574,27 @@ With more than one implementer:
 | W16                        | 8.10               | K8                         | 4.9                                              |
 | W17                        | 9.7                | K9                         | 2.2                                              |
 | G1, G2                     | 6.1, 6.2           | K11, K12, K14, K16         | 2.7                                              |
-| G3                         | 4.7, 9.1           | K13                        | When each file is touched                        |
-| G4                         | 9.2                | K15                        | 4.8                                              |
+| G3                         | 4.7, A.1, 9.1      | K13                        | When each file is touched                        |
+| G4                         | A, 9.2             | K15                        | 4.8                                              |
 | G5                         | 9.8                | K17                        | 9.9                                              |
 | G6                         | 7.2                | K18                        | 5.2 (record in DECISIONS.md or move to `CONFIG`) |
 | G7                         | 6.3                | G12, G13, G14              | Per D6                                           |
 | G8, G9, G10, G11           | 9.4, 9.3, 9.9, 9.5 | G15, G16–G19               | 2.6, 7.2, 6.5, 9.1                               |
 
-## Decisions needed
+## Decisions
 
-Recommendations first. The plan assumes the recommended option until told otherwise.
+Confirmed by the user on 25 October 2026 (D1, D3, D4, D5). The others follow the recommendation
+unless the user says otherwise.
 
-| #   | Decision                                                     | Recommendation                                                                                                                                                                                                                                                                  |
-| --- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | How to stage a big release when every push to `main` deploys | Phase 1 hotfixes to `main` as 0.9.x; everything else on `release/1.0` with preview deployments; merge once as 1.0.0. The alternative is shipping each phase as a 0.10–0.17 minor and making 1.0 the final polish, which gets feedback sooner but loses the single launch.       |
-| D2  | Version policy                                               | Amend RELEASING.md: 1.0.0 marks the launch with saves migrating; after 1.0, a major means saves can no longer load.                                                                                                                                                             |
-| D3  | Compatibility cut at 1.0                                     | Keep every save loadable. Keep `match-21` sessions resumable; discard older in-progress sessions with a notice and replay the fixture from kick-off. Adopt old rule flags on load once, at 1.0. Delete `match-10`–`match-20`. Keep legacy fictional worlds loadable but frozen. |
-| D4  | Measurement                                                  | Cookieless, anonymous, aggregate funnel counters, with the "no tracking" promise reworded to "no ads, no account, no personal tracking". The alternative is none, and relying on playtests and feedback only.                                                                   |
-| D5  | Daily and weekly challenges and style tokens                 | Retire them in favour of the achievements and goals board; convert earned tokens into cosmetics.                                                                                                                                                                                |
-| D6  | Which "Should" features are in 1.0                           | In: simulate a match and big-matches-only (6.3), share cards (9.5). Out to 1.1: difficulty and Ironman, scenario starts, edit packs v2, translations.                                                                                                                           |
-| D7  | Real-name references                                         | Add the notice, strip `reference` names from production and use descriptive league labels now; get a short legal opinion on club nicknames before launch.                                                                                                                       |
-| D8  | Existing saves meet the world and career retunes             | Yes, at their next season start, explained on the "What's new in 1.0" screen.                                                                                                                                                                                                   |
-| D9  | Devices and playtests                                        | Required for the 1.0 exit. These need you or testers with an iPhone and a mid-range Android, and five to eight new players.                                                                                                                                                     |
-| D10 | Hall of Fame scores in existing saves                        | Re-score from stored award records where they exist; state the limitation where they do not.                                                                                                                                                                                    |
+| #   | Decision                                                | Outcome                                                                                                                                                                                                                                                                                        |
+| --- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Staging a big release when every push to `main` deploys | **Confirmed.** Phase 1 hotfixes to `main` as 0.9.x, and Workstream A as 0.10.0; everything else on `release/1.0` with preview deployments; merge once as 1.0.0.                                                                                                                                |
+| D2  | Version policy                                          | Recommended: amend RELEASING.md so 1.0.0 marks the launch with saves migrating; after 1.0, a major means saves can no longer load.                                                                                                                                                             |
+| D3  | Compatibility cut at 1.0                                | **Confirmed.** Keep every save loadable. Keep `match-21` sessions resumable; discard older in-progress sessions with a notice and replay the fixture from kick-off. Adopt old rule flags on load once, at 1.0. Delete `match-10`–`match-20`. Keep legacy fictional worlds loadable but frozen. |
+| D4  | Measurement                                             | **Confirmed, expanded.** Product analytics on PostHog EU with two-tier consent and dashboards for balance, performance and engagement (Workstream A).                                                                                                                                          |
+| D5  | Daily and weekly challenges and style tokens            | **Confirmed.** Retire them in favour of the achievements and goals board; convert earned tokens into cosmetics.                                                                                                                                                                                |
+| D6  | Which "Should" features are in 1.0                      | Recommended: in, simulate a match and big-matches-only (6.3) and share cards (9.5); out to 1.1, difficulty and Ironman, scenario starts, edit packs v2, translations.                                                                                                                          |
+| D7  | Real-name references                                    | Recommended: add the notice, strip `reference` names from production and use descriptive league labels now; a short legal opinion on club nicknames and the privacy wording before launch.                                                                                                     |
+| D8  | Existing saves meet the world and career retunes        | Recommended: yes, at their next season start, explained on the "What's new in 1.0" screen.                                                                                                                                                                                                     |
+| D9  | Devices and playtests                                   | Recommended: required for the 1.0 exit. These need the user or testers with an iPhone and a mid-range Android, and five to eight new players.                                                                                                                                                  |
+| D10 | Hall of Fame scores in existing saves                   | Recommended: re-score from stored award records where they exist; state the limitation where they do not.                                                                                                                                                                                      |
