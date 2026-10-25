@@ -117,9 +117,16 @@ async function damage(page: Page, store: 'saves' | 'worlds', slot: number) {
           read.onsuccess = () => {
             const record = read.result;
             // An unknown slot kind makes the slot unreadable; a broken world fails only the
-            // full checks, so its card still reads as ready.
+            // full checks, so its card still reads as ready. A world stored as bytes (1.0) is
+            // put back as an object, the form earlier releases stored and 1.0 still reads.
             if (store === 'saves') record.kind = 'bogus';
-            else record.world.phase = 'broken';
+            else {
+              if (record.bytes) {
+                record.world = JSON.parse(new TextDecoder().decode(record.bytes));
+                delete record.bytes;
+              }
+              record.world.phase = 'broken';
+            }
             records.put(record);
           };
           tx.oncomplete = () => {

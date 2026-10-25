@@ -244,23 +244,22 @@ const worldSlice: StateCreator<AppStore, [], [], WorldSlice> = (set) => ({
       careerResult: reportFor(state.careerResult, world),
       change: state.change + 1,
     })),
-  publishWorld: (world, { save, saved }) =>
-    set((state) => {
-      const change = state.change + 1;
-      return {
-        world,
-        trainingDraft: retainedTrainingDraft(state, world),
-        trainingAdvance:
-          state.trainingSaving || retainedTrainingDraft(state, world)
-            ? state.trainingAdvance
-            : null,
-        matchSession: null,
-        careerResult: reportFor(state.careerResult, world),
-        change,
-        ...(save ? { activeSave: save } : {}),
-        ...(saved ? { savedChange: change, saveStatus: 'saved' as const, saveError: null } : {}),
-      };
-    }),
+  publishWorld: (world, { save, saved }) => {
+    set((state) => ({
+      world,
+      trainingDraft: retainedTrainingDraft(state, world),
+      trainingAdvance:
+        state.trainingSaving || retainedTrainingDraft(state, world) ? state.trainingAdvance : null,
+      matchSession: null,
+      careerResult: reportFor(state.careerResult, world),
+      change: state.change + 1,
+      ...(save ? { activeSave: save } : {}),
+    }));
+    // Saved as a second step: a change that arrives already saved reads as a load (to the
+    // analytics observer, among others), and this world is new play.
+    if (saved)
+      set((state) => ({ savedChange: state.change, saveStatus: 'saved', saveError: null }));
+  },
   setWorldJob: (worldJob) => set({ worldJob }),
   worldFeedback: (worldNotice, worldError) => set({ worldNotice, worldError: worldError ?? null }),
 });

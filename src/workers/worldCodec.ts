@@ -121,6 +121,23 @@ function holdsWide(item: Plain): boolean {
   return false;
 }
 
+/**
+ * Yield to the event loop for one task. A MessageChannel message, not `setTimeout(0)`, which
+ * browsers stretch to 4 ms once nested: across a world's slices that alone cost 0.2 s.
+ */
+function nextTask(): Promise<void> {
+  if (typeof MessageChannel === 'undefined')
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      resolve();
+    };
+    channel.port2.postMessage(null);
+  });
+}
+
 /** Decode the whole world at once (the persistence worker, off the UI thread). */
 export function decodeWorldBytes(bytes: Uint8Array): unknown {
   return JSON.parse(new TextDecoder().decode(bytes));
@@ -148,8 +165,7 @@ export async function decodeWorld(
   options: { sliceMs?: number; yieldControl?: () => Promise<void>; now?: () => number } = {},
 ): Promise<unknown> {
   const sliceMs = options.sliceMs ?? 8;
-  const yieldControl =
-    options.yieldControl ?? (() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+  const yieldControl = options.yieldControl ?? nextTask;
   const now = options.now ?? (() => performance.now());
   const decoder = new TextDecoder();
   let root: Plain | null = null;
