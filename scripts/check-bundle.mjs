@@ -50,6 +50,7 @@ for (const route of [
   'career/CareerLegacy',
   'MomentViewer',
   'WhatsNew',
+  'Privacy',
 ]) {
   const visited = new Set();
   let bytes = 0;

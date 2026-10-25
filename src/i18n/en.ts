@@ -34,6 +34,7 @@ export const en = {
       '/career/legacy': 'Legacy',
       '/moment': 'Moment replay',
       '/whats-new': 'What’s new',
+      '/privacy': 'Privacy',
     } as Record<string, string>,
     short: {
       '/': 'Club',
@@ -151,7 +152,7 @@ export const en = {
       },
     ],
     promise:
-      'Free in your browser. No account and no ads. Your saves stay on your device, and the game plays offline after your first visit.',
+      'Free in your browser. No ads, no account, no personal tracking without your say-so. Your saves stay on your device, and the game plays offline after your first visit.',
     /** Under the first call to action on the landing hero. */
     startHint: 'About two minutes to build your footballer',
     /** One line per pillar, for the compact list a returning player sees. */

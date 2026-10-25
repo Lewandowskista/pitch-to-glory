@@ -25,7 +25,14 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      # Analytics (docs/ANALYTICS.md): the PostHog project key and host are repository
+      # variables, read at build time; without a key the build has analytics off. Events are
+      # tagged by where the build goes: production from main, preview for pull requests.
       - run: npm run build
+        env:
+          VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
+          VITE_ANALYTICS_ENV: ${{ github.event_name == 'pull_request' && 'preview' || github.ref == 'refs/heads/main' && 'production' || 'ci' }}
       - uses: actions/upload-artifact@v4
         with:
           name: web-build

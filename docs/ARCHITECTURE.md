@@ -46,6 +46,7 @@ src/
   store/              Zustand settings, gallery, world/job, match and active-save slices
   hooks/              Autosave and browser lifecycle integration
   platform/           Platform interface and web implementation
+  analytics/          Consent, the event allow-list, a lazily loaded PostHog client (docs/ANALYTICS.md)
   audio/              Procedural synthesiser, rendering worker, Howler player and the facade
   ui/                 Shell, reusable controls, SVG artwork wrapper, tutorial and tooltip
   screens/            Lazy routes: menu, gallery, world, match, saves, settings
@@ -1445,8 +1446,11 @@ Only three slot IDs are accepted at every repository boundary. Export uses JSON 
 
 ```typescript
 interface PlatformAdapter {
-  readPreferences(): unknown;
-  writePreferences(value: unknown): boolean;
+  /** Device preferences: the settings, or another device-only record (`'analytics'`); null removes. */
+  readPreferences(scope?: 'settings' | 'analytics'): unknown;
+  writePreferences(value: unknown, scope?: 'settings' | 'analytics'): boolean;
+  /** POST a JSON body (analytics); resolves whether it was accepted and never rejects. */
+  send(url: string, body: string, hiding?: boolean): Promise<boolean>;
   saveFile(name: string, content: string | Blob, mime: string): Promise<void>;
   shareFile(name: string, content: string | Blob, mime: string): Promise<void>;
   /** Share a link through the system share sheet, or copy it; reports which happened. */
@@ -1461,7 +1465,9 @@ interface PlatformAdapter {
 }
 ```
 
-The web adapter owns download/share fallback, file size limits, storage persistence, optional vibration, popstate, wake lock and optional notifications. Unsupported capabilities return a documented benign result. No feature requests notification permission automatically. Android/Capacitor is intentionally absent until the final milestone.
+The web adapter owns download/share fallback, file size limits, storage persistence, optional vibration, popstate, wake lock, optional notifications and analytics delivery (`fetch` with `keepalive`, handing a failed request to `sendBeacon` while the page is hidden). Analytics consent and the tier-2 install id live under the `analytics` preference scope (`ptg-analytics` on the web), never in `Settings` or a save.
+
+Analytics (`src/analytics/`, [ANALYTICS.md](ANALYTICS.md)) adds a few hundred bytes to the shell: `track()` queues events in memory, and `startAnalytics()` imports the client when the browser is idle after load. The client checks consent and the per-event allow-list, adds the common properties and sends batches through `platform.send`. A separately loaded observer derives play events from store updates, world job results and the finished match on the main thread; the engine is never involved. Without a build-time key, or under automation, nothing loads. Unsupported capabilities return a documented benign result. No feature requests notification permission automatically. Android/Capacitor is intentionally absent until the final milestone.
 
 ## UI, accessibility and delivery
 

@@ -18,6 +18,7 @@ import type { SlotListing } from '../persistence/localRepository';
 import { recoveryFileName } from '../persistence/files';
 import { summaryPortrait, type CareerSummary } from '../persistence/summary';
 import { platform } from '../platform';
+import { track } from '../analytics';
 import { errorText, format, t } from '../i18n';
 import { Icon, type IconName } from '../ui/Icon';
 import { Artwork } from '../ui/Artwork';
@@ -207,6 +208,7 @@ export default function SavesContent() {
           save.json,
           'application/json',
         );
+        track('export_done', { what: 'save' });
         setNotice(t.saves.exported);
       }, target),
     exportRecovery,

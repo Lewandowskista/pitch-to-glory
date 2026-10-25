@@ -43,6 +43,7 @@ import {
   type EditAction,
 } from '../engine/world/edits';
 import { platform } from '../platform';
+import { track } from '../analytics';
 import { format, t } from '../i18n';
 import { careerText as c } from '../i18n/career';
 import { editText as e } from '../i18n/edit';
@@ -954,6 +955,7 @@ function EditFile({ world }: { world: World }) {
                 JSON.stringify(exportEdits(world), null, 2),
                 'application/json',
               );
+              track('export_done', { what: 'edits' });
               setFailed(false);
               setStatus(e.file.exported);
             }}

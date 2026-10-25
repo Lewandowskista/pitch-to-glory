@@ -127,6 +127,7 @@ const ROUTES = [
   '/career/legacy?save=1',
   '/moment',
   '/whats-new',
+  '/privacy',
 ];
 
 test('every screen passes axe in both themes and fits a phone', async ({ page, browserName }) => {

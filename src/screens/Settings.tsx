@@ -22,6 +22,9 @@ import { RadioTile } from '../ui/kit/RadioTile';
 import { audio, type SoundName } from '../audio';
 import type { AudioSettings, Settings as Preferences } from '../model/domain';
 import { useUrlDialog } from './career/useUrlDialog';
+import { analyticsConfig } from '../analytics/config';
+import { updateConsent, useAnalyticsConsent } from '../analytics/consent';
+import { privacyText } from '../i18n/privacy';
 
 type Theme = Preferences['theme'];
 const THEMES: { theme: Theme; icon: 'settings' | 'sun' | 'moon' }[] = [
@@ -159,6 +162,7 @@ export default function Settings() {
                 {tutorialQueued ? t.settings.tutorialDone : ''}
               </StatusLine>
             </Panel>
+            <PrivacySettings />
             <Panel aria-labelledby="settings-about" className="flex flex-col gap-4">
               <div>
                 <CardTitle id="settings-about">{t.settings.about}</CardTitle>
@@ -422,6 +426,49 @@ function SoundSettings() {
           {previewing ? t.settings.previewLoading : ''}
         </p>
       </div>
+    </Panel>
+  );
+}
+
+/** Analytics consent (docs/ANALYTICS.md): anonymous statistics, and sharing play over time. */
+const analyticsEnabled = analyticsConfig() !== null;
+function PrivacySettings() {
+  const p = privacyText.settings;
+  const consent = useAnalyticsConsent();
+  return (
+    <Panel aria-labelledby="settings-privacy" className="flex flex-col gap-4">
+      <div>
+        <CardTitle id="settings-privacy">{p.title}</CardTitle>
+        <p className={cardBody}>{p.body}</p>
+      </div>
+      {analyticsEnabled ? (
+        <>
+          <SwitchRow
+            id="privacy-anonymous"
+            headingLevel="h3"
+            divided
+            title={p.anonymous}
+            description={p.anonymousBody}
+            checked={consent.anonymous}
+            onChange={(anonymous) => updateConsent({ anonymous })}
+          />
+          <SwitchRow
+            id="privacy-personal"
+            headingLevel="h3"
+            divided
+            title={p.personal}
+            description={p.personalBody}
+            checked={consent.personal}
+            // Answering here also answers the one-time invitation.
+            onChange={(personal) => updateConsent({ personal, prompted: true })}
+          />
+        </>
+      ) : (
+        <p className="m-0 rounded-control bg-surface-soft px-4 py-3 text-sm text-muted">{p.off}</p>
+      )}
+      <ButtonLink to="/privacy" variant="secondary" iconEnd="arrow" className="self-start">
+        {p.link}
+      </ButtonLink>
     </Panel>
   );
 }

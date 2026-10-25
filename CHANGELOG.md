@@ -2,6 +2,22 @@
 
 Player-facing notes for every release of Pitch to Glory, newest first. Generated from `src/i18n/patchNotes.ts` by `npm run changelog`; do not edit by hand. See [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.10.0 — Help shape the game
+
+_2026-10-25_
+
+Anonymous play statistics now help balance and speed up the game, and after your first match you can choose to share more. Settings and a new Privacy page put you in charge.
+
+### New
+
+- After your first match you can choose to share how you play over time, to help shape the game. It stays off unless you say yes, and you can change your mind in Settings.
+- A new Privacy page explains in plain words what the game shares, what it never shares, and how to switch it off.
+- Settings has a Privacy card with a switch for each kind of sharing.
+
+### Improved
+
+- Anonymous play statistics, such as how key moments turn out and how fast Continue runs, now help us balance and speed up the game. They are never linked to you, and you can turn them off in Settings.
+
 ## 0.9.1 — Safe hands
 
 _2026-10-25_

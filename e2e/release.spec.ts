@@ -76,6 +76,10 @@ test('pages carry the production security and cache headers', async ({ request }
   const headers = page.headers();
   expect(headers['content-security-policy']).toContain("default-src 'self'");
   expect(headers['content-security-policy']).toContain("frame-ancestors 'none'");
+  // Analytics (docs/ANALYTICS.md) may reach PostHog's EU capture host, and nothing else new.
+  expect(headers['content-security-policy']).toMatch(
+    /connect-src 'self' blob: data: https:\/\/eu\.i\.posthog\.com;/,
+  );
   expect(headers['x-content-type-options']).toBe('nosniff');
   expect(headers['x-frame-options']).toBe('DENY');
   expect((await request.get('/sw.js')).headers()['cache-control']).toBe('no-cache');
