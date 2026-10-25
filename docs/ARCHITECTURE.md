@@ -56,7 +56,9 @@ src/
   i18n/               English strings and translation entry point
   assets/             Authored SVG brand and PWA icons
   workers/            Simulation and persistence workers, bounded message transport
-tests/                 Vitest engine/persistence/worker tests with fake IndexedDB
+tests/                 Vitest engine/persistence/worker tests with fake IndexedDB; the fast project, and
+                       the slow project (*.slow.test.ts: statistical gates, soaks, multi-season worlds)
+  support/             The shared national test world and career, built once per engine revision
 e2e/                   Playwright browser journeys
 docs/                  Architecture, decisions, balance and release instructions
 public/                Static SVG icons and share artwork

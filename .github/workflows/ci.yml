@@ -60,7 +60,7 @@ jobs:
           name: soak-smoke
           path: artifacts/soak/*.json
           if-no-files-found: ignore
-  # Every unit test, split across three machines.
+  # The fast unit tests (vitest.config.ts), split across three machines, on every run.
   unit:
     runs-on: ubuntu-latest
     strategy:
@@ -74,7 +74,26 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: npx vitest run --shard=${{ matrix.shard }}/3
+      - run: npx vitest run --project fast --shard=${{ matrix.shard }}/3
+  # The slow unit tests: statistical gates, soaks, multi-season worlds and golden saves. Pull
+  # requests skip them; every push to main runs them before it deploys, and endurance.yml runs
+  # them nightly.
+  unit-slow:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --project slow --shard=${{ matrix.shard }}/2
   # Two machines per engine, against the build. Keep Windows: hosted macOS WebKit
   # exhausts Metal/WebGL memory, and Linux WebKit crashes in the GPU renderer.
   # Serialize WebKit within each shard to avoid the original concurrent-test stall.
@@ -128,7 +147,7 @@ jobs:
           name: custom-domain-results
           path: test-results
   deploy:
-    needs: [build, checks, unit, browsers, custom-domain]
+    needs: [build, checks, unit, unit-slow, browsers, custom-domain]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
