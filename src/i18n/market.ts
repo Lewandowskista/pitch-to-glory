@@ -1,3 +1,4 @@
+import { squadRoleNames } from './squadRoles';
 import { disciplineText } from './discipline';
 
 /** Market copy (milestone 5): contracts, transfers, loans, negotiation, agents and inbox. */
@@ -7,7 +8,7 @@ export const marketText = {
   eyebrow: 'The market',
   money: '{amount} Cr',
   perWeek: '{amount} Cr / week',
-  roles: { key: 'Key player', rotation: 'Rotation', backup: 'Backup', youth: 'Youth prospect' },
+  roles: squadRoleNames,
   roleBodies: {
     key: 'Starts whenever fit.',
     rotation: 'Starts most matches.',

@@ -1,11 +1,15 @@
 // Pixi's no-eval shader and uniform code, so the pitch runs under the strict Content
 // Security Policy (no 'unsafe-eval'); see public/_headers.
 import 'pixi.js/unsafe-eval';
-import { Application, Container, Graphics, Text } from 'pixi.js';
+// Only the pieces the pitch draws with: the WebGL renderer, containers, graphics and text
+// (Graphics and Text register their own render pipes). Pixi's Application would bring its
+// renderer auto-detection, which ships the WebGPU and canvas renderers as chunks the service
+// worker would precache; without WebGL the match draws its SVG pitch instead.
+import { Container, Graphics, Text, Ticker, UPDATE_PRIORITY, WebGLRenderer } from 'pixi.js';
 import type { Club, Point, ReplayFrame } from '../../model/domain';
 import { isPassBeat } from './cam';
 import { OFF_ANIMATION } from '../../engine/match/parked';
-import { kitAppearance } from './Maps';
+import { kitAppearance } from './pitchKit';
 import { preparePlayback, samplePlayback, type Playback } from './playback';
 import {
   ballAtFeet,
@@ -100,6 +104,52 @@ function celebrationPose(motion: string, t: number) {
   }
 }
 
+/**
+ * A WebGL renderer, a stage and a stopped ticker that renders the stage after each update: what
+ * Pixi's Application provides, without its renderer auto-detection or its environment imports
+ * (`manageImports: false`: the pitch needs no events, accessibility or filters).
+ */
+async function createStage(options: {
+  width: number;
+  height: number;
+  background: string;
+  antialias: boolean;
+  autoDensity: boolean;
+  resolution: number;
+}) {
+  const renderer = new WebGLRenderer();
+  try {
+    await renderer.init({ ...options, manageImports: false });
+  } catch (error) {
+    // A failed initialization can leave the renderer half built.
+    try {
+      renderer.destroy();
+    } catch {
+      // Nothing more to release.
+    }
+    throw error;
+  }
+  const stage = new Container();
+  const ticker = new Ticker();
+  ticker.autoStart = false;
+  const render = () => renderer.render(stage);
+  ticker.add(render, undefined, UPDATE_PRIORITY.LOW);
+  return {
+    renderer,
+    stage,
+    ticker,
+    canvas: renderer.canvas,
+    render,
+    start: () => ticker.start(),
+    stop: () => ticker.stop(),
+    destroy(view: { removeView: boolean }, content: Parameters<Container['destroy']>[0]) {
+      ticker.destroy();
+      stage.destroy(content);
+      renderer.destroy(view);
+    },
+  };
+}
+
 export async function createPitchScene(
   host: HTMLDivElement,
   home: Club,
@@ -110,23 +160,14 @@ export async function createPitchScene(
   numbers?: Readonly<Record<string, number>>,
   youLabel = 'You',
 ): Promise<PitchScene> {
-  const app = new Application();
-  try {
-    await app.init({
-      width: Math.max(1, host.clientWidth),
-      height: Math.max(1, host.clientHeight),
-      background: pitchArt.grass,
-      antialias: true,
-      preference: 'webgl',
-      autoStart: false,
-      autoDensity: true,
-      resolution: Math.min(window.devicePixelRatio || 1, 2),
-    });
-  } catch (error) {
-    // Failed initialization can leave a renderer absent, so only destroy a fully initialized app.
-    if (app.renderer) app.destroy({ removeView: true }, { children: true });
-    throw error;
-  }
+  const app = await createStage({
+    width: Math.max(1, host.clientWidth),
+    height: Math.max(1, host.clientHeight),
+    background: pitchArt.grass,
+    antialias: true,
+    autoDensity: true,
+    resolution: Math.min(window.devicePixelRatio || 1, 2),
+  });
   host.appendChild(app.canvas);
   app.canvas.setAttribute('aria-hidden', 'true');
   app.canvas.style.display = 'block';

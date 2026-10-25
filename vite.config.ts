@@ -88,6 +88,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        // Pixi's environment bundles (events, accessibility, filters; the web-worker variant).
+        // The pitch starts its WebGL renderer with `manageImports: false` (pitchScene.ts), so
+        // they are emitted but never requested, and offline play does not need them cached.
+        globIgnores: ['**/browserAll-*.js', '**/webworkerAll-*.js'],
         navigateFallback: '/index.html',
         clientsClaim: true,
       },

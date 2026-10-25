@@ -1,7 +1,10 @@
+import { SAVE_DATABASE } from './database';
+
 /**
- * The save system (IndexedDB, validation, migrations and the engine code they use) is not
- * needed to draw the first screen, so the app loads it on first use, or when the browser is
- * idle after startup. Every call shares one import.
+ * The save system's main-thread half (sessions, autosave, slot locks and the client of the
+ * persistence worker, which alone opens IndexedDB, validates and migrates) is not needed to
+ * draw the first screen, so the app loads it on first use, or when the browser is idle after
+ * startup. Every call shares one import.
  */
 type Api = typeof import('./api');
 let loading: Promise<Api> | null = null;
@@ -30,7 +33,7 @@ export async function mayHaveSaves(): Promise<boolean> {
   try {
     if (typeof indexedDB === 'undefined' || !('databases' in indexedDB)) return true;
     const databases = await indexedDB.databases();
-    return databases.some((database) => database.name === 'pitch-to-glory');
+    return databases.some((database) => database.name === SAVE_DATABASE);
   } catch {
     return true;
   }

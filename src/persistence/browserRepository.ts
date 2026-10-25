@@ -1,60 +1,87 @@
 import type { FoundationState, WorldState, SlotId } from '../model/domain';
-import {
-  LocalSaveRepository,
-  SaveDatabase,
-  type SaveWriteReceipt,
-  type SlotListing,
-} from './localRepository';
+import type { AppSave } from './schema';
+import type { SaveWriteReceipt, SlotListing } from './localRepository';
+import type { LeaseStore } from './locks';
+import type { PersistenceOperation } from './protocol';
 import { persistenceRequest } from './workerClient';
-import { createSave, parseSave, SaveError, unvalidatedSave, type AppSave } from './schema';
+import { combineReceipt, withoutWorld } from './receipts';
+import { SAVE_CHANNEL } from './database';
 
 /**
- * Browser repository. Validation, JSON and IndexedDB work run in the persistence worker;
- * Node tests use the same local repository directly.
+ * The tab's save repository. IndexedDB, JSON, validation and migrations all run in the
+ * persistence worker; this class only sends requests, so Dexie and the save validators never
+ * load on the main thread. Node tests use the local repository (repository.ts) instead.
  */
-export class SaveRepository extends LocalSaveRepository {
+export class WorkerSaveRepository {
+  private readonly listeners = new Set<() => void>();
   constructor(
-    private readonly database: SaveDatabase,
-    private readonly tabOwner?: string,
-    private readonly forceLocal = false,
-  ) {
-    super(database, tabOwner);
+    private readonly database: string,
+    private readonly tabOwner: string,
+  ) {}
+  private request<T>(operation: PersistenceOperation): Promise<T> {
+    return persistenceRequest<T>(this.database, this.tabOwner, operation);
   }
-  private get delegated(): boolean {
-    return !this.forceLocal && typeof document !== 'undefined' && typeof Worker !== 'undefined';
+  /** A change this tab made: its own save lists refresh even without BroadcastChannel. */
+  private async changed<T>(result: Promise<T>): Promise<T> {
+    const value = await result;
+    for (const listener of this.listeners) listener();
+    return value;
   }
-  override read(slot: SlotId): Promise<AppSave | undefined> {
-    return this.delegated
-      ? persistenceRequest(this.database.name, this.tabOwner, { operation: 'read', slot })
-      : super.read(slot);
+  read(slot: SlotId): Promise<AppSave | undefined> {
+    return this.request({ operation: 'read', slot });
   }
-  override async list(): Promise<SlotListing[]> {
-    if (!this.delegated) return super.list();
-    // Observe the primary-key range so Dexie relays committed worker mutations to liveQuery.
-    await this.database.saves.count();
-    return persistenceRequest(this.database.name, this.tabOwner, { operation: 'list' });
+  list(): Promise<SlotListing[]> {
+    return this.request({ operation: 'list' });
   }
-  override async write(value: AppSave, expectedRevision: number | null): Promise<AppSave> {
-    return this.delegated
-      ? this.combineReceipt(
-          await persistenceRequest<SaveWriteReceipt>(this.database.name, this.tabOwner, {
-            operation: 'write',
-            value,
-            expectedRevision,
-          }),
-          value.payload,
-        )
-      : super.write(value, expectedRevision);
+  /**
+   * The slot list now and after every committed change, from this tab or another (the worker
+   * announces each one on SAVE_CHANNEL). Returns the unsubscribe function.
+   */
+  watch(next: (slots: SlotListing[]) => void, error: (reason: unknown) => void): () => void {
+    let active = true;
+    let running = false;
+    let again = false;
+    const refresh = async () => {
+      if (running) {
+        again = true;
+        return;
+      }
+      running = true;
+      try {
+        do {
+          again = false;
+          const slots = await this.list();
+          if (active && !again) next(slots);
+        } while (active && again);
+      } catch (reason) {
+        if (active) error(reason);
+      } finally {
+        running = false;
+      }
+    };
+    const channel =
+      typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(SAVE_CHANNEL);
+    if (channel)
+      channel.onmessage = (event: MessageEvent<{ database?: string }>) => {
+        if (event.data?.database === this.database) void refresh();
+      };
+    const local = () => void refresh();
+    this.listeners.add(local);
+    void refresh();
+    return () => {
+      active = false;
+      this.listeners.delete(local);
+      channel?.close();
+    };
   }
-  override import(json: string, slot: SlotId, expectedRevision: number | null): Promise<AppSave> {
-    return this.delegated
-      ? persistenceRequest(this.database.name, this.tabOwner, {
-          operation: 'import',
-          json,
-          slot,
-          expectedRevision,
-        })
-      : super.import(json, slot, expectedRevision);
+  async write(value: AppSave, expectedRevision: number | null): Promise<AppSave> {
+    const receipt = await this.changed(
+      this.request<SaveWriteReceipt>({ operation: 'write', value, expectedRevision }),
+    );
+    return combineReceipt(receipt, value.payload);
+  }
+  import(json: string, slot: SlotId, expectedRevision: number | null): Promise<AppSave> {
+    return this.changed(this.request({ operation: 'import', json, slot, expectedRevision }));
   }
   /**
    * Save preferences and the match session while the world graph is unchanged. Match
@@ -62,31 +89,17 @@ export class SaveRepository extends LocalSaveRepository {
    */
   async writeWithoutWorldChange(value: AppSave, expectedRevision: number): Promise<AppSave> {
     if (value.payload.kind !== 'world') return this.write(value, expectedRevision);
-    const parts = {
-      slot: value.slot,
-      worldId: value.payload.world.id,
-      updatedAt: value.updatedAt,
-      gallery: value.payload.gallery,
-      settings: value.payload.settings,
-      matchSession: value.payload.matchSession ?? null,
-    };
-    const receipt = this.delegated
-      ? await persistenceRequest<SaveWriteReceipt>(this.database.name, this.tabOwner, {
-          operation: 'write-without-world',
-          value: parts,
-          expectedRevision,
-        })
-      : await super.writeWithoutWorld(parts, expectedRevision);
-    return this.combineReceipt(receipt, value.payload);
+    const receipt = await this.changed(
+      this.request<SaveWriteReceipt>({
+        operation: 'write-without-world',
+        value: withoutWorld({ ...value, payload: value.payload }),
+        expectedRevision,
+      }),
+    );
+    return combineReceipt(receipt, value.payload);
   }
-  override remove(slot: SlotId, expectedRevision: number | null): Promise<void> {
-    return this.delegated
-      ? persistenceRequest(this.database.name, this.tabOwner, {
-          operation: 'remove',
-          slot,
-          expectedRevision,
-        })
-      : super.remove(slot, expectedRevision);
+  remove(slot: SlotId, expectedRevision: number | null): Promise<void> {
+    return this.changed(this.request({ operation: 'remove', slot, expectedRevision }));
   }
   async create(
     slot: SlotId,
@@ -94,68 +107,63 @@ export class SaveRepository extends LocalSaveRepository {
     payload: FoundationState | WorldState,
     expectedRevision: number | null,
   ): Promise<AppSave> {
-    return this.delegated
-      ? this.combineReceipt(
-          await persistenceRequest<SaveWriteReceipt>(this.database.name, this.tabOwner, {
-            operation: 'create',
-            slot,
-            name,
-            payload,
-            expectedRevision,
-          }),
-          payload,
-        )
-      : super.write(createSave(slot, name, payload), expectedRevision);
+    const receipt = await this.changed(
+      this.request<SaveWriteReceipt>({
+        operation: 'create',
+        slot,
+        name,
+        payload,
+        expectedRevision,
+      }),
+    );
+    return combineReceipt(receipt, payload);
   }
-  private combineReceipt(
-    receipt: SaveWriteReceipt,
-    payload: FoundationState | WorldState,
-  ): AppSave {
-    if (receipt.payload.kind === 'foundation') return { ...receipt, payload: receipt.payload };
-    if (payload.kind !== 'world') throw new SaveError('invalid');
-    return { ...receipt, payload: { ...receipt.payload, world: payload.world } };
+  validateJSON(json: string): Promise<void> {
+    return this.request({ operation: 'validate', json });
   }
-  async validateJSON(json: string): Promise<void> {
-    if (this.delegated)
-      return persistenceRequest(this.database.name, this.tabOwner, { operation: 'validate', json });
-    parseSave(json);
+  exportJSON(slot: SlotId): Promise<{ name: string; json: string }> {
+    return this.request({ operation: 'export', slot });
   }
-  override async exportJSON(slot: SlotId): Promise<{ name: string; json: string }> {
-    return this.delegated
-      ? persistenceRequest(this.database.name, this.tabOwner, { operation: 'export', slot })
-      : super.exportJSON(slot);
-  }
-  override async exportRecovery(slot: SlotId): Promise<{ name: string; json: string }> {
-    return this.delegated
-      ? persistenceRequest(this.database.name, this.tabOwner, {
-          operation: 'export-recovery',
-          slot,
-        })
-      : super.exportRecovery(slot);
+  /** A slot's stored records, unvalidated, for a slot that will not load. */
+  exportRecovery(slot: SlotId): Promise<{ name: string; json: string }> {
+    return this.request({ operation: 'export-recovery', slot });
   }
   /** Serialize an unsaved in-memory snapshot as a backup file, off the main thread. */
-  async serialize(slot: SlotId, name: string, payload: FoundationState | WorldState) {
-    if (this.delegated)
-      return persistenceRequest<{ name: string; json: string }>(this.database.name, this.tabOwner, {
-        operation: 'serialize',
-        slot,
-        name,
-        payload,
-      });
-    const { recovery: _recovery, ...file } = createSave(slot, name, payload);
-    void _recovery;
-    return { name, json: JSON.stringify(file) };
+  serialize(slot: SlotId, name: string, payload: FoundationState | WorldState) {
+    return this.request<{ name: string; json: string }>({
+      operation: 'serialize',
+      slot,
+      name,
+      payload,
+    });
   }
   /** As `serialize`, without validation: the fallback when the snapshot no longer passes it. */
-  async serializeUnvalidated(slot: SlotId, name: string, payload: FoundationState | WorldState) {
-    if (this.delegated)
-      return persistenceRequest<{ name: string; json: string }>(this.database.name, this.tabOwner, {
-        operation: 'serialize',
-        slot,
-        name,
-        payload,
-        unvalidated: true,
-      });
-    return { name, json: JSON.stringify(unvalidatedSave(slot, name, payload)) };
+  serializeUnvalidated(slot: SlotId, name: string, payload: FoundationState | WorldState) {
+    return this.request<{ name: string; json: string }>({
+      operation: 'serialize',
+      slot,
+      name,
+      payload,
+      unvalidated: true,
+    });
+  }
+}
+
+/** This tab's slot leases, kept in IndexedDB by the persistence worker. */
+export class WorkerLeases implements LeaseStore {
+  constructor(
+    private readonly database: string,
+    private readonly tabOwner: string,
+  ) {}
+  async acquire(slot: SlotId, native: boolean): Promise<boolean> {
+    const { acquired } = await persistenceRequest<{ acquired: boolean }>(
+      this.database,
+      this.tabOwner,
+      { operation: 'lease-acquire', slot, native },
+    );
+    return acquired;
+  }
+  release(slot: SlotId): Promise<void> {
+    return persistenceRequest(this.database, this.tabOwner, { operation: 'lease-release', slot });
   }
 }

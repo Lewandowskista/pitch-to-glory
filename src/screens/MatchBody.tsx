@@ -67,19 +67,18 @@ import {
 import type { NarrationLine } from './match/feed';
 import { narrationFeed } from '../i18n/narration';
 import { pendingCareerFixture } from '../engine/career/fixtures';
-import { careerMatchSetup, defaultTactics } from '../engine/career/matches';
+import { careerMatchSetup, defaultTactics } from '../engine/career/matchSetup';
 import { startWorldJob } from '../workers/client';
 import { competitionName } from './career/selectors';
 import { CareerSelectionBriefing } from './match/SelectionBriefing';
 import { COSMETIC_BY_ID } from '../engine/career/lifestyle/catalogue';
-import { lifestyleText as l } from '../i18n/lifestyle';
+import { celebrationNames } from '../i18n/celebrations';
 import '../styles/match.css';
 
 import { useMatchAudio } from './match/useMatchAudio';
 import { preparePlayback } from './match/playback';
 import { shirtNumbers } from './match/pitchArt';
-import { Tutorial } from '../ui/Tutorial';
-import { tutorialText as tt } from '../i18n/tutorial';
+import { Tutorial } from '../ui/TutorialLoader';
 import { StakeLine } from './career/stakesUi';
 const Pitch = lazyPage(() => import('./match/Pitch'));
 /** A friendly between any two clubs, for a world without a career: loaded only there. */
@@ -882,9 +881,7 @@ export default function MatchBody() {
                 <CommentaryCard
                   session={session}
                   narration={narration}
-                  celebration={
-                    celebrationItem ? l.celebrations.names[celebrationItem.id] : undefined
-                  }
+                  celebration={celebrationItem ? celebrationNames[celebrationItem.id] : undefined}
                 />
               </aside>
             </div>
@@ -894,7 +891,7 @@ export default function MatchBody() {
       <Tutorial
         track="match"
         enabled={Boolean(session) && status !== 'finished'}
-        steps={[
+        steps={(tt) => [
           { target: 'tactics', ...tt.match.tactics, when: status === 'preview' },
           { target: 'kickoff', ...tt.match.kickoff, action: true, done: status !== 'preview' },
           { target: 'controls', ...tt.match.controls, when: status === 'live' },

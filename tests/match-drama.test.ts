@@ -18,7 +18,8 @@ import {
   type MatchSetup,
 } from '../src/engine/match';
 import { HEADLINE_KINDS, HEADLINE_VARIANTS, headlineKind } from '../src/engine/match/headlines';
-import { hasMatchLabel, matchFormat, matchLabel, situationText } from '../src/i18n/match';
+import { hasMatchLabel, matchFormat, situationText } from '../src/i18n/match';
+import { hasReportLabel, reportLabel } from '../src/i18n/matchReport';
 import type { MatchEvent, Position } from '../src/model/domain';
 
 /**
@@ -218,16 +219,16 @@ describe('key moments that follow the game', () => {
   it('write a headline and reactions that match the result', () => {
     for (const kind of HEADLINE_KINDS)
       for (let variant = 0; variant < HEADLINE_VARIANTS; variant++)
-        expect(hasMatchLabel(`match.headline.${kind}.${variant}`)).toBe(true);
+        expect(hasReportLabel(`match.headline.${kind}.${variant}`)).toBe(true);
     for (const who of ['manager', 'fans'])
       for (const result of ['win', 'draw', 'loss'])
         for (const performance of ['star', 'solid', 'poor'])
-          expect(hasMatchLabel(`match.reaction.${who}.${result}.${performance}`)).toBe(true);
+          expect(hasReportLabel(`match.reaction.${who}.${result}.${performance}`)).toBe(true);
     // A dismissal (match-16): the manager reacts to the card, the fans to the result.
     for (const reason of ['second-yellow', 'straight-red'])
-      expect(hasMatchLabel(`match.reaction.manager.sent-off.${reason}`)).toBe(true);
+      expect(hasReportLabel(`match.reaction.manager.sent-off.${reason}`)).toBe(true);
     for (const result of ['win', 'draw', 'loss'])
-      expect(hasMatchLabel(`match.reaction.fans.sent-off.${result}`)).toBe(true);
+      expect(hasReportLabel(`match.reaction.fans.sent-off.${result}`)).toBe(true);
     const losing = ['scorer-loss', 'thrashed', 'nightmare', 'strong-loss', 'loss'];
     const winning = ['late-winner', 'scorer-win', 'rout', 'strong-win', 'win'];
     const kinds = new Set<string>();
@@ -248,7 +249,7 @@ describe('key moments that follow the game', () => {
         expect(s.managerReactionKey.split('.')[3]).toBe(result);
         expect(s.fanReactionKey.split('.')[3]).toBe(result);
       }
-      const text = matchFormat(matchLabel(s.report!.headlineId), s.report!.headlineParams ?? {});
+      const text = matchFormat(reportLabel(s.report!.headlineId), s.report!.headlineParams ?? {});
       expect(text).not.toMatch(/[{}]/);
       expect(s.report!.headlineParams?.player).toBe(
         drama.setup.players[drama.setup.selectedPlayerId]!.name,
@@ -395,7 +396,7 @@ describe('key moments that follow the game', () => {
       const kind = s.headlineKey.split('.')[2]!;
       if (margin > 0) expect(['final-won', 'late-winner', 'hat-trick']).toContain(kind);
       if (margin < 0) expect(kind).toBe('final-lost');
-      expect(hasMatchLabel(s.headlineKey)).toBe(true);
+      expect(hasReportLabel(s.headlineKey)).toBe(true);
     }
   });
 

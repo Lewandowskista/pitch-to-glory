@@ -9,7 +9,7 @@ import {
   SaveError,
 } from '../src/persistence/schema';
 import { generateWorld } from '../src/engine/world/generate';
-import { LeaseLock } from '../src/persistence/locks';
+import { LeaseLock } from '../src/persistence/leaseLock';
 import { CONFIG } from '../src/engine/config';
 
 const databases: SaveDatabase[] = [];

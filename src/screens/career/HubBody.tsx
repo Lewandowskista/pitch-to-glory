@@ -85,7 +85,7 @@ import { honoursText as h } from '../../i18n/honours';
 import { fameName, useChallengeRefresh } from './lifestyleUi';
 import { HallOfFameRankLine, HonoursSummary } from './honoursHub';
 import { Glyph, ordinal, useHonoursAction, type GlyphName } from './honoursUi';
-import { Tutorial } from '../../ui/Tutorial';
+import { Tutorial } from '../../ui/TutorialLoader';
 import { agendaText as a } from '../../i18n/agenda';
 import {
   advancePreview,
@@ -97,7 +97,6 @@ import {
 } from './agenda';
 import { AdvanceDigest, AdvancePreviewText, HubPriorities } from './HubPriorities';
 import { CoachTile } from './CoachAdvice';
-import { tutorialText as tt } from '../../i18n/tutorial';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
@@ -314,17 +313,19 @@ export function HubContent({
       <Tutorial
         track="week"
         enabled={world.phase === 'active' && career.matches.length === 0}
-        steps={(
-          [
-            'next-match',
-            'priorities',
-            'player-card',
-            'training',
-            'career-nav',
-            'inbox',
-            'continue',
-          ] as const
-        ).map((target) => ({ target, ...tt.week[target] }))}
+        steps={(tt) =>
+          (
+            [
+              'next-match',
+              'priorities',
+              'player-card',
+              'training',
+              'career-nav',
+              'inbox',
+              'continue',
+            ] as const
+          ).map((target) => ({ target, ...tt.week[target] }))
+        }
       />
     </div>
   );

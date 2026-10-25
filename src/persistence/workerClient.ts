@@ -1,60 +1,13 @@
-import type { FoundationState, GalleryState, Settings, WorldState, SlotId } from '../model/domain';
-import { SaveError, type AppSave } from './schema';
+import { SaveError } from './errors';
 import { createChunkReceiver, sendChunked } from '../workers/transport';
-import type { MatchSession } from '../engine/match/types';
-import type { SaveWriteReceipt, SlotListing } from './localRepository';
+import {
+  isLeaseOperation,
+  type PersistenceOperation,
+  type PersistenceRequest,
+  type PersistenceResponse,
+} from './protocol';
 export type { SaveWriteReceipt } from './localRepository';
-
-export type PersistenceOperation =
-  | { operation: 'read'; slot: SlotId }
-  | { operation: 'list' }
-  | { operation: 'write'; value: AppSave; expectedRevision: number | null }
-  | {
-      operation: 'write-without-world';
-      value: {
-        slot: SlotId;
-        worldId: string;
-        updatedAt: string;
-        gallery: GalleryState;
-        settings: Settings;
-        matchSession: MatchSession | null;
-      };
-      expectedRevision: number;
-    }
-  | {
-      operation: 'create';
-      slot: SlotId;
-      name: string;
-      payload: FoundationState | WorldState;
-      expectedRevision: number | null;
-    }
-  | { operation: 'import'; json: string; slot: SlotId; expectedRevision: number | null }
-  | { operation: 'validate'; json: string }
-  | { operation: 'export'; slot: SlotId }
-  /** A slot's stored records, unvalidated, for a slot that will not load. */
-  | { operation: 'export-recovery'; slot: SlotId }
-  | {
-      operation: 'serialize';
-      slot: SlotId;
-      name: string;
-      payload: FoundationState | WorldState;
-      /** Skip validation: a recovery copy of a session that no longer passes it. */
-      unvalidated?: boolean;
-    }
-  | { operation: 'remove'; slot: SlotId; expectedRevision: number | null };
-export type PersistenceRequest = PersistenceOperation & {
-  requestId: string;
-  database: string;
-  owner?: string;
-};
-export type PersistenceResponse =
-  | {
-      requestId: string;
-      ok: true;
-      value:
-        AppSave | SaveWriteReceipt | SlotListing[] | { name: string; json: string } | undefined;
-    }
-  | { requestId: string; ok: false; code: SaveError['code'] | 'storage' };
+export type { PersistenceOperation, PersistenceRequest, PersistenceResponse } from './protocol';
 
 let worker: Worker | null = null;
 let sequence = 0;
@@ -111,6 +64,16 @@ export function persistenceRequest<T>(
     }
     pending.set(requestId, { resolve: (value) => resolve(value as T), reject });
     const request: PersistenceRequest = { ...operation, database, owner, requestId };
+    // A lease renewal must not wait behind a large world still being sent.
+    if (isLeaseOperation(operation.operation)) {
+      try {
+        instance.postMessage(request);
+      } catch (error) {
+        pending.delete(requestId);
+        reject(error);
+      }
+      return;
+    }
     sending = sending
       .catch(() => {})
       .then(async () => {

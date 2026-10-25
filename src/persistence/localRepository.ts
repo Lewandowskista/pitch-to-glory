@@ -22,6 +22,7 @@ import {
   type SaveRecovery,
 } from './schema';
 import type { CareerSummary } from './summary';
+import { SAVE_DATABASE } from './database';
 export { summaryPortrait, type CareerSummary } from './summary';
 export interface Lease {
   slot: SlotId;
@@ -187,7 +188,7 @@ export class SaveDatabase extends Dexie {
   worlds!: Table<WorldRecord, SlotId>;
   matches!: Table<MatchRecord, SlotId>;
   leases!: Table<Lease, SlotId>;
-  constructor(name = 'pitch-to-glory') {
+  constructor(name = SAVE_DATABASE) {
     super(name);
     // Versions 1–5 stored one full record per slot. Their records are migrated lazily by
     // migrateSave on read; database upgrades never validate, so one damaged slot can

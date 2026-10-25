@@ -8,6 +8,7 @@ import { renderAvatar } from '../../engine/assets/avatar';
 import { calendarDate } from '../../engine/world/calendar';
 import { formatGameDate } from '../../i18n/calendar';
 import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
+import { reportLabel } from '../../i18n/matchReport';
 import { careerText as c } from '../../i18n/career';
 import { lifestyleText } from '../../i18n/lifestyle';
 import { format } from '../../i18n';
@@ -251,7 +252,7 @@ export function Report({
               {date && <span>{date}</span>}
             </div>
             <h3 id={`${id}-headline`} className="match-headline">
-              {matchFormat(matchLabel(report.headlineId), report.headlineParams ?? {})}
+              {matchFormat(reportLabel(report.headlineId), report.headlineParams ?? {})}
             </h3>
             <p className="match-card-note">
               {matchFormat(u.headlineLine, {
@@ -424,7 +425,7 @@ export function Report({
                   {m.manager}
                   {manager ? ` · ${manager.name}` : ''}
                 </figcaption>
-                <blockquote>“{matchLabel(state.managerReactionKey)}”</blockquote>
+                <blockquote>“{reportLabel(state.managerReactionKey)}”</blockquote>
               </div>
             </figure>
             <figure className="match-quote">
@@ -433,7 +434,7 @@ export function Report({
               </span>
               <div>
                 <figcaption>{m.fans}</figcaption>
-                <blockquote>“{matchLabel(state.fanReactionKey)}”</blockquote>
+                <blockquote>“{reportLabel(state.fanReactionKey)}”</blockquote>
               </div>
             </figure>
           </section>

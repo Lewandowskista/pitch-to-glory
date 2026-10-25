@@ -5,7 +5,7 @@ import { clubLineup } from '../../engine/selection/world';
 import type { Club, World } from '../../model/domain';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
-import { marketText as m } from '../../i18n/market';
+import { squadRoleNames } from '../../i18n/squadRoles';
 import { selectionText as t } from '../../i18n/selection';
 
 const points = (value: number) => {
@@ -58,7 +58,8 @@ export function SelectionReasons({
               {format(t.reasons[reason.kind], {
                 role:
                   reason.kind === 'role'
-                    ? (m.roles[reason.detail as keyof typeof m.roles] ?? String(reason.detail))
+                    ? (squadRoleNames[reason.detail as keyof typeof squadRoleNames] ??
+                      String(reason.detail))
                     : '',
                 value: typeof reason.detail === 'number' ? Math.round(reason.detail) : '',
               })}
