@@ -259,3 +259,21 @@ export async function openCareerPage(page: Page, name: string): Promise<void> {
   }
   await tabs.getByRole('link', { name: tabName(name) }).click();
 }
+
+/**
+ * Wait for a recorded match's XP and close the level-up moment if the match brought one
+ * (release 1.0, step 5.1): it is modal, so journeys that go on from the report close it first.
+ * Returns whether it was shown.
+ */
+export async function recordedReport(page: Page): Promise<boolean> {
+  await expect(page.getByTestId('career-xp')).toContainText('XP earned', { timeout: 60000 });
+  // The moment opens in an effect after the XP is drawn.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  const moment = page.getByTestId('level-up');
+  if (!(await moment.isVisible())) return false;
+  await page.keyboard.press('Escape');
+  await expect(moment).toHaveCount(0);
+  return true;
+}

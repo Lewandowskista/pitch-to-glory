@@ -130,6 +130,8 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   await page.screenshot({ path: `artifacts/match-live-${browserName}.png`, fullPage: true });
   await finish(page);
   await expect(page.getByRole('heading', { name: 'Your match report', exact: true })).toBeVisible();
+  // The maps sit behind their disclosure and load when it opens.
+  await page.getByText('Your match, mapped', { exact: true }).click();
   await expect(page.getByRole('img', { name: /^Movement heatmap:/ })).toBeVisible();
   await expect(page.getByRole('img', { name: /^Pass map:/ })).toBeVisible();
   await expect(page.getByRole('img', { name: /^Shot map:/ })).toBeVisible();

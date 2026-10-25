@@ -1,6 +1,13 @@
 import type { Page, Request } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
-import { expect, nationalCareer, settled, skipTutorial, test as journey } from './support';
+import {
+  expect,
+  nationalCareer,
+  recordedReport,
+  settled,
+  skipTutorial,
+  test as journey,
+} from './support';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { EVENTS } from '../src/analytics/events';
@@ -240,7 +247,7 @@ test('a first finished match brings the funnel, the decisions and one invitation
   await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Robin Vale');
   await page.goto('/match?save=1');
   await playMatch(page);
-  await expect(page.getByTestId('career-xp')).toBeVisible({ timeout: 60000 });
+  await recordedReport(page);
 
   // With the service worker blocked, the app reports it could not register one; the
   // invitation waits for that prompt like any other, and follows once it is dismissed.
