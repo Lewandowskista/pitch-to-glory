@@ -22,6 +22,7 @@ const fake = vi.hoisted(() => ({
 interface FakeHowl {
   options: {
     src: string[];
+    format?: string[];
     loop?: boolean;
     onload: () => void;
     onloaderror: (id: number, error: string) => void;
@@ -55,6 +56,7 @@ vi.mock('howler', () => ({
   },
   Howler: {
     usingWebAudio: true,
+    codecs: vi.fn(() => true),
     volume: vi.fn(),
     mute: vi.fn(),
     masterGain: { disconnect: fake.disconnect, connect: fake.connect },
@@ -70,6 +72,14 @@ vi.mock('howler', () => ({
 const settle = async () => {
   for (let i = 0; i < 12; i++) await Promise.resolve();
 };
+/** The music is a file, not a render: load the Howl created for it. */
+async function loadMusic(): Promise<FakeHowl> {
+  await settle();
+  const howl = fake.howls.findLast((sound) => sound.options.src[0]!.includes('floodlights'))!;
+  howl.options.onload();
+  await settle();
+  return howl;
+}
 async function renderAndLoad(name: string): Promise<FakeHowl> {
   const request = [...fake.requests].reverse().find((r) => r.name === name)!;
   fake.worker!.onmessage!({ data: { id: request.id, wav: new Uint8Array(44) } });
@@ -152,7 +162,7 @@ describe('audio playback lifecycle', () => {
     const player = await import('../src/audio/player');
     player.configure(DEFAULT_SETTINGS.audio);
     player.configure(DEFAULT_SETTINGS.audio);
-    const music = await renderAndLoad('music');
+    const music = await loadMusic();
     expect(music.options.loop).toBe(true);
     expect(music.play).toHaveBeenCalledTimes(1);
     player.crowd(0.5);
@@ -173,7 +183,7 @@ describe('audio playback lifecycle', () => {
     const player = await import('../src/audio/player');
     player.configure(DEFAULT_SETTINGS.audio);
     player.configure({ ...DEFAULT_SETTINGS.audio, musicEnabled: false });
-    const music = await renderAndLoad('music');
+    const music = await loadMusic();
     expect(music.play).not.toHaveBeenCalled();
     player.configure({ ...DEFAULT_SETTINGS.audio, effects: 0, crowd: 0 });
     await settle();
@@ -215,12 +225,53 @@ describe('audio playback lifecycle', () => {
   it('cancels a pending fade-out if music is enabled again', async () => {
     const player = await import('../src/audio/player');
     player.configure(DEFAULT_SETTINGS.audio);
-    const music = await renderAndLoad('music');
+    const music = await loadMusic();
     player.configure({ ...DEFAULT_SETTINGS.audio, musicEnabled: false });
     vi.advanceTimersByTime(300);
     player.configure(DEFAULT_SETTINGS.audio);
     vi.advanceTimersByTime(800);
     expect(music.pause).not.toHaveBeenCalled();
+    expect(music.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('downloads the pre-rendered music instead of synthesising it, Opus first', async () => {
+    const player = await import('../src/audio/player');
+    player.configure(DEFAULT_SETTINGS.audio);
+    await settle();
+    expect(fake.requests.some((request) => request.name === 'music')).toBe(false);
+    const [opus] = fake.howls;
+    expect(opus!.options.src[0]).toMatch(/after-the-floodlights\.ogg$/);
+    expect(opus!.options.format).toEqual(['opus']);
+    // A browser that claims Ogg Opus but cannot decode it falls back to AAC.
+    opus!.options.onloaderror(0, 'decode');
+    await settle();
+    const aac = fake.howls.at(-1)!;
+    expect(aac.options.src[0]).toMatch(/after-the-floodlights\.m4a$/);
+    aac.options.onload();
+    await settle();
+    expect(aac.play).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('skips formats the browser cannot play', async () => {
+    const { Howler } = await import('howler');
+    vi.mocked(Howler.codecs).mockImplementation((format) => format === 'm4a');
+    const player = await import('../src/audio/player');
+    player.configure(DEFAULT_SETTINGS.audio);
+    await settle();
+    expect(fake.howls.map((howl) => howl.options.format)).toEqual([['m4a']]);
+    vi.mocked(Howler.codecs).mockImplementation(() => true);
+  });
+
+  it('waits for the player to ask for music before downloading it on a data saver', async () => {
+    vi.stubGlobal('navigator', { connection: { saveData: true } });
+    const player = await import('../src/audio/player');
+    player.configure(DEFAULT_SETTINGS.audio);
+    player.unlock();
+    await settle();
+    expect(fake.howls).toHaveLength(0);
+    player.allowMusic();
+    const music = await loadMusic();
     expect(music.play).toHaveBeenCalledTimes(1);
   });
 });

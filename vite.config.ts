@@ -94,6 +94,20 @@ export default defineConfig({
         globIgnores: ['**/browserAll-*.js', '**/webworkerAll-*.js'],
         navigateFallback: '/index.html',
         clientsClaim: true,
+        // The music loop (src/assets/audio/, about 600 KB) comes in two formats and a browser
+        // plays one, so it is cached on first play rather than precached: offline play keeps
+        // the music once it has been heard, and nobody downloads both formats.
+        runtimeCaching: [
+          {
+            urlPattern: /\/assets\/after-the-floodlights-[\w-]+\.(?:ogg|m4a)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'music',
+              expiration: { maxEntries: 2 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
       },
     }),
   ],

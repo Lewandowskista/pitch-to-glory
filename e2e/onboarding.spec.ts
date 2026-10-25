@@ -174,9 +174,9 @@ test('lo-fi loop plays after a gesture and pauses independently of other channel
     browserName === 'webkit' && process.platform === 'win32',
     'Windows WebKit exposes no AudioContext and rejects PCM WAV with media error 4; playback requires Linux/macOS WebKit or real Safari.',
   );
-  // The first play renders the 100-second loop in a worker, which takes well over the
-  // default 30 seconds on a busy CI runner; the test's own limit must allow for it.
-  test.setTimeout(150000);
+  // The first play downloads and decodes the 100-second loop (pre-rendered since 1.0); decoding
+  // can still be slow on a busy CI runner.
+  test.setTimeout(90000);
   await page.goto('/settings');
   expect(
     await page.evaluate(() => Boolean((window as unknown as { Howler?: unknown }).Howler)),

@@ -20,6 +20,7 @@ import { SwitchRow } from '../ui/kit/ToggleSwitch';
 import { RangeSlider } from '../ui/kit/RangeSlider';
 import { RadioTile } from '../ui/kit/RadioTile';
 import { audio, type SoundName } from '../audio';
+import { platform } from '../platform';
 import type { AudioSettings, Settings as Preferences } from '../model/domain';
 import { useUrlDialog } from './career/useUrlDialog';
 import { analyticsConfig } from '../analytics/config';
@@ -296,6 +297,10 @@ function SoundSettings() {
   const mounted = useRef(false);
   const previewVersion = useRef(0);
   const [previewing, setPreviewing] = useState<SoundName | 'crowd' | null>(null);
+  // On a data saver the music waits for the player to ask for it (src/audio/player.ts).
+  const [musicAllowed, setMusicAllowed] = useState(
+    () => audio.musicAllowed || !platform.prefersReducedData(),
+  );
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -366,8 +371,30 @@ function SoundSettings() {
         description={t.settings.musicBody}
         checked={sound.musicEnabled}
         disabled={sound.muted}
-        onChange={(musicEnabled) => set({ musicEnabled })}
+        onChange={(musicEnabled) => {
+          // Switching it on is the player's own choice, which a data saver waits for.
+          if (musicEnabled) {
+            setMusicAllowed(true);
+            audio.allowMusic();
+          }
+          set({ musicEnabled });
+        }}
       />
+      {!musicAllowed && sound.musicEnabled && !sound.muted && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="min-w-0 flex-1 basis-60 text-muted">{t.settings.musicSaveData}</p>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setMusicAllowed(true);
+              audio.allowMusic();
+              void audio.unlock();
+            }}
+          >
+            {t.settings.musicDownload}
+          </Button>
+        </div>
+      )}
       <div className="flex flex-col gap-1">
         {volumes.map(([key, label]) => {
           const percent = Math.round(sound[key] * 100);

@@ -335,6 +335,9 @@ export const en = {
     musicVolume: 'Music volume',
     musicBody:
       'After the Floodlights — mellow keys, warm bass and a relaxed lo-fi beat. Music fades lower during matches.',
+    musicSaveData:
+      'Your device asks to save data, so the music (about 600 KB) waits until you download it.',
+    musicDownload: 'Download music',
     volumeValue: '{percent}%',
     previewSounds: 'Preview a sound',
     previewLoading: 'Preparing your preview…',

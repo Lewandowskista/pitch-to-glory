@@ -42,7 +42,7 @@ All of these are original, authored in code; no external images are used.
 
 ## Audio (milestone 9)
 
-No audio files are included. Every sound is synthesised on the player's device by original code in `src/audio/synth.ts` (oscillators, seeded noise and filters) and played with Howler.js (MIT licence, `node_modules/howler/LICENSE.md`). The sounds are interface taps, toggles, confirmations and errors; reward chimes and a level-up fanfare; a pea whistle, kick, net, goal roar, groan and a looping crowd. Nothing is downloaded or recorded, and nothing needs attribution.
+No audio files are included (the music loop has shipped as a pre-rendered file since 1.0: see "Music files" below). Every sound is synthesised on the player's device by original code in `src/audio/synth.ts` (oscillators, seeded noise and filters) and played with Howler.js (MIT licence, `node_modules/howler/LICENSE.md`). The sounds are interface taps, toggles, confirmations and errors; reward chimes and a level-up fanfare; a pea whistle, kick, net, goal roar, groan and a looping crowd. Nothing is downloaded or recorded, and nothing needs attribution.
 
 ## Audio refresh (9 October 2026)
 
@@ -53,10 +53,38 @@ room echoes. All instruments, notes and effects are authored here and synthesise
 noise and oscillators. Balatro is a mood reference only; no soundtrack audio, samples, melody
 or arrangement from it are used. There are no third-party music assets or remote media requests.
 
-The stereo loop is generated in the audio worker after the first interaction, when enabled.
 `node --import tsx scripts/render-audio.ts` exports the original track and all effects into
 `artifacts/audio/` for listening; these generated WAVs are not shipped in the app. See
 `docs/AUDIO-REVIEW.md` for the review, rationale and listening limitations.
+
+### Music files (release 1.0, step 3.9)
+
+Until 1.0 the stereo loop was synthesised in the audio worker on the first interaction of
+every session (a 3.85 s task and about 50 MB). It is now rendered once at build time and
+shipped as two small files in `src/assets/audio/`:
+
+| File                        | Format                         | Size    | Played by                                     |
+| --------------------------- | ------------------------------ | ------- | --------------------------------------------- |
+| `after-the-floodlights.ogg` | Opus in Ogg, 48 kb/s, 48 kHz   | 571 KiB | Chromium, Edge, Firefox, Safari with Ogg Opus |
+| `after-the-floodlights.m4a` | AAC-LC in MP4, 64 kb/s, 32 kHz | 687 KiB | Browsers without Ogg Opus (older Safari)      |
+
+- **Source and licence**: self-authored. Both files are lossy encodings of the procedural
+  composition in `src/audio/music.ts` (After the Floodlights, described above), rendered by the
+  game's own synthesis code; nothing else is mixed in. Same licence as the rest of the
+  repository; no attribution needed.
+- **How they are made**: `npm run render:music` (`scripts/render-music.ts`) renders the loop
+  and encodes it with macOS's built-in `afconvert` (no encoder dependency). afconvert cannot
+  write Ogg, so the script rewraps its Opus packets in Ogg pages, with the encoder delay as the
+  pre-skip and the exact length in the final granule position. Both files decode to exactly
+  3,233,684 frames at 32 kHz (4,850,526 at 48 kHz) in Chromium, Firefox and WebKit, so the
+  loop stays seamless. `after-the-floodlights.json` records the hash of the rendered PCM and of
+  each file; `tests/music.slow.test.ts` fails if `music.ts` changes without a fresh render.
+- **Loading**: only after the first interaction and when music is enabled, as before. The
+  browser downloads one format (Opus first; AAC if Opus is unsupported or fails to decode).
+  On a device that asks to save data (`Save-Data` or `prefers-reduced-data`), the music waits
+  until the player chooses **Download music** in Settings. The files are not precached (a
+  browser plays only one of the two); the service worker caches the one played on first use,
+  so music keeps working offline once it has been heard.
 
 The menu/hub track uses no noise-based brushes or hats: these were replaced with rounded
 drum taps after player feedback that the percussion sounded like wind. Match crowd effects
