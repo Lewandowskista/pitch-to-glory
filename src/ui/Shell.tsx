@@ -29,6 +29,7 @@ import { ShellPortrait } from './ShellPortrait';
 import { CountBadge } from './kit/Chip';
 import { IconButtonLink, Spinner } from './kit/Button';
 import { KeyHint } from './kit/KeyHint';
+import { track } from '../analytics';
 type Item = { path: string; label: string; icon: IconName };
 const home: Item = { path: '/', label: t.app.menu, icon: 'home' };
 const careerItem: Item = { path: '/career', label: t.app.career, icon: 'career' };
@@ -144,6 +145,7 @@ export function Shell() {
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, [settings]);
+  useEffect(() => track('route_viewed', { route: location.pathname }), [location.pathname]);
   useEffect(() => {
     const label = pageLabel(location.pathname) ?? t.app.menu;
     document.title = `${label} · ${t.app.name}`;
@@ -401,6 +403,7 @@ export function Shell() {
                               ).json,
                             }));
                           await platform.saveFile(file.name, file.json, 'application/json');
+                          track('export_done', { what: 'unsaved' });
                         })
                         .catch((error) =>
                           useAppStore.getState().setSaveStatus('error', errorCode(error)),

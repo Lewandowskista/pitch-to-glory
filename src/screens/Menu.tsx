@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { errorCode } from '../persistence/errors';
 import { mayHaveSaves, persistence } from '../persistence/lazy';
@@ -12,6 +12,7 @@ import { Artwork } from '../ui/Artwork';
 import { kitArt } from '../ui/kitArt';
 import { Button, ButtonLink, StatusLine, cx } from '../ui/kit';
 import { APP_VERSION } from '../release/version';
+import { track } from '../analytics';
 import { generateGallery } from '../engine/assets/gallery';
 import { renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
@@ -458,6 +459,9 @@ export default function Menu() {
   const saved = useSavedCareer(Boolean(loaded));
   const status = loaded ?? saved;
   const navigate = useNavigate();
+  // The landing page, and whether the visit began here (the router's first location).
+  const initial = useLocation().key === 'default';
+  useEffect(() => track('landing_viewed', { initial }), [initial]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const start = (

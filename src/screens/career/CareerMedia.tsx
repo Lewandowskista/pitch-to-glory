@@ -10,6 +10,7 @@ import { CareerPage, plural, ui, useSaveLink } from './shared';
 import { BlockNote, ActionError } from './marketUi';
 import { EffectChips, mediaText, Portrait, useSocialAction } from './socialUi';
 import { LifeIcon } from './lifeIcons';
+import { track } from '../../analytics';
 
 type Filter = keyof typeof s.media.filters;
 const FILTERS = Object.keys(s.media.filters) as Filter[];
@@ -196,7 +197,10 @@ function Question({
 }) {
   const { run, error, block } = useSocialAction();
   const answer = (choiceId: string) => {
-    if (run({ type: 'answer', mediaId: item.id, choiceId })) onAnswered();
+    if (!run({ type: 'answer', mediaId: item.id, choiceId })) return;
+    const tone = item.choices.find((choice) => choice.id === choiceId)?.tone;
+    track('press_answered', { kind: item.kind, ...(tone ? { answer: tone } : {}) });
+    onAnswered();
   };
   // Number keys answer the first open question, as they pick key-moment choices.
   useEffect(() => {

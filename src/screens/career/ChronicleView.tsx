@@ -4,6 +4,7 @@ import type { Career, ChronicleEntry, Id, Player, World } from '../../model/doma
 import { Artwork } from '../../ui/Artwork';
 import { momentLink } from '../../engine/career/honours/clip';
 import { platform } from '../../platform';
+import { track } from '../../analytics';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
@@ -318,6 +319,7 @@ function ChronicleHeader({
                 blob,
                 'image/png',
               );
+              track('shared', { what: 'chronicle', method: 'file' });
               setStatus({ tone: 'success', text: h.chronicle.exported });
             } catch {
               setStatus({ tone: 'error', text: h.chronicle.exportFailed });

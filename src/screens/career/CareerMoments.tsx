@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import type { Club, Moment, World } from '../../model/domain';
 import { decodeClip, momentLink } from '../../engine/career/honours';
 import { platform } from '../../platform';
+import { track } from '../../analytics';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
@@ -147,6 +148,7 @@ export function MomentCard({
             className="button secondary"
             onClick={async () => {
               const result = await platform.shareLink(`${window.location.origin}${path}`, kind);
+              if (result !== 'failed') track('shared', { what: 'moment', method: result });
               setStatus(
                 result === 'shared'
                   ? { tone: 'success', text: h.moments.shared }

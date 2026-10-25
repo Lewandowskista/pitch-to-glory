@@ -42,6 +42,7 @@ import { ActionError, BlockNote, money, weekly } from './marketUi';
 import { fameName, useLifestyleAction } from './lifestyleUi';
 import { LifeIcon, type LifeIconName } from './lifeIcons';
 import { audio } from '../../audio';
+import { track } from '../../analytics';
 
 const L = CONFIG.career.lifestyle;
 
@@ -330,7 +331,9 @@ function DealCard({ world, deal, action }: { world: World; deal: Sponsorship; ac
               <Button
                 disabled={Boolean(action.block) || full}
                 onClick={() => {
-                  if (action.run({ type: 'accept-sponsor', id: deal.id })) audio.play('reward');
+                  if (!action.run({ type: 'accept-sponsor', id: deal.id })) return;
+                  track('sponsor_decided', { accepted: true, category: deal.category });
+                  audio.play('reward');
                 }}
               >
                 {l.sponsors.accept}
@@ -339,7 +342,10 @@ function DealCard({ world, deal, action }: { world: World; deal: Sponsorship; ac
               <Button
                 variant="secondary"
                 disabled={Boolean(action.block)}
-                onClick={() => action.run({ type: 'decline-sponsor', id: deal.id })}
+                onClick={() => {
+                  if (action.run({ type: 'decline-sponsor', id: deal.id }))
+                    track('sponsor_decided', { accepted: false, category: deal.category });
+                }}
               >
                 {l.sponsors.decline}
                 <span className="sr-only"> — {brand.name}</span>

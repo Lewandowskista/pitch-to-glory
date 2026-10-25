@@ -41,6 +41,7 @@ import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
 import { CrestImage, JobProgress, useRestoredWorld } from './shared';
 import { POSITIONS } from './selectors';
+import { track } from '../../analytics';
 
 const STEPS = ['identity', 'appearance', 'position', 'world', 'trial', 'confirm'] as const;
 type Step = (typeof STEPS)[number];
@@ -217,6 +218,7 @@ export default function CareerNew() {
       setParams(next, { replace: true });
     }
   }, [step, requested, job, waiting, params, setParams]);
+  useEffect(() => track('wizard_step', { step, index }), [step, index]);
   const go = (target: Step) => {
     setError('');
     setParams(withStep(params, target));
