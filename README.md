@@ -202,7 +202,7 @@ npm run test:fast    # what pull requests run; npm run test:slow for the slow ga
 npm run build        # typecheck, production build, per-route bundle budget
 npx playwright install chromium firefox webkit
 npm run test:e2e     # browser journeys under the production headers
-npm run audit        # Lighthouse quality targets
+npm run lighthouse   # Lighthouse quality targets
 npm run soak -- --seasons 1   # play a whole career season and check its invariants
 ```
 

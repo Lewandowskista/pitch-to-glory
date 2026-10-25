@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       # Analytics (docs/ANALYTICS.md): the PostHog project key and host are repository
@@ -43,11 +43,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run format:check
       - run: npm run lint
+      # Known vulnerabilities in what ships (development tooling never reaches players);
+      # Dependabot (.github/dependabot.yml) proposes updates monthly.
+      - run: npm audit --omit=dev --audit-level=high
       # Every push to main is a release: package.json's version needs patch notes, and
       # CHANGELOG.md must match them (docs/RELEASING.md).
       - run: npm run check:release
@@ -74,7 +77,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npx vitest run --project fast --shard=${{ matrix.shard }}/3
@@ -93,7 +96,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npx vitest run --project slow --shard=${{ matrix.shard }}/2
@@ -113,7 +116,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - uses: actions/download-artifact@v4
@@ -139,7 +142,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
@@ -162,6 +165,7 @@ jobs:
       PROJECT: pitch-to-glory
       WRANGLER: wrangler@4.148.0
     steps:
+      # No checkout in this job, so no .nvmrc to read: keep this in step with it.
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

@@ -31,7 +31,7 @@
     "check:save-shape": "node --import tsx scripts/check-save-shape.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "audit": "node scripts/audit.mjs",
+    "lighthouse": "node scripts/lighthouse.mjs",
     "analytics:dashboards": "node --import tsx scripts/analytics-dashboards.ts",
     "raster": "node scripts/raster.mjs",
     "render:music": "node --import tsx scripts/render-music.ts"
