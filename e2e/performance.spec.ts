@@ -77,6 +77,8 @@ interface Row {
   profile: string;
   importMs: number;
   hubReadyMs: number;
+  /** The cold hub load until its first-of-the-day challenge refresh is saved. */
+  hubSavedMs: number;
   calendarMs: number;
   inboxMs: number;
   /** The slowest interaction's event duration (Event Timing), a stand-in for INP. */
@@ -212,7 +214,9 @@ for (const fixture of FIXTURES)
 
       // The hub, from a cold load of the saved career, traced by thread.
       let hubReadyMs = 0;
+      let hubStarted = 0;
       const hubThreads = await traceThreads(browser, page, async () => {
+        hubStarted = Date.now();
         hubReadyMs = await timed(async () => {
           await page.goto('/career?save=1');
           await expect(page.getByRole('region', { name: 'Needs you' })).toBeVisible({
@@ -221,7 +225,11 @@ for (const fixture of FIXTURES)
         });
       });
       const hubMainJsKB = await mainThreadJsKB(page);
+      // The first hub load of a day refreshes the daily challenges, a world change that is
+      // saved (finding P3, step 3.4): past the autosave delay, until saved.
+      await page.waitForTimeout(600);
       await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 60000 });
+      const hubSavedMs = Date.now() - hubStarted;
       const loading = await perf(page);
 
       // The agenda and a long inbox, through the page tabs.
@@ -328,6 +336,7 @@ for (const fixture of FIXTURES)
         profile,
         importMs,
         hubReadyMs,
+        hubSavedMs,
         calendarMs,
         inboxMs,
         interactionMs,
@@ -400,3 +409,58 @@ for (const fixture of FIXTURES)
         frames: true,
       });
     });
+
+/**
+ * Season simulation on the late save (the 1.0 budget's "season simulation, desktop" row): the
+ * rest of the season auto-played from the hub, until the season is complete and saved. The late
+ * fixture stands in week 34 of 60, so the per-week time is reported too, with the whole
+ * 60-week season it implies.
+ */
+test('late career · season · desktop', async ({ page, browser, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Tracing and memory are Chromium-only');
+  const path = 'artifacts/performance/late.json';
+  test.skip(!existsSync(path), `Run npm run perf:fixtures to create ${path}`);
+  test.setTimeout(900000);
+  await page.setViewportSize(PROFILES.desktop.viewport);
+  const cdp = await page.context().newCDPSession(page);
+  await page.goto('/saves');
+  await page.locator('.slot-card').nth(0).getByLabel('Import backup — Slot 1').setInputFiles(path);
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 120000 });
+  const workers = await attachWorkers(cdp, 1);
+  await page.goto('/career?save=1');
+  await expect(page.getByRole('region', { name: 'Needs you' })).toBeVisible({ timeout: 120000 });
+  await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 60000 });
+  const stopHeap = samplePeak(workers.heap);
+  let seasonMs = 0;
+  let savedMs = 0;
+  const threads = await traceThreads(browser, page, async () => {
+    const started = Date.now();
+    await page.getByRole('button', { name: 'Simulate the season', exact: true }).click();
+    await page.getByRole('button', { name: 'Auto-play my matches', exact: true }).click();
+    await expect(page.getByText('Season complete', { exact: true }).first()).toBeVisible({
+      timeout: 840000,
+    });
+    seasonMs = Date.now() - started;
+    await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 60000 });
+    savedMs = Date.now() - started;
+  });
+  const peakHeapMB = Math.round((await stopHeap()) / 1e6);
+  const weeks = 60 - 34 + 1;
+  const result = {
+    fixture: 'late',
+    profile: 'desktop',
+    season: {
+      weeks,
+      seasonMs,
+      savedMs,
+      perWeekMs: Math.round(savedMs / weeks),
+      fullSeasonMs: Math.round((savedMs / weeks) * 60),
+      threads,
+      peakHeapMB,
+      budgetMs: 75000,
+    },
+  };
+  console.log(JSON.stringify(result));
+  await mkdir('artifacts/performance', { recursive: true });
+  await writeFile('artifacts/performance/season.json', JSON.stringify(result, null, 2));
+});
