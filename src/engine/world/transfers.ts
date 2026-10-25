@@ -43,6 +43,15 @@ function weakestSlot(world: World, club: Club): Weakest | null {
   return weakest;
 }
 
+/**
+ * Sort players in place, best first (ties by id). Each ability is worked out once before
+ * sorting rather than inside the comparator (review P5); the order is the same.
+ */
+function byAbility(players: Player[]): Player[] {
+  const ability = new Map(players.map((player) => [player, playerAbility(player)]));
+  return players.sort((a, b) => ability.get(b)! - ability.get(a)! || (a.id < b.id ? -1 : 1));
+}
+
 /** Move a player between clubs for a fee, with fresh terms at the buyer. */
 export function transferPlayer(
   world: World,
@@ -58,10 +67,9 @@ export function transferPlayer(
   joinSquad(world, player, buyer);
   const old = player.contractId;
   if (old) delete world.contracts[old];
-  const rank = buyer.playerIds
-    .map((id) => world.players[id]!)
-    .sort((a, b) => playerAbility(b) - playerAbility(a) || (a.id < b.id ? -1 : 1))
-    .findIndex((entry) => entry.id === player.id);
+  const rank = byAbility(buyer.playerIds.map((id) => world.players[id]!)).findIndex(
+    (entry) => entry.id === player.id,
+  );
   const contract = contractTerms(
     world,
     buyer,
@@ -110,8 +118,7 @@ export function aiTransferWindow(world: World, rng: Rng): number {
     list.push(player);
     byPosition.set(player.primaryPosition, list);
   }
-  for (const list of byPosition.values())
-    list.sort((a, b) => playerAbility(b) - playerAbility(a) || (a.id < b.id ? -1 : 1));
+  for (const list of byPosition.values()) byAbility(list);
   const sales = new Map<Id, number>();
   let moves = 0;
   for (const buyer of clubs) {

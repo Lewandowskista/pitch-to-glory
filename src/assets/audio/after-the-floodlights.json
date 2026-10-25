@@ -1,0 +1,16 @@
+{
+  "title": "After the Floodlights",
+  "frames": 3233684,
+  "sampleRate": 32000,
+  "wavSha256": "fe24e356ebfdfb51a3be2701e385b13f26c95b9c28092e5b1cebac783d133077",
+  "files": {
+    "after-the-floodlights.ogg": {
+      "bytes": 584741,
+      "sha256": "e9435d0445de168a3b97838cd836842eb778d824c3d17fa861cf3a90ddc76036"
+    },
+    "after-the-floodlights.m4a": {
+      "bytes": 703085,
+      "sha256": "0bb023bd6e00ad4ff5833bbe6eb53415a6aff6331133dfb8beb36a8f40c02dfd"
+    }
+  }
+}

@@ -10,6 +10,7 @@ import type { Club, Point, ReplayFrame } from '../../model/domain';
 import { isPassBeat } from './cam';
 import { OFF_ANIMATION } from '../../engine/match/parked';
 import { kitAppearance } from './pitchKit';
+import { pitchQuality } from './pitchQuality';
 import { preparePlayback, samplePlayback, type Playback } from './playback';
 import {
   ballAtFeet,
@@ -164,9 +165,11 @@ export async function createPitchScene(
     width: Math.max(1, host.clientWidth),
     height: Math.max(1, host.clientHeight),
     background: pitchArt.grass,
-    antialias: true,
     autoDensity: true,
-    resolution: Math.min(window.devicePixelRatio || 1, 2),
+    ...pitchQuality(
+      window.devicePixelRatio || 1,
+      (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+    ),
   });
   host.appendChild(app.canvas);
   app.canvas.setAttribute('aria-hidden', 'true');

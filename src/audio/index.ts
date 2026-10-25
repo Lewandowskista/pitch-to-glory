@@ -14,6 +14,7 @@ let loading: Promise<Player> | null = null;
 let settings: AudioSettings | null = null;
 let crowdLevel: number | null = null;
 let warm: SoundName[] = [];
+let musicAsked = false;
 
 export const audio = {
   configure(next: AudioSettings): void {
@@ -34,6 +35,7 @@ export const audio = {
     loading = import('./player').then((loaded) => {
       player = loaded;
       void loaded.prepare(['tap', 'toggle', 'confirm', ...warm]);
+      if (musicAsked) loaded.allowMusic();
       if (settings) loaded.configure(settings);
       loaded.unlock();
       if (crowdLevel !== null) loaded.crowd(crowdLevel);
@@ -45,6 +47,14 @@ export const audio = {
   },
   get ready(): boolean {
     return player !== null;
+  },
+  /** On a data saver, the music downloads only once the player asks (Settings). */
+  allowMusic(): void {
+    musicAsked = true;
+    player?.allowMusic();
+  },
+  get musicAllowed(): boolean {
+    return musicAsked;
   },
   /** Render sounds ahead of need, such as the match sounds when the match screen opens. */
   async prepare(names: SoundName[]): Promise<void> {

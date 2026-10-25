@@ -23,6 +23,8 @@ export interface PlatformAdapter {
    * finish after the page has gone.
    */
   send(url: string, body: string, hiding?: boolean): Promise<boolean>;
+  /** Whether the device asks sites to save data (Save-Data, or `prefers-reduced-data`). */
+  prefersReducedData(): boolean;
 }
 export type PreferenceScope = 'settings' | 'analytics';
 const PREFERENCE_KEYS: Record<PreferenceScope, string> = {
@@ -145,5 +147,17 @@ export const platform: PlatformAdapter = {
         }
       },
     );
+  },
+  prefersReducedData() {
+    try {
+      const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
+        .connection;
+      return (
+        connection?.saveData === true ||
+        (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-data: reduce)').matches)
+      );
+    } catch {
+      return false;
+    }
   },
 };

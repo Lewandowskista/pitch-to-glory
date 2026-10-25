@@ -90,7 +90,8 @@ export const filterButton = (pressed: boolean) =>
  * exactly like the world and match screens.
  */
 export function useRestoredWorld(): { loading: boolean; error: string; retry: () => void } {
-  const world = useAppStore((s) => s.world);
+  // Whether a world is loaded, not the world: callers do not re-render for its every change.
+  const world = useAppStore((s) => s.world !== null);
   const job = useAppStore((s) => s.worldJob);
   const active = useAppStore((s) => s.activeSave);
   const [params, setParams] = useSearchParams();
