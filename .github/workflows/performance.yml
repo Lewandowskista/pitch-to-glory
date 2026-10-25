@@ -54,7 +54,8 @@ jobs:
       - run: npm run profile -- --seed review-b --position CM
       - run: npm run profile -- --seed review-c --position CB
       - run: npm run profile -- --check
-      - run: npm run profile:match -- --matches 300
+      # Two seeds: the 1.0 "choices matter" target is judged on both (step 2.3).
+      - run: npm run profile:match -- --matches 300 --seeds match-profile,match-profile-b
         if: always()
       - run: npm run profile:match -- --check
         if: always()
