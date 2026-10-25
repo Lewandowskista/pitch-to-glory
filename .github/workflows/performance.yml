@@ -53,6 +53,10 @@ jobs:
       - run: npm run profile -- --seed review-a --position ST
       - run: npm run profile -- --seed review-b --position CM
       - run: npm run profile -- --seed review-c --position CB
+      # For the 1.0 targets (step 2.3): a keeper for honours fairness, and a sponsor-accepting
+      # career for the economy (C19; judged by the targets only, not the gates).
+      - run: npm run profile -- --seed review-d --position GK
+      - run: npm run profile -- --seed review-a --position ST --policy sponsor
       - run: npm run profile -- --check
       # Two seeds: the 1.0 "choices matter" target is judged on both (step 2.3).
       - run: npm run profile:match -- --matches 300 --seeds match-profile,match-profile-b

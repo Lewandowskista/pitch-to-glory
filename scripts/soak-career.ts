@@ -42,6 +42,12 @@ import { retirementState } from '../src/engine/career/honours/retirement';
 import { acceptGoal, goalOffer } from '../src/engine/career/coaching';
 import { acceptPromise, currentPromise } from '../src/engine/career/stories/promise';
 import { careerInvariants } from '../src/engine/career/invariants';
+import { applyLifestyleAction } from '../src/engine/career/lifestyle';
+import {
+  answerStory,
+  offeredStory,
+  STORYLET_BY_KIND,
+} from '../src/engine/career/stories/storylets';
 import { createSave, DEFAULT_SETTINGS, parseSave } from '../src/persistence/schema';
 
 /** The policy retires at the first season end from this age, within the game's own rules. */
@@ -123,11 +129,16 @@ export interface PolicyState {
   requestedLoan: boolean;
   requestedTransfer: boolean;
   moved: boolean;
+  /** Press questions and story scenes answered so far, for the rotating policies. */
+  answered?: number;
+  stories?: number;
 }
 export const freshPolicy = (): PolicyState => ({
   requestedLoan: false,
   requestedTransfer: false,
   moved: false,
+  answered: 0,
+  stories: 0,
 });
 /**
  * How the headless player plays the career (the career profile's policies, review phase 2,
@@ -143,6 +154,15 @@ export interface DecideOptions {
   requestTransferAt?: number | null;
   /** Ask for loans: whenever allowed, only while short of minutes, or never. */
   loans?: 'always' | 'minutes' | 'never';
+  /**
+   * Sponsorship offers (finding C19): accept every one the fame level allows and keep the
+   * sponsor commitment while a deal runs, or leave them to lapse (the default).
+   */
+  sponsors?: 'accept' | 'ignore';
+  /** Story scenes (C19): answer with each choice in turn, or let them lapse to their default. */
+  stories?: 'rotate' | 'lapse';
+  /** Press answers (C19): always the first tone offered (the default), or each tone in turn. */
+  press?: 'first' | 'rotate';
 }
 export function decide(
   input: World,
@@ -164,13 +184,24 @@ export function decide(
     note(`recovery-${plan}`);
   }
   for (const item of world.media.filter((entry) => entry.choices.length && entry.answer === null)) {
+    const turn = options.press === 'rotate' ? (state.answered ?? 0) % item.choices.length : 0;
     world = applySocialAction(world, {
       type: 'answer',
       mediaId: item.id,
-      choiceId: item.choices[0]!.id,
+      choiceId: item.choices[turn]!.id,
     });
-    note('press');
+    state.answered = (state.answered ?? 0) + 1;
+    note(options.press === 'rotate' ? `press-${item.choices[turn]!.tone}` : 'press');
   }
+  const story = options.stories === 'rotate' ? offeredStory(world) : null;
+  if (story) {
+    const choices = STORYLET_BY_KIND[story.kind].choices;
+    const choice = choices[(state.stories ?? 0) % choices.length]!;
+    world = answerStory(world, story.id, choice.id);
+    state.stories = (state.stories ?? 0) + 1;
+    note(`story-${story.kind}`);
+  }
+  if (options.sponsors === 'accept') world = acceptSponsors(world, note);
   const window = windowState(world).open && world.phase === 'active';
   const club = world.clubs[world.players[career.playerId]!.clubId!]!;
   for (const { id } of openOffers(world)) {
@@ -248,6 +279,30 @@ export function decide(
     world = unlockSkill(world, skill.id);
     note('skill');
   }
+  return world;
+}
+/**
+ * Accept every open sponsorship the fame level allows, and keep the sponsor commitment while a
+ * deal runs (the sponsor-accepting policy, finding C19).
+ */
+function acceptSponsors(input: World, note: (action: string) => void): World {
+  let world = input;
+  for (const deal of world.sponsorships.filter((entry) => entry.status === 'offered')) {
+    try {
+      world = applyLifestyleAction(world, { type: 'accept-sponsor', id: deal.id });
+      note('accept-sponsor');
+    } catch {
+      // Expired, or as many deals as the fame level allows: the offer lapses.
+    }
+  }
+  const plan = world.career!.training;
+  const commitments = plan.commitments ?? [];
+  const active = world.sponsorships.some((deal) => deal.status === 'active');
+  if (active && !commitments.includes('sponsor'))
+    plan.commitments = ['sponsor' as const, ...commitments].slice(
+      0,
+      CONFIG.career.commitments.slots,
+    );
   return world;
 }
 const activeLoanOf = (world: World) =>
