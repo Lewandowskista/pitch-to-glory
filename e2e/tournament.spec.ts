@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import { expect, nationalCareer, skipTutorial, test } from './support';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -16,17 +16,6 @@ import type { World } from '../src/model/domain';
  */
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 

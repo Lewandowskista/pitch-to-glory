@@ -20,8 +20,6 @@ export const IDENTITIES: readonly CountryIdentity[] = [
   PORTUGAL,
 ];
 
-export { CONTINENTAL } from './continental';
-
 /**
  * A copy of the profile carrying the identity's display names and real-competition
  * references. Rules are untouched, so the profile's rule fingerprint is unchanged.

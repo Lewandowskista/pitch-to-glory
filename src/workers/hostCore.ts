@@ -183,7 +183,14 @@ export function createWorldHost(
           post({ type: 'error', requestId: message.requestId, code: 'stale' });
           return;
         }
-        void run(message);
+        // A throw outside the job's own error handling (such as encoding the result) still
+        // answers, so the tab never waits on a job that has stopped.
+        run(message).catch(() => {
+          job = null;
+          world = null;
+          token = null;
+          post({ type: 'error', requestId: message.requestId, code: 'simulation' });
+        });
         return;
       case 'committed':
         if (job?.requestId === message.requestId) {

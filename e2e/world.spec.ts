@@ -1,26 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, readBackup, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import { expect, readBackup, skipTutorial, test } from './support';
 import { mkdir, stat } from 'node:fs/promises';
 import { CONFIG } from '../src/engine/config';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  await page.addInitScript(() => {
-    window.addEventListener('unhandledrejection', (event) => {
-      throw new Error(String(event.reason));
-    });
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 async function generate(page: Page, seed = 'browser-world') {
   await page.goto('/world');

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
@@ -6,7 +6,7 @@ import { autoPlayCareerFixture } from '../src/engine/career/matches';
 import { addXp, xpToNext } from '../src/engine/career/progression';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
-import { careerTabs, isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
+import { careerTabs, expect, nationalCareer, skipTutorial, test } from './support';
 
 /**
  * Phase 3.2: the hub puts the next action first and lists what needs the player in order;
@@ -64,17 +64,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 });
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 
 async function importCareer(page: Page, name: string) {

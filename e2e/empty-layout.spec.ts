@@ -1,6 +1,5 @@
-import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
-import { skipTutorial } from './support';
+import { expect, settled, skipTutorial, test } from './support';
 
 for (const layout of [
   { name: 'wide', width: 1920, height: 1080, large: false },
@@ -25,7 +24,7 @@ for (const layout of [
     await expect(empty).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     if (layout.large) await expect(page.locator('html')).toHaveAttribute('style', /130%/);
-    await page.waitForTimeout(250);
+    await settled(page);
     const gap = await empty.evaluate((panel) => {
       const body = panel.querySelector('p')!.getBoundingClientRect();
       const action = panel.querySelector('a')!.getBoundingClientRect();
@@ -39,7 +38,7 @@ for (const layout of [
     await empty.getByRole('link', { name: 'Open world', exact: true }).click();
     const creation = page.locator('.world-create');
     await expect(creation).toBeVisible();
-    await page.waitForTimeout(250);
+    await settled(page);
     const bounds = await creation.evaluate((panel) => {
       const box = panel.getBoundingClientRect();
       const action = panel.querySelector('button')!.getBoundingClientRect();

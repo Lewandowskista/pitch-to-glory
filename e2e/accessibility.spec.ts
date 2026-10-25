@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import { expect, nationalCareer, settled, skipTutorial, test } from './support';
 import { readFileSync } from 'node:fs';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
@@ -7,17 +7,6 @@ import type { World } from '../src/model/domain';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 
@@ -124,7 +113,7 @@ test('every screen passes axe in both themes and fits a phone', async ({ page, b
     // Let slot listings and other first-load states settle, and keep the pointer off controls.
     await page.waitForLoadState('networkidle');
     await page.mouse.move(0, 0);
-    await page.waitForTimeout(250);
+    await settled(page);
   };
   if (browserName !== 'chromium') {
     // The other engines render every screen without errors (checked after each test).

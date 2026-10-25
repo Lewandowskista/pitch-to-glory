@@ -1,16 +1,16 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import {
   careerTabs,
+  expect,
   groupLinkName,
-  isAbortedLoad,
-  isBrowserNoise,
   nationalCareer,
   openCareerPage,
   skipTutorial,
   tabName,
+  test,
 } from './support';
 
 /**
@@ -68,17 +68,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 });
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 
 async function importCareer(page: Page, fontScale = 1) {

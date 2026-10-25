@@ -948,6 +948,3 @@ export const KEEPER_ATTRIBUTES: readonly GoverningAttribute[] = [
   'commandOfArea',
   'aerialReach',
 ];
-export const OUTCOME_COMMENTARY = [
-  ...new Set(SITUATIONS.flatMap((s) => s.choices.map((c) => c.commentary))),
-];

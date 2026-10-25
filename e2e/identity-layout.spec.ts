@@ -1,14 +1,14 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import {
   backupFile,
   type BackupPayload,
-  isAbortedLoad,
-  isBrowserNoise,
+  expect,
   JOURNEY_DRAFT,
   nationalCareer,
   openCareerPage,
   skipTutorial,
+  test,
 } from './support';
 import { validateDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -78,17 +78,6 @@ test.beforeAll(() => {
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 

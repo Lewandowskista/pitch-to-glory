@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCareerFixture } from '../src/engine/career/matches';
@@ -6,7 +6,7 @@ import { acceptGoal } from '../src/engine/career/coaching';
 import { acceptPromise, currentPromise, promiseWeek } from '../src/engine/career/stories/promise';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
-import { isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
+import { expect, nationalCareer, skipTutorial, test } from './support';
 
 /**
  * Phase 6: the manager's six-week challenge in the browser, from the offer through acceptance
@@ -54,17 +54,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 });
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 async function importSave(page: Page, name: string) {
   await page.goto('/saves');

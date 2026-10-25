@@ -1,22 +1,11 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import { expect, skipTutorial, test } from './support';
 import { readFileSync } from 'node:fs';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 

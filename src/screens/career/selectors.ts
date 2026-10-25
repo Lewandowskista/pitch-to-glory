@@ -4,7 +4,6 @@
 import type {
   Career,
   CareerMatchRecord,
-  Club,
   Player,
   Position,
   TrainingPlan,
@@ -34,13 +33,6 @@ export const POSITIONS: readonly Position[] = [
   'RW',
   'ST',
 ];
-
-/** Replace the career's training plan, sharing the rest of the world. */
-export function withTraining(world: World, training: TrainingPlan): World {
-  const career = world.career;
-  if (!career) throw new Error('This world has no career');
-  return { ...world, career: { ...career, training: structuredClone(training) } };
-}
 
 export interface SeasonLine {
   season: number;
@@ -173,9 +165,6 @@ export function competitionName(world: World, competitionId: string): string {
       : undefined) ??
     competitionId
   );
-}
-export function clubOf(world: World, player: Player): Club | undefined {
-  return player.clubId ? world.clubs[player.clubId] : undefined;
 }
 
 /** Qualitative potential band (index into the copy's band list). */

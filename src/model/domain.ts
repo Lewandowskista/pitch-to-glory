@@ -2032,19 +2032,3 @@ export interface SaveFile {
   revision: number;
   payload: SavePayload;
 }
-export interface SaveV1 {
-  format: 'pitch-to-glory';
-  schemaVersion: 1;
-  slot: SlotId;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  seed: string;
-}
-export interface SlotSummary {
-  slot: SlotId;
-  name: string;
-  updatedAt: string;
-  kind: SavePayload['kind'];
-  revision: number;
-}

@@ -1,4 +1,4 @@
-import type { Attributes, KeeperAttributes, Position } from '../../model/domain';
+import type { Position } from '../../model/domain';
 import type { Rng } from '../rng';
 
 /** Country names in new worlds (real countries, fictional clubs). */
@@ -131,55 +131,6 @@ export const POSITIONS: readonly Position[] = [
   'RW',
   'ST',
   'ST',
-];
-export const ATTRIBUTE_KEYS: readonly (keyof Attributes)[] = [
-  'finishing',
-  'passing',
-  'dribbling',
-  'firstTouch',
-  'crossing',
-  'heading',
-  'tackling',
-  'longShots',
-  'setPieces',
-  'pace',
-  'acceleration',
-  'stamina',
-  'strength',
-  'agility',
-  'jumping',
-  'vision',
-  'composure',
-  'positioning',
-  'decisions',
-  'workRate',
-  'leadership',
-  'aggression',
-];
-export const KEEPER_KEYS: readonly (keyof KeeperAttributes)[] = [
-  'handling',
-  'reflexes',
-  'diving',
-  'oneOnOnes',
-  'kicking',
-  'commandOfArea',
-  'aerialReach',
-];
-export const PHYSICAL_KEYS: readonly (keyof Attributes)[] = [
-  'pace',
-  'acceleration',
-  'stamina',
-  'strength',
-  'agility',
-  'jumping',
-];
-export const MENTAL_KEYS: readonly (keyof Attributes)[] = [
-  'vision',
-  'composure',
-  'positioning',
-  'decisions',
-  'workRate',
-  'leadership',
 ];
 export function personName(rng: Rng): string {
   return `${rng.pick(FIRST_NAMES)} ${rng.pick(SURNAMES)}`;

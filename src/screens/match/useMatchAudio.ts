@@ -41,7 +41,7 @@ export function useMatchAudio(session: MatchSession | null, playing: boolean): v
   const lastCount = useRef(count);
 
   useEffect(() => {
-    audio.prepare(MATCH_SOUNDS);
+    void audio.prepare(MATCH_SOUNDS);
     return () => audio.crowd(null);
   }, []);
 

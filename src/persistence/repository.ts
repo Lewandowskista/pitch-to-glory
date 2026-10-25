@@ -7,7 +7,7 @@ import type { WorldPatch } from '../workers/worldPatch';
 // The local save repository with the tab repository's interface (browserRepository.ts), for
 // Node tests, tools and migrations. The app never loads this on the main thread: there,
 // IndexedDB and validation belong to the persistence worker.
-export { SaveDatabase, type Lease } from './localRepository';
+export { SaveDatabase } from './localRepository';
 
 export class SaveRepository extends LocalSaveRepository {
   constructor(database: SaveDatabase, tabOwner?: string) {

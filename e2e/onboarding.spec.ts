@@ -1,21 +1,8 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, nationalCareer } from './support';
+import type { Page } from '@playwright/test';
+import { expect, nationalCareer, test } from './support';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 
 // No skipTutorial here: these journeys are about the tutorial.
-test.beforeEach(async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
-});
 test.use({ actionTimeout: 15000 });
 
 let cached: string | undefined;
@@ -212,11 +199,14 @@ test('lo-fi loop plays after a gesture and pauses independently of other channel
     });
   // The loop must render and load everywhere.
   await expect.poll(musicState, { timeout: 90000 }).toMatch(/^playing$|\D(9\d|\d{3})s loaded/);
-  let state = await musicState();
-  for (let wait = 0; state !== 'playing' && wait < 40; wait++) {
-    await page.waitForTimeout(250);
-    state = await musicState();
-  }
+  // Then up to ten seconds to start: a runner without an audio device never does (below).
+  const state = await expect
+    .poll(musicState, { timeout: 10000 })
+    .toBe('playing')
+    .then(
+      () => 'playing',
+      () => musicState(),
+    );
   test.skip(
     state.startsWith('context suspended') && Boolean(process.env.CI),
     `The CI runner has no audio output device, so the browser keeps its audio context suspended after the gesture; the loop rendered and loaded (${state}).`,

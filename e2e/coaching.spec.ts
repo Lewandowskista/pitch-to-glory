@@ -1,10 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { DecisionSample } from '../src/model/domain';
-import { isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
+import { expect, nationalCareer, skipTutorial, test } from './support';
 
 /**
  * Phase 5: the manager's formation and the selection reasons on the Club page and in the
@@ -51,17 +51,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 });
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 async function importCareer(page: Page) {
   await page.goto('/saves');

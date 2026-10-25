@@ -61,7 +61,3 @@ export function shade(color: Hex, amount: number): Hex {
     })
     .join('')}` as Hex;
 }
-
-export function isHex(color: string): color is Hex {
-  return /^#[0-9a-f]{6}$/i.test(color);
-}

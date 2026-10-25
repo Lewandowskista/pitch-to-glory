@@ -83,6 +83,7 @@ const editTextEn = {
     import: 'Import edits',
     importLabel: 'Import an edit file',
     exported: 'Edit file saved.',
+    exportFailed: 'The edit file could not be saved in this browser.',
     imported: 'Applied {applied} edits.',
     importedSkipped: 'Applied {applied} edits; {skipped} did not match anything in this world.',
     invalid: 'That file is not a Pitch to Glory edit file.',

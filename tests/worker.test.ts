@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { World } from '../src/model/domain';
 import {
   CheckpointFailed,
@@ -392,6 +392,33 @@ describe('the long-lived world worker', () => {
     expect(await until((r) => r.type === 'error' && r.requestId === 'e')).toMatchObject({
       code: 'stale',
     });
+  });
+  it('answers a job that fails after simulating, instead of leaving the tab waiting', async () => {
+    const responses: HostResponse[] = [];
+    const receive = createWorldHost(
+      (response) => {
+        // Publishing the result fails, as a postMessage of a too-large world could.
+        if (response.type === 'result') throw new Error('DataCloneError');
+        responses.push(structuredClone(response));
+      },
+      operations,
+      { yieldControl: async () => {} },
+    );
+    receive({ type: 'sync', token: 1, world: initial() });
+    receive({
+      type: 'job',
+      requestId: 'r',
+      job: { type: 'simulate-week' },
+      token: 1,
+      resultToken: 2,
+      checkpoints: false,
+    });
+    await vi.waitFor(() =>
+      expect(responses.find((r) => r.type === 'error')).toMatchObject({
+        requestId: 'r',
+        code: 'simulation',
+      }),
+    );
   });
   it('encodes its world for a whole save as the exact JSON', async () => {
     const { send, until } = host();

@@ -22,7 +22,7 @@ Pull requests run the checks but never deploy. Each browser test gets one retry:
 Two scheduled workflows run longer checks off the critical path and keep their reports as artifacts:
 
 - `.github/workflows/endurance.yml`: five seasons of one career every night, run twice to prove the seed reproduces, and two full careers (retirement, then the child's career) every Sunday (`npm run soak`). Every night it also runs the slow unit-test project (`npm run test:slow`).
-- `.github/workflows/performance.yml`: every Saturday, career saves from `npm run perf:fixtures`, timed journeys with frame pacing and interaction latency (`npm run test:performance`), and Lighthouse on loaded career pages (`npm run audit -- --populated`).
+- `.github/workflows/performance.yml`: every Saturday, career saves from `npm run perf:fixtures`, timed journeys with frame pacing and interaction latency (`npm run test:performance`), and Lighthouse on loaded career pages (`npm run lighthouse -- --populated`).
 
 Both can be started from the **Actions** tab.
 
@@ -76,9 +76,9 @@ npm run format:check && npm run lint && npm test
 npm run build
 npx playwright install chromium firefox webkit
 npm run test:e2e
-npm run audit          # Lighthouse: mobile > 85, desktop > 90, accessibility > 95
+npm run lighthouse     # Lighthouse: mobile > 85, desktop > 90, accessibility > 95
 npm run soak -- --seasons 5 --repeat   # long careers, reproducibility and save size
-npm run perf:fixtures && npm run test:performance && npm run audit -- --populated-only
+npm run perf:fixtures && npm run test:performance && npm run lighthouse -- --populated-only
 ```
 
 Physical-device checks are manual: see [DEVICE-ACCEPTANCE.md](DEVICE-ACCEPTANCE.md).

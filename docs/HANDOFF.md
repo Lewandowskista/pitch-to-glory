@@ -214,7 +214,7 @@ npm test
 npm run build
 npx playwright install chromium firefox webkit
 npm run test:e2e
-npm run audit
+npm run lighthouse
 ```
 
 On this Windows PowerShell installation, use `npm.cmd`/`npx.cmd` if script shims are blocked. Browser tests start a production preview on **4173**; Lighthouse uses **4180**. Build before browser tests, avoid unrelated servers occupying those ports, and run Lighthouse after browser/season workloads finish. The full browser suite includes large real national-world saves and takes several minutes. PWA registration is production-only; offline review requires one connected visit using `npm run preview`.

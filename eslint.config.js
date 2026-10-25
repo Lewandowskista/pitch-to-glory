@@ -26,6 +26,14 @@ const randomSyntax = {
   message: 'Use a seedable engine RNG.',
 };
 
+const CLOCK_MESSAGE =
+  'The engine must not read the clock: take the date or time as an argument (seedable, replayable).';
+const clockSyntax = [
+  // `new Date()` and `Date()` read the clock; `new Date(value)` only converts an input.
+  "NewExpression[callee.name='Date'][arguments.length=0]",
+  "CallExpression[callee.name='Date']",
+].map((selector) => ({ selector, message: CLOCK_MESSAGE }));
+
 export default tseslint.config(
   {
     ignores: [
@@ -44,6 +52,31 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   { languageOptions: { globals: { ...globals.browser, ...globals.node } } },
+  {
+    // Type-aware rules (review K11): every promise is awaited, returned, or handed off with
+    // `void` after its rejection is handled, and none is passed where a callback's result is
+    // ignored. The project service reads tsconfig.json, which covers src, tests, e2e and the
+    // TypeScript scripts.
+    files: ['**/*.{ts,tsx}'],
+    // The engine's runtime declarations belong to tsconfig.engine.json alone.
+    ignores: ['types/**'],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        {
+          // React Router types `navigate` as `void | Promise<void>` for data routers; the app
+          // uses <BrowserRouter> (src/App.tsx), whose navigate is synchronous and returns void.
+          allowForKnownSafeCalls: [
+            { from: 'package', package: 'react-router', name: 'NavigateFunction' },
+          ],
+        },
+      ],
+      '@typescript-eslint/no-misused-promises': 'error',
+    },
+  },
   {
     files: ['src/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': hooks },
@@ -64,6 +97,14 @@ export default tseslint.config(
   {
     files: ['src/engine/**/*.ts'],
     rules: {
+      // The engine is deterministic for a seed (AGENTS.md §2): no wall clock either. Dates come
+      // in as arguments and are only read or shifted (UTC arithmetic on inputs).
+      'no-restricted-syntax': ['error', randomSyntax, ...clockSyntax, ...localeSyntax],
+      'no-restricted-properties': [
+        'error',
+        { object: 'Date', property: 'now', message: CLOCK_MESSAGE },
+        { object: 'performance', property: 'now', message: CLOCK_MESSAGE },
+      ],
       // Browser-only globals: the engine must run unchanged in workers and Node.
       'no-restricted-globals': [
         'error',

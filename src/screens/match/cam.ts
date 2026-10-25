@@ -258,15 +258,6 @@ export function focusFrames(motion: {
   return frames.slice(start, end + 1);
 }
 
-/** The last completed pass in a run of keyframes up to an index, for the live trail. */
-export function lastPass(frames: readonly ReplayFrame[], upTo: number) {
-  for (let i = Math.min(upTo, frames.length - 1); i > 0; i--) {
-    const beat = frames[i]!.beat;
-    if (beat && PASS_BEATS.has(beat.kind))
-      return { index: i, from: frames[i - 1]!.ball, to: frames[i]!.ball };
-  }
-  return null;
-}
 export const isPassBeat = (kind: string | undefined) => Boolean(kind && PASS_BEATS.has(kind));
 
 /**

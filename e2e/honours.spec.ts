@@ -1,12 +1,12 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import {
   backupFile,
   careerTabs,
-  isAbortedLoad,
-  isBrowserNoise,
+  expect,
   nationalCareerSeason,
   openCareerPage,
   skipTutorial,
+  test,
 } from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
@@ -16,14 +16,6 @@ import type { Moment, World } from '../src/model/domain';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
   // No system share sheet in tests: links are copied, files downloaded.
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
@@ -37,9 +29,6 @@ test.beforeEach(async ({ page }) => {
       },
     });
   });
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 

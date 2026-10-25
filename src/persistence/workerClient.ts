@@ -8,8 +8,7 @@ import {
   type PersistenceRequest,
   type PersistenceResponse,
 } from './protocol';
-export type { SaveWriteReceipt } from './localRepository';
-export type { PersistenceOperation, PersistenceRequest, PersistenceResponse } from './protocol';
+export type { PersistenceOperation, PersistenceRequest } from './protocol';
 
 /**
  * A request the persistence worker never answered: it crashed, or stopped answering and was

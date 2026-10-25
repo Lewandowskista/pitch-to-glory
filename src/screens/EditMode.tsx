@@ -913,6 +913,47 @@ function EditFile({ world }: { world: World }) {
     players: Object.keys(edits?.players ?? {}).length,
   };
   const any = counts.clubs + counts.leagues + counts.players > 0;
+  /** Neither handler rejects: a failure is reported on the status line. */
+  const exportFile = async () => {
+    try {
+      const slug = world.seed
+        .replace(/[^a-z0-9]+/gi, '-')
+        .toLowerCase()
+        .slice(0, 40);
+      await platform.saveFile(
+        `${slug || 'world'}-edits.json`,
+        JSON.stringify(exportEdits(world), null, 2),
+        'application/json',
+      );
+      track('export_done', { what: 'edits' });
+      setFailed(false);
+      setStatus(e.file.exported);
+    } catch {
+      setFailed(true);
+      setStatus(e.file.exportFailed);
+    }
+  };
+  const importFile = async (file: File) => {
+    try {
+      const pack = parseEditPack(JSON.parse(await platform.readFile(file)));
+      const current = useAppStore.getState().world;
+      if (!current) return;
+      const result = applyEditPack(current, pack);
+      useAppStore.getState().setWorld(result.world);
+      setFailed(false);
+      setStatus(
+        result.skipped
+          ? format(e.file.importedSkipped, {
+              applied: result.applied,
+              skipped: result.skipped,
+            })
+          : format(e.file.imported, { applied: result.applied }),
+      );
+    } catch {
+      setFailed(true);
+      setStatus(e.file.invalid);
+    }
+  };
   return (
     // Before any edit this is a compact strip, so the editor starts in the first view.
     <Panel
@@ -943,24 +984,7 @@ function EditFile({ world }: { world: World }) {
       </div>
       <div className="flex flex-wrap gap-2.5">
         {any && (
-          <Button
-            variant="secondary"
-            icon="download"
-            onClick={async () => {
-              const slug = world.seed
-                .replace(/[^a-z0-9]+/gi, '-')
-                .toLowerCase()
-                .slice(0, 40);
-              await platform.saveFile(
-                `${slug || 'world'}-edits.json`,
-                JSON.stringify(exportEdits(world), null, 2),
-                'application/json',
-              );
-              track('export_done', { what: 'edits' });
-              setFailed(false);
-              setStatus(e.file.exported);
-            }}
-          >
+          <Button variant="secondary" icon="download" onClick={() => void exportFile()}>
             {e.file.export}
           </Button>
         )}
@@ -980,29 +1004,10 @@ function EditFile({ world }: { world: World }) {
             className="sr-only"
             aria-label={e.file.importLabel}
             disabled={Boolean(block)}
-            onChange={async (event) => {
+            onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = '';
-              if (!file) return;
-              try {
-                const pack = parseEditPack(JSON.parse(await platform.readFile(file)));
-                const current = useAppStore.getState().world;
-                if (!current) return;
-                const result = applyEditPack(current, pack);
-                useAppStore.getState().setWorld(result.world);
-                setFailed(false);
-                setStatus(
-                  result.skipped
-                    ? format(e.file.importedSkipped, {
-                        applied: result.applied,
-                        skipped: result.skipped,
-                      })
-                    : format(e.file.imported, { applied: result.applied }),
-                );
-              } catch {
-                setFailed(true);
-                setStatus(e.file.invalid);
-              }
+              if (file) void importFile(file);
             }}
           />
         </label>

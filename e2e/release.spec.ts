@@ -1,20 +1,8 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import { expect, skipTutorial, test } from './support';
 import { siteUrl } from '../site';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 
 /**
@@ -93,6 +81,8 @@ test('a first visit to the landing page does not download the save system', asyn
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Start a career' })).toBeVisible();
   await page.waitForLoadState('networkidle');
+  // Nothing more arrives: only time can show it. A returning player's idle preload would start
+  // within about two seconds of load (src/persistence/lazy.ts).
   await page.waitForTimeout(1500);
   // The save system's chunks: the lazily imported API and the session behind it.
   expect(scripts.filter((path) => /\/assets\/(api|session)-[\w-]+\.js$/.test(path))).toEqual([]);

@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import { expect, settled, skipTutorial, test } from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
@@ -49,17 +49,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 test.beforeEach(async ({ page }, testInfo) => {
   // The tutorial journeys show the tour; every other journey has already seen it.
   if (!testInfo.title.includes('tutorial')) await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 
 const tour = (page: Page) => page.getByTestId('tutorial');
@@ -104,7 +93,7 @@ async function keyMoment(page: Page, variant: Variant = {}) {
   await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
   await expect(page.locator('.match-choices button').first()).toBeFocused();
   // Let focus-driven scrolling and layout settle before measuring.
-  await page.waitForTimeout(400);
+  await settled(page);
 }
 /** Fraction of an element's height on screen, above the phone tab bar when there is one. */
 async function visibleShare(page: Page, selector: string, index = 0): Promise<number> {
@@ -296,7 +285,7 @@ async function tourToKeyMoment(page: Page) {
     await press(page, 'Next key moment');
     await expect(tour(page)).toContainText('A key moment');
     await expect(page.locator('.match-choices button').first()).toBeFocused();
-    await page.waitForTimeout(400);
+    await settled(page);
   };
 }
 

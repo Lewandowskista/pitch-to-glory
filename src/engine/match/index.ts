@@ -81,24 +81,10 @@ import {
   type DecisionContext,
 } from './decisions';
 export * from './types';
-export { MATCH_CONFIG } from './tuning';
 export { SITUATIONS, SITUATION_BY_ID } from './situations';
-export type { Situation, ChoiceTemplate, RatingFamily } from './situations';
-export {
-  ROLES_BY_FAMILY,
-  rolesForPosition,
-  isRoleFor,
-  halftimeRole,
-  positionFamily,
-  shiftMentality,
-} from './roles';
-export { span, attacksRightAt, type Passage } from './motion';
-export {
-  NARRATION_FAMILIES,
-  NARRATION_VARIANTS,
-  CUT_FAMILIES,
-  type NarrationFamily,
-} from './narration';
+export { rolesForPosition, positionFamily } from './roles';
+export { span, attacksRightAt } from './motion';
+export { NARRATION_FAMILIES, NARRATION_VARIANTS, CUT_FAMILIES } from './narration';
 export {
   buildChoices,
   expectedImpact,
@@ -106,15 +92,8 @@ export {
   situationWeights,
   type DecisionContext,
 } from './decisions';
-export {
-  pitchEffect,
-  pitchStateFor,
-  weatherEffect,
-  type Intensity,
-  type PitchState,
-} from './conditions';
-export { bookingRisk, cardsOfMinute, drawCard, type Card } from './discipline';
-export { PARKED, OFF_ANIMATION, isParked } from './parked';
+export { pitchEffect, weatherEffect } from './conditions';
+export { PARKED, OFF_ANIMATION } from './parked';
 
 /** Thrown before replay when a saved session was produced by a different match engine. */
 export class OutdatedMatchSessionError extends Error {
