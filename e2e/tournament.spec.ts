@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import { isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -30,7 +30,11 @@ test.afterEach(async ({ page }) => {
 });
 test.use({ actionTimeout: 15000 });
 
-/** Two engine-played seasons: the second ends before a tournament year, the player named in it. */
+/**
+ * Two engine-played seasons: the second ends before a tournament year, the player named in it.
+ * A compact legacy world: two national seasons would take minutes in Node before each run (the
+ * national tournament rules: tests/honours.test.ts and tests/qualifying*.test.ts).
+ */
 let cached: string | undefined;
 function tournamentSave(): string {
   if (cached) return cached;
@@ -197,6 +201,7 @@ test('plays a tournament match for the nation, then the rest before the next sea
 let qualifyingCached: string | undefined;
 function qualifyingSave(): string {
   if (qualifyingCached) return qualifyingCached;
+  // A compact legacy world, as above: a season and a half before the journey starts.
   const base = generateWorld('qualifying-browser', { format: 'legacy' });
   const trial = trialOffers(base, 'country:0', 'qualifying-browser')[0]!;
   let world: World = createCareer(
@@ -268,31 +273,7 @@ test('shows the nation’s qualifying group and matches on the national page', a
 let windowCached: string | undefined;
 function windowSave(): string {
   if (windowCached) return windowCached;
-  const base = generateWorld('window-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'window-browser')[0]!;
-  let world: World = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'window-browser',
-  );
+  let world: World = nationalCareer('window-browser');
   const player = world.players[world.career!.playerId]!;
   for (const key of Object.keys(player.attributes) as (keyof typeof player.attributes)[])
     player.attributes[key] = 95;

@@ -7,7 +7,7 @@ import { skipTutorial } from './support';
 
 const backups: string[] = [];
 test.beforeAll(async ({ browserName }, workerInfo) => {
-  const world = generateWorld('save-actions', { format: 'legacy' });
+  const world = generateWorld('save-actions');
   const career = createCareer(
     world,
     {

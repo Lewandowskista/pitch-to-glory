@@ -1,7 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise } from './support';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
+import { isAbortedLoad, isBrowserNoise, nationalCareer } from './support';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 
 // No skipTutorial here: these journeys are about the tutorial.
@@ -23,31 +21,7 @@ test.use({ actionTimeout: 15000 });
 let cached: string | undefined;
 function freshCareer(): string {
   if (cached) return cached;
-  const base = generateWorld('onboarding-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'onboarding-browser')[0]!;
-  const world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'onboarding-browser',
-  );
+  const world = nationalCareer('onboarding-browser');
   cached = JSON.stringify(
     createSave(1, 'First week', {
       kind: 'world',

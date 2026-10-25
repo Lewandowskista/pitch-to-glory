@@ -1,7 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import {
   autoPlayCommand,
@@ -11,35 +9,18 @@ import {
 } from '../src/engine/career/matches';
 import { applyMatchCommand, createMatchSession } from '../src/engine/match';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import {
+  isAbortedLoad,
+  isBrowserNoise,
+  nationalCareer,
+  openCareerPage,
+  skipTutorial,
+} from './support';
 
 let backup: string;
 test.beforeAll(async ({ browserName }, workerInfo) => {
   const seed = 'training-ux';
-  const base = generateWorld(seed, { format: 'legacy' });
-  const world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-    },
-    trialOffers(base, 'country:0', seed)[0]!.id,
-    seed,
-  );
+  const world = nationalCareer(seed);
   // Finish this week's selected fixtures so the real hub offers Continue, not Play.
   // This is a valid post-match career state, without editing fixtures or selection rules.
   for (let fixture = pendingCareerFixture(world); fixture; fixture = pendingCareerFixture(world)) {

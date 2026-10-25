@@ -50,7 +50,7 @@ async function accessibilityViolations(page: Page): Promise<string[]> {
 }
 
 function worldSave(): { json: string; club: string; league: string } {
-  const world = generateWorld('edit-browser', { format: 'legacy' });
+  const world = generateWorld('edit-browser');
   const save = createSave(1, 'Edit world', {
     kind: 'world',
     world,
@@ -132,9 +132,9 @@ test('renames, repaints and recrests, reverts, exports and imports edits', async
   await page
     .getByRole('region', { name: league })
     .getByLabel('Name', { exact: true })
-    .fill('Premier Division');
+    .fill('Crown Division');
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: 'Premier Division', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Crown Division', level: 2 })).toBeVisible();
 
   await expect(page.getByText('1 club · 1 league · 0 players edited')).toBeVisible();
   await page.getByLabel('Search').fill('');
@@ -170,7 +170,7 @@ test('renames, repaints and recrests, reverts, exports and imports edits', async
     timeout: 30000,
   });
   await page.goto('/world?save=1');
-  await expect(page.getByText('Premier Division').first()).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText('Crown Division').first()).toBeVisible({ timeout: 30000 });
 
   if (browserName === 'chromium') {
     for (const scheme of ['light', 'dark'] as const) {

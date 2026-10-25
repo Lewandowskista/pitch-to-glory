@@ -1,4 +1,65 @@
 import type { ConsoleMessage, Page } from '@playwright/test';
+import type { World } from '../src/model/domain';
+import { generateWorld } from '../src/engine/world/generate';
+import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { buildNationalCareer, playNationalCareer } from '../tests/support/fixtures';
+import { fixtureDirectory, fixturePath, writeFixture } from '../tests/support/store';
+
+/** The career player of the journeys: an English 17-year-old striker. */
+export const JOURNEY_DRAFT: CareerDraft = {
+  name: 'Robin Vale',
+  avatar: {
+    face: 1,
+    skin: 2,
+    hair: 3,
+    hairColor: 4,
+    facialHair: 0,
+    eyebrows: 1,
+    eyes: 2,
+    accessory: 3,
+  },
+  nationalityId: 'country:0',
+  position: 'ST',
+  foot: 'left',
+  age: 17,
+  archetype: 'finisher',
+};
+/**
+ * A career as a new player gets one: a national world, the only format the game creates, with
+ * the career at the first trial club its nationality offers (release 1.0 plan, step 2.1). It
+ * takes about a second here, and its save (about 40 MB) a few seconds to import in a browser.
+ */
+export function nationalCareer(seed: string, draft: Partial<CareerDraft> = {}): World {
+  const base = generateWorld(seed);
+  const full = { ...JOURNEY_DRAFT, ...draft };
+  const trial = trialOffers(base, full.nationalityId, seed)[0]!;
+  return createCareer(base, full, trial.id, seed);
+}
+/**
+ * A save written to a file for `setInputFiles`, which takes a buffer of at most 50 MB: a national
+ * world after a played season is larger. Returns the file's path.
+ */
+export function backupFile(name: string, json: string): string {
+  mkdirSync('artifacts', { recursive: true });
+  const path = `artifacts/${name}-${process.pid}.json`;
+  writeFileSync(path, json);
+  return path;
+}
+/**
+ * The unit tests' shared national career after its first season, before the rollover
+ * (tests/support/world.ts): read from their cache for these sources, or played here (about a
+ * minute) and cached for the next journey.
+ */
+export function nationalCareerSeason(): World {
+  const dir = fixtureDirectory();
+  const path = fixturePath(dir, 'career-season');
+  if (!existsSync(path))
+    playNationalCareer(buildNationalCareer(), (name, world) =>
+      writeFixture(dir, name, JSON.stringify(world)),
+    );
+  return JSON.parse(readFileSync(path, 'utf8')) as World;
+}
 
 /**
  * Mark the guided tour as seen on this device, so journeys that are not about the tutorial
