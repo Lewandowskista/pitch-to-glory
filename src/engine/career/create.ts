@@ -28,6 +28,7 @@ import { attachSocial, initialSocial } from './social/week';
 import { attachLifestyle } from './lifestyle/week';
 import { attachHonours, initialHonours } from './honours/week';
 import { chronicle } from './honours/chronicle';
+import { leaveInternationalFootball } from './honours/international';
 import { initialStyle } from './lifestyle/wardrobe';
 
 const S = CONFIG.career.start;
@@ -97,11 +98,25 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
   if (input.career) throw new Error('This world already hosts a career');
   validateDraft(input, draft);
   const world = JSON.parse(JSON.stringify(input)) as World;
+  // A world saved after a retirement before 0.9.1 may still hold the last career's place in a
+  // tournament or window: it is never the new player's.
+  leaveInternationalFootball(world);
   const club = world.clubs[clubId];
   if (!club || !world.leagues[club.leagueId]) throw new Error('Invalid trial club');
   const rng = createRng(`${seed}:career:create`);
-  const id = `career:${hashSeed(`${seed}:${draft.name}`)}`;
-  if (world.players[id]) throw new Error('Career player already exists');
+  // The first career's id comes from its name alone. A retired player stays in the world, so a
+  // later career whose id is taken (a child named after their parent) adds the number of
+  // careers before it, then counts on (version 0.9.1).
+  const taken = (candidate: string) =>
+    Boolean(
+      world.players[candidate] ||
+      world.archive?.players[candidate] ||
+      world.contracts[`contract:${candidate}`] ||
+      world.legacies.some((legacy) => legacy.playerId === candidate),
+    );
+  let id = `career:${hashSeed(`${seed}:${draft.name}`)}`;
+  for (let count = world.legacies.length; taken(id); count++)
+    id = `career:${hashSeed(`${seed}:${draft.name}:${count}`)}`;
   const archetype = ARCHETYPE_BY_ID[draft.archetype]!;
   const { player, contract } = generatePlayer(
     id,
