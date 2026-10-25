@@ -42,7 +42,10 @@ for breaking saves. A large 1.0 needs both settled first (decisions D1 and D2).
 ## Ground rules for every phase
 
 - **Saves.** Every new stored field is optional, migrated in `src/persistence/schema.ts`, and
-  validated. Add a round-trip test and a migration test from the golden fixtures (2.2).
+  validated. Add a round-trip test and a migration test from the golden fixtures (2.2). Any
+  change to the persisted shape stays under the branch's schema 23 and is re-recorded with
+  `npm run check:save-shape -- --update --same-version`; CI fails otherwise
+  ([RELEASING.md](RELEASING.md), "Save schema").
 - **When rules change.** World and career rules change at a season start, never partway through.
   The single exception is the one-time compatibility cut in 2.4, if decision D3 approves it.
 - **Saved matches.** Match rule changes go behind the `match-22` setup flag, so an older session

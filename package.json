@@ -25,6 +25,7 @@
     "typecheck": "tsc --noEmit",
     "changelog": "node --import tsx scripts/changelog.ts",
     "check:release": "node --import tsx scripts/check-release.ts",
+    "check:save-shape": "node --import tsx scripts/check-save-shape.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "audit": "node scripts/audit.mjs",
