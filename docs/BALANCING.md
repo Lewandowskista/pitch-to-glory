@@ -1045,3 +1045,18 @@ CPU time by thread (ms), traced; the workers are not slowed by the phone profile
 | --------------- | --------: | -----------: | -------------: | ----------------: | ------------------: |
 | Desktop (1×)    |       738 |        1,521 |          1,629 |             3,481 |                 868 |
 | Phone (main 4×) |     3,032 |        1,439 |          6,182 |             2,952 |                 700 |
+
+**Engine caches (step 3.8).** AI attribute targets are worked out once a season per player
+(a memo keyed by the player object, rebuilt when its id, position, potential or age differ),
+abilities once per selection or sort, and constant arrays are hoisted. Results are identical:
+the soak's season hashes (seeds `endurance` and `fingerprint-b`, two seasons each), the world
+hash after 16 weeks of the `populated` and `late` fixtures, the 10,000-match calibration
+distribution and the outcome snapshot all match the code before. Weekly simulation in Node
+(M1 Pro, 16 weeks with a career): `populated` 596 → 377 ms a week, `late` 506 → 302 ms; a
+national soak season 35 → 20–30 s.
+
+**First-session audio (step 3.9).** Traced in headless Chromium from the first click on
+Settings until the music plays: before, a 3.4 s audio-worker task and music after 3.9 s; now
+about 15 ms of worker time and music after 0.4 s. The main thread spends about 210 ms either
+way, of which about 130 ms is the browser constructing Howler's `AudioContext` on the gesture;
+the game's own audio code takes a few milliseconds.
