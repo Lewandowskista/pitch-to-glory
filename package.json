@@ -28,6 +28,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "audit": "node scripts/audit.mjs",
+    "analytics:dashboards": "node --import tsx scripts/analytics-dashboards.ts",
     "raster": "node scripts/raster.mjs"
   },
   "dependencies": {

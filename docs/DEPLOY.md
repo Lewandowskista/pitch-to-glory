@@ -54,9 +54,13 @@ Share tags and the canonical link need the absolute address. It defaults to `htt
 
 Locally, build with `SITE_URL=https://your.domain npm run build` then run `npx playwright test e2e/release.spec.ts` with the same variable set. `npm run test:release:custom` builds a separate custom-domain copy into `dist-custom` (on preview port 4174) and runs the release journey against it, without touching `dist`; set `CUSTOM_SITE_URL` to try another address. CI runs it on every push.
 
+### Analytics variables
+
+The deployable build reads the repository variables `VITE_POSTHOG_KEY` (the PostHog project key) and `VITE_POSTHOG_HOST` (default `https://eu.i.posthog.com`), and tags its events with `VITE_ANALYTICS_ENV`: `production` for pushes to `main`, `preview` for pull requests. Without a key the build has analytics off. A different host must also be added to `connect-src` in `public/_headers`. See [ANALYTICS.md](ANALYTICS.md).
+
 ## What the host serves
 
-- `public/_headers` sets the production headers: a strict Content Security Policy (same-origin scripts, no `eval`; `data:` and `blob:` only for images, audio, exports and workers), `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a permissions policy; long-lived caching for fingerprinted `/assets/*`; and `no-cache` for the service worker and manifest so updates are noticed. `vite preview` applies the same file, so every browser test runs under these headers.
+- `public/_headers` sets the production headers: a strict Content Security Policy (same-origin scripts, no `eval`; `data:` and `blob:` only for images, audio, exports and workers; connections only to the site itself and PostHog's EU capture host for [analytics](ANALYTICS.md)), `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a permissions policy; long-lived caching for fingerprinted `/assets/*`; and `no-cache` for the service worker and manifest so updates are noticed. `vite preview` applies the same file, so every browser test runs under these headers.
 - There is no `404.html`, so Cloudflare Pages serves `index.html` for unknown paths. Every in-game URL works on refresh.
 - `netlify.toml` remains as a fallback host configuration; Netlify reads the same `_headers` file.
 

@@ -86,7 +86,7 @@ Six real countries — England, France, Spain, Germany, Italy and Portugal — w
 
 - **Accessible**: every screen checked with axe against WCAG 2.1 AA (no serious or critical issues) in light and dark themes; full keyboard play (Space, 1–4, arrows, Escape, `?`); screen-reader labels; text size from 85% to 130%; reduced motion; a simulation-only mode; colour-blind-safe kit choice.
 - **Fast**: a startup bundle of 80 KB gzipped, with everything else loaded on demand. Mobile Lighthouse performance 86–95 and accessibility 100 on every audited page.
-- **Yours**: no account, no ads, no tracking. Three save slots in your browser, backup export and import, and offline play after the first visit. All art is procedural SVG and every sound is synthesised on your device.
+- **Yours**: no ads, no account, no personal tracking without your say-so: anonymous play statistics can be switched off in Settings, and following your play over time is opt-in ([privacy](docs/ANALYTICS.md)). Three save slots in your browser, backup export and import, and offline play after the first visit. All art is procedural SVG and every sound is synthesised on your device.
 - **Easy to find your way**: the career is grouped into five sections (Overview, Player, Club, Life and History), each opening with page tabs that never move. On phones a five-slot tab bar and a More sheet replace sideways scrolling, and Back closes the sheet.
 - **Guided**: a short tour during your first week and your first match.
 
@@ -205,6 +205,8 @@ npm run audit        # Lighthouse quality targets
 npm run soak -- --seasons 1   # play a whole career season and check its invariants
 ```
 
+Analytics is off unless the build has a PostHog project key: set `VITE_POSTHOG_KEY` (and optionally `VITE_POSTHOG_HOST` and `VITE_ANALYTICS_ENV`) in `.env.local`, never committed. Automated browsers never send events. `npm run analytics:dashboards` creates the PostHog dashboards from [docs/ANALYTICS.md](docs/ANALYTICS.md) with a personal API key; run it locally only.
+
 On Windows PowerShell with blocked script shims, use `npm.cmd` and `npx.cmd`. Browser tests start a production preview on port 4173; Lighthouse uses 4180. After changing `public/share.svg` or the icons, run `npm run raster` to regenerate their PNG copies.
 
 ## Project layout
@@ -220,6 +222,7 @@ src/
   ui/            shell, tutorial, tooltip and shared components
   i18n/          every string, English first
   platform/      web adapter for files, sharing, storage and more
+  analytics/     consent, the event allow-list and a small idle-loaded PostHog client
 tests/           Vitest suites
 e2e/             Playwright journeys and the accessibility sweep
 docs/            architecture, decisions, balancing, verification, deployment
