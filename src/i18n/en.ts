@@ -271,9 +271,9 @@ export const en = {
     collectionType: 'Gallery',
     deleteTitle: 'Delete this save?',
     deleteBody:
-      'This removes “{name}” in slot {slot} from this device. Download a backup first if you want to keep it.',
+      'This removes “{name}” in slot {slot} from this device, with its automatic backups. Download a backup first if you want to keep it.',
     deleteDamagedBody:
-      '“{name}” in slot {slot} cannot be opened here. Deleting it removes it from this device. Export a recovery copy first to keep what is stored.',
+      '“{name}” in slot {slot} cannot be opened here. Deleting it removes it and its automatic backups from this device. Export a recovery copy first to keep what is stored.',
     replaceTitle: 'Replace this save?',
     replaceBody:
       '“{name}” in slot {slot} will be replaced with your current {content} and preferences.',
@@ -310,6 +310,32 @@ export const en = {
     damagedState: 'unreadable',
     futureState: 'needs an update',
     careerTag: 'Career',
+    /** Rotating backups kept on this device (release 1.0 step 4.3). */
+    backedUp: 'Backed up on this device {date}',
+    backupsPaused: 'Automatic backups paused: storage is low on this device.',
+    backupFailed: 'The latest automatic backup could not be made.',
+    restoreHeading: 'Restore from an automatic backup',
+    backupKinds: {
+      season: 'Start of season',
+      day: 'Daily backup',
+      salvage: 'Before repair',
+    },
+    backupWhen: '{season} · Week {week}',
+    backupDetail: '{kind}, {date}',
+    restore: 'Restore {when}',
+    restoreLabel: 'Restore the backup of {when} ({detail}) — {slot}',
+    downloadBackup: 'Download the backup of {when} ({detail}) — {slot}',
+    backupDownloaded: 'Backup copy downloaded. It holds the automatic backup exactly as kept.',
+    restoreTitle: 'Restore this backup?',
+    restoreBody:
+      '“{name}” in slot {slot} will be replaced with its automatic backup of {when} ({detail}). Progress saved after it is lost. Export a recovery copy first to keep what is stored now.',
+    confirmRestore: 'Restore backup',
+    restored: 'Backup restored and loaded.',
+    restoreFailed:
+      'That backup did not pass the game’s checks either, so nothing was replaced. Try another backup, or export a recovery copy to keep what is stored.',
+    unreadableBackup:
+      'Slot {slot} could not be opened: its stored data did not pass the game’s checks. Restore it from an automatic backup on its card, or export a recovery copy to keep it.',
+    storageUse: 'Saves and backups use {used} MB of the {quota} MB this browser allows here.',
   },
   settings: {
     title: 'Settings',
