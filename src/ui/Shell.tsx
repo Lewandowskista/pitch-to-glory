@@ -14,6 +14,7 @@ import { useAppStore } from '../store';
 import { useAutosave } from '../hooks/useAutosave';
 import { errorCode } from '../persistence/errors';
 import { loadedPersistence, persistence, preloadPersistence } from '../persistence/lazy';
+import { recoveryFileName } from '../persistence/files';
 import { platform } from '../platform';
 import { Icon, type IconName } from './Icon';
 import { Dialog } from './Dialog';
@@ -379,14 +380,28 @@ export function Shell() {
                     onClick={() => {
                       // Validation and serialization of a large world run in the persistence worker.
                       void persistence()
-                        .then((p) => p.saves.serialize(active.slot, active.name, p.snapshot()))
-                        .then((file) =>
-                          platform.saveFile(
-                            'pitch-to-glory-unsaved.json',
-                            file.json,
-                            'application/json',
-                          ),
-                        )
+                        .then(async (p) => {
+                          const snapshot = p.snapshot();
+                          const file = await p.saves
+                            .serialize(active.slot, active.name, snapshot)
+                            .then((checked) => ({
+                              name: 'pitch-to-glory-unsaved.json',
+                              json: checked.json,
+                            }))
+                            // A session that no longer passes its checks is still worth keeping:
+                            // download it unchecked, named as a recovery copy.
+                            .catch(async () => ({
+                              name: recoveryFileName('unsaved'),
+                              json: (
+                                await p.saves.serializeUnvalidated(
+                                  active.slot,
+                                  active.name,
+                                  snapshot,
+                                )
+                              ).json,
+                            }));
+                          await platform.saveFile(file.name, file.json, 'application/json');
+                        })
                         .catch((error) =>
                           useAppStore.getState().setSaveStatus('error', errorCode(error)),
                         );

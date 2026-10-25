@@ -220,6 +220,14 @@ export async function exportSlotJSON(slot: SlotId): Promise<{ name: string; json
   await autosave.flush();
   return own(slot, () => saves.exportJSON(slot));
 }
+/**
+ * A recovery copy of a slot that will not load: its stored records, unvalidated. Waits for a
+ * write in flight so the copy is consistent, but never starts one and never takes the slot.
+ */
+export async function exportSlotRecovery(slot: SlotId): Promise<{ name: string; json: string }> {
+  await autosave.settle();
+  return saves.exportRecovery(slot);
+}
 async function flushExpected(slot: SlotId, expected: number | null): Promise<number | null> {
   const before = useAppStore.getState().activeSave;
   await autosave.flush();

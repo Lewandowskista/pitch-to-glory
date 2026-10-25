@@ -1,5 +1,5 @@
 import { SaveDatabase, LocalSaveRepository } from '../persistence/localRepository';
-import { createSave, parseSave, SaveError } from '../persistence/schema';
+import { createSave, parseSave, SaveError, unvalidatedSave } from '../persistence/schema';
 import type { PersistenceRequest, PersistenceResponse } from '../persistence/workerClient';
 import { createChunkReceiver, sendChunked } from './transport';
 
@@ -33,12 +33,17 @@ export async function executePersistenceRequest(
         value: await repository.exportJSON(request.slot),
       };
     }
+    if (request.operation === 'export-recovery') {
+      return {
+        requestId: request.requestId,
+        ok: true,
+        value: await repository.exportRecovery(request.slot),
+      };
+    }
     if (request.operation === 'serialize') {
-      const { recovery: _recovery, ...file } = createSave(
-        request.slot,
-        request.name,
-        request.payload,
-      );
+      const { recovery: _recovery, ...file } = request.unvalidated
+        ? unvalidatedSave(request.slot, request.name, request.payload)
+        : createSave(request.slot, request.name, request.payload);
       void _recovery;
       return {
         requestId: request.requestId,

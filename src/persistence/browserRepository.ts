@@ -6,7 +6,7 @@ import {
   type SlotListing,
 } from './localRepository';
 import { persistenceRequest } from './workerClient';
-import { createSave, parseSave, SaveError, type AppSave } from './schema';
+import { createSave, parseSave, SaveError, unvalidatedSave, type AppSave } from './schema';
 
 /**
  * Browser repository. Validation, JSON and IndexedDB work run in the persistence worker;
@@ -125,6 +125,14 @@ export class SaveRepository extends LocalSaveRepository {
       ? persistenceRequest(this.database.name, this.tabOwner, { operation: 'export', slot })
       : super.exportJSON(slot);
   }
+  override async exportRecovery(slot: SlotId): Promise<{ name: string; json: string }> {
+    return this.delegated
+      ? persistenceRequest(this.database.name, this.tabOwner, {
+          operation: 'export-recovery',
+          slot,
+        })
+      : super.exportRecovery(slot);
+  }
   /** Serialize an unsaved in-memory snapshot as a backup file, off the main thread. */
   async serialize(slot: SlotId, name: string, payload: FoundationState | WorldState) {
     if (this.delegated)
@@ -137,5 +145,17 @@ export class SaveRepository extends LocalSaveRepository {
     const { recovery: _recovery, ...file } = createSave(slot, name, payload);
     void _recovery;
     return { name, json: JSON.stringify(file) };
+  }
+  /** As `serialize`, without validation: the fallback when the snapshot no longer passes it. */
+  async serializeUnvalidated(slot: SlotId, name: string, payload: FoundationState | WorldState) {
+    if (this.delegated)
+      return persistenceRequest<{ name: string; json: string }>(this.database.name, this.tabOwner, {
+        operation: 'serialize',
+        slot,
+        name,
+        payload,
+        unvalidated: true,
+      });
+    return { name, json: JSON.stringify(unvalidatedSave(slot, name, payload)) };
   }
 }

@@ -4,6 +4,7 @@ export {
   autosave,
   deleteSlot,
   exportSlotJSON,
+  exportSlotRecovery,
   importSlot,
   loadSlot,
   reloadActiveSlot,

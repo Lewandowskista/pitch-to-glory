@@ -234,6 +234,11 @@ export const en = {
     deleted: 'Save deleted.',
     exported: 'Backup downloaded.',
     export: 'Export backup',
+    exportRecovery: 'Export a recovery copy',
+    recoveryExported:
+      'Recovery copy downloaded. It holds this slot exactly as stored, without the usual checks.',
+    unreadable:
+      'Slot {slot} could not be opened: its stored data did not pass the game’s checks. Export a recovery copy to keep it.',
     import: 'Import backup',
     delete: 'Delete save',
     active: 'Active save',
@@ -252,9 +257,13 @@ export const en = {
     deleteTitle: 'Delete this save?',
     deleteBody:
       'This removes “{name}” in slot {slot} from this device. Download a backup first if you want to keep it.',
+    deleteDamagedBody:
+      '“{name}” in slot {slot} cannot be opened here. Deleting it removes it from this device. Export a recovery copy first to keep what is stored.',
     replaceTitle: 'Replace this save?',
     replaceBody:
       '“{name}” in slot {slot} will be replaced with your current {content} and preferences.',
+    replaceDamagedBody:
+      '“{name}” in slot {slot} cannot be opened here and will be replaced with your current {content} and preferences. Export a recovery copy first to keep what is stored.',
     careerContent: 'career and its whole world',
     worldContent: 'football world',
     galleryContent: 'gallery',
@@ -276,7 +285,7 @@ export const en = {
     unsaved: 'Unsaved session',
     damaged: 'Unreadable save',
     damagedBody:
-      'This slot could not be read. Your other slots are unaffected. Import a backup or replace it with your current session.',
+      'This slot could not be read. Your other slots are unaffected. Export a recovery copy to keep what is stored, then import a backup or replace it.',
     futureBody:
       'This slot was saved by a newer version of Pitch to Glory. Update the game to open it.',
     slotState: '{slot}, {state}',

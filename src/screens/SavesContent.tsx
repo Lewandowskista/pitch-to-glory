@@ -9,11 +9,13 @@ import {
   deleteSlot,
   errorCode,
   exportSlotJSON,
+  exportSlotRecovery,
   importSlot,
   loadSlot,
   saveSlot,
 } from '../persistence/session';
 import type { SlotListing } from '../persistence/localRepository';
+import { recoveryFileName } from '../persistence/files';
 import { summaryPortrait, type CareerSummary } from '../persistence/summary';
 import { platform } from '../platform';
 import { errorText, format, t } from '../i18n';
@@ -37,6 +39,8 @@ interface SlotActions {
   load: (slot: SlotId) => void;
   store: (slot: SlotId, occupied: boolean) => void;
   exportSlot: (slot: SlotId) => void;
+  /** Download a slot's stored records unchecked, for a slot that will not load. */
+  exportRecovery: (slot: SlotId) => void;
   importFile: (file: File | undefined, slot: SlotId) => void;
   remove: (slot: SlotId) => void;
 }
@@ -62,6 +66,8 @@ export default function SavesContent() {
   const [busy, setBusy] = useState(false);
   const blocked = busy || !collections || Boolean(worldJob);
   const [error, setError] = useState('');
+  // The slot whose load or export just failed its checks: the alert offers a recovery copy.
+  const [unreadable, setUnreadable] = useState<SlotId | null>(null);
   const [notice, setNotice] = useState('');
   const [protection, setProtection] = useState<'granted' | 'refused' | null>(null);
   const [pending, setPending] = useState<string | null>(null);
@@ -110,18 +116,30 @@ export default function SavesContent() {
     }
     if (!action && reviewed) setReviewed(null);
   }, [valid, action, collections, reviewed, slot]);
-  const run = async (operation: () => Promise<void>) => {
+  const run = async (operation: () => Promise<void>, target?: SlotId) => {
     setBusy(true);
     setError('');
     setNotice('');
+    setUnreadable(null);
     try {
       await operation();
     } catch (error) {
-      setError(errorText(errorCode(error)));
+      const code = errorCode(error);
+      // A stored slot that fails its checks is not a bad file: say so, and offer what still works.
+      if (target && code === 'invalid') {
+        setError(format(t.saves.unreadable, { slot: target }));
+        setUnreadable(target);
+      } else setError(errorText(code));
     } finally {
       setBusy(false);
     }
   };
+  const exportRecovery = (target: SlotId) =>
+    void run(async () => {
+      const file = await exportSlotRecovery(target);
+      await platform.saveFile(recoveryFileName(`slot-${target}`), file.json, 'application/json');
+      setNotice(t.saves.recoveryExported);
+    });
   const open = async (action: string, slot: SlotId) => {
     // Settle this tab's pending edits before pinning what the player reviews.
     await autosave.flush();
@@ -173,7 +191,7 @@ export default function SavesContent() {
     load: (target) =>
       void run(async () => {
         if (await loadSlot(target)) setNotice(t.saves.loaded);
-      }),
+      }, target),
     store: (target, occupied) => {
       if (occupied) void run(() => open('replace', target));
       else
@@ -190,7 +208,8 @@ export default function SavesContent() {
           'application/json',
         );
         setNotice(t.saves.exported);
-      }),
+      }, target),
+    exportRecovery,
     importFile: (file, target) => void importFile(file, target),
     remove: (target) => void run(() => open('delete', target)),
   };
@@ -200,12 +219,21 @@ export default function SavesContent() {
       : action === 'import'
         ? t.saves.importTitle
         : t.saves.replaceTitle;
+  // A slot that cannot be opened: its confirmations point to the recovery copy first.
+  const reviewedDamaged =
+    reviewed !== null &&
+    collections?.[reviewed.slot - 1]?.status === 'error' &&
+    action !== 'import';
   const actionBody =
     action === 'delete'
-      ? t.saves.deleteBody
+      ? reviewedDamaged
+        ? t.saves.deleteDamagedBody
+        : t.saves.deleteBody
       : action === 'import'
         ? t.saves.importBody
-        : t.saves.replaceBody;
+        : reviewedDamaged
+          ? t.saves.replaceDamagedBody
+          : t.saves.replaceBody;
   const careerPlayer = world?.career ? world.players[world.career.playerId] : undefined;
   return (
     <div className="flex max-w-[77.5rem] flex-col gap-5">
@@ -257,6 +285,16 @@ export default function SavesContent() {
         >
           <Icon name="alert" className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-[1_1_15rem] py-2.5">{error}</span>
+          {unreadable && (
+            <Button
+              variant="text"
+              className="text-danger"
+              disabled={blocked}
+              onClick={() => exportRecovery(unreadable)}
+            >
+              {t.saves.exportRecovery}
+            </Button>
+          )}
           <Button
             variant="text"
             className="text-danger"
@@ -361,7 +399,19 @@ export default function SavesContent() {
           busy={busy}
           danger={action === 'delete'}
           onClose={close}
-        />
+        >
+          {reviewedDamaged && (
+            <Button
+              variant="tool"
+              icon="download"
+              className="justify-self-start"
+              disabled={busy}
+              onClick={() => exportRecovery(reviewed.slot)}
+            >
+              {t.saves.exportRecovery}
+            </Button>
+          )}
+        </Dialog>
       )}
     </div>
   );
@@ -553,6 +603,17 @@ function SlotCard({
                 onClick={() => actions.exportSlot(target)}
               >
                 {t.saves.export}
+              </Button>
+            )}
+            {damaged && (
+              <Button
+                variant="tool"
+                icon="download"
+                disabled={actions.blocked}
+                aria-label={`${t.saves.exportRecovery} — ${slotName}`}
+                onClick={() => actions.exportRecovery(target)}
+              >
+                {t.saves.exportRecovery}
               </Button>
             )}
             <label

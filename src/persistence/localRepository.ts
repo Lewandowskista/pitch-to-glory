@@ -13,6 +13,7 @@ import { CONFIG, ENGINE_VERSION } from '../engine/config';
 import { validateMatchSession } from '../engine/match';
 import {
   migrateSave,
+  notBefore,
   parseSave,
   SaveError,
   validateFoundation,
@@ -226,6 +227,14 @@ export class LocalSaveRepository {
   /** Assemble, migrate and fully validate one slot. Stale match sessions are discarded. */
   async read(slot: SlotId): Promise<AppSave | undefined> {
     validateSlot(slot);
+    const record = await this.assembled(slot);
+    return record === undefined ? undefined : migrateSave(record);
+  }
+  /**
+   * One slot's stored records as a single save envelope, neither migrated nor validated: a
+   * split slot is reassembled, an un-split record from an interrupted upgrade is returned as is.
+   */
+  private async assembled(slot: SlotId): Promise<unknown> {
     const [record, worldRecord, matchRecord] = await this.db.transaction(
       'r',
       this.db.saves,
@@ -234,12 +243,11 @@ export class LocalSaveRepository {
       () =>
         Promise.all([this.db.saves.get(slot), this.db.worlds.get(slot), this.db.matches.get(slot)]),
     );
-    if (!record) return undefined;
-    if (!isSplit(record)) return migrateSave(record);
+    if (!record || !isSplit(record)) return record;
     const { layout: _layout, kind, gallery, settings, world: _summary, ...envelope } = record;
     void _layout;
     void _summary;
-    return migrateSave({
+    return {
       ...envelope,
       payload: {
         kind,
@@ -248,7 +256,7 @@ export class LocalSaveRepository {
         ...(kind === 'world' ? { world: worldRecord?.world } : {}),
         ...(kind === 'world' && matchRecord ? { matchSession: matchRecord.session } : {}),
       },
-    });
+    };
   }
   /** Lightweight per-slot status. One damaged or newer slot never hides the others. */
   async list(): Promise<SlotListing[]> {
@@ -277,7 +285,7 @@ export class LocalSaveRepository {
               status: 'ready',
               name: record.name,
               createdAt: record.createdAt,
-              updatedAt: record.updatedAt,
+              updatedAt: notBefore(record.updatedAt, record.createdAt),
               revision: record.revision,
               kind: record.kind,
               gallerySeed: foundation.gallery.seed,
@@ -386,7 +394,8 @@ export class LocalSaveRepository {
       const meta: SaveMeta = {
         ...previous,
         engineVersion: ENGINE_VERSION,
-        updatedAt: value.updatedAt,
+        // A device clock behind the save's creation never stores a time before it.
+        updatedAt: notBefore(value.updatedAt, previous.createdAt),
         revision: previous.revision + 1,
         gallery: foundation.gallery,
         settings: foundation.settings,
@@ -430,6 +439,7 @@ export class LocalSaveRepository {
   async import(json: string, slot: SlotId, expectedRevision: number | null): Promise<AppSave> {
     validateSlot(slot);
     const { recovery, ...imported } = parseSave(json);
+    // Stamped now, or at the file's creation if it was made on a device whose clock ran ahead.
     const saved = await this.write(
       { ...imported, slot, updatedAt: new Date().toISOString() },
       expectedRevision,
@@ -443,6 +453,20 @@ export class LocalSaveRepository {
     const { recovery: _recovery, ...file } = save;
     void _recovery;
     return { name: save.name, json: JSON.stringify(file) };
+  }
+  /**
+   * Recovery copy of a slot that will not load: its stored records in the backup envelope,
+   * without migration or validation, so a failing validator never stands between the player
+   * and their data. Reads only; nothing stored is repaired or rewritten.
+   */
+  async exportRecovery(slot: SlotId): Promise<{ name: string; json: string }> {
+    validateSlot(slot);
+    const record = await this.assembled(slot);
+    if (!isRecord(record)) throw new SaveError('invalid');
+    return {
+      name: typeof record.name === 'string' ? record.name : '',
+      json: JSON.stringify(record),
+    };
   }
 }
 export type { SaveRecovery };
