@@ -1,18 +1,17 @@
 import { preseasonSeasonEnd } from '../career/preseason';
 import { commitmentsWeek } from '../career/commitments';
 import { setSeasonCosts } from './economy';
-import type { Club, League, Player, SeasonSummary, World } from '../../model/domain';
+import type { League, SeasonSummary, World } from '../../model/domain';
 import { coachingRollover } from '../career/coaching';
 import { CONFIG } from '../config';
 import { restoreRng, type Rng } from '../rng';
 import { developWeek } from '../ageing';
 import { generateManager } from './generate';
 import { aiTransferWindow } from './transfers';
-import { addCupRound, createLeagueFixtures, emptyStanding, sortStandings } from './schedule';
+import { addCupRound, createLeagueFixtures, emptyStanding } from './schedule';
 import { advanceNationalPyramid } from './pyramid';
 import { resolvePostseasonTie } from './postseason';
 import { getSeasonWeeks } from './calendar';
-import { rankStandings } from './ranking';
 import { resetNationalSeason } from './movement';
 import { advanceContinental, isContinental, startContinental } from './continental';
 import { recordEvent as event } from './events';
@@ -59,6 +58,13 @@ import {
   refreshReturningClub,
   seasonalSquadReview,
 } from './lifecycle';
+import {
+  exchangeTransfers,
+  isLegacyWorld,
+  leagueTable,
+  legacyLifecycleWeeks,
+  legacyMovements,
+} from './legacy';
 
 const copyWorld = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const BACKGROUND = CONFIG.world.background;
@@ -89,11 +95,7 @@ export function commitPlayedFixture(
     advanceContinental(world);
   }
   const league = world.leagues[fixture.competitionId];
-  if (league)
-    league.standings =
-      world.format === 'national-v1'
-        ? rankStandings(world, league.standings, league.fixtureIds)
-        : sortStandings(league.standings);
+  if (league) league.standings = leagueTable(world, league.standings, league.fixtureIds);
   return final;
 }
 
@@ -158,71 +160,6 @@ function updateFinances(world: World): void {
     );
   }
 }
-function exchangeTransfers(world: World, rng: Rng): void {
-  for (const country of Object.values(world.countries)) {
-    const clubs = country.leagueIds
-      .flatMap((id) => world.leagues[id]!.clubIds)
-      .map((id) => world.clubs[id]!);
-    const careerId = world.career?.playerId;
-    const rivalIds = new Set(world.rivalries.map((rivalry) => rivalry.rivalPlayerId));
-    const a = rng.pick(clubs);
-    // Exchanges happen between clubs of a similar level, never top flight and sixth tier.
-    const tier = world.leagues[a.leagueId]!.tier;
-    const b = rng.pick(
-      clubs.filter(
-        (club) => club.id !== a.id && Math.abs(world.leagues[club.leagueId]!.tier - tier) <= 1,
-      ),
-    );
-    // The career player only moves through their own decisions (milestone 5).
-    const movable = (club: Club) =>
-      club.playerIds.filter((id) => id !== careerId && !rivalIds.has(id));
-    const positionsOf = (club: Club) =>
-      new Set(movable(club).map((id) => world.players[id]!.primaryPosition));
-    const shared = [...positionsOf(a)].filter(
-      (position) => position !== 'GK' && positionsOf(b).has(position),
-    );
-    if (!shared.length) continue;
-    const position = rng.pick(
-      (['CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST'] as const).filter((p) =>
-        shared.includes(p),
-      ),
-    );
-    const playerA = rng.pick(
-      movable(a)
-        .map((id) => world.players[id]!)
-        .filter((player) => player.primaryPosition === position),
-    );
-    const playerB = rng.pick(
-      movable(b)
-        .map((id) => world.players[id]!)
-        .filter((player) => player.primaryPosition === position),
-    );
-    const move = (player: Player, old: Club, destination: Club) => {
-      player.clubId = destination.id;
-      const contract = world.contracts[player.contractId!]!;
-      contract.clubId = destination.id;
-      contract.start = { ...world.date };
-      contract.end = {
-        season: world.date.season + BACKGROUND.transferContractYears,
-        week: getSeasonWeeks(world),
-        day: 7,
-      };
-      old.playerIds = old.playerIds.filter((id) => id !== player.id);
-      destination.playerIds.push(player.id);
-      joinSquad(world, player, destination);
-      event(world, 'transfer', [player.id, old.id, destination.id], {
-        name: player.name,
-        old: old.name,
-        new: destination.name,
-        fee: 0,
-      });
-    };
-    move(playerA, a, b);
-    move(playerB, b, a);
-    refreshDressingRoom(world, a);
-    refreshDressingRoom(world, b);
-  }
-}
 /** Points a game a club's standing in its league expects, by reputation rank. */
 function expectedPointsPerGame(world: World, league: League, clubId: string): number {
   const [low, high] = BACKGROUND.sacking.expectedPointsRange;
@@ -240,10 +177,7 @@ function managerChanges(world: World, rng: Rng): void {
   const S = BACKGROUND.sacking;
   if (world.date.week < S.fromWeek || world.date.week > getSeasonWeeks(world) - 2) return;
   for (const league of Object.values(world.leagues)) {
-    const table =
-      world.format === 'national-v1'
-        ? rankStandings(world, league.standings, league.fixtureIds)
-        : sortStandings(league.standings);
+    const table = leagueTable(world, league.standings, league.fixtureIds);
     for (const row of table) {
       if (row.played < 5) continue;
       const club = world.clubs[row.clubId]!;
@@ -373,8 +307,7 @@ function updateReputations(world: World, summary: SeasonSummary): void {
 }
 /** The weeks of AI transfer activity and the academy intake for this world's season length. */
 export function lifecycleWeeks(world: World): { transfer: number[]; intake: number } {
-  if (world.format !== 'national-v1')
-    return { transfer: [...CONFIG.world.transferWeeks], intake: CONFIG.world.intakeWeek };
+  if (isLegacyWorld(world)) return legacyLifecycleWeeks();
   const weeks = getSeasonWeeks(world);
   const F = CONFIG.world.lifecycleFractions;
   return {
@@ -416,10 +349,7 @@ function archiveSeason(world: World): void {
     movements: [],
   };
   for (const league of Object.values(world.leagues)) {
-    const table =
-      world.format === 'national-v1'
-        ? rankStandings(world, league.standings)
-        : sortStandings(league.standings);
+    const table = leagueTable(world, league.standings);
     summary.tables[league.id] = table.map((row) => ({ ...row }));
     summary.champions[league.id] = table[0]!.clubId;
     // A qualifying group's winner is not a champion; its division's title is archived below.
@@ -428,21 +358,7 @@ function archiveSeason(world: World): void {
         name: world.clubs[table[0]!.clubId]!.name,
         competition: league.name,
       });
-    const country = world.countries[league.countryId]!;
-    if (world.format !== 'national-v1' && league.promotionPlaces)
-      for (const row of table.slice(0, league.promotionPlaces))
-        summary.movements.push({
-          clubId: row.clubId,
-          fromLeagueId: league.id,
-          toLeagueId: country.leagueIds[league.tier - 2]!,
-        });
-    if (world.format !== 'national-v1' && league.relegationPlaces)
-      for (const row of table.slice(-league.relegationPlaces))
-        summary.movements.push({
-          clubId: row.clubId,
-          fromLeagueId: league.id,
-          toLeagueId: country.leagueIds[league.tier]!,
-        });
+    if (isLegacyWorld(world)) summary.movements.push(...legacyMovements(world, league, table));
   }
   if (world.format === 'national-v1') {
     summary.movements = world.pyramid!.movements.map((movement) => ({ ...movement }));
@@ -582,10 +498,7 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
       ),
     );
   for (const league of Object.values(world.leagues))
-    league.standings =
-      world.format === 'national-v1'
-        ? rankStandings(world, league.standings, league.fixtureIds)
-        : sortStandings(league.standings);
+    league.standings = leagueTable(world, league.standings, league.fixtureIds);
   advanceCups(world);
   advanceContinental(world);
   if (world.format === 'national-v1') advanceNationalPyramid(world);
@@ -605,9 +518,9 @@ export function simulateWeek(input: World, options: SimulationOptions = {}): Wor
   }
   const lifecycle = lifecycleWeeks(world);
   if (lifecycle.transfer.includes(world.date.week)) {
-    // National worlds run a market; worlds from before the pyramid keep their exchanges.
-    if (world.format === 'national-v1') aiTransferWindow(world, rng);
-    else exchangeTransfers(world, rng);
+    // National worlds run a market; legacy worlds keep their exchanges.
+    if (isLegacyWorld(world)) exchangeTransfers(world, rng);
+    else aiTransferWindow(world, rng);
     fillSquads(world, rng);
   }
   managerChanges(world, rng);
