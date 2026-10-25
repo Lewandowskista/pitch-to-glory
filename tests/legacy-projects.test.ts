@@ -2,7 +2,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
 import { createRng } from '../src/engine/rng';
-import { generateWorld } from '../src/engine/world/generate';
 import { seasonalSquadReview } from '../src/engine/world/lifecycle';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import {
@@ -14,6 +13,7 @@ import {
 import { LIFESTYLE_BY_ID } from '../src/engine/career/lifestyle/catalogue';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { messageText } from '../src/screens/career/marketUi';
+import { nationalWorld } from './support/world';
 
 const G = CONFIG.career.lifestyle.legacy;
 const draft: CareerDraft = {
@@ -36,7 +36,7 @@ const draft: CareerDraft = {
 };
 let rich: World;
 beforeAll(() => {
-  const base = generateWorld('legacy-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'legacy-tests')[0]!;
   rich = createCareer(base, draft, trial.id, 'legacy-tests');
   rich.career!.fame = 10_000;

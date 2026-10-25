@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { Position, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { nextCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCommand, careerMatchSetup, defaultTactics } from '../src/engine/career/matches';
@@ -22,13 +21,14 @@ import { isRoleFor } from '../src/engine/match/roles';
 import { deservedRole, prospectSelection, slotCompetition } from '../src/engine/career/market';
 import { selectLineup } from '../src/engine/selection/lineup';
 import { clubFormation, usesFormations } from '../src/engine/selection/world';
+import { nationalWorld } from './support/world';
 
 /**
  * One job per match (review phase 2, step 2.1): a player fielded away from their primary
  * position gets the role choices, objectives, involvement and half-time change of the slot
  * they play, on the current engine. Earlier engines keep the primary position.
  */
-const world = generateWorld('effective-role', { format: 'legacy' });
+const world = nationalWorld();
 const [home, away] = Object.values(world.clubs);
 const winger = home!.playerIds
   .map((id) => world.players[id]!)
@@ -98,7 +98,7 @@ describe('effective match role', () => {
   });
 
   it('previews on the hub exactly the objectives kickoff sets', () => {
-    const base = generateWorld('effective-role-career', { format: 'legacy' });
+    const base = nationalWorld();
     const trial = trialOffers(base, 'country:0', 'effective-role-career')[0]!;
     const draft: CareerDraft = {
       name: 'Robin Vale',

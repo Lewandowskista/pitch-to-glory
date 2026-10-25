@@ -1,9 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
-import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
-import { advanceCareerWeek } from '../src/engine/career/season';
 import {
   applyMarketAction,
   bridgeWage,
@@ -16,34 +13,13 @@ import {
 } from '../src/engine/career/market';
 import { hubPriorities } from '../src/screens/career/agenda';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalCareerSeason } from './support/world';
 
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
-const draft: CareerDraft = {
-  name: 'Robin Vale',
-  avatar: {
-    face: 1,
-    skin: 2,
-    hair: 3,
-    hairColor: 4,
-    facialHair: 0,
-    eyebrows: 1,
-    eyes: 2,
-    accessory: 3,
-  },
-  nationalityId: 'country:0',
-  position: 'ST',
-  foot: 'left',
-  age: 17,
-  archetype: 'finisher',
-};
-
 let season: World;
-beforeAll(() => {
-  const base = generateWorld('expiry-tests', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'expiry-tests')[0]!;
-  season = createCareer(base, draft, trial.id, 'expiry-tests');
-  while (season.phase === 'active')
-    season = advanceCareerWeek(season, { inPlace: true, autoPlay: true }).world;
+// The shared national career after its first season, before the rollover (tests/support/world.ts).
+beforeAll(async () => {
+  season = await nationalCareerSeason();
 }, 300000);
 
 const me = (world: World) => world.players[world.career!.playerId]!;

@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { gradeFor, seasonReview } from '../src/engine/career/review';
 import { format } from '../src/i18n';
 import { reviewText as r } from '../src/i18n/review';
+import { nationalWorld } from './support/world';
 
 const draft: CareerDraft = {
   name: 'Robin Vale',
@@ -29,7 +29,7 @@ const draft: CareerDraft = {
 let start: World;
 let complete: World;
 beforeAll(() => {
-  const base = generateWorld('review-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'review-tests')[0]!;
   start = createCareer(base, draft, trial.id, 'review-tests');
   let world = structuredClone(start);

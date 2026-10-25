@@ -1,12 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { DecisionSample } from '../src/model/domain';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import { isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
 
 /**
  * Phase 5: the manager's formation and the selection reasons on the Club page and in the
@@ -15,31 +13,7 @@ import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
  */
 const saves = new Map<string, string>();
 test.beforeAll(async ({ browserName }, workerInfo) => {
-  const base = generateWorld('coaching-journey', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'coaching-journey')[0]!;
-  let world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'coaching-journey',
-  );
+  let world = nationalCareer('coaching-journey');
   for (let week = 0; week < 4; week++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
   for (let guard = 0; guard < 6 && !pendingCareerFixture(world); guard++)

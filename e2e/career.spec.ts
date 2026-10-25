@@ -1,8 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import {
+  isAbortedLoad,
+  isBrowserNoise,
+  nationalCareer,
+  openCareerPage,
+  skipTutorial,
+} from './support';
 import { mkdir } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { SlotId } from '../src/model/domain';
@@ -249,33 +253,9 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   }
 });
 
-/** A legacy-world career waiting at its first matchday, as an exported save file. */
+/** A national-world career waiting at its first matchday, as an exported save file. */
 function matchdaySave(seed: string, name: string, slot: SlotId): string {
-  const base = generateWorld(seed, { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', seed)[0]!;
-  const world = createCareer(
-    base,
-    {
-      name,
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    seed,
-  );
+  const world = nationalCareer(seed, { name });
   while (!advanceCareerWeek(world, { inPlace: true }).pendingFixtureId);
   return JSON.stringify(
     createSave(slot, name, {

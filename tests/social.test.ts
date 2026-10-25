@@ -3,11 +3,9 @@ import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
 import { createRng } from '../src/engine/rng';
 import { playerAbility } from '../src/engine/strength';
-import { generateWorld } from '../src/engine/world/generate';
 import { seasonalSquadReview } from '../src/engine/world/lifecycle';
 import { refreshDressingRoom } from '../src/engine/world/dressing';
 import { startNextSeason } from '../src/engine/world/simulate';
-import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { lineOf } from '../src/engine/career/market';
 import { moraleMultiplier } from '../src/engine/match/decisions';
@@ -33,33 +31,22 @@ import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/per
 import { validateWorld } from '../src/persistence/worldSchema';
 import { mediaText } from '../src/screens/career/socialUi';
 import { socialText } from '../src/i18n/social';
+import { lifecycleWeeks } from '../src/engine/world/simulate';
+import {
+  SNAPSHOT_WEEKS,
+  nationalCareer,
+  nationalCareerSeason,
+  nationalCareerWeeks,
+  nationalWorld,
+} from './support/world';
 
 const S = CONFIG.career.social;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const valid = (world: World) => expect(() => validateWorld(clone(world))).not.toThrow();
-const draft: CareerDraft = {
-  name: 'Robin Vale',
-  avatar: {
-    face: 1,
-    skin: 2,
-    hair: 3,
-    hairColor: 4,
-    facialHair: 0,
-    eyebrows: 1,
-    eyes: 2,
-    accessory: 3,
-  },
-  nationalityId: 'country:0',
-  position: 'ST',
-  foot: 'left',
-  age: 17,
-  archetype: 'finisher',
-};
 let career: World;
+// The shared national career (tests/support/world.ts).
 beforeAll(() => {
-  const base = generateWorld('social-tests', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'social-tests')[0]!;
-  career = createCareer(base, draft, trial.id, 'social-tests');
+  career = nationalCareer();
 });
 const player = (world: World) => world.players[world.career!.playerId]!;
 function weeks(world: World, count: number): World {
@@ -86,7 +73,7 @@ describe('rival', () => {
     const rival = rivalOf(world)!;
     rival.birthSeason = world.date.season - 45;
     world.contracts[rival.contractId!]!.end.season = world.date.season - 1;
-    world.date.week = CONFIG.world.intakeWeek;
+    world.date.week = lifecycleWeeks(world).intake;
     seasonalSquadReview(world, createRng('rival-lifecycle'));
     expect(rival.retired).toBe(false);
     expect(rival.clubId).not.toBeNull();
@@ -108,7 +95,7 @@ describe('rival', () => {
     expect(rivalryOf(world)!.timeline.at(-1)!.kind).toBe('transfer');
     valid(world);
   });
-  it('records meetings and closes each season with a comparison', () => {
+  it('records meetings and closes each season with a comparison', async () => {
     const world = clone(career);
     const own = player(world).clubId!;
     const rivalClub = rivalOf(world)!.clubId!;
@@ -129,7 +116,7 @@ describe('rival', () => {
     };
     expect(recordHeadToHead(world, fixture)).toBe('won');
     expect(rivalryOf(world)!.headToHead).toEqual({ played: 1, won: 1, drawn: 0, lost: 0 });
-    let season = weeks(clone(career), 60);
+    let season = await nationalCareerSeason();
     const intensity = rivalryOf(season)!.intensity;
     season = startNextSeason(season);
     const rivalry = rivalryOf(season)!;
@@ -162,13 +149,12 @@ describe('dressing room and relationships', () => {
     syncCliques(world);
     expect(careerRoom(world).cliques.find((c) => c.kind === clique.kind)?.affinity ?? 77).toBe(77);
   });
-  it('keeps relationships with key teammates whose chemistry grows at the club', () => {
-    let world = clone(career);
-    const teammates = keyTeammates(world);
+  it('keeps relationships with key teammates whose chemistry grows at the club', async () => {
+    const teammates = keyTeammates(career);
     expect(teammates.length).toBeGreaterThan(0);
     expect(teammates.length).toBeLessThanOrEqual(S.teammates.count);
-    const before = chemistry(world);
-    world = weeks(world, 12);
+    const before = chemistry(career);
+    const world = await nationalCareerWeeks();
     expect(chemistry(world)).not.toBe(before);
     expect(world.relationships.filter((r) => r.kind === 'teammate').length).toBeGreaterThan(0);
   }, 60000);
@@ -187,11 +173,10 @@ describe('dressing room and relationships', () => {
 });
 
 describe('morale, form and the match', () => {
-  it('moves morale toward a target built from bounded parts, and records each week', () => {
-    let world = clone(career);
-    world = weeks(world, 6);
+  it('moves morale toward a target built from bounded parts, and records each week', async () => {
+    const world = await nationalCareerWeeks();
     const social = world.career!.social;
-    expect(social.history).toHaveLength(6);
+    expect(social.history).toHaveLength(Math.min(SNAPSHOT_WEEKS, S.historyLimit));
     expect(social.morale!.target).toBeGreaterThanOrEqual(0);
     for (const part of MORALE_PARTS)
       expect(Math.abs(social.morale!.parts[part]!)).toBeLessThanOrEqual(12);
@@ -209,8 +194,8 @@ describe('morale, form and the match', () => {
 });
 
 describe('media', () => {
-  it('covers each match with a headline and fan posts', () => {
-    const world = weeks(clone(career), 8);
+  it('covers each match with a headline and fan posts', async () => {
+    const world = await nationalCareerWeeks();
     const matches = world.career!.matches.length;
     expect(matches).toBeGreaterThan(0);
     expect(world.media.filter((item) => item.kind === 'headline')).toHaveLength(matches);
@@ -328,17 +313,18 @@ describe('media', () => {
     expect(text).not.toMatch(/[{}]|undefined/);
     valid(answered);
   });
-  it('is deterministic for a seed', () => {
-    const a = weeks(clone(career), 10);
-    const b = weeks(clone(career), 10);
+  it('is deterministic for a seed', async () => {
+    // The same weeks played here and in the process that built the shared snapshot.
+    const a = weeks(clone(career), SNAPSHOT_WEEKS);
+    const b = await nationalCareerWeeks();
     expect(JSON.stringify(a.media)).toBe(JSON.stringify(b.media));
     expect(JSON.stringify(a.career!.social)).toBe(JSON.stringify(b.career!.social));
   }, 60000);
 });
 
 describe('social saves', () => {
-  it('round trips and rejects forged social records', () => {
-    const world = weeks(clone(career), 6);
+  it('round trips and rejects forged social records', async () => {
+    const world = await nationalCareerWeeks();
     const payload = {
       kind: 'world' as const,
       world,
@@ -356,7 +342,7 @@ describe('social saves', () => {
     expect(forge((w) => (rivalryOf(w)!.headToHead.won = 3))).toThrow();
     expect(forge((w) => (w.media[0]!.sentiment = 5))).toThrow();
     expect(forge((w) => (w.rivalries[0]!.rivalPlayerId = w.career!.playerId))).toThrow();
-    const plain = generateWorld('social-plain', { format: 'legacy' });
+    const plain = nationalWorld();
     plain.media.push(clone(world).media[0]!);
     expect(() => createSave(1, 'Plain', { ...payload, world: plain })).toThrow();
   }, 60000);

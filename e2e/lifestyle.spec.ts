@@ -1,9 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
-import { careerTabs, isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import {
+  careerTabs,
+  isAbortedLoad,
+  isBrowserNoise,
+  nationalCareer,
+  openCareerPage,
+  skipTutorial,
+} from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { makeSponsorOffer, BRAND_BY_ID, priceOf } from '../src/engine/career/lifestyle';
 import { LIFESTYLE_BY_ID } from '../src/engine/career/lifestyle/catalogue';
 import { createRng } from '../src/engine/rng';
@@ -58,31 +63,7 @@ async function accessibilityViolations(page: Page): Promise<string[]> {
 
 /** A career at fame level 4 with savings and a sponsor offer waiting, built with the engine. */
 function lifestyleSave(): { json: string; brand: string; left: number } {
-  const base = generateWorld('lifestyle-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'lifestyle-browser')[0]!;
-  const world: World = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'lifestyle-browser',
-  );
+  const world: World = nationalCareer('lifestyle-browser');
   world.career!.fame = CONFIG.career.lifestyle.fameLevels[3];
   world.career!.style.fameLevel = 4;
   world.career!.market.finances.cash = 30_000;

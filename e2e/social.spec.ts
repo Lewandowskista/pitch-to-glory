@@ -1,8 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { careerTabs, isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import {
+  careerTabs,
+  isAbortedLoad,
+  isBrowserNoise,
+  nationalCareer,
+  openCareerPage,
+  skipTutorial,
+} from './support';
 import { readFileSync } from 'node:fs';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { openPress, rivalOf } from '../src/engine/career/social';
 import { createRng } from '../src/engine/rng';
@@ -56,31 +61,7 @@ async function accessibilityViolations(page: Page): Promise<string[]> {
 
 /** A career a few weeks in, built with the real engine, with a rival question waiting. */
 function socialSave(): { json: string; rival: string } {
-  const base = generateWorld('social-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'social-browser')[0]!;
-  let world: World = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'social-browser',
-  );
+  let world: World = nationalCareer('social-browser');
   for (let week = 0; week < 6; week++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
   // Answer anything the simulation opened, then ask about the rival.

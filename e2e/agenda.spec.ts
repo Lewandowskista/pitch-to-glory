@@ -1,14 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCareerFixture } from '../src/engine/career/matches';
 import { addXp, xpToNext } from '../src/engine/career/progression';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
-import { careerTabs, isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import { careerTabs, isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
 
 /**
  * Phase 3.2: the hub puts the next action first and lists what needs the player in order;
@@ -16,31 +14,7 @@ import { careerTabs, isAbortedLoad, isBrowserNoise, skipTutorial } from './suppo
  */
 const saves = new Map<string, string>();
 function between(seed: string): World {
-  const base = generateWorld(seed, { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', seed)[0]!;
-  let world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    seed,
-  );
+  let world = nationalCareer(seed);
   for (let week = 0; week < 6; week++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
   // Play this week's match, as a player would: Continue is then the next action.

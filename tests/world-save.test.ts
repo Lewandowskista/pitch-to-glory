@@ -5,7 +5,7 @@ import { validateWorld } from '../src/persistence/worldSchema';
 import { CREST_SYMBOLS } from '../src/engine/assets/crest';
 import { CONFIG } from '../src/engine/config';
 
-describe('world milestone save upgrade', () => {
+describe('legacy-compat: world milestone save upgrade', () => {
   it('migrates version 2 collections without losing their seed, preferences or revision', () => {
     const v2 = {
       ...createSave(1, 'Original', {

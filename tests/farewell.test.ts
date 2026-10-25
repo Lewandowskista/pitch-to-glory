@@ -1,10 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
-import { advanceCareerWeek } from '../src/engine/career/season';
 import { applyHonoursAction } from '../src/engine/career/honours/actions';
 import {
   canAnnounceFarewell,
@@ -14,6 +12,7 @@ import {
 import { validateWorld } from '../src/persistence/worldSchema';
 import { messageText } from '../src/screens/career/marketUi';
 import { chronicleSentence } from '../src/screens/career/honoursUi';
+import { nationalCareerSeason, nationalWorld } from './support/world';
 
 const H = CONFIG.career.honours;
 const draft: CareerDraft = {
@@ -36,7 +35,7 @@ const draft: CareerDraft = {
 };
 let start: World;
 beforeAll(() => {
-  const base = generateWorld('farewell-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'farewell-tests')[0]!;
   start = createCareer(base, draft, trial.id, 'farewell-tests');
 }, 60000);
@@ -66,10 +65,13 @@ describe('the farewell season', () => {
     valid(world);
   });
 
-  it('ends the career when the season is complete', () => {
-    let world = applyHonoursAction(aged(start, H.retirement.optionalAge), { type: 'farewell' });
-    for (let guard = 0; guard < 80 && world.phase === 'active'; guard++)
-      world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  it('ends the career when the season is complete', async () => {
+    // A farewell announced in the first week of the season just played.
+    const world = aged(await nationalCareerSeason(), H.retirement.optionalAge);
+    world.career!.farewell = {
+      season: world.date.season,
+      announced: { season: world.date.season, week: 1, day: 1 },
+    };
     expect(world.phase).toBe('complete');
     expect(world.career).toBeDefined();
     const next = startNextSeason(world);

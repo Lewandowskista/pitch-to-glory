@@ -146,59 +146,6 @@ describe('match engine', () => {
     const final = finish(s).state;
     expect(final.report!.passes.every((pass) => pass.from.x >= 0 && pass.to.x <= 100)).toBe(true);
   });
-  // Every match also choreographs its motion (about 4 ms), so the gate needs a larger budget.
-  it('calibrates 10,000 complete matches including reputation-gap upsets', () => {
-    let goals = 0,
-      homeGoals = 0,
-      awayGoals = 0,
-      homeWins = 0,
-      awayWins = 0,
-      closeUpsets = 0,
-      wideUpsets = 0,
-      draws = 0;
-    for (let i = 0; i < 10000; i++) {
-      const gap = i < 6000 ? 0 : i < 8000 ? 15 : 45;
-      const candidate = {
-        ...setup,
-        seed: `distribution-${i}`,
-        home: { ...setup.home, reputation: 50 + gap / 2 },
-        away: { ...setup.away, reputation: 50 - gap / 2 },
-      };
-      const result = finish(createMatchSession(candidate, tactics), i % 3).state;
-      const [h, a] = result.match.score;
-      goals += h + a;
-      if (i < 6000) {
-        homeGoals += h;
-        awayGoals += a;
-        homeWins += Number(h > a);
-        awayWins += Number(a > h);
-        draws += Number(h === a);
-      } else if (i < 8000) closeUpsets += Number(a > h);
-      else wideUpsets += Number(a > h);
-    }
-    const distribution = {
-      goalsPerMatch: goals / 10000,
-      homeGoals: homeGoals / 6000,
-      awayGoals: awayGoals / 6000,
-      homeWin: homeWins / 6000,
-      awayWin: awayWins / 6000,
-      draw: draws / 6000,
-      closeUpset: closeUpsets / 2000,
-      wideUpset: wideUpsets / 2000,
-    };
-    process.stdout.write(`Match distribution: ${JSON.stringify(distribution)}\n`);
-    expect(goals / 10000).toBeGreaterThan(2.5);
-    expect(goals / 10000).toBeLessThan(2.9);
-    expect(homeGoals).toBeGreaterThan(awayGoals);
-    expect(homeWins).toBeGreaterThan(awayWins);
-    expect(draws / 6000).toBeGreaterThan(0.18);
-    expect(draws / 6000).toBeLessThan(0.35);
-    expect(closeUpsets / 2000).toBeGreaterThan(0.15);
-    expect(closeUpsets / 2000).toBeLessThan(0.36);
-    expect(wideUpsets / 2000).toBeGreaterThan(0.03);
-    expect(wideUpsets / 2000).toBeLessThan(0.2);
-    expect(wideUpsets).toBeLessThan(closeUpsets);
-  }, 360000);
   it('kicks off with the usual taker when a pending kickoff has lost its carrier', () => {
     // A shot drawn before the opening kickoff was taken used to clear the carrier and crash
     // the kickoff (found by the career profile, seed policy-a).

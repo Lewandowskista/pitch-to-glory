@@ -1,9 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Club, ContractTerms, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
-import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { playerAbility } from '../src/engine/strength';
@@ -38,33 +36,16 @@ import { postMessage } from '../src/engine/career/market/records';
 import { openPress } from '../src/engine/career/social/media';
 import { createRng } from '../src/engine/rng';
 import { messageDeadline, messageSender } from '../src/screens/career/CareerInbox';
+import { nationalCareer, nationalCareerSeason, nationalWorld } from './support/world';
 
 const MK = CONFIG.career.market;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
-const draft: CareerDraft = {
-  name: 'Robin Vale',
-  avatar: {
-    face: 1,
-    skin: 2,
-    hair: 3,
-    hairColor: 4,
-    facialHair: 0,
-    eyebrows: 1,
-    eyes: 2,
-    accessory: 3,
-  },
-  nationalityId: 'country:0',
-  position: 'ST',
-  foot: 'left',
-  age: 17,
-  archetype: 'finisher',
-};
 let base: World;
 let career: World;
+// The shared national world and career (tests/support/world.ts).
 beforeAll(() => {
-  base = generateWorld('market-tests', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'market-tests')[0]!;
-  career = createCareer(base, draft, trial.id, 'market-tests');
+  base = nationalWorld();
+  career = nationalCareer();
 });
 const player = (world: World) => world.players[world.career!.playerId]!;
 const own = (world: World) => world.clubs[player(world).clubId!]!;
@@ -82,18 +63,14 @@ const valid = (world: World) => expect(() => validateWorld(clone(world))).not.to
 
 describe('market rules', () => {
   it('opens a summer and a winter window scaled to the season', () => {
+    // A 60-week national season (the 34-week legacy windows: tests/legacy-compat.test.ts).
     expect(transferWindows(career)).toEqual([
-      [1, 5],
-      [16, 19],
-    ]);
-    const national = generateWorld('market-windows');
-    expect(transferWindows(national)).toEqual([
       [1, 8],
       [29, 33],
     ]);
-    expect(windowState(career, 3)).toMatchObject({ open: true, closes: 5 });
-    expect(windowState(career, 10)).toMatchObject({ open: false, opens: 16 });
-    expect(windowState(career, 30)).toMatchObject({ open: false, opens: null });
+    expect(windowState(career, 3)).toMatchObject({ open: true, closes: 8 });
+    expect(windowState(career, 10)).toMatchObject({ open: false, opens: 29 });
+    expect(windowState(career, 40)).toMatchObject({ open: false, opens: null });
   });
   it('values ability exponentially, rewards youthful upside and discounts expiring deals', () => {
     const world = clone(career);
@@ -305,7 +282,7 @@ describe('requests, loans and contracts', () => {
     expect(withdrawn.career!.market.transferRequest).toBeNull();
     expect(trust(withdrawn)).toBe(trust(requested) + MK.transferRequest.withdrawTrust);
   });
-  it('a loan moves the registration, splits the wage and ends at the season rollover', () => {
+  it('a loan moves the registration and splits the wage', () => {
     const world = inWindow();
     const parentId = own(world).id;
     const destination = Object.values(world.clubs).find(
@@ -319,16 +296,11 @@ describe('requests, loans and contracts', () => {
     expect(player(loaned).clubId).toBe(destination.id);
     expect(careerContract(loaned).clubId).toBe(parentId);
     expect(loaned.loans).toHaveLength(1);
+    expect(loaned.loans[0]!.wageShare).toBeGreaterThan(0);
+    expect(loaned.loans[0]!.wageShare).toBeLessThanOrEqual(1);
     valid(loaned);
-    let done = loaned;
-    while (done.phase === 'active')
-      done = advanceCareerWeek(done, { inPlace: true, autoPlay: true }).world;
-    const next = startNextSeason(done);
-    expect(next.loans).toHaveLength(0);
-    expect(player(next).clubId).toBe(parentId);
-    expect(next.career!.market.moves.map((move) => move.kind)).toContain('loan-return');
-    valid(next);
-  }, 120000);
+    // Its end at the season rollover: tests/market.slow.test.ts.
+  });
   it('refuses a new contract without reason, then renews in the final season', () => {
     const world = clone(career);
     // No reason: the best role already, paid well above the market, years to run.
@@ -351,11 +323,10 @@ describe('requests, loans and contracts', () => {
     expect(signed.career!.market.finances.cash).toBeGreaterThanOrEqual(cash + loyalty);
     valid(signed);
   });
-  it('takes up the club option when a contract runs out, or completes an agreed free move', () => {
-    let world = clone(career);
+  it('takes up the club option when a contract runs out, or completes an agreed free move', async () => {
+    // A played season whose contract ends with it.
+    const world = await nationalCareerSeason();
     careerContract(world).end.season = world.date.season;
-    while (world.phase === 'active')
-      world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
     const option = clone(world);
     const extended = startNextSeason(option);
     expect(careerContract(extended).end.season).toBe(extended.date.season);
@@ -402,7 +373,7 @@ describe('requests, loans and contracts', () => {
 });
 
 describe('weekly market', () => {
-  it('builds interest over weeks, deterministically, and makes offers only in windows', () => {
+  it('builds interest over weeks, deterministically', () => {
     const run = () => {
       let world = clone(career);
       // A player well above the trial club's level draws attention.
@@ -410,31 +381,23 @@ describe('weekly market', () => {
       for (const key of Object.keys(p.attributes) as (keyof typeof p.attributes)[])
         p.attributes[key] = Math.min(99, p.attributes[key] + 25);
       world.contracts[p.contractId!]!.role = 'key';
-      const created: number[] = [];
-      while (world.phase === 'active') {
-        const before = world.offers.length;
+      for (let week = 0; week < 10; week++)
         world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
-        if (world.offers.length > before) created.push(world.date.week - 1);
-      }
-      return { world, created };
+      return world;
     };
     const first = run();
     const second = run();
-    expect(JSON.stringify(first.world.scouting)).toBe(JSON.stringify(second.world.scouting));
-    expect(JSON.stringify(first.world.offers)).toBe(JSON.stringify(second.world.offers));
-    expect(first.world.scouting.length).toBeGreaterThan(0);
-    const windows = transferWindows(first.world);
-    for (const offer of first.world.offers.filter(
-      (o) => o.kind === 'transfer' || o.kind === 'loan',
-    ))
-      expect(
-        windows.some(([from, to]) => offer.expires.week >= from && offer.expires.week <= to),
-      ).toBe(true);
-    valid(first.world);
+    expect(JSON.stringify(first.scouting)).toBe(JSON.stringify(second.scouting));
+    expect(JSON.stringify(first.offers)).toBe(JSON.stringify(second.offers));
+    expect(first.scouting.length).toBeGreaterThan(0);
+    expect(first.scouting.every((interest) => interest.weeksObserved > 0)).toBe(true);
+    // Offers only in the windows, across a whole season: tests/market.slow.test.ts.
+    valid(first);
   }, 120000);
-  it('interest favours clubs at or above the player’s level', () => {
-    const world = clone(career);
+  it('interest favours clubs at or above the player’s level', async () => {
+    const world = await nationalCareerSeason();
     const p = player(world);
+    expect(world.scouting.length).toBeGreaterThan(0);
     for (const interest of world.scouting) {
       const club = world.clubs[interest.clubId]!;
       if (interest.kind === 'transfer')

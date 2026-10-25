@@ -206,7 +206,7 @@ describe('rotation and lifecycle weeks', () => {
       intake: CONFIG.world.intakeWeek,
     });
   });
-  it('runs no market in a world from before the pyramid', () => {
+  it('legacy-compat: runs no market in a world from before the pyramid', () => {
     const legacy = generateWorld('legacy-market', { format: 'legacy' });
     expect(aiTransferWindow(legacy, createRng('x'))).toBe(0);
   });

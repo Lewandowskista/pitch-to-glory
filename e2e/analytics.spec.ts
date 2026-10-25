@@ -1,8 +1,6 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
+import { isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { EVENTS } from '../src/analytics/events';
@@ -171,31 +169,7 @@ test('sharing play over time adds a stable id stored on the device', async ({ pa
 /** A career waiting at its first matchday, as an exported save file. */
 function matchdaySave(): string {
   const seed = 'analytics-browser';
-  const base = generateWorld(seed, { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', seed)[0]!;
-  const world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    seed,
-  );
+  const world = nationalCareer(seed);
   while (!advanceCareerWeek(world, { inPlace: true }).pendingFixtureId);
   return JSON.stringify(
     createSave(1, 'Robin Vale', {

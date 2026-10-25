@@ -9,7 +9,7 @@ let backupPath: string;
 let fatiguedBackupPath: string;
 let longNamesBackupPath: string;
 test.beforeAll(async ({ browserName }, workerInfo) => {
-  const world = generateWorld('match-browser', { format: 'legacy' });
+  const world = generateWorld('match-browser');
   const save = createSave(1, 'Matchday test', {
     kind: 'world',
     world,

@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { GameEvent, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { injure } from '../src/engine/career/training';
@@ -8,6 +7,7 @@ import { createRng } from '../src/engine/rng';
 import { rivalOf } from '../src/engine/career/social';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { format, t } from '../src/i18n';
+import { nationalWorld } from './support/world';
 
 /** Phase 7 (C7): a career's debut, first goal, injuries and rivalry in the world's news. */
 const draft: CareerDraft = {
@@ -33,7 +33,7 @@ const valid = (world: World) => expect(() => validateWorld(clone(world))).not.to
 let start: World;
 let played: World;
 beforeAll(() => {
-  const base = generateWorld('career-news', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'career-news')[0]!;
   start = createCareer(base, draft, trial.id, 'career-news');
   played = clone(start);

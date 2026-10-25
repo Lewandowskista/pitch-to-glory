@@ -12,11 +12,11 @@ import {
   teamStrength,
   strengthFromAbility,
 } from '../src/engine/strength';
-import { generateWorld } from '../src/engine/world/generate';
 import { simulateWeek } from '../src/engine/world/simulate';
 import type { Club, World } from '../src/model/domain';
+import { nationalWorld } from './support/world';
 
-const world = generateWorld('strength-tests', { format: 'legacy' });
+const world = nationalWorld();
 const squad = (source: World, club: Club) => club.playerIds.map((id) => source.players[id]!);
 // Same Poisson sampler as the background resolver.
 function poisson(rng: Rng, mean: number): number {

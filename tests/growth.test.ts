@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { Player, TrainingPlan, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { GROWTH_SOURCES, growthOf } from '../src/engine/career/growth';
@@ -9,6 +8,8 @@ import { startNextSeason } from '../src/engine/world/simulate';
 import { createRng } from '../src/engine/rng';
 import { CONFIG } from '../src/engine/config';
 import {
+  addXp,
+  xpForLevel,
   attributeCost,
   raiseAttribute,
   trainableAttributes,
@@ -18,6 +19,7 @@ import {
 } from '../src/engine/career/progression';
 import { SKILLS } from '../src/engine/career/catalogue';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalCareerSeason, nationalWorld } from './support/world';
 
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const draft: CareerDraft = {
@@ -43,7 +45,7 @@ const total = (player: Player) =>
 
 describe('growth by source', () => {
   it('accounts for every attribute point a season brings, by where it came from', () => {
-    const base = generateWorld('growth-tests', { format: 'legacy' });
+    const base = nationalWorld();
     const trial = trialOffers(base, 'country:0', 'growth-tests')[0]!;
     let world = createCareer(base, draft, trial.id, 'growth-tests');
     const id = world.career!.playerId;
@@ -52,8 +54,8 @@ describe('growth by source', () => {
       world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
     // Spend points and a skill point as a player would.
     world = clone(world);
-    world.career!.attributePoints = 5;
-    world.career!.skillPoints = 5;
+    // Earn the points to spend (a national season brings few levels in twelve weeks).
+    addXp(world.career!, xpForLevel(world.career!.level + 5) - world.career!.xp);
     const key = trainableAttributes(world.players[id]!).find(
       (k) => attributeCost(world, k) !== null,
     )!;
@@ -77,7 +79,7 @@ describe('growth by source', () => {
   }, 120000);
 
   it('lets the training plan shape passive growth, the same on average (rules 3)', () => {
-    const base = generateWorld('growth-focus', { format: 'legacy' });
+    const base = nationalWorld();
     const trial = trialOffers(base, 'country:0', 'growth-focus')[0]!;
     const world = createCareer(base, draft, trial.id, 'growth-focus');
     const player = world.players[world.career!.playerId]!;
@@ -119,13 +121,10 @@ describe('growth by source', () => {
     expect(grow(3)).toBeGreaterThan(grow(2));
   });
 
-  it('adopts rules 3 at a season start, keeping a rules-2 career’s records', () => {
-    const base = generateWorld('growth-adopt', { format: 'legacy' });
-    const trial = trialOffers(base, 'country:0', 'growth-adopt')[0]!;
-    let world = createCareer(base, draft, trial.id, 'growth-adopt');
+  it('adopts rules 3 at a season start, keeping a rules-2 career’s records', async () => {
+    // A season played under rules 2, at its end.
+    const world = await nationalCareerSeason();
     world.career!.developmentRules = 2;
-    while (world.phase === 'active')
-      world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
     const availability = clone(world).career!.availability;
     const conditioning = world.career!.conditioning;
     const next = startNextSeason(world);

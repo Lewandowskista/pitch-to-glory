@@ -1,10 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
-import { careerTabs, isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import {
+  backupFile,
+  careerTabs,
+  isAbortedLoad,
+  isBrowserNoise,
+  nationalCareerSeason,
+  openCareerPage,
+  skipTutorial,
+} from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
-import { advanceCareerWeek } from '../src/engine/career/season';
 import { chronicle, encodeClip, momentLink, type ClipFrame } from '../src/engine/career/honours';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { Moment, World } from '../src/model/domain';
@@ -140,33 +145,8 @@ const CROSS_LINK = momentLink({
 let cached: { json: string; link: string } | undefined;
 function honoursSave() {
   if (cached) return cached;
-  const base = generateWorld('honours-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'honours-browser')[0]!;
-  let world: World = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'honours-browser',
-  );
-  while (world.phase === 'active')
-    world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  // The unit tests' national career after its first season (a cached fixture).
+  const world: World = nationalCareerSeason();
   const player = world.players[world.career!.playerId]!;
   player.birthSeason = world.date.season - 34;
   const club = world.clubs[player.clubId!]!;
@@ -211,11 +191,7 @@ test('celebrates a career, shares a moment, retires and starts the next generati
     .locator('.slot-card')
     .nth(0)
     .getByLabel('Import backup — Slot 1')
-    .setInputFiles({
-      name: 'honours.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(json),
-    });
+    .setInputFiles(backupFile('honours', json));
   await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Honours career');
 
   // The hub offers retirement once the season is over.

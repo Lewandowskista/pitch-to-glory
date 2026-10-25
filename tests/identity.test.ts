@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Player, Position } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { autoPlayCommand } from '../src/engine/career/matches';
 import { SKILL_BY_ID, SYSTEMIC_SKILLS } from '../src/engine/career/catalogue';
 import {
@@ -22,6 +21,7 @@ import {
   situationWeights,
   type DecisionContext,
 } from '../src/engine/match/decisions';
+import { nationalWorld } from './support/world';
 
 /**
  * Review phase 4, steps 4.1 and 4.2 (engine match-19): the opposition's style shapes the
@@ -29,7 +29,7 @@ import {
  */
 const F = CONFIG.match.foot;
 const S = CONFIG.match.styles;
-const world = generateWorld('identity-tests', { format: 'legacy' });
+const world = nationalWorld();
 const clubs = Object.values(world.clubs);
 
 function context(

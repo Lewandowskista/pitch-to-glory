@@ -1,7 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import {
@@ -9,6 +7,7 @@ import {
   groupLinkName,
   isAbortedLoad,
   isBrowserNoise,
+  nationalCareer,
   openCareerPage,
   skipTutorial,
   tabName,
@@ -48,31 +47,7 @@ const ROUTES = [
 
 const saves = new Map<number, string>();
 test.beforeAll(async ({ browserName }, workerInfo) => {
-  const base = generateWorld('navigation', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'navigation')[0]!;
-  const world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'navigation',
-  );
+  const world = nationalCareer('navigation');
   for (let week = 0; week < 4; week++) advanceCareerWeek(world, { inPlace: true, autoPlay: true });
   await mkdir('artifacts', { recursive: true });
   for (const fontScale of [1, 1.3]) {

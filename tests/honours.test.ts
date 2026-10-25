@@ -1,8 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Moment, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
-import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
+import { startNextSeason } from '../src/engine/world/simulate';
 import {
   CONTINENTAL_IDS,
   continentalQualifiers,
@@ -55,28 +54,20 @@ import { validateWorld } from '../src/persistence/worldSchema';
 import { validateNationalWorld } from '../src/persistence/nationalWorldSchema';
 import * as awards from '../src/engine/career/honours/awards';
 import { decidedTitles } from '../src/engine/world/titles';
+import {
+  NATIONAL_SEED,
+  SNAPSHOT_WEEKS,
+  TEST_DRAFT,
+  nationalCareer,
+  nationalCareerSeason,
+  nationalCareerWeeks,
+  nationalWorld,
+} from './support/world';
 
 const H = CONFIG.career.honours;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const valid = (world: World) => expect(() => validateWorld(clone(world))).not.toThrow();
-const draft: CareerDraft = {
-  name: 'Robin Vale',
-  avatar: {
-    face: 1,
-    skin: 2,
-    hair: 3,
-    hairColor: 4,
-    facialHair: 0,
-    eyebrows: 1,
-    eyes: 2,
-    accessory: 3,
-  },
-  nationalityId: 'country:0',
-  position: 'ST',
-  foot: 'left',
-  age: 17,
-  archetype: 'finisher',
-};
+const draft: CareerDraft = TEST_DRAFT;
 const saveOf = (world: World) =>
   createSave(1, 'Honours', {
     kind: 'world',
@@ -93,23 +84,20 @@ const aged = (input: World, age: number) => {
 
 let career: World;
 let season: World;
-beforeAll(() => {
-  const base = generateWorld('honours-tests', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'honours-tests')[0]!;
-  career = createCareer(base, draft, trial.id, 'honours-tests');
-  season = clone(career);
-  while (season.phase === 'active')
-    season = advanceCareerWeek(season, { inPlace: true, autoPlay: true }).world;
+// The shared national career, fresh and after its first season (tests/support/world.ts).
+beforeAll(async () => {
+  career = nationalCareer();
+  season = await nationalCareerSeason();
 }, 300000);
 
 describe('continental cups', () => {
   let national: World;
   let played: World;
   beforeAll(() => {
-    national = generateWorld('honours-continental');
-    played = clone(national);
-    while (played.phase === 'active') played = simulateWeek(played);
-  }, 300000);
+    national = nationalWorld();
+    // The cups of the career's first season, played to their finals.
+    played = season;
+  });
 
   it('draws 32 clubs into eight groups of four, keeping countries apart', () => {
     for (const id of CONTINENTAL_IDS) {
@@ -313,12 +301,10 @@ describe('the honours season', () => {
     valid(season);
   });
 
-  it('is deterministic for a given world', () => {
-    const run = () => {
-      let world = clone(career);
-      for (let week = 0; week < 10; week++)
-        world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
-      return JSON.stringify([
+  it('is deterministic for a given world', async () => {
+    // The same weeks played here and in the process that built the shared snapshot.
+    const run = (world: World) =>
+      JSON.stringify([
         world.chronicle,
         world.moments,
         world.awards,
@@ -326,8 +312,10 @@ describe('the honours season', () => {
         world.callUps,
         world.international,
       ]);
-    };
-    expect(run()).toBe(run());
+    let world = clone(career);
+    for (let week = 0; week < SNAPSHOT_WEEKS; week++)
+      world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+    expect(run(world)).toBe(run(await nationalCareerWeeks()));
   }, 120000);
 });
 
@@ -590,7 +578,7 @@ describe('retirement and legacy', () => {
   it('starts a child named exactly as the parent under an id of their own (0.9.1)', () => {
     // The first career's id still comes from its name alone.
     const first = career.career!.playerId;
-    expect(first).toBe(`career:${hashSeed(`honours-tests:${draft.name}`)}`);
+    expect(first).toBe(`career:${hashSeed(`${NATIONAL_SEED}:${draft.name}`)}`);
     const retired = applyHonoursAction(aged(season, 34), { type: 'retire' });
     const child = { ...draft, parentLegacyId: retired.legacies.at(-1)!.id };
     const trial = trialOffers(retired, 'country:0', 'honours-tests')[0]!;
@@ -695,7 +683,7 @@ describe('persistence', () => {
 
 describe('club trophies', () => {
   const { recordCareerTrophies } = awards;
-  /** A legacy career world with one cup won by `winnerId`, decided this week. */
+  /** A career world with one cup won by `winnerId`, decided this week. */
   function cupWon(winnerId: string) {
     const world = clone(career);
     const cup = Object.values(world.competitions)[0]!;

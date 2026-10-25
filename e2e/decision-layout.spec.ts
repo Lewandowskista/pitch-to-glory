@@ -24,7 +24,7 @@ const saves = new Map<string, string>();
 const key = ({ fontScale = 1, simulationOnly = false }: Variant) =>
   `${fontScale}-${simulationOnly}`;
 test.beforeAll(async ({ browserName }, workerInfo) => {
-  const world = generateWorld('decision-layout', { format: 'legacy' });
+  const world = generateWorld('decision-layout');
   await mkdir('artifacts', { recursive: true });
   for (const variant of [
     { fontScale: 1 },

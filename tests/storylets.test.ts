@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { StoryState, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import {
@@ -20,6 +19,7 @@ import { storyletsText } from '../src/i18n/storylets';
 import { messageText } from '../src/screens/career/marketUi';
 import { chronicleSentence } from '../src/screens/career/honoursUi';
 import { storyChoice, storyEnding, storyScene, storyTitle } from '../src/screens/career/storyText';
+import { nationalWorld } from './support/world';
 
 const draft: CareerDraft = {
   name: 'Robin Vale',
@@ -41,7 +41,7 @@ const draft: CareerDraft = {
 };
 let start: World;
 beforeAll(() => {
-  const base = generateWorld('story-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'story-tests')[0]!;
   start = createCareer(base, draft, trial.id, 'story-tests');
   // An established player, old enough for the senior stories.
@@ -142,7 +142,8 @@ describe('story arcs', () => {
           noBraces(chronicleSentence(world, entry));
         valid(world);
       }
-  });
+    // Each choice is validated against the whole national world.
+  }, 180000);
 
   it('take the default choice when unanswered', () => {
     const def = STORYLETS.find((entry) => entry.kind === 'homecoming')!;

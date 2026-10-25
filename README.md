@@ -197,7 +197,8 @@ npm run dev          # http://127.0.0.1:5173
 ```sh
 npm run typecheck
 npm run lint
-npm test             # Vitest: engine, persistence, workers, audio
+npm test             # Vitest: engine, persistence, workers, audio (fast and slow projects)
+npm run test:fast    # what pull requests run; npm run test:slow for the slow gates
 npm run build        # typecheck, production build, per-route bundle budget
 npx playwright install chromium firefox webkit
 npm run test:e2e     # browser journeys under the production headers

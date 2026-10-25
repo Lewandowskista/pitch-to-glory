@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { AmbitionId, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import {
@@ -26,6 +25,7 @@ import { honoursText } from '../src/i18n/honours';
 import { ambitionName } from '../src/screens/career/ambitionText';
 import { messageText } from '../src/screens/career/marketUi';
 import { chronicleSentence } from '../src/screens/career/honoursUi';
+import { nationalWorld } from './support/world';
 
 const A = CONFIG.career.honours.ambitions;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
@@ -51,7 +51,7 @@ const draft = (position: CareerDraft['position']): CareerDraft => ({
 let striker: World;
 let keeper: World;
 beforeAll(() => {
-  const base = generateWorld('ambition-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'ambition-tests')[0]!;
   striker = createCareer(base, draft('ST'), trial.id, 'ambition-tests');
   keeper = createCareer(base, draft('GK'), trial.id, 'ambition-tests');

@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import {
   ambitionOffers,
@@ -13,6 +12,7 @@ import {
 } from '../src/engine/career/preseason';
 import { careerContract, relationshipValue } from '../src/engine/career/market/rules';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 /**
  * Review phase 5, step 5.3: a preseason briefing with the player's ambition for the season,
@@ -23,7 +23,7 @@ const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as Worl
 const valid = (world: World) => expect(() => validateWorld(clone(world))).not.toThrow();
 let career: World;
 beforeAll(() => {
-  const base = generateWorld('preseason-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'preseason-tests')[0]!;
   career = createCareer(
     base,

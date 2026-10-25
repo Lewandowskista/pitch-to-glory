@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ChronicleEntry, Moment, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -9,6 +8,7 @@ import { trimMoments } from '../src/engine/career/honours/moments';
 import { trimAwards } from '../src/engine/career/honours/awards';
 import { careerInvariants } from '../src/engine/career/invariants';
 import { CONFIG } from '../src/engine/config';
+import { nationalWorld } from './support/world';
 
 /**
  * Phase 4.1: the invariants the endurance harness checks at every checkpoint hold through an
@@ -41,7 +41,7 @@ function start(world: World, name: string, parent?: string): World {
 }
 let completed: World;
 beforeAll(() => {
-  let world = start(generateWorld('invariants', { format: 'legacy' }), 'Robin Vale');
+  let world = start(nationalWorld(), 'Robin Vale');
   const historyBefore = world.history.length;
   while (world.phase === 'active') {
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;

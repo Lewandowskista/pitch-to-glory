@@ -2,13 +2,11 @@ import { expect, test, type Page } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCareerFixture } from '../src/engine/career/matches';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import { isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
 
 /**
  * Phase 4.2: a real deployment update. The old build (dist) runs a saved career; the new build
@@ -64,31 +62,7 @@ const week = (page: Page) =>
     .textContent();
 
 test.beforeAll(async () => {
-  const base = generateWorld('update-journey', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'update-journey')[0]!;
-  let world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'update-journey',
-  );
+  let world = nationalCareer('update-journey');
   for (let guard = 0; guard < 6 && world.date.week < 3; guard++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
   // Play this week's match, as a player would: Continue is then the next action.

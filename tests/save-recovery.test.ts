@@ -10,8 +10,8 @@ import {
 } from '../src/persistence/schema';
 import { executePersistenceRequest } from '../src/workers/persistence.worker';
 import type { PersistenceOperation } from '../src/persistence/workerClient';
-import { generateWorld } from '../src/engine/world/generate';
 import type { World } from '../src/model/domain';
+import { nationalWorld } from './support/world';
 
 const databases: SaveDatabase[] = [];
 const setup = () => {
@@ -24,7 +24,7 @@ afterEach(async () => {
   for (const db of databases.splice(0)) await db.delete();
 });
 let shared: World | null = null;
-const world = () => (shared ??= generateWorld('save-recovery', { format: 'legacy' }));
+const world = () => (shared ??= nationalWorld());
 const worldSave = (slot: 1 | 2 | 3 = 1): AppSave =>
   createSave(slot, 'Clock career', {
     kind: 'world',
