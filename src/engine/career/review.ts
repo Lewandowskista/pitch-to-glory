@@ -1,6 +1,6 @@
 import type { AmbitionId, Award, Position, Trophy, World } from '../../model/domain';
 import { CONFIG } from '../config';
-import { rivalOf, seasonLines } from './social/rival';
+import { backLine, rivalOf, seasonEdge, seasonLines } from './social/rival';
 
 /**
  * The end-of-season review (engagement review, season milestones): how the season went for the
@@ -30,16 +30,29 @@ export interface SeasonReview {
   share: number;
   awards: Award[];
   trophies: Trophy[];
-  rival: {
-    name: string;
-    goals: number;
-    rivalGoals: number;
-    rating: number;
-    rivalRating: number;
-  } | null;
+  rival: RivalComparison | null;
   ambitions: AmbitionId[];
   score: number;
   grade: SeasonGrade;
+}
+
+/**
+ * The season against the rival (C15, 0.9.1), judged as the rivalry judges it: by the line's
+ * output, so keepers and defenders by clean sheets, and then by rating.
+ */
+export interface RivalComparison {
+  name: string;
+  /** What the line is shown by: clean sheets for keepers and defenders, otherwise goals. */
+  measure: 'goals' | 'clean-sheets';
+  verdict: 'ahead' | 'level' | 'behind';
+  goals: number;
+  rivalGoals: number;
+  assists: number;
+  rivalAssists: number;
+  cleanSheets: number;
+  rivalCleanSheets: number;
+  rating: number;
+  rivalRating: number;
 }
 
 function lineOf(world: World, season: number): ReviewLine {
@@ -154,20 +167,32 @@ export function seasonReview(world: World): SeasonReview | null {
     share,
     awards,
     trophies,
-    rival:
-      lines && rival
-        ? {
-            name: rival.name,
-            goals: lines.career.goals,
-            rivalGoals: lines.rival.goals,
-            rating: lines.career.rating,
-            rivalRating: lines.rival.rating,
-          }
-        : null,
+    rival: lines && rival ? rivalComparison(rival.name, lines, player.primaryPosition) : null,
     ambitions: (career.ambitions?.list ?? [])
       .filter((ambition) => ambition.achieved?.season === season)
       .map((ambition) => ambition.id),
     score,
     grade: gradeFor(score),
+  };
+}
+
+function rivalComparison(
+  name: string,
+  lines: NonNullable<ReturnType<typeof seasonLines>>,
+  position: Position,
+): RivalComparison {
+  const edge = seasonEdge(lines, position);
+  return {
+    name,
+    measure: backLine(position) ? 'clean-sheets' : 'goals',
+    verdict: edge > 0 ? 'ahead' : edge < 0 ? 'behind' : 'level',
+    goals: lines.career.goals,
+    rivalGoals: lines.rival.goals,
+    assists: lines.career.assists,
+    rivalAssists: lines.rival.assists,
+    cleanSheets: lines.career.cleanSheets ?? 0,
+    rivalCleanSheets: lines.rival.cleanSheets ?? 0,
+    rating: lines.career.rating,
+    rivalRating: lines.rival.rating,
   };
 }

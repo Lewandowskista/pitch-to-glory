@@ -175,6 +175,21 @@ export function rivalOutput(line: SeasonLine, position: Position): number {
   return line.goals + line.assists;
 }
 
+/**
+ * How far the career player finished ahead of the rival, negative when behind: the line's
+ * output, then the average rating. The season's close and the season review judge by it.
+ */
+export function seasonEdge(
+  lines: { career: SeasonLine; rival: SeasonLine },
+  position: Position,
+): number {
+  return (
+    rivalOutput(lines.career, position) -
+    rivalOutput(lines.rival, position) +
+    (lines.career.rating - lines.rival.rating) * 5
+  );
+}
+
 /** Where the rival would move: a bigger club whose first team they would walk into. */
 function rivalDestination(world: World, rival: Player, rng: Rng): Club | null {
   const current = world.clubs[rival.clubId!]!;
@@ -280,10 +295,7 @@ export function rivalSeasonEnd(world: World, season: number): void {
   if (!rivalry || !rival || !lines) return;
   rivalry.seasons.push({ season, career: lines.career, rival: lines.rival });
   const position = careerPlayer(world).primaryPosition;
-  const ahead =
-    rivalOutput(lines.career, position) -
-    rivalOutput(lines.rival, position) +
-    (lines.career.rating - lines.rival.rating) * 5;
+  const ahead = seasonEdge(lines, position);
   adjustIntensity(rivalry, R.seasonEnd);
   if (ahead >= 0 && lines.career.appearances)
     chronicle(
