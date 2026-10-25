@@ -97,7 +97,6 @@ import {
 } from './agenda';
 import { AdvanceDigest, AdvancePreviewText, HubPriorities } from './HubPriorities';
 import { CoachTile } from './CoachAdvice';
-import { tutorialText as tt } from '../../i18n/tutorial';
 
 const attributeName = (key: string) =>
   t.world.attributes[key as keyof typeof t.world.attributes] ?? key;
@@ -314,17 +313,19 @@ export function HubContent({
       <Tutorial
         track="week"
         enabled={world.phase === 'active' && career.matches.length === 0}
-        steps={(
-          [
-            'next-match',
-            'priorities',
-            'player-card',
-            'training',
-            'career-nav',
-            'inbox',
-            'continue',
-          ] as const
-        ).map((target) => ({ target, ...tt.week[target] }))}
+        steps={(tt) =>
+          (
+            [
+              'next-match',
+              'priorities',
+              'player-card',
+              'training',
+              'career-nav',
+              'inbox',
+              'continue',
+            ] as const
+          ).map((target) => ({ target, ...tt.week[target] }))
+        }
       />
     </div>
   );

@@ -79,7 +79,6 @@ import { useMatchAudio } from './match/useMatchAudio';
 import { preparePlayback } from './match/playback';
 import { shirtNumbers } from './match/pitchArt';
 import { Tutorial } from '../ui/TutorialLoader';
-import { tutorialText as tt } from '../i18n/tutorial';
 import { StakeLine } from './career/stakesUi';
 const Pitch = lazyPage(() => import('./match/Pitch'));
 /** A friendly between any two clubs, for a world without a career: loaded only there. */
@@ -882,9 +881,7 @@ export default function MatchBody() {
                 <CommentaryCard
                   session={session}
                   narration={narration}
-                  celebration={
-                    celebrationItem ? celebrationNames[celebrationItem.id] : undefined
-                  }
+                  celebration={celebrationItem ? celebrationNames[celebrationItem.id] : undefined}
                 />
               </aside>
             </div>
@@ -894,7 +891,7 @@ export default function MatchBody() {
       <Tutorial
         track="match"
         enabled={Boolean(session) && status !== 'finished'}
-        steps={[
+        steps={(tt) => [
           { target: 'tactics', ...tt.match.tactics, when: status === 'preview' },
           { target: 'kickoff', ...tt.match.kickoff, action: true, done: status !== 'preview' },
           { target: 'controls', ...tt.match.controls, when: status === 'live' },
