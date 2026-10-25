@@ -80,7 +80,7 @@ function render(name: SoundName): Promise<Uint8Array<ArrayBuffer>> {
       else request.reject(new Error(event.data.error ?? 'Audio rendering failed'));
     };
     worker.onerror = (event) => {
-      recordFailure('worker', event.message || 'The sound worker stopped', 'audio');
+      recordFailure('worker', event?.message || 'The sound worker stopped', 'audio');
       failWorker();
     };
     worker.onmessageerror = failWorker;
