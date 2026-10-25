@@ -6,6 +6,7 @@ import { agendaText as a } from '../../i18n/agenda';
 import { careerText as c } from '../../i18n/career';
 import { lifestyleText as l } from '../../i18n/lifestyle';
 import { marketText as m } from '../../i18n/market';
+import { plural } from '../../i18n/locale';
 import { Icon } from '../../ui/Icon';
 import { CardTitle, Panel, cx } from '../../ui/kit';
 import { useAppStore } from '../../store';
@@ -30,21 +31,14 @@ const TAG_TONE = {
   neutral: 'bg-surface-soft text-muted',
 } as const;
 
-const count = (value: number, one: string, many: string, params = {}) =>
-  format(value === 1 ? one : many, { ...params, count: value });
-
 /** The action's label, in the player's words. */
 export function priorityLabel(item: Priority): string {
   const p = item.params;
   switch (item.kind) {
     case 'attributes':
-      return count(
-        Number(p.count),
-        a.priorities.kinds.attributes_one,
-        a.priorities.kinds.attributes,
-      );
+      return plural(Number(p.count), a.priorities.kinds.attributes);
     case 'skills':
-      return count(Number(p.count), a.priorities.kinds.skills_one, a.priorities.kinds.skills);
+      return plural(Number(p.count), a.priorities.kinds.skills);
     case 'sponsor':
       return format(a.priorities.kinds.sponsor, {
         category: (
@@ -61,15 +55,10 @@ function priorityDetail(item: Priority): string | null {
   const p = item.params;
   switch (item.kind) {
     case 'recovery':
-      return count(
-        Number(p.weeks),
-        a.priorities.details.recovery_one,
-        a.priorities.details.recovery,
-        {
-          injury: c.injuries[p.injury as keyof typeof c.injuries] ?? p.injury,
-          weeks: p.weeks,
-        },
-      );
+      return plural(Number(p.weeks), a.priorities.details.recovery, {
+        injury: c.injuries[p.injury as keyof typeof c.injuries] ?? p.injury,
+        weeks: p.weeks,
+      });
     case 'offer':
       return format(a.priorities.details.offer, {
         offer: m.kinds[p.offer as keyof typeof m.kinds] ?? p.offer,
@@ -204,24 +193,24 @@ export function AdvancePreviewText({ world, preview }: { world: World; preview: 
   const clubId = world.players[world.career!.playerId]?.clubId;
   const fixture = preview.fixture;
   const opponentId = fixture && (fixture.homeId === clubId ? fixture.awayId : fixture.homeId);
-  const range =
-    preview.through <= preview.from
-      ? format(a.preview.weekOne, { from: preview.from })
-      : format(a.preview.weeks, { from: preview.from, through: preview.through });
+  const single = preview.through <= preview.from;
+  const range = { from: preview.from, through: preview.through };
   return (
     <div className="grid max-w-prose gap-3 text-sm text-hero-muted">
       <p>
         {preview.fitWeek !== null && `${format(a.preview.fit, { week: preview.fitWeek })} `}
         {preview.deadline
-          ? `${range}${format(a.preview.deadline, {
+          ? format(single ? a.preview.deadlineWeek : a.preview.deadlineWeeks, {
+              ...range,
               week: preview.deadline.week,
               action: lowerFirst(priorityLabel(preview.deadline.item)),
-            })}`
+            })
           : fixture
-            ? `${range}${format(a.preview.stop, {
+            ? format(single ? a.preview.stopWeek : a.preview.stopWeeks, {
+                ...range,
                 week: fixture.date.week,
                 opponent: world.clubs[opponentId ?? '']?.name ?? '',
-              })}`
+              })
             : format(a.preview.season, { through: preview.through })}
       </p>
       {preview.lapsing.length > 0 && (
@@ -285,7 +274,7 @@ export function AdvanceDigest({ world }: { world: World }) {
   if (digest.injury)
     lines.push({
       key: 'injury',
-      text: count(digest.injury.weeksRemaining, a.digest.injury_one, a.digest.injury, {
+      text: plural(digest.injury.weeksRemaining, a.digest.injury, {
         injury: c.injuries[digest.injury.kind as keyof typeof c.injuries] ?? digest.injury.kind,
         weeks: digest.injury.weeksRemaining,
       }),
@@ -323,7 +312,7 @@ export function AdvanceDigest({ world }: { world: World }) {
   if (digest.lapsedPress)
     lines.push({
       key: 'press',
-      text: count(digest.lapsedPress, a.digest.lapsedPress_one, a.digest.lapsedPress),
+      text: plural(digest.lapsedPress, a.digest.lapsedPress),
       tone: 'bad',
     });
   if (digest.chronicle.length)
@@ -376,9 +365,7 @@ export function AdvanceDigest({ world }: { world: World }) {
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
         {digest.messages > 0 && (
           <Link className="text-button -ml-3" to={withSave('/career/inbox', params.get('save'))}>
-            {digest.messages === 1
-              ? a.digest.messages_one
-              : format(a.digest.messages, { count: digest.messages, unread: digest.unread })}
+            {plural(digest.messages, a.digest.messages, { unread: digest.unread })}
           </Link>
         )}
         <button

@@ -34,9 +34,10 @@ import { errorText, format, t } from '../../i18n';
 import { persistence } from '../../persistence/lazy';
 import { errorCode } from '../../persistence/errors';
 import { careerText as c } from '../../i18n/career';
+import { plural } from '../../i18n/locale';
 import { Artwork } from '../../ui/Artwork';
 import { Button, CardTitle, Chip, EffectChip, Panel, StatTile, cx } from '../../ui/kit';
-import { CareerPage, plural, ui, useEditBlock } from './shared';
+import { CareerPage, ui, useEditBlock } from './shared';
 import { POSITIONS, samePlan } from './selectors';
 import { PHONE_QUERY, usePhone } from './usePhone';
 
@@ -377,7 +378,7 @@ function TrainingPlanner({
       ? c.training.noMentor
       : dirty
         ? phone
-          ? plural(changes || 1, c.training.unsavedCountOne, c.training.unsavedCount)
+          ? plural(changes || 1, c.training.unsavedCount)
           : c.training.unsaved
         : status || c.training.noChanges;
   const reset = () => {
@@ -742,9 +743,7 @@ function TrainingReport({ career, phone }: { career: Career; phone: boolean }) {
           <dd className="mt-1">
             {gainsCount ? (
               <>
-                <p className="font-bold">
-                  {plural(gainsCount, c.training.gainsCountOne, c.training.gainsCount)}
-                </p>
+                <p className="font-bold">{plural(gainsCount, c.training.gainsCount)}</p>
                 <details className="mt-0.5">
                   <summary className="inline-flex min-h-11 cursor-pointer items-center font-bold text-accent underline underline-offset-4">
                     {c.training.details}
@@ -824,7 +823,7 @@ function TrainingReport({ career, phone }: { career: Career; phone: boolean }) {
               <span className="block text-xs text-muted">
                 {format(c.training.reportSummary, {
                   week,
-                  progress: plural(gainsCount, c.training.gainsCountOne, c.training.gainsCount),
+                  progress: plural(gainsCount, c.training.gainsCount),
                 })}
               </span>
             </span>

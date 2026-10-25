@@ -1,10 +1,11 @@
 import type { Objective } from '../model/domain';
+import { LOCALE, type Translations } from './locale';
 
 /**
  * The match objectives as the hub previews them before matchday (engine match-15, decision 3):
  * short enough for one line on the next-match card.
  */
-export const objectiveText = {
+const objectiveTextEn = {
   heading: 'Your objectives',
   ifPicked: 'Your objectives, if you are picked',
   listLabel: 'Match objectives',
@@ -19,3 +20,6 @@ export const objectiveText = {
     shots: 'Take {target} shots',
   } satisfies Record<Objective['kind'], string>,
 };
+export const objectiveText = (
+  { en: objectiveTextEn } satisfies Translations<typeof objectiveTextEn>
+)[LOCALE];

@@ -101,8 +101,8 @@ export default function MatchMaps({
           role="img"
           aria-label={
             timed
-              ? `${copy.heatmap}: ${seconds} ${copy.seconds}`
-              : `${copy.heatmap}: ${report.heatmap.length} ${copy.samples}`
+              ? matchFormat(copy.heatmapSeconds, { seconds })
+              : matchFormat(copy.heatmapSamples, { count: report.heatmap.length })
           }
         >
           <rect width="116" height="80" fill={MAP_GREEN} />
@@ -119,7 +119,9 @@ export default function MatchMaps({
                   opacity={0.15 + (count / maximum) * 0.65}
                 >
                   <title>
-                    {timed ? Math.round(count / 1000) : count} {timed ? copy.seconds : copy.samples}
+                    {timed
+                      ? matchFormat(copy.cellSeconds, { count: Math.round(count / 1000) })
+                      : matchFormat(copy.cellSamples, { count })}
                   </title>
                 </rect>
               ),
@@ -147,7 +149,7 @@ export default function MatchMaps({
           <span>
             {timed
               ? team
-                ? `${copy.heatTime} ${matchFormat(copy.heatDirection, { club: team })}`
+                ? matchFormat(copy.heatTime, { club: team })
                 : copy.timeDensity
               : report.heatmap.length
                 ? copy.density
@@ -160,7 +162,7 @@ export default function MatchMaps({
         <svg
           viewBox="0 0 116 80"
           role="img"
-          aria-label={`${copy.passes}: ${passes.length} ${copy.attempts}, ${completed} ${copy.completed}`}
+          aria-label={matchFormat(copy.passesLabel, { attempts: passes.length, completed })}
         >
           {background}
           {passes.map((pass, index) => (
@@ -204,7 +206,7 @@ export default function MatchMaps({
             {passes.length ? (
               <>
                 <strong>
-                  {completed}/{passes.length} {copy.completed}.
+                  {matchFormat(copy.passesTally, { completed, attempts: passes.length })}
                 </strong>{' '}
                 {copy.passLegend}
               </>
@@ -219,7 +221,7 @@ export default function MatchMaps({
         <svg
           viewBox="0 0 116 80"
           role="img"
-          aria-label={`${copy.shots}: ${shots.length} ${copy.attempts}, ${scored} ${copy.scored}`}
+          aria-label={matchFormat(copy.shotsLabel, { attempts: shots.length, scored })}
         >
           {background}
           {shots.map((shot, index) => {
@@ -278,9 +280,7 @@ export default function MatchMaps({
           <span>
             {shots.length ? (
               <>
-                <strong>
-                  {scored}/{shots.length} {copy.scored}.
-                </strong>{' '}
+                <strong>{matchFormat(copy.shotsTally, { scored, attempts: shots.length })}</strong>{' '}
                 {copy.shotLegend} {copy.shotSizes}
               </>
             ) : (

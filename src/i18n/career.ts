@@ -1,7 +1,8 @@
 /** Career copy (milestone 4): wizard, hub, profile, skill tree, training and match rewards. */
-import { kitText } from './kit';
+import { kitTextEn } from './kit';
+import { LOCALE, plurals, type Translations } from './locale';
 
-export const careerText = {
+const careerTextEn = {
   nav: 'Career',
   titles: {
     hub: 'Career hub',
@@ -13,18 +14,16 @@ export const careerText = {
   sections: 'Career sections',
   sectionNames: { hub: 'Overview', profile: 'Profile', skills: 'Skills', training: 'Training' },
   common: {
-    level: kitText.level,
+    level: kitTextEn.level,
     levelShort: 'Lv {level}',
-    xp: kitText.xp,
-    xpMax: kitText.xpMax,
-    xpLabel: kitText.xpLabel,
+    xp: kitTextEn.xp,
+    xpMax: kitTextEn.xpMax,
+    xpLabel: kitTextEn.xpLabel,
     age: 'Age {age}',
     week: 'Week {week}',
     seasonWeek: '{season} · Week {week}',
-    attributePoints: '{count} attribute points',
-    attributePoint: '1 attribute point',
-    skillPoints: '{count} skill points',
-    skillPoint: '1 skill point',
+    attributePoints: plurals({ one: '1 attribute point', other: '{count} attribute points' }),
+    skillPoints: plurals({ one: '1 skill point', other: '{count} skill points' }),
     noPoints: 'No unspent points',
     home: 'Home',
     away: 'Away',
@@ -43,7 +42,7 @@ export const careerText = {
     next: 'Continue',
     unknownClub: 'Free agent',
     meters: { form: 'Form', morale: 'Morale', fitness: 'Fitness', fatigue: 'Fatigue' },
-    meterValue: kitText.meterValue,
+    meterValue: kitTextEn.meterValue,
   },
   empty: {
     title: 'Your story starts here.',
@@ -304,8 +303,7 @@ export const careerText = {
     unlock: 'Unlock skills',
     condition: 'Condition',
     injury: 'Injury',
-    injuryOut: 'Out for {weeks} weeks',
-    injuryOutOne: 'Out for 1 week',
+    injuryOut: plurals({ one: 'Out for 1 week', other: 'Out for {weeks} weeks' }),
     injuryThreatening:
       'A serious injury. A full recovery is not guaranteed: some pace may be lost.',
     recoveryTitle: 'Choose your recovery',
@@ -336,12 +334,9 @@ export const careerText = {
     season: 'Season {season}',
     scope: 'All club competitions',
     leagueLine: 'In the league: {goals} and {assists} in {apps}',
-    goal: '1 goal',
-    goals: '{count} goals',
-    assist: '1 assist',
-    assists: '{count} assists',
-    game: '1 game',
-    games: '{count} games',
+    goals: plurals({ one: '1 goal', other: '{count} goals' }),
+    assists: plurals({ one: '1 assist', other: '{count} assists' }),
+    games: plurals({ one: '1 game', other: '{count} games' }),
     resultLine: {
       win: 'Won {score} v {opponent}',
       draw: 'Drew {score} v {opponent}',
@@ -372,15 +367,18 @@ export const careerText = {
     // Redesign (phase 3b): the hub's hero, cards and tiles.
     seasonWeek: 'Season {season} · Week {week} of {weeks}',
     seasonDone: 'Season {season} · Complete',
-    recoveryFirst: 'Choose how to recover first: the world waits until you do.',
+    /** The page description while a recovery choice is pending: `{line}` is the season line. */
+    recoveryFirst: '{line}. Choose how to recover first: the world waits until you do.',
     fixtureWhen: '{date} · {stadium}',
     fixtureMeta: 'Week {week} · {competition} · {venue}',
     standing: '{rank} · {points} pts',
     sideHome: 'Home',
     sideAway: 'Away',
     formOf: '{club} form',
-    injuredHero: 'Out for {weeks} weeks: {injury}',
-    injuredHeroOne: 'Out for 1 week: {injury}',
+    injuredHero: plurals({
+      one: 'Out for 1 week: {injury}',
+      other: 'Out for {weeks} weeks: {injury}',
+    }),
     recoveryPaused: 'Simulating is paused until you choose.',
     enterHint: 'Press {key} to continue',
     enterKey: 'Enter',
@@ -410,8 +408,7 @@ export const careerText = {
     injuredStatus: 'Injured',
     backInWeek: 'Expected back in week {week}',
     backChip: 'Back week {week}',
-    misses: 'Misses {count} matches',
-    missesOne: 'Misses 1 match',
+    misses: plurals({ one: 'Misses 1 match', other: 'Misses {count} matches' }),
     missesNone: 'Misses no matches',
     safer: 'Safer',
     faster: 'Faster',
@@ -442,16 +439,12 @@ export const careerText = {
     digestLegend: 'Green: good news · Red: needs a look · Grey: for the record',
     tiles: 'Around the club',
     tileValues: {
-      inboxNew: '{count} new',
-      inboxNewOne: '1 new',
+      inboxNew: plurals({ one: '1 new', other: '{count} new' }),
       inboxRead: 'All read',
       pressQuiet: 'All quiet',
-      market: '{count} clubs',
-      marketOne: '1 club',
-      training: '{count} sessions',
-      trainingOne: '1 session',
-      honours: '{count} trophies',
-      honoursOne: '1 trophy',
+      market: plurals({ one: '1 club', other: '{count} clubs' }),
+      training: plurals({ one: '1 session', other: '{count} sessions' }),
+      honours: plurals({ one: '1 trophy', other: '{count} trophies' }),
     },
     retirement: {
       finalSeason: '{title} · final season',
@@ -621,8 +614,7 @@ export const careerText = {
     positionChip: '{position} {value}%',
     groupTabs: 'Attribute groups',
     groupPanel: '{group} attributes',
-    pointsAvailable: '{count} points available',
-    pointsAvailableOne: '1 point available',
+    pointsAvailable: plurals({ one: '1 point available', other: '{count} points available' }),
     pointsSave: 'Each +1 saves straight away',
     traits: 'Traits',
     traitsLink: 'Skill tree',
@@ -638,12 +630,13 @@ export const careerText = {
     contractGoalBonus: 'Goal bonus',
     contractDate: '{month} {year}',
     noContract: 'You are without a contract. Offers and trials arrive in Transfers.',
-    scouting: '{count} clubs are scouting you. Keep performing to turn interest into offers.',
-    scoutingOne: '1 club is scouting you. Keep performing to turn interest into an offer.',
+    scouting: plurals({
+      one: '1 club is scouting you. Keep performing to turn interest into an offer.',
+      other: '{count} clubs are scouting you. Keep performing to turn interest into offers.',
+    }),
     seasonTitle: 'Season {season}',
     seasonEmpty: 'No appearances yet this season.',
-    hiddenCount: '{count} appearances',
-    hiddenCountOne: '1 appearance',
+    hiddenCount: plurals({ one: '1 appearance', other: '{count} appearances' }),
     revealed: 'Revealed',
     planTraining: 'Plan training',
     untrainedTitle: 'Attributes you do not train',
@@ -664,8 +657,7 @@ export const careerText = {
     },
     nodeLabel: '{name}. Tier {tier}. {state}. Costs {cost}.',
     cost: '{cost} pt',
-    costLong: 'Cost: {cost} skill points',
-    costLongOne: 'Cost: 1 skill point',
+    costLong: plurals({ one: 'Cost: 1 skill point', other: 'Cost: {cost} skill points' }),
     minimumLevel: 'Requires level {level}',
     prerequisites: 'Requires',
     noPrerequisites: 'No prerequisites',
@@ -689,10 +681,11 @@ export const careerText = {
     },
     unlock: 'Unlock skill',
     unlockTitle: 'Unlock {name}?',
-    unlockBody:
-      'Spend {cost} skill points on {name}. Skills are permanent and apply from your next match.',
-    unlockBodyOne:
-      'Spend 1 skill point on {name}. Skills are permanent and apply from your next match.',
+    unlockBody: plurals({
+      one: 'Spend 1 skill point on {name}. Skills are permanent and apply from your next match.',
+      other:
+        'Spend {cost} skill points on {name}. Skills are permanent and apply from your next match.',
+    }),
     unlocked: '{name} unlocked.',
     why: {
       level: 'Reach level {level}.',
@@ -943,15 +936,19 @@ export const careerText = {
     none: 'None',
     progressTitle: 'Closest to their next point',
     noChanges: 'No changes to save',
-    gainsCount: 'Progress on {count} attributes',
-    gainsCountOne: 'Progress on 1 attribute',
+    gainsCount: plurals({
+      one: 'Progress on 1 attribute',
+      other: 'Progress on {count} attributes',
+    }),
     details: 'Show details',
     progressLabel: '{attribute}: {value}% towards the next point',
     changed: 'Changed',
     resetShort: 'Reset',
     discardShort: 'Discard',
-    unsavedCount: '{count} unsaved changes · applies from next week',
-    unsavedCountOne: '1 unsaved change · applies from next week',
+    unsavedCount: plurals({
+      one: '1 unsaved change · applies from next week',
+      other: '{count} unsaved changes · applies from next week',
+    }),
     fatigueTile: 'Fatigue',
     injuryTile: 'Injury chance',
     growTile: 'Attributes grow',
@@ -1004,3 +1001,6 @@ export const careerText = {
     extraTimeOff: 'You had already been substituted, so you took no part in extra time.',
   },
 } as const;
+export const careerText = ({ en: careerTextEn } satisfies Translations<typeof careerTextEn>)[
+  LOCALE
+];

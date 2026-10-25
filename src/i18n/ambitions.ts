@@ -1,5 +1,6 @@
+import { LOCALE, type Translations } from './locale';
 /** Career ambitions and the live Hall of Fame standing, on the hub. */
-export const ambitionsText = {
+const ambitionsTextEn = {
   title: 'Ambitions',
   intro:
     'Choose up to {count} goals for your career. Reaching one earns fame and XP and a page in your Chronicle.',
@@ -50,3 +51,6 @@ export const ambitionsText = {
     },
   } as Record<string, { subject: string; body: string }>,
 } as const;
+export const ambitionsText = (
+  { en: ambitionsTextEn } satisfies Translations<typeof ambitionsTextEn>
+)[LOCALE];

@@ -20,20 +20,14 @@ import { clubDress, renderAvatar } from '../../engine/assets/avatar';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
+import { formatNumber, ordinal, plural, pluralForm, type PluralForms } from '../../i18n/locale';
 import { renderTrophy, trophyKindFor, type TrophyKind } from '../../engine/assets/trophies';
 import { Artwork } from '../../ui/Artwork';
 import { Icon } from '../../ui/Icon';
 import { Button, CardTitle, Chip, KeyHint, Panel, cx } from '../../ui/kit';
 import { CareerPage, CrestImage, useSaveLink } from './shared';
 import { useUrlDialog } from './useUrlDialog';
-import {
-  counted,
-  Glyph,
-  ordinal,
-  StarMark,
-  useReducedMotionSetting,
-  EXPAND_CHEVRON,
-} from './honoursUi';
+import { Glyph, StarMark, useReducedMotionSetting, EXPAND_CHEVRON } from './honoursUi';
 import { audio } from '../../audio';
 
 export default function CareerTrophies() {
@@ -133,7 +127,7 @@ function Summary({ world, player }: { world: World; player: Player }) {
   const standing = useMemo(() => liveHallOfFameRank(world), [world]);
   const ranked = standing.score > 0;
   if (!trophies.length && !awards.length && !tournaments.length && !ranked) return null;
-  const items: [number, { one: string; many: string }][] = [
+  const items: [number, PluralForms][] = [
     [trophies.length, h.cabinet.counts.club],
     [awards.length, h.cabinet.counts.individual],
     [tournaments.length, h.cabinet.counts.international],
@@ -143,16 +137,19 @@ function Summary({ world, player }: { world: World; player: Player }) {
       {items
         .filter(([count]) => count > 0)
         .map(([count, forms]) => {
-          const [number, ...words] = counted(count, forms).split(' ');
+          // The form's words around its count, so the count can be drawn large wherever the
+          // language puts it.
+          const [before, after = ''] = pluralForm(count, forms).split('{count}');
           return (
             <li
-              key={forms.many}
+              key={forms.other}
               className="inline-flex min-h-10 items-center gap-2 rounded-full border border-line bg-surface px-3.5 text-[0.8125rem] font-bold"
             >
+              {before}
               <span className="font-display text-[1.375rem] leading-none text-accent">
-                {number}{' '}
+                {count}{' '}
               </span>
-              {words.join(' ')}
+              {after.trim()}
             </li>
           );
         })}
@@ -164,7 +161,7 @@ function Summary({ world, player }: { world: World; player: Player }) {
           <StarMark className="h-4 w-4" />
           {format(h.hallOfFameLive.line, {
             rank: standing.rank,
-            of: standing.of.toLocaleString('en'),
+            of: formatNumber(standing.of),
           })}
         </li>
       )}
@@ -743,10 +740,10 @@ function Cabinet({ world, player }: { world: World; player: Player }) {
         <span className="text-[0.8125rem] font-semibold text-muted">
           {clubs
             ? format(h.cabinet.across, {
-                honours: counted(total, h.cabinet.honours),
-                clubs: counted(clubs, h.cabinet.clubs),
+                honours: plural(total, h.cabinet.honours),
+                clubs: plural(clubs, h.cabinet.clubs),
               })
-            : counted(total, h.cabinet.honours)}
+            : plural(total, h.cabinet.honours)}
         </span>
       </div>
       <Shelf title={h.cabinet.club} count={trophies.length}>
@@ -908,9 +905,7 @@ function WorldRecords({ world, player }: { world: World; player: Player }) {
 /** An award's deciding number, named by what it counts. */
 const awardValue = (award: Award) =>
   award.kind === 'golden-boot'
-    ? award.value === 1
-      ? h.awards.values.goalsOne
-      : format(h.awards.values.goals, { value: award.value })
+    ? plural(award.value, h.awards.values.goals, { value: award.value })
     : format(h.awards.values.points, { value: award.value });
 
 /** The latest three seasons show; earlier ones open on request. */
@@ -993,7 +988,7 @@ function SeasonAwards({ world, player }: { world: World; player: Player }) {
           iconEnd="chevron"
           className={cx('justify-between', EXPAND_CHEVRON)}
         >
-          {all ? h.awards.fewer : counted(hidden, h.awards.earlier)}
+          {all ? h.awards.fewer : plural(hidden, h.awards.earlier)}
         </Button>
       )}
       <p className="text-xs text-muted">{h.awards.scope}</p>
@@ -1067,7 +1062,7 @@ function Continental({ world, player }: { world: World; player: Player }) {
                 </h3>
                 <span className="block text-xs text-muted">
                   {[
-                    counted(groups.length, h.continental.groupsCount),
+                    plural(groups.length, h.continental.groupsCount),
                     cupProgress(world, cup),
                     involved ? h.continental.youAreIn : h.continental.notIn,
                   ].join(' · ')}

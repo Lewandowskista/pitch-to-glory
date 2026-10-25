@@ -1,4 +1,5 @@
 import type { MatchSession, NarrationLine } from '../engine/match/types';
+import { LOCALE, type Translations } from './locale';
 
 /**
  * Narration copy (engine match-14, redesign step M3): what the pitch shows, in the voice of a
@@ -11,7 +12,7 @@ import type { MatchSession, NarrationLine } from '../engine/match/types';
  * `{receiver}` is the opponent who cut it out.
  */
 type Variants = readonly [string, string, string, string];
-const lines: Record<string, Variants> = {
+const linesEn: Record<string, Variants> = {
   'cross.header.near': [
     '{player} whips it in from the {flank}… {receiver} rises at the near post!',
     'Lovely delivery from {player} on the {flank}, and {receiver} attacks the near post!',
@@ -115,8 +116,10 @@ const lines: Record<string, Variants> = {
     '{player} turns it back to {receiver}, and they probe for an opening.',
   ],
 };
+const lines = ({ en: linesEn } satisfies Translations<typeof linesEn>)[LOCALE];
 /** Words for the descriptors the engine stores. */
-const flanks: Record<string, string> = { left: 'left', right: 'right', centre: 'middle' };
+const flanksEn: Record<string, string> = { left: 'left', right: 'right', centre: 'middle' };
+const flanks = ({ en: flanksEn } satisfies Translations<typeof flanksEn>)[LOCALE];
 const text: Record<string, string> = Object.fromEntries(
   Object.entries(lines).flatMap(([family, variants]) =>
     variants.map((line, index) => [`match.narration.${family}.${index}`, line]),

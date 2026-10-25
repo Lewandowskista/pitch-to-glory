@@ -20,6 +20,7 @@ import { CrestImage, PlayerPortrait } from '../career/portraits';
 import { JobProgress } from '../career/jobProgress';
 import { competitionName, leaguePosition, recentForm, windowTitle } from '../career/selectors';
 import { matchFormat, matchText as m } from '../../i18n/match';
+import { formatNumber } from '../../i18n/locale';
 import { continueToMatchday, continueTournament } from '../career/actions';
 import { cx } from '../../ui/kit';
 
@@ -154,7 +155,7 @@ export function CareerFixture({
             <p className="text-[0.8125rem] text-hero-muted">
               {matchFormat(u.venue, {
                 stadium: home.stadium.name,
-                capacity: home.stadium.capacity.toLocaleString('en-GB'),
+                capacity: formatNumber(home.stadium.capacity),
               })}
             </p>
           )}

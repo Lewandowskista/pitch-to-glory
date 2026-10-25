@@ -1,5 +1,6 @@
+import { LOCALE, type Translations } from './locale';
 /** Coaching (Phase 5.2): advice from recent decisions and the season development goal. */
-export const coachingText = {
+const coachingTextEn = {
   title: 'Coach’s advice',
   basis: {
     decisions: 'From your last {count} key decisions.',
@@ -72,3 +73,6 @@ export const coachingText = {
     label: 'Season goal progress',
   },
 } as const;
+export const coachingText = ({ en: coachingTextEn } satisfies Translations<typeof coachingTextEn>)[
+  LOCALE
+];

@@ -22,8 +22,9 @@ import { renderFigure } from '../../engine/assets/gear';
 import { Artwork } from '../../ui/Artwork';
 import { format } from '../../i18n';
 import { lifestyleText as l } from '../../i18n/lifestyle';
+import { plural } from '../../i18n/locale';
 import { Button, CardTitle, Chip, Panel, cx } from '../../ui/kit';
-import { CareerPage, filterButton, plural, ui, useSaveLink } from './shared';
+import { CareerPage, filterButton, ui, useSaveLink } from './shared';
 import { ActionError, BlockNote, money } from './marketUi';
 import { useChallengeRefresh, useLifestyleAction } from './lifestyleUi';
 import { CelebrationPreview } from './CelebrationPreview';
@@ -179,7 +180,7 @@ function Preview({
         <div className="xl:text-center">
           <p className="inline-flex items-center gap-2 font-display text-[2rem] leading-none">
             <TokenCoin className="h-[1.625rem] w-[1.625rem]" />
-            {plural(tokens, W.tokensOne, W.tokens)}
+            {plural(tokens, W.tokens)}
           </p>
           <p className="mt-1 max-w-[16.25rem] text-[0.8125rem] text-info xl:mx-auto">
             {W.tokensBody}
@@ -611,7 +612,7 @@ function Celebrations({
       aside={
         <span className="inline-flex items-center gap-1.5 text-[0.8125rem] font-bold">
           <LifeIcon name="star" filled className="h-4 w-4 text-meter-gold" />
-          {plural(career.style.signatureUses, C.usesOne, C.uses)}
+          {plural(career.style.signatureUses, C.uses)}
         </span>
       }
     >
@@ -624,7 +625,7 @@ function Celebrations({
           const name = C.names[item.id] ?? item.id;
           const selected = career.style.equipped.celebration === item.id;
           const count = career.style.signatureUsesBy?.[item.id] ?? 0;
-          const uses = count ? plural(count, l.celebrationUses.one, l.celebrationUses.many) : null;
+          const uses = count ? plural(count, l.celebrationUses) : null;
           return (
             <Tile
               key={item.id}
@@ -688,12 +689,9 @@ function ChallengeRow({
         item: cosmeticName(challenge.rewardCosmeticId),
       })
     : format(l.challenges.reward, { tokens: challenge.rewardTokens });
-  const label = format(
-    challenge.target === 1
-      ? l.challenges.kindsOne[challenge.kind]
-      : l.challenges.kinds[challenge.kind],
-    { target: challenge.target },
-  );
+  const label = plural(challenge.target, l.challenges.kinds[challenge.kind], {
+    target: challenge.target,
+  });
   const ready = done && !challenge.claimed;
   // Matches only move some challenges (review phase 5): say so, and while the player is out of
   // the side offer a goal they can reach instead.
@@ -748,9 +746,7 @@ function ChallengeRow({
             {l.challenges.claim}
           </Button>
         ) : (
-          <span className="text-xs font-extrabold">
-            {plural(left, l.challenges.toGoOne, l.challenges.toGo)}
-          </span>
+          <span className="text-xs font-extrabold">{plural(left, l.challenges.toGo)}</span>
         )}
       </div>
       {swappable && (

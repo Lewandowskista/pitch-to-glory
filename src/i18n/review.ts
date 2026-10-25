@@ -1,5 +1,6 @@
+import { LOCALE, type Translations } from './locale';
 /** The end-of-season review on the hub. */
-export const reviewText = {
+const reviewTextEn = {
   eyebrow: 'Season {season} review',
   title: 'Your season',
   grade: 'Season grade',
@@ -58,3 +59,6 @@ export const reviewText = {
   chronicle: 'Read the season in your Chronicle',
   cabinet: 'Trophy cabinet',
 } as const;
+export const reviewText = ({ en: reviewTextEn } satisfies Translations<typeof reviewTextEn>)[
+  LOCALE
+];

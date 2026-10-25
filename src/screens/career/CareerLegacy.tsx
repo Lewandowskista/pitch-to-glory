@@ -11,6 +11,7 @@ import { Icon } from '../../ui/Icon';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
+import { formatNumber, plural } from '../../i18n/locale';
 import {
   Button,
   ButtonLink,
@@ -28,7 +29,6 @@ import {
   CareerNav,
   CrestImage,
   PlayerPortrait,
-  plural,
   ui,
   useRestoredWorld,
   useSaveLink,
@@ -36,9 +36,8 @@ import {
 import { CONFIG } from '../../engine/config';
 import { money } from './marketUi';
 import { ChronicleView } from './ChronicleView';
-import { counted, Glyph, StarMark, EXPAND_CHEVRON } from './honoursUi';
+import { Glyph, StarMark, EXPAND_CHEVRON } from './honoursUi';
 
-const integer = new Intl.NumberFormat('en');
 const R = CONFIG.career.honours.retirement;
 /** Honours chips shown before "Show all". */
 const HONOURS_SHOWN = 10;
@@ -105,7 +104,7 @@ function LegacyContent({ world }: { world: World }) {
           className="flex min-w-0 flex-[1_1_15rem] flex-col gap-2 lg:sticky lg:top-6 lg:max-w-[15rem]"
         >
           <span className="px-1 text-xs font-extrabold text-muted">
-            {counted(legacies.length, h.legacy.careers)}
+            {plural(legacies.length, h.legacy.careers)}
           </span>
           <ul className="flex flex-col gap-2">
             {legacies.map((legacy) => {
@@ -319,7 +318,7 @@ function LegacyDetail({
               <StarMark className="h-8 w-8 text-meter-gold" />
             </span>
             <span className="text-[0.8125rem]">
-              {format(h.legacy.hallRank, { of: integer.format(legacy.hallOfFame.of) })}
+              {format(h.legacy.hallRank, { of: formatNumber(legacy.hallOfFame.of) })}
             </span>
             {neighbour && (
               <span
@@ -343,7 +342,7 @@ function LegacyDetail({
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.875rem,1fr))] gap-2.5">
             {stats.map(([label, value]) => (
               <li key={label} className="min-w-0">
-                <StatTile label={label} value={integer.format(value)} className="h-full" />
+                <StatTile label={label} value={formatNumber(value)} className="h-full" />
               </li>
             ))}
           </ul>
@@ -389,11 +388,9 @@ function LegacyDetail({
         >
           <CardTitle id="legacy-honours">{h.legacy.honoursTitle}</CardTitle>
           <p className="text-sm text-muted">
-            <b className="text-ink">
-              {plural(trophies.length, h.legacy.trophy, h.legacy.trophies)}
-            </b>
+            <b className="text-ink">{plural(trophies.length, h.legacy.trophies)}</b>
             {' · '}
-            <b className="text-ink">{plural(awards.length, h.legacy.award, h.legacy.awards)}</b>
+            <b className="text-ink">{plural(awards.length, h.legacy.awards)}</b>
           </p>
           {honours.length > 0 && (
             <ul className="flex flex-wrap gap-1.5">

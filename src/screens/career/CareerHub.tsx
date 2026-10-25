@@ -30,7 +30,7 @@ function hubDescription(world: World | null): string | undefined {
           weeks,
         });
   return career.injury?.recovery === null && world.phase === 'active'
-    ? `${line}. ${c.hub.recoveryFirst}`
+    ? format(c.hub.recoveryFirst, { line })
     : line;
 }
 

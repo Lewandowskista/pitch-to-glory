@@ -7,6 +7,7 @@ import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { squadRoleNames } from '../../i18n/squadRoles';
 import { selectionText as t } from '../../i18n/selection';
+import { formatList, plural } from '../../i18n/locale';
 
 const points = (value: number) => {
   const rounded = Math.round(value * 100);
@@ -22,10 +23,12 @@ export function competitionLine(world: World, selection: Selection): string {
       ? format(t.inTeamFamiliar, { position, fit: competition.fit })
       : format(t.inTeam, { position });
   if (!competition.formation) return format(t.outsideLine, { places: competition.placesOutside });
-  const names = competition.aheadIds.map((id) => world.players[id]?.name ?? id).join(t.and);
-  return competition.placesOutside === 1
-    ? format(t.outside, { position, names })
-    : format(t.outsideMany, { places: competition.placesOutside, position, names });
+  const names = formatList(competition.aheadIds.map((id) => world.players[id]?.name ?? id));
+  return plural(competition.placesOutside, t.outside, {
+    places: competition.placesOutside,
+    position,
+    names,
+  });
 }
 
 /**

@@ -6,18 +6,19 @@ import {
   type ReleaseSection,
 } from '../i18n/patchNotes';
 import { whatsNewText as w } from '../i18n/whatsNew';
+import { formatDate } from '../i18n/locale';
 import { APP_VERSION } from '../release/version';
 import { Page } from '../ui/Page';
 import { Icon, type IconName } from '../ui/Icon';
 import { CardTitle, Chip, Disclosure, PageHeader, Panel, cx } from '../ui/kit';
 
-const dates = new Intl.DateTimeFormat(w.dateLocale, {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-  timeZone: 'UTC',
-});
-const releaseDate = (iso: string) => dates.format(new Date(`${iso}T00:00:00Z`));
+const releaseDate = (iso: string) =>
+  formatDate(`${iso}T00:00:00Z`, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 const meta = (release: ReleaseNotes) =>
   format(w.meta, {
     version: format(w.version, { version: release.version }),

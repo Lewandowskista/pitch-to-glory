@@ -1,8 +1,10 @@
+import { LOCALE, type Translations } from './locale';
 /**
  * Copy used by the shared UI kit (`src/ui/kit`). Small and dependency-free, because kit
  * components can render in the app shell on every page.
  */
-export const kitText = {
+/** English; other English tables reuse its words (a translation reuses its own). */
+export const kitTextEn = {
   results: { W: 'Won', D: 'Drew', L: 'Lost' },
   /** A row of result pills, read as one phrase: "Form: won, drew, lost". */
   form: 'Form: {results}',
@@ -21,3 +23,4 @@ export const kitText = {
   unread: '{count} unread',
   busy: 'Working…',
 } as const;
+export const kitText = ({ en: kitTextEn } satisfies Translations<typeof kitTextEn>)[LOCALE];
