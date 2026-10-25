@@ -1,3 +1,5 @@
+import { covers } from './coverage';
+import type { CareerSocial } from '../model/domain';
 import { CONFIG } from '../engine/config';
 import { MORALE_PARTS } from '../engine/career/social/rules';
 import {
@@ -86,6 +88,12 @@ export function validateSocial(w: Record<string, unknown>): void {
   number(social.coverage, -10, 10);
   if (social.pressTone !== undefined)
     options(social.pressTone, ['team', 'confident', 'humble', 'provocative', 'deflect']);
+  // A stance taken to the press, judged by the next result (found unchecked by step 4.9).
+  if (social.stance !== undefined) {
+    const stance = object(social.stance);
+    options(stance.tone, TONES);
+    date(stance.date);
+  }
   if (social.promises !== undefined) validatePromises(social.promises, current);
 
   const rivalries = array(w.rivalries, 1);
@@ -208,3 +216,13 @@ function validatePromises(value: unknown, current: Record<string, unknown>): voi
   }
   requireValue(open <= 1);
 }
+/** The career's social record (step 4.9: every field of `CareerSocial`, checked by `tests/validator-coverage.test.ts`). */
+export const SOCIAL_FIELDS = covers<CareerSocial>('career.social', {
+  history: true,
+  morale: true,
+  answered: true,
+  coverage: true,
+  promises: true,
+  stance: true,
+  pressTone: true,
+});

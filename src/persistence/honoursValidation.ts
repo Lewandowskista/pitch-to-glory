@@ -1,3 +1,5 @@
+import { covers } from './coverage';
+import type { Award, CareerHonours, InternationalState, Legacy } from '../model/domain';
 import { CONFIG } from '../engine/config';
 import { CLIP_MAX_LENGTH, decodeClip } from '../engine/career/honours/clip';
 import {
@@ -413,3 +415,58 @@ export function validateHonours(w: Record<string, unknown>): void {
     if (entry.momentId !== null) id(entry.momentId);
   }
 }
+/** The career's honours record (step 4.9: every field of `CareerHonours`, checked by `tests/validator-coverage.test.ts`). */
+export const HONOURS_FIELDS = covers<CareerHonours>('career.honours', {
+  caps: true,
+  internationalGoals: true,
+  lastCallUp: true,
+  peakAbility: true,
+  parentLegacyId: true,
+  playInternationals: true,
+});
+/** International football (step 4.9). */
+export const INTERNATIONAL_FIELDS = covers<InternationalState>('international', {
+  nations: true,
+  matches: true,
+  tournaments: true,
+  live: true,
+  qualifying: true,
+  window: true,
+});
+/** Every legacy (step 4.9). */
+export const LEGACY_FIELDS = covers<Legacy>('legacies.*', {
+  id: true,
+  playerId: true,
+  name: true,
+  avatar: true,
+  nationalityId: true,
+  position: true,
+  startSeason: true,
+  retiredAt: true,
+  age: true,
+  clubIds: true,
+  stats: true,
+  trophyIds: true,
+  awardIds: true,
+  records: true,
+  hallOfFame: true,
+  peakAbility: true,
+  fame: true,
+  level: true,
+  earnings: true,
+  savings: true,
+  teammateIds: true,
+  childPlayerId: true,
+  menteeIds: true,
+});
+/** Every award (step 4.9). */
+export const AWARD_FIELDS = covers<Award>('awards.*', {
+  id: true,
+  kind: true,
+  season: true,
+  month: true,
+  competitionId: true,
+  winnerIds: true,
+  shortlist: true,
+  value: true,
+});

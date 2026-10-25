@@ -1,3 +1,5 @@
+import { covers } from './coverage';
+import type { CareerStyle, Challenge, LifestyleAsset, Sponsorship } from '../model/domain';
 import {
   BRAND_BY_ID,
   COSMETIC_BY_ID,
@@ -81,6 +83,8 @@ export function validateLifestyle(w: Record<string, unknown>): void {
     date(asset.bought);
     number(asset.cost, 0, 1e12, true);
     number(asset.value, 0, 1e13, true);
+    // Found unchecked by step 4.9: the weekly cost fixed at purchase.
+    if (asset.upkeep !== undefined) number(asset.upkeep, 0, 1e12);
     // A member of staff's speciality (review phase 4): one they can take.
     if (asset.speciality !== undefined)
       requireValue(
@@ -113,6 +117,8 @@ export function validateLifestyle(w: Record<string, unknown>): void {
     number(deal.endSeason, 1800, 9999, true);
     number(deal.weeklyFee, 0, 1e9, true);
     number(deal.bonus, 0, 1e12, true);
+    // Found unchecked by step 4.9: fees paid so far, for a failed deal's clawback.
+    if (deal.paid !== undefined) number(deal.paid, 0, 1e13);
     const obligations = array(deal.obligations, 4);
     requireValue(obligations.length >= 1);
     for (const obligationValue of obligations) {
@@ -166,3 +172,54 @@ export function validateLifestyle(w: Record<string, unknown>): void {
     if (challenge.swapped !== undefined) requireValue(challenge.swapped === true);
   }
 }
+/** The career's style record (step 4.9: every field of `CareerStyle`, checked by `tests/validator-coverage.test.ts`). */
+export const STYLE_FIELDS = covers<CareerStyle>('career.style', {
+  tokens: true,
+  owned: true,
+  equipped: true,
+  fameLevel: true,
+  signatureUses: true,
+  signatureUsesBy: true,
+  assets: true,
+  experiences: true,
+});
+/** Every sponsorship (step 4.9). */
+export const SPONSORSHIP_FIELDS = covers<Sponsorship>('sponsorships.*', {
+  id: true,
+  brandId: true,
+  category: true,
+  status: true,
+  offered: true,
+  expires: true,
+  start: true,
+  endSeason: true,
+  weeklyFee: true,
+  bonus: true,
+  obligations: true,
+  baseline: true,
+  paid: true,
+});
+/** Every challenge (step 4.9). */
+export const CHALLENGE_FIELDS = covers<Challenge>('challenges.*', {
+  id: true,
+  cadence: true,
+  period: true,
+  kind: true,
+  target: true,
+  baseline: true,
+  rewardTokens: true,
+  rewardCosmeticId: true,
+  claimed: true,
+  swapped: true,
+});
+/** Every lifestyle asset (step 4.9). */
+export const ASSET_FIELDS = covers<LifestyleAsset>('career.style.assets.*', {
+  id: true,
+  itemId: true,
+  kind: true,
+  bought: true,
+  cost: true,
+  value: true,
+  upkeep: true,
+  speciality: true,
+});

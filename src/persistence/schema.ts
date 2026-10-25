@@ -1,4 +1,11 @@
-import type { FoundationState, WorldState, SaveFile, SlotId, World } from '../model/domain';
+import type {
+  FoundationState,
+  GalleryState,
+  WorldState,
+  SaveFile,
+  SlotId,
+  World,
+} from '../model/domain';
 import type { MatchSession } from '../engine/match/types';
 import { attachMarket } from '../engine/career/market/agents';
 import { initialMarket } from '../engine/career/market/records';
@@ -73,7 +80,10 @@ export function validateFoundation(value: unknown): FoundationState {
   const g = object(p.gallery);
   return {
     kind: 'foundation',
-    gallery: { seed: text(g.seed, 120), generation: integer(g.generation) },
+    gallery: {
+      seed: text(g.seed, 120),
+      generation: integer(g.generation),
+    } satisfies Record<keyof Required<GalleryState>, unknown>,
     settings: validateSettings(p.settings),
   };
 }

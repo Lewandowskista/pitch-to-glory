@@ -1,4 +1,5 @@
-﻿import type { World, Standing } from '../model/domain';
+﻿import { covers } from './coverage';
+import type { World, Standing } from '../model/domain';
 import { CONFIG } from '../engine/config';
 import {
   requireValue,
@@ -405,3 +406,58 @@ export function validateWorld(value: unknown): World {
   for (const key of ['matches']) requireValue(Object.keys(object(w[key])).length === 0);
   return value as World;
 }
+/** The world, legacy and national (step 4.9: every field of `World`, checked by `tests/validator-coverage.test.ts`). */
+export const WORLD_FIELDS = covers<World>('', {
+  format: true,
+  developmentVersion: true,
+  achievements: true,
+  selectionVersion: true,
+  economyVersion: true,
+  identityVersion: true,
+  career: true,
+  pyramid: true,
+  id: true,
+  seed: true,
+  rng: true,
+  date: true,
+  season: true,
+  countries: true,
+  leagues: true,
+  clubs: true,
+  managers: true,
+  players: true,
+  contracts: true,
+  competitions: true,
+  fixtures: true,
+  matches: true,
+  agents: true,
+  scouting: true,
+  offers: true,
+  loans: true,
+  negotiations: true,
+  relationships: true,
+  rivalries: true,
+  dressingRooms: true,
+  media: true,
+  inbox: true,
+  sponsorships: true,
+  challenges: true,
+  nationalTeams: true,
+  callUps: true,
+  awards: true,
+  trophies: true,
+  records: true,
+  legacies: true,
+  chronicle: true,
+  moments: true,
+  events: true,
+  phase: true,
+  results: true,
+  history: true,
+  archive: true,
+  international: true,
+  awardState: true,
+  seasonStats: true,
+  discipline: true,
+  edits: true,
+});
