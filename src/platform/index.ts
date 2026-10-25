@@ -11,9 +11,24 @@ export interface PlatformAdapter {
   onBack(handler: () => void): () => void;
   wakeLock(): Promise<() => Promise<void>>;
   notify(title: string, body: string): Promise<boolean>;
-  readPreferences(): unknown;
-  writePreferences(value: unknown): boolean;
+  /**
+   * Device preferences: the player's settings, or another device-only record such as analytics
+   * consent (`scope`). Writing `null` removes the record.
+   */
+  readPreferences(scope?: PreferenceScope): unknown;
+  writePreferences(value: unknown, scope?: PreferenceScope): boolean;
+  /**
+   * POST a JSON body to `url` (analytics), resolving whether it was accepted. Never rejects.
+   * `hiding`: the page is being hidden, so a failed request may be handed to the browser to
+   * finish after the page has gone.
+   */
+  send(url: string, body: string, hiding?: boolean): Promise<boolean>;
 }
+export type PreferenceScope = 'settings' | 'analytics';
+const PREFERENCE_KEYS: Record<PreferenceScope, string> = {
+  settings: 'ptg-preferences',
+  analytics: 'ptg-analytics',
+};
 const saveFile: PlatformAdapter['saveFile'] = async (name, content, mime) => {
   const url = URL.createObjectURL(
     content instanceof Blob ? content : new Blob([content], { type: mime }),
@@ -97,19 +112,38 @@ export const platform: PlatformAdapter = {
     new Notification(title, { body });
     return true;
   },
-  readPreferences() {
+  readPreferences(scope = 'settings') {
     try {
-      return JSON.parse(localStorage.getItem('ptg-preferences') ?? 'null');
+      return JSON.parse(localStorage.getItem(PREFERENCE_KEYS[scope]) ?? 'null');
     } catch {
       return null;
     }
   },
-  writePreferences(value) {
+  writePreferences(value, scope = 'settings') {
     try {
-      localStorage.setItem('ptg-preferences', JSON.stringify(value));
+      if (value === null) localStorage.removeItem(PREFERENCE_KEYS[scope]);
+      else localStorage.setItem(PREFERENCE_KEYS[scope], JSON.stringify(value));
       return true;
     } catch {
       return false;
     }
+  },
+  send(url, body, hiding = false) {
+    return fetch(url, {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    }).then(
+      (response) => response.ok,
+      // A page being hidden can still hand the body to the browser to deliver later.
+      () => {
+        try {
+          return hiding && navigator.sendBeacon(url, new Blob([body], { type: 'text/plain' }));
+        } catch {
+          return false;
+        }
+      },
+    );
   },
 };
