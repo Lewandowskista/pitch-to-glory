@@ -11,7 +11,8 @@ import { isPassBeat } from './cam';
 import { OFF_ANIMATION } from '../../engine/match/parked';
 import { kitAppearance } from './pitchKit';
 import { pitchQuality } from './pitchQuality';
-import { preparePlayback, samplePlayback, type Playback } from './playback';
+import { preparePassage, samplePlayback, type Playback } from './playback';
+import type { PassagePace } from './pace';
 import {
   ballAtFeet,
   kitNumberColor,
@@ -44,11 +45,15 @@ export interface PitchView {
   /** Sporting milliseconds per real millisecond, and the longest the passage may take. */
   rate: number;
   maxMs: number;
+  /** A slower run-in from a keyframe on (a goal's build-up, shot and celebration). */
+  slow?: PassagePace['slow'];
   reducedMotion: boolean;
   paused: boolean;
 }
 export interface PitchScene {
   update(view: PitchView): void;
+  /** Play `frames` again from their first keyframe (a goal's instant replay). */
+  replay(frames: ReplayFrame[], pace: PassagePace): void;
   /** Play the selected player's goal celebration once the ball is in the net (milestone 7). */
   celebrate(motion: string): void;
   destroy(): void;
@@ -224,8 +229,9 @@ export async function createPitchScene(
   let paused = false;
   let playback: (Playback & { elapsed: number }) | null = null;
   let arrival: { point: Point; color: string; elapsed: number } | null = null;
-  let shownRate = 0,
-    shownMax = 0;
+  let shownPace = '';
+  /** A replay is playing: its own pace holds until it ends. */
+  let replaying = false;
   let assetScale = 1;
   let celebration: { motion: string; elapsed: number } | null = null;
   /** The last pass: drawn while it travels, then faded out (it pauses with the match). */
@@ -271,6 +277,11 @@ export async function createPitchScene(
       .circle(0, 0, pitchArt.radius - 0.25)
       .stroke({ color: ink, width: 0.12, alpha: 0.3 });
     if (!isHome && kits.clash) shape.circle(0, 0, 1.35).stroke({ color: ink, width: 0.2 });
+    // A colour that would vanish into the grass gets a light ring (review U19).
+    if ((isHome ? kits.edge.home : kits.edge.away).pitch)
+      shape
+        .circle(0, 0, pitchArt.radius + 0.2)
+        .stroke({ color: '#ffffff', width: 0.3, alpha: 0.9 });
     if (!isHome)
       for (let arc = 0; arc < 8; arc++) {
         const angle = (arc * Math.PI) / 4;
@@ -523,6 +534,7 @@ export async function createPitchScene(
             elapsed: 0,
           };
         playback = null;
+        replaying = false;
         if (pass?.flying) pass.flying = false;
         impact.clear();
         if (pendingCelebration) {
@@ -592,25 +604,27 @@ export async function createPitchScene(
       for (const player of view.frame.players)
         if (!tokens.has(player.id))
           addToken(player.id, player.point, view.frame.players.indexOf(player));
+      const pace = `${view.rate}:${view.maxMs}:${view.slow?.from}:${view.slow?.rate}:${view.slow?.maxMs}`;
       if (replay) {
+        replaying = false;
         const frames = [onScreen(view.motion![0]!), ...view.motion!.slice(1)];
-        const prepared = preparePlayback(frames, view.rate, view.maxMs);
+        const prepared = preparePassage(frames, view);
         const active = onPitch(view.frame);
         for (const [id, token] of tokens) token.view.visible = active.has(id);
         playback = prepared.duration > 0 ? { ...prepared, elapsed: 0 } : null;
         if (!playback) applyFrame(view.frame);
       } else if (fresh || reducedMotion || !playback) {
         playback = null;
+        replaying = false;
         applyFrame(view.frame);
-      } else if (view.rate !== shownRate || view.maxMs !== shownMax) {
-        const prepared = preparePlayback(playback.frames, view.rate, view.maxMs);
+      } else if (pace !== shownPace && !replaying) {
+        const prepared = preparePassage(playback.frames, view);
         playback = {
           ...prepared,
           elapsed: (playback.elapsed * prepared.duration) / playback.duration,
         };
       }
-      shownRate = view.rate;
-      shownMax = view.maxMs;
+      shownPace = pace;
       if (reducedMotion) {
         celebration = null;
         pendingCelebration = null;
@@ -635,6 +649,23 @@ export async function createPitchScene(
         app.stop();
         app.render();
       }
+    },
+    replay(frames, pace) {
+      if (destroyed || reducedMotion || frames.length < 2) return;
+      // A celebration in progress ends; the replay shows the goal again from its build-up.
+      const selected = tokens.get(selectedPlayerId);
+      selected?.body.position.set(0, 0);
+      selected?.body.scale.set(assetScale);
+      if (selected) selected.body.rotation = 0;
+      celebration = null;
+      pendingCelebration = null;
+      applyFrame(frames[0]!);
+      const prepared = preparePassage(frames, pace);
+      if (prepared.duration <= 0) return;
+      playback = { ...prepared, elapsed: 0 };
+      replaying = true;
+      if (!paused && !document.hidden) app.start();
+      else app.render();
     },
     celebrate(motion) {
       if (destroyed || reducedMotion) return;

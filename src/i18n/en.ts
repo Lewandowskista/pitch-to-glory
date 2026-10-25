@@ -64,13 +64,14 @@ export const en = {
     close: 'Close',
     cancel: 'Cancel',
     helpNav:
-      'Tab: move between controls. Enter: activate. Space: play or pause a live match. 1–4: choose a key-moment action. Arrow keys: move between navigation links, tabs and match choices. Escape: close a dialog or go back. ?: open this guide.',
+      'Tab: move between controls. Enter: activate. Space: play or pause a live match. 1–4: choose a key-moment action. R: replay a goal. Arrow keys: move between navigation links, tabs and match choices. Escape: close a dialog or go back. ?: open this guide.',
     /** The shortcut guide as keycaps beside what they do (the same content as `helpNav`). */
     shortcuts: [
       { keys: ['Tab'], does: 'Move between controls.' },
       { keys: ['Enter'], does: 'Activate.' },
       { keys: ['Space'], does: 'Play or pause a live match.' },
       { keys: ['1', '2', '3', '4'], does: 'Choose a key-moment action.' },
+      { keys: ['R'], does: 'Replay a goal in a live match.' },
       {
         keys: ['←', '↑', '→', '↓'],
         does: 'Move between navigation links, tabs and match choices.',

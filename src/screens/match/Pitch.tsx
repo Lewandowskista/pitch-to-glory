@@ -4,6 +4,14 @@ import { pitchCopy as copy } from '../../i18n/pitch';
 import { SvgPitch } from './SvgPitch';
 import { pitchArt } from './pitchArt';
 import type { PitchScene, PitchView } from './pitchScene';
+import type { PassagePace } from './pace';
+
+/** An instant replay: `frames` played again from their start, once per `key`. */
+export interface PitchReplay {
+  key: number;
+  frames: ReplayFrame[];
+  pace: PassagePace;
+}
 
 export interface PitchProps {
   frame: ReplayFrame;
@@ -17,6 +25,10 @@ export interface PitchProps {
   /** Sporting milliseconds shown per real millisecond, and the longest a passage may take. */
   rate?: number;
   maxMs?: number;
+  /** A slower run-in from a keyframe on (a goal's build-up, shot and celebration). */
+  slow?: PassagePace['slow'];
+  /** Replays a passage from its first keyframe whenever its key changes. */
+  replay?: PitchReplay | null;
   reducedMotion: boolean;
   /** Freeze a live passage when the player pauses or switches away from the tab. */
   paused?: boolean;
@@ -30,7 +42,9 @@ export interface PitchProps {
   still?: boolean;
   /** The accessible name of the drawing. */
   label?: string;
-  /** Chips laid over the pitch (formations, attacking direction); decorative text only. */
+  /** Chips above the pitch (formations, attacking direction); decorative text only. */
+  header?: ReactNode;
+  /** Laid over the pitch (the GOAL banner). */
   overlay?: ReactNode;
 }
 
@@ -39,6 +53,7 @@ const viewOf = (props: PitchProps): PitchView => ({
   motion: props.motion ?? null,
   rate: props.rate ?? 18,
   maxMs: props.maxMs ?? 2100,
+  ...(props.slow ? { slow: props.slow } : {}),
   reducedMotion: props.reducedMotion || Boolean(props.still),
   paused: props.paused ?? false,
 });
@@ -115,10 +130,17 @@ export default function Pitch(props: PitchProps) {
     props.motion,
     props.rate,
     props.maxMs,
+    props.slow,
     props.reducedMotion,
     props.paused,
     props.still,
   ]);
+  const replayKey = props.replay?.key;
+  useEffect(() => {
+    const replay = latest.current.replay;
+    if (replayKey === undefined || !replay) return;
+    scene.current?.replay(replay.frames, replay.pace);
+  }, [replayKey]);
   const celebrationKey = props.celebration?.key;
   useEffect(() => {
     // A goal scored from a key moment is celebrated once the live pitch is back in view.
@@ -130,6 +152,7 @@ export default function Pitch(props: PitchProps) {
   }, [celebrationKey, ready, props.still, fallback]);
   return (
     <figure className="match-pitch-figure">
+      {props.header}
       <div className="match-pitch-stage" style={{ background: pitchArt.grass }}>
         {(!ready || fallback) && (
           <div className="absolute inset-0">

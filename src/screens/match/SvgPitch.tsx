@@ -30,13 +30,18 @@ export function SvgPitch({
   motion,
   rate = 18,
   maxMs = 2100,
+  slow,
+  replay,
   reducedMotion = false,
   paused = false,
   viewBox = '0 0 116 80',
   label = copy.label,
 }: Pick<PitchProps, 'frame' | 'home' | 'away' | 'selectedPlayerId' | 'celebration'> &
   Partial<
-    Pick<PitchProps, 'numbers' | 'motion' | 'rate' | 'maxMs' | 'reducedMotion' | 'paused'>
+    Pick<
+      PitchProps,
+      'numbers' | 'motion' | 'rate' | 'maxMs' | 'slow' | 'replay' | 'reducedMotion' | 'paused'
+    >
   > & {
     /** The part of the 116 × 80 drawing to show. */
     viewBox?: string;
@@ -44,7 +49,7 @@ export function SvgPitch({
   }) {
   const kits = kitAppearance(home, away);
   const { ref, scale: assetScale } = useSvgAssetScale(viewBox);
-  const sample = useSvgPlayback(frame, motion, rate, maxMs, reducedMotion, paused);
+  const sample = useSvgPlayback(frame, motion, rate, maxMs, reducedMotion, paused, slow, replay);
   // Players sent off (match-16) are parked off the pitch: not drawn.
   const shown = sample
     ? {
@@ -147,6 +152,8 @@ export function SvgPitch({
           .map(({ player, index }) => {
             const isHome = home.playerIds.includes(player.id);
             const color = isHome ? kits.home : kits.away;
+            // A colour that would vanish into the grass gets a light ring (review U19).
+            const edge = (isHome ? kits.edge.home : kits.edge.away).pitch;
             const ink = kitNumberColor(color);
             const you = player.id === selectedPlayerId;
             return (
@@ -205,6 +212,15 @@ export function SvgPitch({
                     />
                     {!isHome && kits.clash && (
                       <circle r="1.35" fill="none" stroke={ink} strokeWidth=".2" />
+                    )}
+                    {edge && (
+                      <circle
+                        r={pitchArt.radius + 0.2}
+                        fill="none"
+                        stroke="#ffffff"
+                        strokeWidth=".3"
+                        opacity=".9"
+                      />
                     )}
                     <text
                       textAnchor="middle"

@@ -31,10 +31,12 @@ export interface PlatformAdapter {
   /** Whether the device asks sites to save data (Save-Data, or `prefers-reduced-data`). */
   prefersReducedData(): boolean;
 }
-export type PreferenceScope = 'settings' | 'analytics';
+/** `match`: how the live match last played on this device, such as its speed (step 5.1). */
+export type PreferenceScope = 'settings' | 'analytics' | 'match';
 const PREFERENCE_KEYS: Record<PreferenceScope, string> = {
   settings: 'ptg-preferences',
   analytics: 'ptg-analytics',
+  match: 'ptg-match',
 };
 const saveFile: PlatformAdapter['saveFile'] = async (name, content, mime) => {
   const url = URL.createObjectURL(
