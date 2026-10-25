@@ -22,7 +22,8 @@ import {
 import { NARRATION_FAMILIES, NARRATION_VARIANTS, SITUATIONS } from '../src/engine/match';
 import { hasMatchLabel } from '../src/i18n/match';
 import { hasNarrationLabel } from '../src/i18n/narration';
-import type { Player, Position } from '../src/model/domain';
+import type { KeeperAttributes, Player, Position } from '../src/model/domain';
+import { ownKeeperAttributes } from '../src/engine/keeping';
 
 const world = generateWorld('match-tests', { format: 'legacy' });
 const clubs = Object.values(world.clubs).slice(0, 2);
@@ -80,8 +81,8 @@ function levelled(source: MatchSetup, value = 60): MatchSetup {
   for (const player of Object.values(copy.players)) {
     for (const key of Object.keys(player.attributes) as (keyof Player['attributes'])[])
       player.attributes[key] = value;
-    for (const key of Object.keys(player.keeperAttributes) as (keyof Player['keeperAttributes'])[])
-      player.keeperAttributes[key] = value;
+    const keeping = ownKeeperAttributes(player);
+    for (const key of Object.keys(keeping) as (keyof KeeperAttributes)[]) keeping[key] = value;
     player.fatigue = 0;
     player.form = 60;
   }
@@ -91,8 +92,8 @@ function uniform(value: number): DecisionContext['player'] {
   const player = structuredClone(setup.players[setup.selectedPlayerId]!);
   for (const key of Object.keys(player.attributes) as (keyof Player['attributes'])[])
     player.attributes[key] = value;
-  for (const key of Object.keys(player.keeperAttributes) as (keyof Player['keeperAttributes'])[])
-    player.keeperAttributes[key] = value;
+  const keeping = ownKeeperAttributes(player);
+  for (const key of Object.keys(keeping) as (keyof KeeperAttributes)[]) keeping[key] = value;
   player.traits = [];
   // Reference conditions include neutral morale and temperament, and perfect consistency.
   player.morale = CONFIG.career.social.matchMorale.neutral;

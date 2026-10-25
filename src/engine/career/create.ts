@@ -13,6 +13,7 @@ import {
   type AnyAttribute,
 } from '../ageing';
 import { playerAbility } from '../strength';
+import { ownKeeperAttributes } from '../keeping';
 import { generatePlayer } from '../world/generate';
 import { refreshDressingRoom } from '../world/dressing';
 import { nextSquadNumber } from '../world/squadNumbers';
@@ -151,9 +152,11 @@ export function createCareer(input: World, draft: CareerDraft, clubId: Id, seed:
           ),
         );
     const bounded = Math.max(1, Math.min(99, value));
-    if ((KEEPER_KEYS as readonly string[]).includes(key))
-      player.keeperAttributes[key as (typeof KEEPER_KEYS)[number]] = bounded;
-    else player.attributes[key as (typeof ATTRIBUTE_KEYS)[number]] = bounded;
+    // An outfielder's goalkeeping is untrained and derived from the id, so it is not stored.
+    if ((KEEPER_KEYS as readonly string[]).includes(key)) {
+      if (!isUntrained(draft.position, key))
+        ownKeeperAttributes(player)[key as (typeof KEEPER_KEYS)[number]] = bounded;
+    } else player.attributes[key as (typeof ATTRIBUTE_KEYS)[number]] = bounded;
   }
   player.form = 60;
   player.morale = 75;

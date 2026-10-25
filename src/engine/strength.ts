@@ -117,7 +117,8 @@ export function playerAbility(
   player: Pick<Player, 'primaryPosition' | 'attributes' | 'keeperAttributes'>,
 ): number {
   if (player.primaryPosition === 'GK') {
-    const values = Object.values(player.keeperAttributes);
+    // A goalkeeper's goalkeeping is always stored (only an outfielder's may be derived).
+    const values = Object.values(player.keeperAttributes!);
     return values.reduce((sum, value) => sum + value, 0) / values.length;
   }
   const weights = ABILITY_WEIGHTS[player.primaryPosition];
@@ -154,7 +155,7 @@ export function attributeSummary(player: RatedPlayer): AxisRating[] {
     ? CONFIG.ratings.axes.keeper
     : CONFIG.ratings.axes.outfield;
   const values: Readonly<Record<string, number>> = keeper
-    ? player.keeperAttributes
+    ? player.keeperAttributes!
     : player.attributes;
   return Object.entries(axes).map(([axis, keys]) => ({
     axis: axis as AxisRating['axis'],

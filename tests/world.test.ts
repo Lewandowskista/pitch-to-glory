@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it } from 'vitest';
 import type { World, Standing } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
+import { keeperAttributesOf } from '../src/engine/keeping';
 
 const generationPath = '../src/engine/world/generate';
 const simulationPath = '../src/engine/world/simulate';
@@ -81,7 +82,7 @@ describe('legacy-compat: the compact seeded world', () => {
     for (const player of Object.values(world.players)) {
       for (const value of [
         ...Object.values(player.attributes),
-        ...Object.values(player.keeperAttributes),
+        ...Object.values(keeperAttributesOf(player)),
         player.potential,
       ]) {
         expect(Number.isInteger(value)).toBe(true);
@@ -384,7 +385,7 @@ describe('legacy-compat: the compact seeded world', () => {
     );
     for (const player of Object.values(next.players)) {
       expect(
-        [...Object.values(player.attributes), ...Object.values(player.keeperAttributes)].every(
+        [...Object.values(player.attributes), ...Object.values(keeperAttributesOf(player))].every(
           (value) => Number.isInteger(value) && value >= 1 && value <= 99,
         ),
       ).toBe(true);

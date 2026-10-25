@@ -134,9 +134,12 @@ export function validateSetup(setup: MatchSetup): void {
         !Array.isArray(p.secondaryPositions)
       )
         throw new Error('Invalid match player');
+      // An outfielder's untrained goalkeeping may be left out (it is derived from the id).
+      if (p.keeperAttributes === undefined && p.primaryPosition === 'GK')
+        throw new Error('Invalid match attributes');
       for (const [names, values] of [
         [attributes, p.attributes],
-        [keeping, p.keeperAttributes],
+        ...(p.keeperAttributes === undefined ? [] : [[keeping, p.keeperAttributes] as const]),
       ] as const) {
         if (
           !values ||

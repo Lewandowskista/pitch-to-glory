@@ -37,7 +37,7 @@ describe('shared strength model', () => {
       const weights = ABILITY_WEIGHTS[player.primaryPosition];
       const entries =
         player.primaryPosition === 'GK'
-          ? Object.values(player.keeperAttributes).map((value) => [value, 1] as const)
+          ? Object.values(player.keeperAttributes!).map((value) => [value, 1] as const)
           : Object.entries(player.attributes).map(
               ([key, value]) => [value, weights[key as keyof typeof weights] ?? 1] as const,
             );

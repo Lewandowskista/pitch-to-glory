@@ -5,6 +5,7 @@ import { matchPlan, type PlanGroup, type PlanStyle } from '../src/engine/career/
 import { careerSelection } from '../src/engine/career/market/rules';
 import { clubLineup } from '../src/engine/selection/world';
 import { playerAbility } from '../src/engine/strength';
+import { ownKeeperAttributes } from '../src/engine/keeping';
 import { STYLES } from '../src/engine/world/catalog';
 import { planText } from '../src/screens/career/briefUi';
 import { briefText } from '../src/i18n/brief';
@@ -51,11 +52,9 @@ function playAt(world: World, position: Position): void {
   player.secondaryPositions = [];
   for (const key of Object.keys(player.attributes) as (keyof typeof player.attributes)[])
     player.attributes[key] = 95;
-  if (player.keeperAttributes)
-    for (const key of Object.keys(
-      player.keeperAttributes,
-    ) as (keyof typeof player.keeperAttributes)[])
-      player.keeperAttributes[key] = 95;
+  // An outfielder's goalkeeping is derived until stored (engine/keeping.ts).
+  const keeping = ownKeeperAttributes(player);
+  for (const key of Object.keys(keeping) as (keyof typeof keeping)[]) keeping[key] = 95;
   // Every position has a slot: the 4-2-3-1 is the one with a number 10.
   world.managers[clubOf(world).managerId]!.preferredFormation =
     position === 'AM' ? '4-2-3-1' : '4-3-3';

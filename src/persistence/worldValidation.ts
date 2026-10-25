@@ -265,7 +265,9 @@ export function validateEntities(
       number(position.familiarity, 0, 100);
     }
     attributes(player.attributes, attributeKeys);
-    attributes(player.keeperAttributes, keeperKeys);
+    // Only an outfielder's untrained goalkeeping may be left out (engine/keeping.ts).
+    if (player.keeperAttributes !== undefined || player.primaryPosition === 'GK')
+      attributes(player.keeperAttributes, keeperKeys);
     number(player.potential, 1, 99, true);
     personality(player.personality);
     const hidden = object(player.hidden);

@@ -186,7 +186,8 @@ export function developWeek(player: Player, age: number, seasonWeeks: number, rn
       values[key] = clamp(current + Math.sign(gap));
   };
   for (const key of ATTRIBUTE_KEYS) step(player.attributes, key);
-  for (const key of KEEPER_KEYS) step(player.keeperAttributes, key);
+  // An outfielder's goalkeeping is untrained (and may not be stored): `step` leaves it alone.
+  if (player.keeperAttributes) for (const key of KEEPER_KEYS) step(player.keeperAttributes, key);
 }
 
 /** Mean ability over the attributes a player develops (keeper or outfield set). */
@@ -194,7 +195,8 @@ function trainedAbility(
   player: Pick<Player, 'primaryPosition' | 'attributes' | 'keeperAttributes'>,
 ) {
   const values = Object.values(
-    player.primaryPosition === 'GK' ? player.keeperAttributes : player.attributes,
+    // A goalkeeper's goalkeeping is always stored.
+    player.primaryPosition === 'GK' ? player.keeperAttributes! : player.attributes,
   );
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }

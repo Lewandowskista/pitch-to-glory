@@ -8,6 +8,7 @@ import {
   isUntrained,
   type AnyAttribute,
 } from '../ageing';
+import { keeperAttributesOf, ownKeeperAttributes } from '../keeping';
 import { SKILL_BY_ID } from './catalogue';
 import { recordGrowth } from './growth';
 import { careerSoftCap } from './longevity';
@@ -60,11 +61,11 @@ export function trainableAttributes(player: Pick<Player, 'primaryPosition'>): An
   );
 }
 export function attributeValue(player: Player, key: AnyAttribute): number {
-  return isKeeperKey(key) ? player.keeperAttributes[key] : player.attributes[key];
+  return isKeeperKey(key) ? keeperAttributesOf(player)[key] : player.attributes[key];
 }
 function setAttribute(player: Player, key: AnyAttribute, value: number): void {
   const bounded = Math.max(1, Math.min(99, Math.round(value)));
-  if (isKeeperKey(key)) player.keeperAttributes[key] = bounded;
+  if (isKeeperKey(key)) ownKeeperAttributes(player)[key] = bounded;
   else player.attributes[key] = bounded;
 }
 

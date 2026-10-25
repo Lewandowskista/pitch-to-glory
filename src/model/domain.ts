@@ -356,7 +356,12 @@ export interface Player {
   primaryPosition: Position;
   secondaryPositions: PositionFamiliarity[];
   attributes: Attributes;
-  keeperAttributes: KeeperAttributes;
+  /**
+   * Goalkeeping. Absent for an outfield player whose goalkeeping is untrained, as it never
+   * changes: `keeperAttributesOf` (engine/keeping.ts) derives it from the id (schema 23,
+   * retention). Always stored for goalkeepers and for anyone whose values were changed.
+   */
+  keeperAttributes?: KeeperAttributes;
   hidden: HiddenAttributes;
   potential: number;
   personality: Personality;

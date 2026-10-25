@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Crest, Hex } from '../src/model/domain';
+import type { Crest, Hex, Player } from '../src/model/domain';
+import { keeperAttributesOf } from '../src/engine/keeping';
 import { createRng, hashSeed } from '../src/engine/rng';
 import {
   CREST_DIVISIONS,
@@ -254,10 +255,21 @@ describe('world generation determinism', () => {
   // indices were remapped by the portrait redesign) and squad numbers (assigned without draws)
   // are left out; tests/avatar.test.ts and tests/squad-numbers.test.ts cover them. Values
   // recomputed with these exclusions on f71f9e5 (before phase 2) and unchanged after it.
+  // An outfielder's untrained goalkeeping is derived rather than stored (retention, step 3.6):
+  // it is put back where it stood, so the fingerprints still prove every draw unchanged.
   const strip = <T extends object>(entity: T | undefined) =>
     entity &&
     Object.fromEntries(
-      Object.entries(entity).filter(([key]) => key !== 'avatar' && key !== 'squadNumber'),
+      Object.entries(entity)
+        .filter(([key]) => key !== 'avatar' && key !== 'squadNumber' && key !== 'keeperAttributes')
+        .flatMap(([key, value]) =>
+          key === 'attributes'
+            ? [
+                [key, value],
+                ['keeperAttributes', keeperAttributesOf(entity as unknown as Player)],
+              ]
+            : [[key, value]],
+        ),
     );
   it.each([
     ['legacy', 859704115],

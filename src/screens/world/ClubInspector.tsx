@@ -7,6 +7,7 @@ import { Icon } from '../../ui/Icon';
 import { Chip, Disclosure, OverallBadge, cx } from '../../ui/kit';
 import { foundedYear, renderCrest } from '../../engine/assets/crest';
 import { renderKit } from '../../engine/assets/kit';
+import { keeperAttributesOf } from '../../engine/keeping';
 import { clubDress, renderAvatar, type AvatarDress } from '../../engine/assets/avatar';
 import { kitArt } from '../../ui/kitArt';
 import { overallRating } from '../../engine/strength';
@@ -328,10 +329,13 @@ function PlayerInspect({
   const groups: [string, readonly string[]][] = [
     ...ATTRIBUTE_GROUPS.map(([key, keys]) => [t.world[key], keys] as [string, readonly string[]]),
     ...(player.primaryPosition === 'GK'
-      ? [[t.world.keeper, Object.keys(player.keeperAttributes)] as [string, string[]]]
+      ? [[t.world.keeper, Object.keys(keeperAttributesOf(player))] as [string, string[]]]
       : []),
   ];
-  const attributes: Record<string, number> = { ...player.attributes, ...player.keeperAttributes };
+  const attributes: Record<string, number> = {
+    ...player.attributes,
+    ...keeperAttributesOf(player),
+  };
   const tiles = [
     [t.world.potential, player.potential, true],
     [t.world.fitness, player.fitness, false],

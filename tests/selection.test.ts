@@ -23,6 +23,7 @@ import { effectiveAbility, selectLineup, slotFit } from '../src/engine/selection
 import { clubFormation } from '../src/engine/selection/world';
 import { adoptCurrentRules } from '../src/engine/world/rules';
 import { playerAbility } from '../src/engine/strength';
+import { ownKeeperAttributes } from '../src/engine/keeping';
 import { nationalWorld } from './support/world';
 
 /** Phase 5.1: one formation-aware selection for background, career and interactive matches. */
@@ -60,8 +61,8 @@ const careerClub = (source: World) => source.clubs[careerPlayer(source).clubId!]
 const setAll = (player: Player, value: number) => {
   for (const key of Object.keys(player.attributes))
     (player.attributes as Record<string, number>)[key] = value;
-  for (const key of Object.keys(player.keeperAttributes))
-    (player.keeperAttributes as Record<string, number>)[key] = value;
+  const keeping = ownKeeperAttributes(player);
+  for (const key of Object.keys(keeping)) (keeping as Record<string, number>)[key] = value;
 };
 
 describe('formations', () => {

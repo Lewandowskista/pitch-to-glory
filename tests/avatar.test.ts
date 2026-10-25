@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Avatar, Hex } from '../src/model/domain';
+import type { Avatar, Hex, Player } from '../src/model/domain';
+import { keeperAttributesOf } from '../src/engine/keeping';
 import { createRng, hashSeed } from '../src/engine/rng';
 import {
   AVATAR_OPTIONS,
@@ -23,9 +24,20 @@ import { avatar as validateAvatar } from '../src/persistence/worldValidation';
 // Squad numbers (added in the same release, assigned without random draws and covered by
 // tests/squad-numbers.test.ts) are left out with the avatar, so these hashes keep their
 // pre-redesign values.
+// An outfielder's untrained goalkeeping is derived rather than stored (retention, step 3.6): it
+// is put back where it stood, so the hashes still prove every draw unchanged.
 const withoutAvatar = <T extends { avatar: Avatar }>(entity: T) =>
   Object.fromEntries(
-    Object.entries(entity).filter(([key]) => key !== 'avatar' && key !== 'squadNumber'),
+    Object.entries(entity)
+      .filter(([key]) => key !== 'avatar' && key !== 'squadNumber' && key !== 'keeperAttributes')
+      .flatMap(([key, value]) =>
+        key === 'attributes'
+          ? [
+              [key, value],
+              ['keeperAttributes', keeperAttributesOf(entity as unknown as Player)],
+            ]
+          : [[key, value]],
+      ),
   ) as Omit<T, 'avatar'>;
 const ids = (svg: string) => [...svg.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 
