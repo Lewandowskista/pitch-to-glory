@@ -8,6 +8,11 @@
  *   npm run profile:match -- --positions ST,GK --matches 500
  *   npm run profile:match -- --seeds match-profile,match-profile-b   several world seeds
  *   npm run profile:match -- --check                 assert the gates on the last run, per seed
+ *   npm run profile:match -- --check --assert-targets   also fail on the 1.0 targets (step 2.3)
+ *
+ * The check also reports the 1.0 targets (docs/RELEASE-1.0-PLAN.md step 2.3; `TARGETS` below):
+ * choices that matter, no dominant choice, believable ratings and match statistics. They are
+ * reported, not asserted, until phase 5 meets them and flips their `asserted` flags.
  *
  * Not modelled: a player starting on the bench. The match engine's selected player always
  * starts; benching is a career matter, gated by the career profile's playing time.
@@ -15,6 +20,15 @@
  * Writes artifacts/profile/matches.json.
  */
 import { CALIBRATION_GATE, calibrationProblems } from './calibration';
+import {
+  assertAllTargets,
+  evaluateTargets,
+  percentile as quantile,
+  printTargets,
+  standardDeviation,
+  within,
+  type Target,
+} from './targets';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Position } from '../src/model/domain';
 import { generateWorld } from '../src/engine/world/generate';
@@ -46,7 +60,15 @@ export interface PositionProfile {
   matches: number;
   goals: number;
   assists: number;
-  rating: { mean: number; p10: number; p90: number; nineOrMore: number };
+  rating: {
+    mean: number;
+    p10: number;
+    p90: number;
+    nineOrMore: number;
+    /** Standard deviation and the share rated 5.0 or less (1.0 targets, step 2.3). */
+    sd?: number;
+    fiveOrLess?: number;
+  };
   moments: number;
   objectives: Record<string, { offered: number; completed: number }>;
   substituted: number;
@@ -90,6 +112,28 @@ export interface PositionProfile {
    * the player's own slot and out of position (a formation without it; absent where every
    * formation has the slot), and substitutions and ratings fresh and tired.
    */
+  /**
+   * Choices that matter (1.0 targets, step 2.3): per seed, the selected side's goal difference
+   * with the best policy less that with the worst, on the same specialised setup.
+   */
+  swing?: { mean: number; se: number; n: number };
+  /**
+   * No dominant choice (1.0 targets): per situation, its instances in the best-policy matches
+   * and how often each choice had the highest expected value (ties share the credit).
+   */
+  dominance?: Record<string, { n: number; best: Record<string, number> }>;
+  /**
+   * Match statistics of the best-policy matches (1.0 targets): shots and shots on target by
+   * both sides, goals and goals in added time, and the home side's possession in each match.
+   */
+  statistics?: {
+    matches: number;
+    shots: number;
+    onTarget: number;
+    goals: number;
+    addedTimeGoals: number;
+    possession: number[];
+  };
   scenarios?: {
     /** Mean contribution of the "Out of position" factor to the choices taken. */
     slot: { own: number; outOfPosition: number | null; n: number };
@@ -162,6 +206,30 @@ const positionFactors = (session: MatchSession): number[] =>
 const mean = (values: number[]) =>
   values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
+/**
+ * A goal in added time. The engine has no stoppage time yet (review M12): a goal after the 90th
+ * minute of a match without extra time, or one marked as added time once phase 5 adds it.
+ */
+const inAddedTime = (event: { kind: string; minute: number; addedTime?: unknown }) =>
+  event.kind === 'goal' && (event.minute > 90 || Boolean(event.addedTime));
+
+/** Credit the choice with the highest expected value at each of a match's key moments. */
+function tallyBestChoices(
+  tally: NonNullable<PositionProfile['dominance']>,
+  session: MatchSession,
+): void {
+  for (const moment of session.state.match.keyMoments) {
+    if (moment.choices.length < 2) continue;
+    const values = moment.choices.map((choice) => expectedImpact(choice).net);
+    const top = Math.max(...values);
+    const best = moment.choices.filter((_, index) => values[index]! >= top - 1e-9);
+    const entry = (tally[moment.situationId] ??= { n: 0, best: {} });
+    entry.n++;
+    for (const choice of best)
+      entry.best[choice.id] = (entry.best[choice.id] ?? 0) + 1 / best.length;
+  }
+}
+
 export function profilePosition(
   position: Position,
   matches: number,
@@ -207,6 +275,16 @@ export function profilePosition(
   const late = result.late!;
   const odds = { own: [] as number[], away: [] as number[] };
   const prevented: number[] = [];
+  const swing: number[] = [];
+  const dominance: NonNullable<PositionProfile['dominance']> = {};
+  const statistics: NonNullable<PositionProfile['statistics']> = {
+    matches: 0,
+    shots: 0,
+    onTarget: 0,
+    goals: 0,
+    addedTimeGoals: 0,
+    possession: [],
+  };
   const tired = {
     fresh: [] as boolean[],
     tired: [] as boolean[],
@@ -246,6 +324,17 @@ export function profilePosition(
         FORMATION_SLOTS[f].some((s) => s.position === position),
       )!;
     const best = play(createMatchSession(setup, tactics), autoPlayCommand);
+    // 1.0 targets: the best choice at every moment, and the match's statistics.
+    tallyBestChoices(dominance, best);
+    statistics.matches++;
+    statistics.shots += best.state.stats.homeShots + best.state.stats.awayShots;
+    statistics.onTarget += best.state.stats.shotsOnTarget[0] + best.state.stats.shotsOnTarget[1];
+    statistics.possession.push(best.state.stats.homePossession);
+    for (const event of best.state.match.events)
+      if (event.kind === 'goal') {
+        statistics.goals++;
+        if (inAddedTime(event)) statistics.addedTimeGoals++;
+      }
     // Late moments by the score at the time (review phase 6).
     for (const moment of best.state.match.keyMoments) {
       if (moment.minute < 75) continue;
@@ -330,6 +419,11 @@ export function profilePosition(
     result.xp += report.xp;
     result.fame += report.fameDelta;
     prevented.push(worst.state.match.score[1 - own]! - bestShaped.state.match.score[1 - own]!);
+    swing.push(
+      bestShaped.state.match.score[own]! -
+        bestShaped.state.match.score[1 - own]! -
+        (worst.state.match.score[own]! - worst.state.match.score[1 - own]!),
+    );
     result.policy.best[0] += bestShaped.state.match.score[own]!;
     result.policy.best[1] += bestShaped.state.match.score[1 - own]!;
     result.policy.worst[0] += worst.state.match.score[own]!;
@@ -370,6 +464,8 @@ export function profilePosition(
     p10: percentile(ratings, 0.1),
     p90: percentile(ratings, 0.9),
     nineOrMore: round(ratings.filter((value) => value >= 9).length / matches, 3),
+    sd: round(standardDeviation(ratings), 3),
+    fiveOrLess: round(ratings.filter((value) => value <= 5).length / matches, 3),
   };
   result.moments = round(result.moments / matches, 1);
   result.substituted = round(result.substituted / matches, 3);
@@ -403,6 +499,27 @@ export function profilePosition(
     se: round(sd / Math.sqrt(Math.max(1, prevented.length)), 3),
     n: prevented.length,
   };
+  const swingSd = Math.sqrt(
+    swing.reduce((sum, value) => sum + (value - mean(swing)) ** 2, 0) /
+      Math.max(1, swing.length - 1),
+  );
+  result.swing = {
+    mean: round(mean(swing), 3),
+    se: round(swingSd / Math.sqrt(Math.max(1, swing.length)), 3),
+    n: swing.length,
+  };
+  result.dominance = Object.fromEntries(
+    Object.entries(dominance).map(([situation, entry]) => [
+      situation,
+      {
+        n: entry.n,
+        best: Object.fromEntries(
+          Object.entries(entry.best).map(([choice, count]) => [choice, round(count, 2)]),
+        ),
+      },
+    ]),
+  );
+  result.statistics = statistics;
   result.scenarios = {
     slot: {
       own: round(mean(odds.own), 4),
@@ -613,6 +730,160 @@ export const GATES: Gate[] = [
   },
 ];
 
+/**
+ * The 1.0 match targets (docs/RELEASE-1.0-PLAN.md step 2.3), over every seed in the run. Phase 5
+ * (engine match-22) meets them and sets `asserted: true` on each.
+ */
+const seedsOf = (profiles: PositionProfile[]) => [
+  ...new Set(profiles.map((p) => p.seed ?? 'match-profile')),
+];
+const bySeed = (profiles: PositionProfile[]) =>
+  seedsOf(profiles).map(
+    (seed) => [seed, profiles.filter((p) => (p.seed ?? 'match-profile') === seed)] as const,
+  );
+/** The 1.0 bands, in one place. */
+export const TARGET_BANDS = {
+  /** Perfect versus worst play, goals a match, for every position. */
+  swing: 0.3,
+  /** Seeds the swing must hold on. */
+  seeds: 2,
+  /** The most often one choice may be best in its situation, and the instances to judge it. */
+  dominantShare: 0.6,
+  dominantMinimum: 30,
+  rating: { mean: [6.5, 6.9], sd: [0.7, 1.0], nineOrMore: 0.03, fiveOrLess: 0.03 },
+  onTargetShare: [0.3, 0.4],
+  shotsPerTeam: [11, 14],
+  /** Home possession: the 10th percentile at most, the 90th at least. */
+  possession: [40, 60],
+} as const;
+export const TARGETS: Target<PositionProfile[]>[] = [
+  {
+    id: 'choices-matter',
+    name: `choices matter: perfect vs worst play ≥ ${TARGET_BANDS.swing} goals a match for every position, on ${TARGET_BANDS.seeds} seeds`,
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      const seeds = bySeed(profiles).filter(([, list]) => list.every((p) => p.swing));
+      if (!seeds.length) return { met: null, value: 'no swing data (rerun the profile)' };
+      const parts = seeds.map(
+        ([seed, list]) =>
+          `${seed}: ${list.map((p) => `${p.position} ${p.swing!.mean.toFixed(2)}±${p.swing!.se.toFixed(2)}`).join(', ')}`,
+      );
+      const low = seeds.flatMap(([, list]) =>
+        list.filter((p) => p.swing!.mean < TARGET_BANDS.swing),
+      );
+      const enough = seeds.length >= TARGET_BANDS.seeds;
+      return {
+        met: low.length ? false : enough ? true : null,
+        value: `${parts.join(' | ')}${enough ? '' : ` (${seeds.length} of ${TARGET_BANDS.seeds} seeds)`}`,
+      };
+    },
+  },
+  {
+    id: 'no-dominant-choice',
+    name: `no dominant choice: none best in more than ${TARGET_BANDS.dominantShare * 100}% of its situation's instances (situations with ≥ ${TARGET_BANDS.dominantMinimum})`,
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      if (!profiles.some((p) => p.dominance)) return { met: null, value: 'no dominance data' };
+      const offenders: string[] = [];
+      let judged = 0;
+      for (const [seed, list] of bySeed(profiles)) {
+        const pooled: Record<string, { n: number; best: Record<string, number> }> = {};
+        for (const profile of list)
+          for (const [situation, entry] of Object.entries(profile.dominance ?? {})) {
+            const target = (pooled[situation] ??= { n: 0, best: {} });
+            target.n += entry.n;
+            for (const [choice, count] of Object.entries(entry.best))
+              target.best[choice] = (target.best[choice] ?? 0) + count;
+          }
+        for (const [situation, entry] of Object.entries(pooled)) {
+          if (entry.n < TARGET_BANDS.dominantMinimum) continue;
+          judged++;
+          const [choice, count] = Object.entries(entry.best).sort((a, b) => b[1] - a[1])[0]!;
+          const share = count / entry.n;
+          if (share > TARGET_BANDS.dominantShare)
+            offenders.push(
+              `${seed} ${situation}/${choice} ${Math.round(share * 100)}% of ${entry.n}`,
+            );
+        }
+      }
+      return {
+        met: offenders.length === 0,
+        value: offenders.length
+          ? `${offenders.length} of ${judged} situations: ${offenders.join('; ')}`
+          : `${judged} situations judged, none dominated`,
+      };
+    },
+  },
+  {
+    id: 'ratings',
+    name: 'ratings: per-position mean 6.5–6.9, standard deviation 0.7–1.0, ≤ 3% at 9.0+ and ≤ 3% at 5.0 or less',
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      const measured = profiles.filter((p) => p.rating.sd !== undefined);
+      if (!measured.length) return { met: null, value: 'no rating spread data' };
+      const band = TARGET_BANDS.rating;
+      const off = measured.filter(
+        (p) =>
+          !within(p.rating.mean, band.mean[0], band.mean[1]) ||
+          !within(p.rating.sd!, band.sd[0], band.sd[1]) ||
+          p.rating.nineOrMore > band.nineOrMore ||
+          p.rating.fiveOrLess! > band.fiveOrLess,
+      );
+      const line = (p: PositionProfile) =>
+        `${p.position} ${p.rating.mean.toFixed(2)} sd ${p.rating.sd!.toFixed(2)} 9+ ${(p.rating.nineOrMore * 100).toFixed(1)}% ≤5 ${(p.rating.fiveOrLess! * 100).toFixed(1)}%`;
+      return {
+        met: off.length === 0,
+        value: bySeed(measured)
+          .map(([seed, list]) => `${seed}: ${list.map(line).join(', ')}`)
+          .join(' | '),
+      };
+    },
+  },
+  {
+    id: 'match-statistics',
+    name: 'match statistics: shots on target 30–40%; 11–14 shots a team; possession p10–p90 at least 40–60%; some goals in added time',
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      const measured = profiles.filter((p) => p.statistics);
+      if (!measured.length) return { met: null, value: 'no statistics data' };
+      const parts: string[] = [];
+      let met = true;
+      for (const [seed, list] of bySeed(measured)) {
+        const sum = (pick: (s: NonNullable<PositionProfile['statistics']>) => number) =>
+          list.reduce((total, p) => total + pick(p.statistics!), 0);
+        const matches = sum((s) => s.matches);
+        const onTarget =
+          sum((s) => s.onTarget) /
+          Math.max(
+            1,
+            sum((s) => s.shots),
+          );
+        const shots = sum((s) => s.shots) / Math.max(1, 2 * matches);
+        const possession = list.flatMap((p) => p.statistics!.possession);
+        const p10 = quantile(possession, 0.1);
+        const p90 = quantile(possession, 0.9);
+        const added = sum((s) => s.addedTimeGoals);
+        const goals = sum((s) => s.goals);
+        const ok =
+          within(onTarget, TARGET_BANDS.onTargetShare[0], TARGET_BANDS.onTargetShare[1]) &&
+          within(shots, TARGET_BANDS.shotsPerTeam[0], TARGET_BANDS.shotsPerTeam[1]) &&
+          p10 <= TARGET_BANDS.possession[0] &&
+          p90 >= TARGET_BANDS.possession[1] &&
+          added > 0;
+        met &&= ok;
+        parts.push(
+          `${seed}: on target ${(onTarget * 100).toFixed(1)}%, ${shots.toFixed(1)} shots a team, possession p10–p90 ${p10}–${p90}%, ${added} of ${goals} goals in added time, ${matches} matches`,
+        );
+      }
+      return { met, value: parts.join(' | ') };
+    },
+  },
+];
+
 /** Every seed's profiles are checked on their own (review phase 6: several seeds). */
 function check(): void {
   const all = JSON.parse(readFileSync(OUT, 'utf8')) as PositionProfile[];
@@ -627,6 +898,8 @@ function check(): void {
       if (problem) failed++;
     }
   }
+  // The 1.0 targets: reported until their phase asserts them.
+  failed += printTargets(evaluateTargets(TARGETS, all, assertAllTargets()));
   if (failed) process.exitCode = 1;
 }
 
