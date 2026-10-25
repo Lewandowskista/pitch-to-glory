@@ -62,13 +62,17 @@ src/
 tests/                 Vitest engine/persistence/worker tests with fake IndexedDB; the fast project, and
                        the slow project (*.slow.test.ts: statistical gates, soaks, multi-season worlds)
   support/             The shared national test world and career, built once per engine revision
-e2e/                   Playwright browser journeys
+e2e/                   Playwright browser journeys; support.ts holds their `test`, which fails a
+                       journey on any console error, page error or unhandled rejection
+types/                 engine-runtime.d.ts: the globals the engine may use (tsconfig.engine.json)
 docs/                  Architecture, decisions, balance and release instructions
 public/                Static SVG icons and share artwork
 .github/workflows/     Validation, browser tests and optional Netlify deployment
 ```
 
 Dependencies point inward: UI → store/repositories/platform; store → model/engine; persistence → model/validation. Engine imports only other pure engine modules and model types, never React, Zustand, Dexie, DOM APIs or platform code. SVG output is a string produced from validated recipes, never user-provided markup.
+
+The boundary is checked, not only described. ESLint's engine block (`eslint.config.js`) bans browser globals, UI, storage and platform imports, `Math.random` and the wall clock (`Date.now`, `performance.now`, `new Date()`, `Date()`): every random draw goes through the seeded RNG and every date arrives as an argument. `npm run typecheck` also compiles `src/engine` and `src/model` alone with `tsconfig.engine.json`: the ES2023 library with no DOM or Node types, plus the few globals every runtime shares (`types/engine-runtime.d.ts`: `structuredClone`, `TextEncoder`, `TextDecoder`, `atob`, `btoa`).
 
 ## Domain types
 
@@ -1635,7 +1639,7 @@ What moved: the match screen builds its setup from `engine/career/matchSetup.ts`
 
 ## Verification
 
-Tests cover foundation reproducibility, save migrations/round trips/ownership, world generation, schedule/table conservation, cups, weekly AI changes, JSON resume and promotion rollover. Match tests replay complete sessions, validate conserved statistics and simulate 10,000 matches for goals/home advantage/upsets. Worker tests cover acknowledgement ordering, failures and cancellation during startup/yield/lock cleanup. Browser flows exercise real workers, world backup/import/restoration, full-season rollover, match decisions/refresh/report, large-text layouts and offline resources. Builds enforce the bundle budget for every route (see Bundle budget) and reject eager Pixi loading, Dexie on the main thread and unused Pixi renderers. Tutorial and audio retain their later milestone scope.
+Tests cover foundation reproducibility, save migrations/round trips/ownership, world generation, schedule/table conservation, cups, weekly AI changes, JSON resume and promotion rollover. Match tests replay complete sessions, validate conserved statistics and simulate 10,000 matches for goals/home advantage/upsets. Worker tests cover acknowledgement ordering, failures and cancellation during startup/yield/lock cleanup. Browser flows exercise real workers, world backup/import/restoration, full-season rollover, match decisions/refresh/report, large-text layouts and offline resources. Builds enforce the bundle budget for every route (see Bundle budget) and reject eager Pixi loading, Dexie on the main thread and unused Pixi renderers. Lint is type-aware: a promise is awaited, returned, or handed off with `void` only once its rejection is handled (`no-floating-promises`, `no-misused-promises`). `npm run knip` (`knip.jsonc`) fails CI on unused files, exports and dependencies, and `npm audit --omit=dev --audit-level=high` on a known vulnerability in what ships. Tutorial and audio retain their later milestone scope.
 
 Team selection (`src/engine/selection/`): `formations.ts` catalogues the four formations' slots (position, line, role and shape point); `lineup.ts` picks a club's eleven for a formation, valuing each player in a slot by ability and positional fit; `world.ts` applies it per world (`selectionVersion`) for background results, career selection, club level and the dressing room, and match setups carry both managers' formations. Match motion takes shape and set-piece roles from the slots. Coaching (`src/engine/career/coaching.ts`) keeps the latest key decisions from each recorded match in `career.coaching`, derives advice and a season goal offer each time they are shown, and stores only an accepted goal and past results.
 
