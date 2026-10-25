@@ -26,6 +26,33 @@ export type ReleaseSection = (typeof RELEASE_SECTIONS)[number];
 
 export const PATCH_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '0.9.1',
+    date: '2026-10-25',
+    title: 'Safe hands',
+    summary:
+      'Saves that can no longer be lost to a changed clock, a recovery copy for any save that won’t load, tournaments that always crown a winner, and clearer key moments.',
+    new: [
+      'A save that won’t load can now be downloaded as a recovery copy, from its slot or before you delete or replace it.',
+    ],
+    improved: [
+      'Key-moment choices are now rated on their chance alone, show a skill that helps as its own tag, and say what each percentage means, such as “4% to score”.',
+      'The live scoreboard keeps club names whole, shortening long ones or showing the club’s initials, and the match status no longer covers the away side.',
+      'Inbox messages now link to where they are settled: dressing-room stories to your hub, selection news to Club life, and plain news has no button.',
+      'Keyboard focus shows a gold ring on the green panels, so you can always see where you are.',
+      'The season review compares keepers and defenders with their rival on clean sheets, and everyone else on goals and assists.',
+    ],
+    fixed: [
+      'A save could become unreadable after your device’s clock was changed. It no longer can, and saves already affected load again.',
+      'A drawn international knockout now always goes to penalties, even if you were substituted or sent off, so every tournament crowns a winner.',
+      'Retiring during a summer tournament no longer hands your squad place, matches or caps to your next player or your child.',
+      'Your child’s trophy cabinet, Chronicle and national team page no longer show their parent’s tournaments and international matches as their own.',
+      'You can now name your child exactly after their retired parent.',
+      'Agreeing a free transfer now closes contract talks at your club, and signing a new contract cancels a free move you had agreed.',
+      '“Late winner” and “late equaliser” headlines now appear only when your late goal decided the match.',
+      'If the save system fails to start, the game now says your changes were not saved instead of failing silently.',
+    ],
+  },
+  {
     version: '0.9.0',
     date: '2026-10-25',
     title: 'Pull on the shirt',
