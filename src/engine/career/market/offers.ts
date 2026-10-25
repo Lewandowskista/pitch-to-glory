@@ -291,6 +291,12 @@ function finish(world: World, offer: TransferOffer, terms: ContractTerms | null)
   else if (offer.kind === 'renewal') signRenewal(world, offer, terms!);
   else if (offer.kind === 'pre-contract') {
     offer.status = 'agreed';
+    // An agreed free move ends talks on a new contract at the current club (version 0.9.1).
+    for (const other of world.offers) {
+      if (other.kind !== 'renewal' || other.status !== 'terms') continue;
+      other.status = 'expired';
+      if (other.negotiationId) world.negotiations[other.negotiationId]!.status = 'expired';
+    }
     postMessage(world, 'pre-contract-agreed', {
       club: world.clubs[offer.clubId]!.name,
       season: world.date.season + 1,
@@ -303,6 +309,9 @@ function assertOpen(world: World, offer: TransferOffer): void {
   if (compareDates(offer.expires, world.date) < 0) throw new Error('This offer has expired');
   if (offer.kind === 'transfer' || offer.kind === 'loan')
     if (!windowState(world).open) throw new Error('The transfer window is closed');
+  // A free move is for a contract that runs out this season, not one renewed since.
+  if (offer.kind === 'pre-contract' && careerContract(world).end.season > world.date.season)
+    throw new Error('Your contract no longer runs out this season');
 }
 
 /** Accept the club's latest terms (or a loan) and complete the deal. */
@@ -481,6 +490,10 @@ export function triedRecently(world: World, interest: ScoutingInterest): boolean
     return interest.lastOffer.week >= window[0];
   return false;
 }
+/** The free move the player has agreed for when their contract runs out, if any. */
+export const agreedPreContract = (world: World): TransferOffer | undefined =>
+  world.offers.find((offer) => offer.kind === 'pre-contract' && offer.status === 'agreed');
+
 /**
  * Whether the contract runs out at the end of this season with the club's option already
  * used, and no move agreed: the player decides where to play next.

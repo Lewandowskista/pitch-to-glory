@@ -25,6 +25,7 @@ import {
 import { ensureClubRelationships, nextId, postMessage } from './records';
 import { bridgeWage, endLoan, executeTransfer, extendContract, payWeek } from './moves';
 import {
+  agreedPreContract,
   expireOffers,
   makeLoanOffer,
   makePreContractOffer,
@@ -264,6 +265,8 @@ function makeOffers(world: World, ctx: Context): void {
 /** The club opens renewal talks in a final season, or improves an outgrown contract. */
 function renewals(world: World, ctx: Context): void {
   if (activeLoan(world, world.career!.playerId)) return;
+  // Not once a free move is agreed (version 0.9.1): the player has chosen to leave.
+  if (agreedPreContract(world)) return;
   const R = M.renewal;
   const contract = careerContract(world);
   const recent = world.offers.some(
@@ -462,16 +465,24 @@ export function marketRollover(world: World): void {
   }
   const agreed = world.offers.find((o) => o.kind === 'pre-contract' && o.status === 'agreed');
   const contract = careerContract(world);
-  if (agreed && world.clubs[agreed.clubId] && isActiveClub(world, world.clubs[agreed.clubId]!)) {
+  // A pre-contract is a free move when the contract runs out. One renewed since (a save from
+  // before 0.9.1 can hold both) keeps the player at the club, and the agreement lapses.
+  const expired = contract.end.season < world.date.season;
+  if (
+    agreed &&
+    expired &&
+    world.clubs[agreed.clubId] &&
+    isActiveClub(world, world.clubs[agreed.clubId]!)
+  ) {
     const terms = world.negotiations[agreed.negotiationId!]!.rounds.filter(
       (round) => round.actor === 'club',
     ).at(-1)!.terms;
     executeTransfer(world, agreed, terms);
-  } else if (contract.end.season < world.date.season) {
+  } else {
     if (agreed) agreed.status = 'collapsed';
     // Without an agreed move the player stays: the club's option, then the bridge deal. Only
     // the player's acceptance ever takes them to another club.
-    extendContract(world);
+    if (expired) extendContract(world);
   }
   market.selection = {
     season: world.date.season,

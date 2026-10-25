@@ -8,7 +8,10 @@ import {
   applyMarketAction,
   bridgeWage,
   careerContract,
+  contractAskState,
   contractExpiring,
+  makeRenewalOffer,
+  marketRollover,
   marketSeasonEnd,
 } from '../src/engine/career/market';
 import { hubPriorities } from '../src/screens/career/agenda';
@@ -128,5 +131,96 @@ describe('contract expiry', () => {
     const next = startNextSeason(world);
     expect(careerContract(next).optionTaken).toBe(true);
     expect(me(next).clubId).toBe(careerContract(world).clubId);
+  }, 120000);
+});
+
+describe('a pre-contract against a renewal (0.9.1)', () => {
+  /** An expiring contract at the season's end, with free-move and renewal talks both open. */
+  function bothOpen() {
+    const world = expiring(season, 2);
+    marketSeasonEnd(world);
+    const free = world.offers.find((o) => o.kind === 'pre-contract' && o.status === 'terms')!;
+    const renewal = makeRenewalOffer(world, false, false);
+    return { world, free, renewal, home: careerContract(world).clubId };
+  }
+  const status = (world: World, id: string) => world.offers.find((o) => o.id === id)!.status;
+  const moves = (world: World) => world.career!.market.moves.map((move) => move.kind);
+
+  it('closes renewal talks once a free move is agreed', () => {
+    const { world, free, renewal } = bothOpen();
+    const { world: agreed } = applyMarketAction(world, { type: 'accept', offerId: free.id });
+    expect(status(agreed, free.id)).toBe('agreed');
+    expect(status(agreed, renewal.id)).toBe('expired');
+    expect(agreed.negotiations[renewal.negotiationId!]!.status).toBe('expired');
+    expect(contractAskState(agreed)).toBe('pre-contract');
+    expect(() => applyMarketAction(agreed, { type: 'accept', offerId: renewal.id })).toThrow();
+    expect(() => applyMarketAction(agreed, { type: 'ask-contract' })).toThrow();
+    const next = startNextSeason(agreed);
+    expect(me(next).clubId).toBe(free.clubId);
+    expect(moves(next)).toContain('pre-contract');
+    expect(moves(next)).not.toContain('renewal');
+    expect(() => validateWorld(clone(next))).not.toThrow();
+  }, 120000);
+
+  it('keeps a renewal signed first and closes the free-move talks', () => {
+    const { world, free, renewal, home } = bothOpen();
+    const { world: signed } = applyMarketAction(world, { type: 'accept', offerId: renewal.id });
+    expect(status(signed, free.id)).toBe('expired');
+    expect(() => applyMarketAction(signed, { type: 'accept', offerId: free.id })).toThrow();
+    const end = careerContract(signed).end.season;
+    expect(end).toBeGreaterThan(signed.date.season);
+    const next = startNextSeason(signed);
+    expect(me(next).clubId).toBe(home);
+    expect(careerContract(next).end.season).toBe(end);
+    expect(moves(next)).not.toContain('pre-contract');
+    expect(() => validateWorld(clone(next))).not.toThrow();
+  }, 120000);
+
+  it('lets a renewal signed beside an agreed free move cancel it, paying loyalty once', () => {
+    const { world, free, renewal, home } = bothOpen();
+    const { world: agreed } = applyMarketAction(world, { type: 'accept', offerId: free.id });
+    // Renewal talks still open beside the agreement, as a save from before 0.9.1 can hold.
+    agreed.offers.find((o) => o.id === renewal.id)!.status = 'terms';
+    agreed.negotiations[renewal.negotiationId!]!.status = 'open';
+    const loyalty = careerContract(agreed).loyaltyBonus;
+    const earned = agreed.career!.market.finances.lifetimeEarnings;
+    expect(loyalty).toBeGreaterThan(0);
+    const { world: signed } = applyMarketAction(agreed, { type: 'accept', offerId: renewal.id });
+    expect(status(signed, free.id)).toBe('collapsed');
+    expect(contractAskState(signed)).not.toBe('pre-contract');
+    expect(signed.career!.market.finances.lifetimeEarnings).toBeGreaterThanOrEqual(
+      earned + loyalty,
+    );
+    // The season's end keeps the renewal and pays nothing more.
+    const rolled = clone(signed);
+    rolled.date = { season: rolled.date.season + 1, week: 1, day: 1 };
+    const contract = careerContract(rolled);
+    marketRollover(rolled);
+    expect(me(rolled).clubId).toBe(home);
+    expect(careerContract(rolled)).toEqual(contract);
+    expect(rolled.career!.market.finances.lifetimeEarnings).toBe(
+      signed.career!.market.finances.lifetimeEarnings,
+    );
+    expect(moves(rolled)).toEqual(moves(signed));
+    const next = startNextSeason(signed);
+    expect(me(next).clubId).toBe(home);
+    expect(moves(next)).not.toContain('pre-contract');
+    expect(() => validateWorld(clone(next))).not.toThrow();
+  }, 120000);
+
+  it('lets the season’s end keep a renewal even beside an agreed free move', () => {
+    const { world, free, renewal, home } = bothOpen();
+    // Signed and agreed both, as a save from before 0.9.1 can hold.
+    const { world: signed } = applyMarketAction(world, { type: 'accept', offerId: renewal.id });
+    signed.offers.find((o) => o.id === free.id)!.status = 'agreed';
+    signed.negotiations[free.negotiationId!]!.status = 'accepted';
+    const earned = signed.career!.market.finances.lifetimeEarnings;
+    const rolled = clone(signed);
+    rolled.date = { season: rolled.date.season + 1, week: 1, day: 1 };
+    marketRollover(rolled);
+    expect(me(rolled).clubId).toBe(home);
+    expect(status(rolled, free.id)).toBe('collapsed');
+    expect(rolled.career!.market.finances.lifetimeEarnings).toBe(earned);
+    expect(moves(rolled)).toEqual(moves(signed));
   }, 120000);
 });

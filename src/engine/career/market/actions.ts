@@ -20,6 +20,7 @@ import { adjustCliques } from '../social/dressing';
 import { careerRoom } from '../social/rules';
 import {
   acceptTerms,
+  agreedPreContract,
   counterOffer,
   declineOffer,
   makeRenewalOffer,
@@ -139,9 +140,12 @@ export function canReleaseAgent(world: World): AgentAvailability {
   return 'available';
 }
 
-export type ContractAsk = 'available' | 'cooldown' | 'trust' | 'on-loan' | 'talking';
+export type ContractAsk =
+  'available' | 'cooldown' | 'trust' | 'on-loan' | 'talking' | 'pre-contract';
 export function contractAskState(world: World): ContractAsk {
   const market = world.career!.market;
+  // A free move agreed elsewhere closes contract talks (version 0.9.1).
+  if (agreedPreContract(world)) return 'pre-contract';
   if (activeLoan(world, world.career!.playerId)) return 'on-loan';
   if (world.offers.some((o) => o.kind === 'renewal' && o.status === 'terms')) return 'talking';
   if (market.renewalAskAfter && compareDates(market.renewalAskAfter, world.date) > 0)

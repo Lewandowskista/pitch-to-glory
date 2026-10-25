@@ -5,6 +5,7 @@ import { refreshDressingRoom } from '../../world/dressing';
 import { today } from '../market/rules';
 import { adjustRelationship, postMessage } from '../market/records';
 import { chronicle } from './chronicle';
+import { leaveInternationalFootball } from './international';
 import { achievementScore, seasonContributions, usesAchievements } from './achievements';
 
 /**
@@ -448,8 +449,8 @@ export function legacyNeighbour(
 /**
  * Retire the career player: write the legacy, release them from their club, and clear the
  * career's own records (agents, offers, relationships, inbox, media, rivalry, sponsors,
- * challenges, call-ups). Chronicle, moments, awards, trophies and records stay. Mutates the
- * given world.
+ * challenges, call-ups, and its place in a tournament or window). Chronicle, moments, awards,
+ * trophies and records stay. Mutates the given world.
  */
 export function retireCareer(world: World): Legacy {
   const career = world.career!;
@@ -555,6 +556,7 @@ export function retireCareer(world: World): Legacy {
   world.sponsorships = [];
   world.challenges = [];
   world.callUps = [];
+  leaveInternationalFootball(world);
   delete world.awardState;
   delete world.career;
   return legacy;

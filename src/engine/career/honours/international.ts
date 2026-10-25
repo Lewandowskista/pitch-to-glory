@@ -913,6 +913,24 @@ export function openTournament(world: World, year = world.date.season + 1): Live
   return live;
 }
 
+/**
+ * The career leaves international football (version 0.9.1): a tournament under way plays on
+ * without them, as a simulated tournament, and a window they set out to play is dropped, so the
+ * next career never inherits their squad place, starts or matches. Replaces the state rather
+ * than changing it, as retiring copies only part of the world.
+ */
+export function leaveInternationalFootball(world: World): void {
+  const state = world.international;
+  if (!state) return;
+  const live = state.live;
+  const held = Boolean(live && (live.careerNationId !== null || live.inSquad || live.starts));
+  if (!held && !state.window) return;
+  const next = { ...state };
+  if (live && held) next.live = { ...live, careerNationId: null, inSquad: false, starts: false };
+  if (state.window) next.window = null;
+  world.international = next;
+}
+
 export const nationOf = (world: World, id: string) =>
   world.international!.nations.find((nation) => nation.id === id)!;
 
