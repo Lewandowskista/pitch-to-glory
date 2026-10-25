@@ -80,15 +80,7 @@ export const marketText = {
     selected: 'Started',
     dropped: 'Left out',
     chance: 'Chance of starting the next match',
-    chanceBody:
-      'Set by your role, your place among {count} {line}, form, fatigue and the manager’s trust.',
     reasons: 'How the chance is worked out',
-    lines: {
-      GK: 'goalkeepers',
-      DEF: 'defenders',
-      MID: 'midfielders',
-      ATT: 'attackers',
-    },
     promiseKept: 'The promise is being kept.',
     promiseBroken: 'The club has broken its promise. Asking to leave will hurt less.',
     unregistered: 'Registration completes next week; you cannot play until then.',

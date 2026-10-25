@@ -1,6 +1,6 @@
 import type { World } from '../../model/domain';
 import { careerSelection } from '../../engine/career/market/rules';
-import { clubFormation, usesFormations } from '../../engine/selection/world';
+import { clubFormation } from '../../engine/selection/world';
 import { format } from '../../i18n';
 import { selectionText as s } from '../../i18n/selection';
 import { SelectionReasons } from '../career/selectionUi';
@@ -23,12 +23,10 @@ export function CareerSelectionBriefing({ world, fixtureId }: { world: World; fi
       <details className="mt-2">
         <summary>{s.showReasons}</summary>
         <p className="mt-1 text-sm text-muted">
-          {usesFormations(world)
-            ? format(s.formation, {
-                manager: manager?.name ?? '',
-                formation: clubFormation(world, club),
-              })
-            : s.lineBased}
+          {format(s.formation, {
+            manager: manager?.name ?? '',
+            formation: clubFormation(world, club),
+          })}
         </p>
         <SelectionReasons
           world={world}

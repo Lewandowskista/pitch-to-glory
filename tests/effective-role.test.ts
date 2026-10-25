@@ -18,7 +18,7 @@ import { objectivesFor } from '../src/engine/match/objectives';
 import { isRoleFor } from '../src/engine/match/roles';
 import { deservedRole, prospectSelection, slotCompetition } from '../src/engine/career/market';
 import { selectLineup } from '../src/engine/selection/lineup';
-import { clubFormation, usesFormations } from '../src/engine/selection/world';
+import { clubFormation } from '../src/engine/selection/world';
 import { nationalWorld } from './support/world';
 
 /**
@@ -121,7 +121,6 @@ describe('role promises under the manager’s formation', () => {
   };
 
   it('promises a starter a key role, and judges an injured starter as fit', () => {
-    expect(usesFormations(world)).toBe(true);
     const starter =
       world.players[starters().find((id) => world.players[id]!.primaryPosition !== 'GK')!]!;
     expect(slotCompetition(world, club, starter).inTeam).toBe(true);

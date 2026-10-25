@@ -197,6 +197,61 @@ export function adoptAchievements(world: World): void {
     world.achievements!.titles = [];
     return;
   }
+  seedAchievements(world, false);
+}
+
+/**
+ * The 1.0 compatibility cut (docs/COMPATIBILITY.md): a world without the record adopts it when
+ * it is loaded, part-way through a season if need be, with the result adopting it at this
+ * season's start would have given. Seeds count the numbers from before this season; this
+ * season's club contributions accrue at its end with everyone else's, and the titles it has
+ * already decided are credited now, as they would have been when decided. A world between
+ * seasons, or one whose season statistics are incomplete (from before schema 14), cannot tell
+ * this season's part apart and adopts at its next season start instead: returns false.
+ */
+export function adoptAchievementsNow(world: World): boolean {
+  if (usesAchievements(world)) return true;
+  if (world.phase !== 'active' || !hasSeasonStatistics(world)) return false;
+  seedAchievements(world, true);
+  creditTitles(world);
+  return true;
+}
+
+interface StatTotals {
+  appearances: number;
+  goals: number;
+  assists: number;
+  cleanSheets: number;
+}
+/** This season's club numbers so far, by player, summed over competitions and clubs. */
+function seasonTotals(world: World): Map<string, StatTotals> {
+  const totals = new Map<string, StatTotals>();
+  for (const clubs of Object.values(world.seasonStats?.competitions ?? {}))
+    for (const players of Object.values(clubs))
+      for (const [playerId, [appearances, , goals, assists, cleanSheets]] of Object.entries(
+        players,
+      )) {
+        const total = totals.get(playerId) ?? {
+          appearances: 0,
+          goals: 0,
+          assists: 0,
+          cleanSheets: 0,
+        };
+        total.appearances += appearances;
+        total.goals += goals;
+        total.assists += assists;
+        total.cleanSheets += cleanSheets;
+        totals.set(playerId, total);
+      }
+  return totals;
+}
+
+/**
+ * Seed the record from what was kept. `partWay`: this season's numbers so far are left out
+ * (they accrue at its end), and so are the career's trophies from this season (credited as
+ * titles by `creditTitles`).
+ */
+function seedAchievements(world: World, partWay: boolean): void {
   world.achievements = { version: 1, since: world.date.season, titles: [] };
   const awards = new Map<string, number>();
   for (const award of world.awards) {
@@ -204,10 +259,21 @@ export function adoptAchievements(world: World): void {
     const winners = award.kind === 'golden-ball' ? award.winnerIds.slice(0, 1) : award.winnerIds;
     for (const id of winners) awards.set(id, (awards.get(id) ?? 0) + points);
   }
+  const season = partWay ? seasonTotals(world) : new Map<string, StatTotals>();
+  const earlier = (id: string, stats: StatTotals): StatTotals => {
+    const now = season.get(id);
+    if (!now) return stats;
+    return {
+      appearances: Math.max(0, stats.appearances - now.appearances),
+      goals: Math.max(0, stats.goals - now.goals),
+      assists: Math.max(0, stats.assists - now.assists),
+      cleanSheets: Math.max(0, stats.cleanSheets - now.cleanSheets),
+    };
+  };
   for (const player of Object.values(world.players)) {
     const tier = player.retired ? F.untrackedTier : clubTier(world, player.clubId);
     const value =
-      tierWeight(tier) * contribution(player.primaryPosition, player.stats) +
+      tierWeight(tier) * contribution(player.primaryPosition, earlier(player.id, player.stats)) +
       (awards.get(player.id) ?? 0);
     delete player.hallOfFame;
     addAchievement(world, player.id, value);
@@ -223,7 +289,11 @@ export function adoptAchievements(world: World): void {
   }
   const career = world.career;
   if (career) {
-    const trophies = world.trophies.filter((trophy) => trophy.playerIds.includes(career.playerId));
+    const trophies = world.trophies.filter(
+      (trophy) =>
+        trophy.playerIds.includes(career.playerId) &&
+        !(partWay && trophy.season === world.date.season),
+    );
     const caps = Object.values(career.honours.caps).reduce((sum, value) => sum + value, 0);
     addAchievement(world, career.playerId, trophies.length * F.trophy + caps * F.cap);
   }

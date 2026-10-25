@@ -80,9 +80,4 @@ describe('objectives preview (match-15)', () => {
     const later = world.fixtures[fixture.id] && !world.results[fixture.id];
     if (later) expect(previewObjectives(world, fixture)).toEqual(before);
   });
-  it('previews nothing in a world on the earlier selection rules', () => {
-    const legacy = clone(createCareer(base, draft(), trial.id, 'objectives-legacy'));
-    delete legacy.selectionVersion;
-    expect(previewObjectives(legacy, upcoming(legacy)[0]!)).toBeNull();
-  });
 });

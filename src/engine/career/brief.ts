@@ -57,19 +57,6 @@ const GROUPS: Record<Position, PlanGroup> = {
   RW: 'wide',
   ST: 'attack',
 };
-/** Where a player stands without a formation (worlds on line-based selection). */
-const ROLE_OF: Record<Position, SlotRole> = {
-  GK: 'keeper',
-  CB: 'centre-back',
-  LB: 'left-back',
-  RB: 'right-back',
-  DM: 'pivot',
-  CM: 'left-mid',
-  AM: 'attacking-mid',
-  LW: 'wide-left',
-  RW: 'wide-right',
-  ST: 'striker',
-};
 interface Placed {
   player: Player;
   position: Position;
@@ -78,18 +65,11 @@ interface Placed {
 /** The eleven a club would field, each with the slot they play. */
 function fielded(world: World, club: Club): Placed[] {
   const lineup = clubLineup(world, club);
-  if (lineup) {
-    const slots = FORMATION_SLOTS[lineup.formation];
-    return lineup.starterIds.map((id, index) => ({
-      player: world.players[id]!,
-      position: lineup.slots[index]!,
-      role: slots[index]!.role,
-    }));
-  }
-  return clubStarters(world, club).map((player) => ({
-    player,
-    position: player.primaryPosition,
-    role: ROLE_OF[player.primaryPosition],
+  const slots = FORMATION_SLOTS[lineup.formation];
+  return lineup.starterIds.map((id, index) => ({
+    player: world.players[id]!,
+    position: lineup.slots[index]!,
+    role: slots[index]!.role,
   }));
 }
 const byAbility = (a: Placed, b: Placed) =>

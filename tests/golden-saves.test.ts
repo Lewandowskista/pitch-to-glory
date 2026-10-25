@@ -22,6 +22,7 @@ import { LocalSaveRepository, SaveDatabase } from '../src/persistence/localRepos
 import { parseSave, type AppSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { worldOperations } from '../src/workers/operations';
+import { adoptCurrentRules } from '../src/engine/world/rules';
 import type { World, WorldState } from '../src/model/domain';
 
 const DIRECTORY = 'tests/fixtures/saves';
@@ -101,9 +102,13 @@ async function playThrough(item: GoldenSaveEntry): Promise<void> {
   expect(save.revision).toBe(imported.revision);
   const loaded = worldOf(save);
   const world = loaded.world;
-  // Migration and validation keep the release's world as it was written.
+  // Migration and validation keep the release's world as it was written, but for the rules it
+  // adopts once on load (docs/COMPATIBILITY.md).
   expect(world.date).toMatchObject({ season: item.world.season, week: item.world.week });
-  expect(JSON.stringify(world) === JSON.stringify(original.payload.world), 'world kept').toBe(true);
+  const expected = structuredClone(original.payload.world);
+  adoptCurrentRules(expected);
+  expect(JSON.stringify(world) === JSON.stringify(expected), 'world kept').toBe(true);
+  expect(adoptCurrentRules(structuredClone(world)), 'rules adopted').toEqual([]);
 
   if (item.match) {
     const expectation = SESSIONS[item.match.engine] ?? 'restart';

@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Player, World } from '../src/model/domain';
-import { startNextSeason } from '../src/engine/world/simulate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { nextCareerFixture, pendingCareerFixture } from '../src/engine/career/fixtures';
@@ -21,10 +20,10 @@ import {
   type Formation,
 } from '../src/engine/selection/formations';
 import { effectiveAbility, selectLineup, slotFit } from '../src/engine/selection/lineup';
-import { clubFormation, usesFormations } from '../src/engine/selection/world';
+import { clubFormation } from '../src/engine/selection/world';
+import { adoptCurrentRules } from '../src/engine/world/rules';
 import { playerAbility } from '../src/engine/strength';
-import { validateWorld } from '../src/persistence/worldSchema';
-import { nationalCareerSeason, nationalWorld } from './support/world';
+import { nationalWorld } from './support/world';
 
 /** Phase 5.1: one formation-aware selection for background, career and interactive matches. */
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -221,23 +220,18 @@ describe('career selection', () => {
     expect(careerSelection(world, fixture)).toEqual(selection);
   });
 
-  it('keeps line-based competition until a world adopts formations at the new season', async () => {
+  it('adopts formations part-way through a season when an older save loads', () => {
+    // A world saved before formation-aware selection, mid-season (docs/COMPATIBILITY.md).
     const before: World = clone(world);
     delete before.selectionVersion;
-    expect(usesFormations(before)).toBe(false);
-    const competition = slotCompetition(before, careerClub(before), careerPlayer(before));
-    expect(competition.formation).toBeNull();
-    expect(competition.position).toBe(careerPlayer(before).primaryPosition);
-    // A season played on the line-based rules, at its end.
-    const season = await nationalCareerSeason();
-    delete season.selectionVersion;
-    const next = startNextSeason(season);
-    expect(next.selectionVersion).toBe(1);
-    expect(slotCompetition(next, careerClub(next), careerPlayer(next)).formation).toBe(
-      clubFormation(next, careerClub(next)),
+    expect(adoptCurrentRules(before)).toEqual(['selectionVersion']);
+    expect(before.selectionVersion).toBe(1);
+    expect(before).toEqual(world);
+    expect(slotCompetition(before, careerClub(before), careerPlayer(before)).formation).toBe(
+      clubFormation(before, careerClub(before)),
     );
-    expect(() => validateWorld(clone(next))).not.toThrow();
-  }, 120000);
+    expect(adoptCurrentRules(before)).toEqual([]);
+  });
 });
 
 describe('interactive matches', () => {
