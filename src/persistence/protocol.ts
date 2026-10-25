@@ -1,6 +1,7 @@
 import type { FoundationState, WorldState, SlotId } from '../model/domain';
 import type { SaveError } from './errors';
 import type { AppSave } from './schema';
+import type { BackupFile } from './backup';
 import type {
   EncodedWorldSave,
   LoadedSave,
@@ -25,8 +26,13 @@ export type PersistenceOperation =
       payload: FoundationState | WorldState;
       expectedRevision: number | null;
     }
-  | { operation: 'import'; json: string; slot: SlotId; expectedRevision: number | null }
-  | { operation: 'validate'; json: string }
+  /**
+   * A backup file, plain JSON or gzip (`backup.ts`), read here: the tab passes the picked file
+   * without reading it.
+   */
+  | { operation: 'import'; file: Blob; slot: SlotId; expectedRevision: number | null }
+  | { operation: 'validate'; file: Blob }
+  /** Exports answer with a `BackupFile`, compressed here where the browser can. */
   | { operation: 'export'; slot: SlotId }
   /** A slot's stored records, unvalidated, for a slot that will not load. */
   | { operation: 'export-recovery'; slot: SlotId }
@@ -68,7 +74,7 @@ export type PersistenceResponse =
         | LoadedSave
         | SaveWriteReceipt
         | SlotListing[]
-        | { name: string; json: string }
+        | BackupFile
         | { acquired: boolean }
         | undefined;
     }

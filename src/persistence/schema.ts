@@ -13,6 +13,7 @@ import { validateWorld } from './worldSchema';
 import { validateMatchSession } from '../engine/match';
 import { tournamentMatchSetup, windowMatchSetup } from '../engine/career/honours/nationalMatch';
 import { SaveError } from './errors';
+import { withinUtf8Bytes } from './backup';
 import { DEFAULT_SETTINGS, validateSettings } from './settings';
 
 // Light modules the app shell uses directly; re-exported for existing importers.
@@ -386,8 +387,16 @@ export function matchSessionFor(world: World, value: unknown): MatchSession | nu
     return null;
   }
 }
-export function parseSave(json: string): AppSave {
-  if (new TextEncoder().encode(json).byteLength > CONFIG.saves.maxFileBytes)
+/**
+ * Parse, migrate and validate a backup's JSON. `bytes`, its size in UTF-8 when the caller knows
+ * it (a file read in the worker, `backup.ts`), spares counting it again.
+ */
+export function parseSave(json: string, bytes?: number): AppSave {
+  if (
+    bytes === undefined
+      ? !withinUtf8Bytes(json, CONFIG.saves.maxFileBytes)
+      : bytes > CONFIG.saves.maxFileBytes
+  )
     throw new SaveError('large');
   let value: unknown;
   try {

@@ -1294,7 +1294,16 @@ export const CONFIG = {
   saves: {
     schemaVersion: 23,
     slotCount: 3,
+    /**
+     * The largest save a backup can hold, as uncompressed JSON (release 1.0 step 3.7): an import
+     * refuses more, whether the file is plain or gzip, and an export refuses to write a backup
+     * that could not be imported again.
+     */
     maxFileBytes: 128 * 1024 * 1024,
+    /** The largest gzip backup file read at all, before decompressing it. */
+    maxCompressedFileBytes: 64 * 1024 * 1024,
+    /** An export of more JSON than this succeeds with a warning that it nears the limit. */
+    warnExportBytes: 100 * 1024 * 1024,
     autosaveDelayMs: 450,
     leaseDurationMs: 30000,
     heartbeatMs: 5000,

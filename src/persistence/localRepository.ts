@@ -651,10 +651,18 @@ export class LocalSaveRepository {
       },
     );
   }
-  /** Import a file: validated in full once (`parseSave`), then stored. */
-  async import(json: string, slot: SlotId, expectedRevision: number | null): Promise<AppSave> {
+  /**
+   * Import a file: validated in full once (`parseSave`), then stored. `bytes` is the JSON's
+   * UTF-8 size when the caller already knows it (`backup.ts`).
+   */
+  async import(
+    json: string,
+    slot: SlotId,
+    expectedRevision: number | null,
+    bytes?: number,
+  ): Promise<AppSave> {
     validateSlot(slot);
-    const { recovery, ...imported } = parseSave(json);
+    const { recovery, ...imported } = parseSave(json, bytes);
     // Stamped now, or at the file's creation if it was made on a device whose clock ran ahead.
     const saved = await this.store(
       {

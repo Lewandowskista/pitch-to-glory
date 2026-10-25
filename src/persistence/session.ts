@@ -14,6 +14,7 @@ import { mentorFor, validFocus } from '../engine/career/training';
 import { COMMITMENTS } from '../engine/career/commitments';
 import type { AppSave } from './schema';
 import type { LoadedSave, SaveWriteReceipt } from './localRepository';
+import type { BackupFile } from './backup';
 import { combineReceipt } from './receipts';
 import { compactSession } from './matchRecord';
 import { PersistenceInterrupted } from './workerClient';
@@ -444,7 +445,7 @@ export async function saveSlot(
 }
 export async function importSlot(
   slot: SlotId,
-  json: string,
+  file: Blob,
   expected: number | null,
 ): Promise<boolean> {
   assertNotSimulating();
@@ -453,7 +454,7 @@ export async function importSlot(
   expected = await flushExpected(slot, expected);
   await own(slot, async () => {
     const previous = useAppStore.getState().activeSave?.slot;
-    const save = await saves.import(json, slot, expected);
+    const save = await saves.import(file, slot, expected);
     if (previous && previous !== slot) await slotLocks.release(previous);
     applyLoaded(save);
   });
@@ -471,16 +472,17 @@ export async function deleteSlot(slot: SlotId, expected: number | null): Promise
   });
   return true;
 }
-export async function exportSlotJSON(slot: SlotId): Promise<{ name: string; json: string }> {
+/** A slot's backup file, compressed in the persistence worker where the browser can. */
+export async function exportSlotBackup(slot: SlotId): Promise<BackupFile> {
   assertNotSimulating();
   await autosave.flush();
-  return own(slot, () => saves.exportJSON(slot));
+  return own(slot, () => saves.exportBackup(slot));
 }
 /**
  * A recovery copy of a slot that will not load: its stored records, unvalidated. Waits for a
  * write in flight so the copy is consistent, but never starts one and never takes the slot.
  */
-export async function exportSlotRecovery(slot: SlotId): Promise<{ name: string; json: string }> {
+export async function exportSlotRecovery(slot: SlotId): Promise<BackupFile> {
   await autosave.settle();
   return saves.exportRecovery(slot);
 }

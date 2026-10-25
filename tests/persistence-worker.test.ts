@@ -3,7 +3,10 @@ import { SaveDatabase } from '../src/persistence/repository';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { executePersistenceRequest } from '../src/workers/persistence.worker';
 import type { PersistenceOperation, PersistenceRequest } from '../src/persistence/workerClient';
+import { unpackBackup, type BackupFile } from '../src/persistence/backup';
 import { nationalWorld } from './support/world';
+
+const file = (json: string) => new Blob([json]);
 
 const databases: SaveDatabase[] = [];
 const setup = () => {
@@ -82,7 +85,9 @@ describe('persistence worker service', () => {
 
   it('validates files without writing and exports the committed save in the worker', async () => {
     const { request, save } = setup();
-    expect(await request({ operation: 'validate', json: JSON.stringify(save) })).toMatchObject({
+    expect(
+      await request({ operation: 'validate', file: file(JSON.stringify(save)) }),
+    ).toMatchObject({
       ok: true,
       value: undefined,
     });
@@ -90,7 +95,7 @@ describe('persistence worker service', () => {
       ok: true,
       value: undefined,
     });
-    expect(await request({ operation: 'validate', json: 'bad json' })).toMatchObject({
+    expect(await request({ operation: 'validate', file: file('bad json') })).toMatchObject({
       ok: false,
       code: 'invalid',
     });
@@ -100,11 +105,14 @@ describe('persistence worker service', () => {
       !response.ok ||
       !response.value ||
       Array.isArray(response.value) ||
-      !('json' in response.value)
+      !('file' in response.value)
     )
-      throw new Error('Expected JSON export');
-    expect(response.value.name).toBe(save.name);
-    expect(JSON.parse(response.value.json)).toEqual({ ...save, revision: 1 });
+      throw new Error('Expected a backup file');
+    const backup: BackupFile = response.value;
+    expect(backup).toMatchObject({ name: save.name, compressed: true, nearLimit: false });
+    const { json, bytes } = await unpackBackup(backup.file);
+    expect(bytes).toBe(backup.bytes);
+    expect(JSON.parse(json)).toEqual({ ...save, revision: 1 });
     expect(await request({ operation: 'export', slot: 3 })).toMatchObject({
       ok: false,
       code: 'invalid',
@@ -180,7 +188,7 @@ describe('persistence worker service', () => {
     const { request, save } = setup();
     await request({ operation: 'write', value: save, expectedRevision: null });
     expect(
-      await request({ operation: 'import', json: '{broken', slot: 1, expectedRevision: 1 }),
+      await request({ operation: 'import', file: file('{broken'), slot: 1, expectedRevision: 1 }),
     ).toMatchObject({ ok: false, code: 'invalid' });
     const invalid = {
       ...save,
@@ -189,7 +197,7 @@ describe('persistence worker service', () => {
     expect(
       await request({
         operation: 'import',
-        json: JSON.stringify(invalid),
+        file: file(JSON.stringify(invalid)),
         slot: 1,
         expectedRevision: 1,
       }),
@@ -197,7 +205,7 @@ describe('persistence worker service', () => {
     expect(
       await request({
         operation: 'import',
-        json: JSON.stringify({ ...save, schemaVersion: 99 }),
+        file: file(JSON.stringify({ ...save, schemaVersion: 99 })),
         slot: 1,
         expectedRevision: 1,
       }),
@@ -209,7 +217,7 @@ describe('persistence worker service', () => {
     expect(
       await request({
         operation: 'import',
-        json: JSON.stringify(save),
+        file: file(JSON.stringify(save)),
         slot: 2,
         expectedRevision: null,
       }),

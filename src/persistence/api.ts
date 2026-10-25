@@ -4,7 +4,7 @@ export {
   autosave,
   commitCheckpoint,
   deleteSlot,
-  exportSlotJSON,
+  exportSlotBackup,
   exportSlotRecovery,
   importSlot,
   loadSlot,

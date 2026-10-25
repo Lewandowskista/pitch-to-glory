@@ -8,14 +8,15 @@ import {
   autosave,
   deleteSlot,
   errorCode,
-  exportSlotJSON,
+  exportSlotBackup,
   exportSlotRecovery,
   importSlot,
   loadSlot,
   saveSlot,
 } from '../persistence/session';
 import type { SlotListing } from '../persistence/localRepository';
-import { recoveryFileName } from '../persistence/files';
+import { backupFileName, backupType, recoveryFileName } from '../persistence/files';
+import type { BackupFile } from '../persistence/backup';
 import { summaryPortrait, type CareerSummary } from '../persistence/summary';
 import { platform } from '../platform';
 import { track } from '../analytics';
@@ -79,7 +80,8 @@ export default function SavesContent() {
   const [unreadable, setUnreadable] = useState<SlotId | null>(null);
   const [notice, setNotice] = useState('');
   const [protection, setProtection] = useState<'granted' | 'refused' | null>(null);
-  const [pending, setPending] = useState<string | null>(null);
+  // A picked backup file awaiting confirmation; read only by the persistence worker.
+  const [pending, setPending] = useState<Blob | null>(null);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const opened = useRef(false);
@@ -122,7 +124,8 @@ export default function SavesContent() {
     }
     if (!action && reviewed) setReviewed(null);
   }, [valid, action, collections, reviewed, slot]);
-  const run = async (operation: () => Promise<void>, target?: SlotId) => {
+  /** `large`: what a too-large error means for this action (an export's differs from a file's). */
+  const run = async (operation: () => Promise<void>, target?: SlotId, large?: string) => {
     setBusy(true);
     setError('');
     setNotice('');
@@ -135,17 +138,33 @@ export default function SavesContent() {
       if (target && code === 'invalid') {
         setError(format(t.saves.unreadable, { slot: target }));
         setUnreadable(target);
-      } else setError(errorText(code));
+      } else setError(code === 'large' && large ? large : errorText(code));
     } finally {
       setBusy(false);
     }
   };
+  /** Download a backup; one that nears the import limit says so, without stopping. */
+  const download = async (backup: BackupFile, name: string, done: string) => {
+    await platform.saveFile(name, backup.file, backupType(backup.compressed));
+    setNotice(
+      backup.nearLimit
+        ? `${done} ${format(t.saves.exportNearLimit, { size: Math.round(backup.bytes / 2 ** 20) })}`
+        : done,
+    );
+  };
   const exportRecovery = (target: SlotId) =>
-    void run(async () => {
-      const file = await exportSlotRecovery(target);
-      await platform.saveFile(recoveryFileName(`slot-${target}`), file.json, 'application/json');
-      setNotice(t.saves.recoveryExported);
-    });
+    void run(
+      async () => {
+        const backup = await exportSlotRecovery(target);
+        await download(
+          backup,
+          recoveryFileName(`slot-${target}`, backup.compressed),
+          t.saves.recoveryExported,
+        );
+      },
+      undefined,
+      t.saves.exportLarge,
+    );
   const open = async (action: string, slot: SlotId) => {
     // Settle this tab's pending edits before pinning what the player reviews.
     await autosave.flush();
@@ -161,15 +180,16 @@ export default function SavesContent() {
   const importFile = async (file: File | undefined, target: SlotId) => {
     if (!file) return;
     await run(async () => {
-      const json = await platform.readFile(file);
-      await saves.validateJSON(json);
+      // Plain JSON or gzip: the persistence worker reads and checks it, not this thread.
+      const backup = await platform.readFileBlob(file);
+      await saves.validateFile(backup);
       const listing = collections?.[target - 1];
       // Ask before replacing an occupied (or unreadable) slot; an empty one imports directly.
       if (listing && listing.status !== 'empty') {
-        setPending(json);
+        setPending(backup);
         await open('import', target);
       } else {
-        if (await importSlot(target, json, null)) setNotice(t.saves.imported);
+        if (await importSlot(target, backup, null)) setNotice(t.saves.imported);
       }
     });
   };
@@ -206,16 +226,19 @@ export default function SavesContent() {
         });
     },
     exportSlot: (target) =>
-      void run(async () => {
-        const save = await exportSlotJSON(target);
-        await platform.saveFile(
-          `pitch-to-glory-slot-${target}.json`,
-          save.json,
-          'application/json',
-        );
-        track('export_done', { what: 'save' });
-        setNotice(t.saves.exported);
-      }, target),
+      void run(
+        async () => {
+          const backup = await exportSlotBackup(target);
+          await download(
+            backup,
+            backupFileName(`slot-${target}`, backup.compressed),
+            t.saves.exported,
+          );
+          track('export_done', { what: 'save' });
+        },
+        target,
+        t.saves.exportLarge,
+      ),
     exportRecovery,
     importFile: (file, target) => void importFile(file, target),
     remove: (target) => void run(() => open('delete', target)),
@@ -660,7 +683,7 @@ function SlotCard({
               {t.saves.import}
               <input
                 type="file"
-                accept=".json,application/json"
+                accept=".json,.gz,application/json,application/gzip,application/x-gzip"
                 disabled={actions.blocked}
                 aria-label={`${t.saves.import} — ${slotName}`}
                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
