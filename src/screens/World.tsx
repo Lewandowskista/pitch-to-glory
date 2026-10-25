@@ -600,22 +600,29 @@ export default function WorldScreen() {
                       </ViewHeading>
                       {history ? (
                         <>
-                          <LeagueTable
-                            world={world}
-                            league={league!}
-                            selected={club!.id}
-                            onSelect={selectClub}
-                            rows={history.tables[league!.id]}
-                            title={`${history.season} · ${league!.name}`}
-                            titleAs="h3"
-                          />
+                          {/* A compacted season (retention) keeps its titles, not its tables. */}
+                          {history.compact ? (
+                            <h3 className="text-[0.9375rem] font-extrabold">
+                              {`${history.season} · ${league!.name}`}
+                            </h3>
+                          ) : (
+                            <LeagueTable
+                              world={world}
+                              league={league!}
+                              selected={club!.id}
+                              onSelect={selectClub}
+                              rows={history.tables[league!.id]}
+                              title={`${history.season} · ${league!.name}`}
+                              titleAs="h3"
+                            />
+                          )}
                           <SeasonReview
                             world={world}
                             league={league!}
                             summary={history}
                             onSelect={selectClub}
                           />
-                          {world.pyramid && (
+                          {world.pyramid && !history.compact && (
                             <>
                               <h3 className="archive-postseason-heading mt-2 text-[0.9375rem] font-extrabold">
                                 {t.world.playoffs}

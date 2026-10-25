@@ -7,6 +7,7 @@ import { attachLifestyle } from '../engine/career/lifestyle/week';
 import { attachHonours } from '../engine/career/honours/week';
 import { backfillSquadNumbers } from '../engine/world/squadNumbers';
 import { adoptCurrentRules } from '../engine/world/rules';
+import { applyRetention } from '../engine/world/retention';
 import { CONFIG, ENGINE_VERSION } from '../engine/config';
 import { validateWorld } from './worldSchema';
 import { validateMatchSession } from '../engine/match';
@@ -145,16 +146,19 @@ const migrations: Readonly<Record<number, Migration>> = {
   // shape is checked against the schema version (`npm run check:save-shape`), and an older
   // client refuses a newer save as written by a later version. The 1.0 compatibility cut
   // (docs/COMPATIBILITY.md, decision D3) also adopts the current world and career rules here,
-  // once, instead of at the next season start.
+  // once, instead of at the next season start, then applies retention (release plan step 3.6):
+  // old seasons compacted to their titles, the archive pruned (once on the shared Hall of Fame
+  // record) and derivable goalkeeping dropped. Retention runs at every season start too.
   22: (old) => ({ ...old, schemaVersion: 23, payload: withCurrentRules(old.payload) }),
 };
 /**
- * v23: a world from an earlier release adopts the current rule flags (`adoptCurrentRules`).
- * Adoption can change three things a saved match session holds copies of: club finances (the
- * economy's running costs), players' potential (development version 2) and their Hall of Fame
- * points (the achievement record). The match engine reads none of them, so a session's copies
- * of clubs and players that matched the world before adoption take the adopted values and
- * replay unchanged; anything else is left for `matchSessionFor` to judge.
+ * v23: a world from an earlier release adopts the current rule flags (`adoptCurrentRules`), then
+ * retention (`applyRetention`). Adoption can change three things a saved match session holds
+ * copies of: club finances (the economy's running costs), players' potential (development
+ * version 2) and their Hall of Fame points (the achievement record); retention drops players'
+ * derivable goalkeeping, which reads back the same. The match engine reads none of these
+ * differently, so a session's copies of clubs and players that matched the world before take the
+ * new values and replay unchanged; anything else is left for `matchSessionFor` to judge.
  */
 function withCurrentRules(payload: unknown): unknown {
   try {
@@ -172,7 +176,9 @@ function withCurrentRules(payload: unknown): unknown {
       .filter((club) => same(club, world.clubs[String(club.id)]))
       .map((club) => String(club.id));
     const playerIds = Object.keys(players).filter((id) => same(players[id], world.players[id]));
-    if (!adoptCurrentRules(world).length || !setup) return payload;
+    const adopted = adoptCurrentRules(world).length > 0;
+    const retained = applyRetention(world);
+    if (!(adopted || retained.keeping) || !setup) return payload;
     for (const [key, club] of [
       ['home', clubs[0]],
       ['away', clubs[1]],

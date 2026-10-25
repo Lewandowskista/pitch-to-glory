@@ -217,8 +217,11 @@ export function developWeek(player: Player, age: number, seasonWeeks: number, rn
   };
   for (let index = 0; index < ATTRIBUTE_KEYS.length; index++)
     step(player.attributes, ATTRIBUTE_KEYS[index]!, targets[index]!);
-  for (let index = 0; index < KEEPER_KEYS.length; index++)
-    step(player.keeperAttributes, KEEPER_KEYS[index]!, targets[ATTRIBUTE_KEYS.length + index]!);
+  // An outfielder's goalkeeping is untrained (and may not be stored): `step` leaves it alone.
+  const keeping = player.keeperAttributes;
+  if (keeping)
+    for (let index = 0; index < KEEPER_KEYS.length; index++)
+      step(keeping, KEEPER_KEYS[index]!, targets[ATTRIBUTE_KEYS.length + index]!);
 }
 
 const UNTRAINED = -1;
@@ -280,7 +283,8 @@ function trainedAbility(
   player: Pick<Player, 'primaryPosition' | 'attributes' | 'keeperAttributes'>,
 ) {
   const values = Object.values(
-    player.primaryPosition === 'GK' ? player.keeperAttributes : player.attributes,
+    // A goalkeeper's goalkeeping is always stored.
+    player.primaryPosition === 'GK' ? player.keeperAttributes! : player.attributes,
   );
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }

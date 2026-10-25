@@ -17,6 +17,7 @@ import { Icon } from '../../ui/Icon';
 import { Chip, cx } from '../../ui/kit';
 import { renderCrest } from '../../engine/assets/crest';
 import { calendarDate } from '../../engine/world/calendar';
+import { CONFIG } from '../../engine/config';
 import { formatGameDate } from '../../i18n/calendar';
 
 type SelectClub = (id: string) => void;
@@ -797,6 +798,20 @@ export function SeasonReview({
   const movements = summary.movements.filter(
     (movement) => movement.fromLeagueId === league.id || movement.toLeagueId === league.id,
   );
+  // A compacted season (retention) keeps only its titles: the country's cup winners stand in
+  // for the movement it no longer records.
+  const country = world.countries[league.countryId];
+  const cupWinners = summary.compact
+    ? Object.entries(summary.cupWinners).flatMap(([cupId, clubId]) => {
+        const cup = world.competitions[cupId];
+        const club = world.clubs[clubId];
+        return cup &&
+          club &&
+          (cup.countryId === league.countryId || country?.domesticCupId === cupId)
+          ? [{ cup, club }]
+          : [];
+      })
+    : [];
   const championCard = (id: string, name: string, eyebrow: string) => (
     <div className="champion flex items-center gap-3.5 rounded-panel bg-art-gold px-4 py-3.5">
       <Crest world={world} id={id} className="h-[4.25rem] w-[3.75rem]" />
@@ -822,60 +837,87 @@ export function SeasonReview({
           {championCard(divisionChampion.id, divisionChampion.name, t.world.divisionChampion)}
         </>
       )}
-      <h4 className="mt-1 text-[0.9375rem] font-extrabold">{t.world.movement}</h4>
-      <p className={noteClass}>{t.world.seasonReviewNote}</p>
-      {movements.length ? (
-        <ul className="confirmed-movements flex flex-col gap-1.5">
-          {movements.map((movement) => {
-            const club = world.clubs[movement.clubId]!;
-            const from = world.leagues[movement.fromLeagueId]?.name ?? t.world.feederDivision;
-            const to = world.leagues[movement.toLeagueId]?.name ?? t.world.feederDivision;
-            const fromTier = movementTier(world, movement.fromLeagueId);
-            const toTier = movementTier(world, movement.toLeagueId);
-            const direction = toTier < fromTier ? 'up' : toTier > fromTier ? 'down' : 'across';
-            return (
-              <li
-                key={`${movement.clubId}:${movement.fromLeagueId}:${movement.toLeagueId}`}
-                className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-control bg-surface-soft px-3 py-1.5"
-              >
-                <span aria-hidden="true" className={`movement-mark movement-${direction}`}>
-                  {direction === 'up' ? '↑' : direction === 'down' ? '↓' : '→'}
-                </span>
-                {onSelect ? (
-                  <button
-                    type="button"
-                    className="min-h-11 text-left font-bold text-accent underline underline-offset-4"
-                    onClick={() => onSelect(club.id)}
-                  >
-                    {club.name}
-                  </button>
-                ) : (
-                  <strong className="py-2">{club.name}</strong>
-                )}
-                <span className="min-w-0 flex-[1_1_13rem] text-[0.8125rem]">
-                  <span className="sr-only">
-                    {
-                      t.world[
-                        direction === 'up'
-                          ? 'movementUp'
-                          : direction === 'down'
-                            ? 'movementDown'
-                            : 'movementAcross'
-                      ]
-                    }
-                    :{' '}
+      {summary.compact ? (
+        <>
+          {cupWinners.length > 0 && (
+            <ul className="archived-cup-winners flex flex-col gap-1.5">
+              {cupWinners.map(({ cup, club }) => (
+                <li
+                  key={cup.id}
+                  className="flex items-center gap-2.5 rounded-control bg-surface-soft px-3 py-1.5"
+                >
+                  <Crest world={world} id={club.id} className="h-7 w-6 shrink-0" />
+                  <span className="min-w-0 text-[0.8125rem] font-bold">
+                    {format(t.world.archiveCupWinner, { cup: cup.name, name: club.name })}
                   </span>
-                  {from} → {to}
-                </span>
-                <small className="text-xs font-bold text-muted">
-                  {t.world.movementReasons[movement.reason ?? 'automatic']}
-                </small>
-              </li>
-            );
-          })}
-        </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className={noteClass}>
+            {format(t.world.archiveCompactNote, {
+              seasons: CONFIG.world.retention.historySeasons,
+            })}
+          </p>
+        </>
       ) : (
-        <p className={noteClass}>{t.world.noMovement}</p>
+        <>
+          <h4 className="mt-1 text-[0.9375rem] font-extrabold">{t.world.movement}</h4>
+          <p className={noteClass}>{t.world.seasonReviewNote}</p>
+          {movements.length ? (
+            <ul className="confirmed-movements flex flex-col gap-1.5">
+              {movements.map((movement) => {
+                const club = world.clubs[movement.clubId]!;
+                const from = world.leagues[movement.fromLeagueId]?.name ?? t.world.feederDivision;
+                const to = world.leagues[movement.toLeagueId]?.name ?? t.world.feederDivision;
+                const fromTier = movementTier(world, movement.fromLeagueId);
+                const toTier = movementTier(world, movement.toLeagueId);
+                const direction = toTier < fromTier ? 'up' : toTier > fromTier ? 'down' : 'across';
+                return (
+                  <li
+                    key={`${movement.clubId}:${movement.fromLeagueId}:${movement.toLeagueId}`}
+                    className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-control bg-surface-soft px-3 py-1.5"
+                  >
+                    <span aria-hidden="true" className={`movement-mark movement-${direction}`}>
+                      {direction === 'up' ? '↑' : direction === 'down' ? '↓' : '→'}
+                    </span>
+                    {onSelect ? (
+                      <button
+                        type="button"
+                        className="min-h-11 text-left font-bold text-accent underline underline-offset-4"
+                        onClick={() => onSelect(club.id)}
+                      >
+                        {club.name}
+                      </button>
+                    ) : (
+                      <strong className="py-2">{club.name}</strong>
+                    )}
+                    <span className="min-w-0 flex-[1_1_13rem] text-[0.8125rem]">
+                      <span className="sr-only">
+                        {
+                          t.world[
+                            direction === 'up'
+                              ? 'movementUp'
+                              : direction === 'down'
+                                ? 'movementDown'
+                                : 'movementAcross'
+                          ]
+                        }
+                        :{' '}
+                      </span>
+                      {from} → {to}
+                    </span>
+                    <small className="text-xs font-bold text-muted">
+                      {t.world.movementReasons[movement.reason ?? 'automatic']}
+                    </small>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className={noteClass}>{t.world.noMovement}</p>
+          )}
+        </>
       )}
     </section>
   );

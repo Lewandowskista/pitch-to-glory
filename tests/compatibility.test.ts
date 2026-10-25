@@ -18,6 +18,7 @@ import {
   type MatchSession,
 } from '../src/engine/match';
 import { generateWorld } from '../src/engine/world/generate';
+import { ownKeeperAttributes } from '../src/engine/keeping';
 import { adoptCurrentRules, RULE_FLAGS } from '../src/engine/world/rules';
 import { isLegacyWorld } from '../src/engine/world/legacy';
 import { createCareer, trialOffers } from '../src/engine/career/create';
@@ -101,6 +102,8 @@ describe('loading a save from before 1.0', () => {
     delete world.economyVersion;
     delete world.achievements;
     for (const player of Object.values(world.players)) delete player.hallOfFame;
+    // Releases before 1.0 stored every player's goalkeeping, untrained or not.
+    for (const player of Object.values(world.players)) ownKeeperAttributes(player);
     world.career!.developmentRules = 2;
     // The session's copies of the squads, as that release saved them with its world.
     const saved = clone(matchSession);
@@ -135,6 +138,10 @@ describe('loading a save from before 1.0', () => {
     });
     expect(world.career!.developmentRules).toBe(RULE_FLAGS.developmentRules);
     expect(adoptCurrentRules(clone(world))).toEqual([]);
+    // Retention drops the derivable goalkeeping, in the world and in the session's copies.
+    const players = Object.values(world.players);
+    expect(players.filter((p) => p.primaryPosition !== 'GK' && p.keeperAttributes)).toEqual([]);
+    expect(players.filter((p) => p.primaryPosition === 'GK' && !p.keeperAttributes)).toEqual([]);
     // The session resumes where it was, with the adopted squads, and plays to the end.
     let resumed = loaded.payload.matchSession!;
     expect(resumed.engine).toBe(MATCH_ENGINE_VERSION);

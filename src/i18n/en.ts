@@ -511,6 +511,9 @@ export const en = {
     },
     seasonReviewNote:
       'These are the confirmed outcomes, including playoffs and regional allocation.',
+    archiveCompactNote:
+      'Full tables, movement and playoffs are kept for the last {seasons} seasons. Older seasons keep their champions and cup winners.',
+    archiveCupWinner: '{cup}: {name}',
     tabs: 'Competition views',
     table: 'League table',
     fixtures: 'Fixtures',

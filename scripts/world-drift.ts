@@ -12,7 +12,8 @@
  *   npm run drift -- --check --assert-targets              fail on any target not met
  *
  * Every target is REPORTED (`asserted: false`) until the phase that meets it flips its flag:
- * the world targets in phase 8, the Golden Ball line share in phase 7, save size in phase 3.
+ * the world targets in phase 8, the Golden Ball line share in phase 7. Save size and the validator
+ * caps are asserted since phase 3 (retention, step 3.6).
  * Writes artifacts/drift/<seed>.json and a readable artifacts/drift/<seed>.txt.
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -24,9 +25,10 @@ import { rankStandings } from '../src/engine/world/ranking';
 import { playerAbility } from '../src/engine/strength';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { applyHonoursAction } from '../src/engine/career/honours/actions';
-import { retirementState } from '../src/engine/career/honours/retirement';
+import { liveHallOfFame, retirementState } from '../src/engine/career/honours/retirement';
 import { selectSquad } from '../src/engine/career/honours/international';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
+import { DETAILED_HISTORY_LIMIT, HISTORY_LIMIT } from '../src/persistence/worldValidation';
 import { decide, freshPolicy, startCareer } from './soak-career';
 import {
   assertAllTargets,
@@ -64,13 +66,31 @@ const XI_SLOTS = { GK: 1, DEF: 4, MID: 3, ATT: 3 } as const;
  */
 const H = CONFIG.career.honours;
 const CAPS: { name: string; cap: number; count: (world: World) => number }[] = [
-  { name: 'history', cap: 100, count: (w) => w.history.length },
+  { name: 'history', cap: HISTORY_LIMIT, count: (w) => w.history.length },
+  {
+    name: 'full seasons',
+    cap: DETAILED_HISTORY_LIMIT,
+    count: (w) => w.history.filter((summary) => !summary.compact).length,
+  },
+  {
+    name: 'archived players',
+    cap: 1_000_000,
+    count: (w) => Object.keys(w.archive?.players ?? {}).length,
+  },
   { name: 'awards', cap: H.awards.maxRecords, count: (w) => w.awards.length },
   { name: 'trophies', cap: 10000, count: (w) => w.trophies.length },
   { name: 'events', cap: 100000, count: (w) => w.events.length },
-  { name: 'legacies', cap: 50, count: (w) => w.legacies.length },
-  { name: 'chronicle', cap: H.chronicleLimit * 10, count: (w) => w.chronicle.length },
-  { name: 'moments', cap: H.moments.limit * 10, count: (w) => w.moments.length },
+  { name: 'legacies', cap: H.legacyLimit, count: (w) => w.legacies.length },
+  {
+    name: 'chronicle',
+    cap: H.chronicleLimit * (H.legacyLimit + 1),
+    count: (w) => w.chronicle.length,
+  },
+  {
+    name: 'moments',
+    cap: H.moments.limit * (H.legacyLimit + 1),
+    count: (w) => w.moments.length,
+  },
   { name: 'relationships', cap: 500, count: (w) => w.relationships.length },
   { name: 'career moves', cap: 500, count: (w) => w.career?.market.moves.length ?? 0 },
   {
@@ -114,6 +134,11 @@ export interface DriftSeason {
   goldenBall: { line: string; position: Position; name: string } | null;
   saveBytes: number;
   caps: Record<string, number>;
+  /**
+   * The career's Hall of Fame standing at the season's end. Retention (step 3.6) must leave it
+   * exactly as a run without retention has it: compare two runs of the same seed.
+   */
+  hallOfFame?: { score: number; rank: number; of: number } | null;
 }
 export interface DriftRun {
   seed: string;
@@ -258,6 +283,9 @@ function measure(
       : null,
     saveBytes: saveBytes(world, seed),
     caps: Object.fromEntries(CAPS.map((entry) => [entry.name, entry.count(world)])),
+    hallOfFame: world.career
+      ? (({ score, rank, of }) => ({ score, rank, of }))(liveHallOfFame(world))
+      : null,
   };
 }
 
@@ -313,14 +341,15 @@ export function runDrift(
         .map((t) => t.championPpg.toFixed(2))
         .join(
           '/',
-        )} ppg · balance ${(measures.medianBalance / 1e6).toFixed(1)}M (${measures.debtClubs} in debt) · keepers bought ${measures.purchases.GK} of ${Object.values(measures.purchases).reduce((a, b) => a + b, 0)} · duplicates ${measures.duplicateNames} · Golden Ball ${measures.goldenBall?.position ?? '-'} · save ${(measures.saveBytes / 2 ** 20).toFixed(1)} MiB${career ? ` · career ${career.generation + 1} age ${career.age}` : ''}`,
+        )} ppg · balance ${(measures.medianBalance / 1e6).toFixed(1)}M (${measures.debtClubs} in debt) · keepers bought ${measures.purchases.GK} of ${Object.values(measures.purchases).reduce((a, b) => a + b, 0)} · duplicates ${measures.duplicateNames} · Golden Ball ${measures.goldenBall?.position ?? '-'} · save ${(measures.saveBytes / 2 ** 20).toFixed(1)} MiB${career ? ` · career ${career.generation + 1} age ${career.age}` : ''}${measures.hallOfFame ? ` · Hall of Fame ${measures.hallOfFame.score}, #${measures.hallOfFame.rank} of ${measures.hallOfFame.of}` : ''}`,
     );
     if (index === seasons - 1) break;
     if (world.career && age !== null) {
       const rule = retirementState(world);
       if (rule === 'forced' || (rule === 'available' && age >= RETIRE_AGE)) {
         world = applyHonoursAction(world, { type: 'retire' });
-        log(`retired at ${age}`);
+        const { score, rank, of } = world.legacies.at(-1)!.hallOfFame;
+        log(`retired at ${age}: Hall of Fame ${score} points, #${rank} of ${of}`);
       }
     }
     world = startNextSeason(world, { inPlace: true });
@@ -586,7 +615,7 @@ export const TARGETS: Target<DriftRun[]>[] = [
     id: 'save-growth',
     name: 'save grows ≤ 0.5 MiB a season after season 10',
     phase: 3,
-    asserted: false,
+    asserted: true,
     evaluate: (runs) =>
       perRun(runs, (run) => {
         const rate = growth(run, (season) => season.saveBytes);
@@ -601,7 +630,7 @@ export const TARGETS: Target<DriftRun[]>[] = [
     id: 'save-34-seasons',
     name: 'save after 34 seasons ≤ 90 MiB (phase 3 budget; projected from the run when shorter)',
     phase: 3,
-    asserted: false,
+    asserted: true,
     evaluate: (runs) =>
       perRun(runs, (run) => {
         const seasons = run.measures.length;
@@ -617,9 +646,9 @@ export const TARGETS: Target<DriftRun[]>[] = [
   },
   {
     id: 'validator-caps',
-    name: 'no validator cap reachable within 200 seasons (history ≤ 100, awards ≤ 2,000, …)',
+    name: 'no validator cap reachable within 200 seasons (full seasons ≤ 100, awards ≤ 5,000, …)',
     phase: 3,
-    asserted: false,
+    asserted: true,
     evaluate: (runs) =>
       perRun(runs, (run) => {
         const reached = Object.keys(run.caps)

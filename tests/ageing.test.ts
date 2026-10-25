@@ -82,7 +82,8 @@ describe('ageing curves', () => {
           values[key] = Math.max(1, Math.min(99, Math.round(values[key]! + Math.sign(gap))));
       };
       for (const key of ATTRIBUTE_KEYS) step(player.attributes, key);
-      for (const key of KEEPER_KEYS) step(player.keeperAttributes, key);
+      const keeping = player.keeperAttributes;
+      if (keeping) for (const key of KEEPER_KEYS) step(keeping, key);
     };
     const start = {
       ...profile,

@@ -243,7 +243,7 @@ function specialisedSpend(input: World, position: Position): World {
 const percentile = (values: number[], value: number) =>
   Math.round((100 * values.filter((v) => v < value).length) / values.length);
 function topAttributes(player: Player, count = 6): string {
-  const source = player.primaryPosition === 'GK' ? player.keeperAttributes : player.attributes;
+  const source = player.primaryPosition === 'GK' ? player.keeperAttributes! : player.attributes;
   return Object.entries(source)
     .sort((a, b) => b[1] - a[1])
     .slice(0, count)

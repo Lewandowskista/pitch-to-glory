@@ -26,7 +26,7 @@ describe('overall rating', () => {
 describe('attribute summary', () => {
   it('names only real attributes, outfield and goalkeeping', () => {
     const outfieldKeys = Object.keys(outfield.attributes) as (keyof Attributes)[];
-    const keeperKeys = Object.keys(keeper.keeperAttributes) as (keyof KeeperAttributes)[];
+    const keeperKeys = Object.keys(keeper.keeperAttributes!) as (keyof KeeperAttributes)[];
     for (const keys of Object.values(CONFIG.ratings.axes.outfield)) {
       for (const key of keys) expect(outfieldKeys).toContain(key);
     }

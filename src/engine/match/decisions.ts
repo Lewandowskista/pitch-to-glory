@@ -1,6 +1,7 @@
 import type {
   DecisionChoice,
   Foot,
+  KeeperAttributes,
   Match,
   Player,
   Position,
@@ -8,6 +9,7 @@ import type {
   Tactics,
 } from '../../model/domain';
 import { CONFIG } from '../config';
+import { keeperAttributesOf } from '../keeping';
 import { roleEffect } from './roles';
 import {
   pitchEffect,
@@ -35,7 +37,7 @@ export const scaleOdds = (p: number, multiplier: number) =>
   (p * multiplier) / (1 - p + p * multiplier);
 
 export interface DecisionContext {
-  player: Pick<Player, 'attributes' | 'keeperAttributes' | 'traits' | 'morale' | 'hidden'>;
+  player: Pick<Player, 'id' | 'attributes' | 'keeperAttributes' | 'traits' | 'morale' | 'hidden'>;
   situation: Situation;
   /** Expected goals this moment replaces for and against the selected team. */
   budget: { for: number; against: number };
@@ -122,7 +124,7 @@ export function governingValue(
     value +=
       weight *
       (KEEPER_ATTRIBUTES.includes(name)
-        ? player.keeperAttributes[name as keyof Player['keeperAttributes']]
+        ? keeperAttributesOf(player)[name as keyof KeeperAttributes]
         : player.attributes[name as keyof Player['attributes']]);
   return value;
 }

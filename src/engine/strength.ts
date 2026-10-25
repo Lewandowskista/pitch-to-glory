@@ -119,7 +119,8 @@ export function playerAbility(
   // Plain loops over own keys, in the same order as Object.values/entries, without allocating:
   // this runs for every player in every selection.
   if (player.primaryPosition === 'GK') {
-    const values = player.keeperAttributes;
+    // A goalkeeper's goalkeeping is always stored (only an outfielder's may be derived).
+    const values = player.keeperAttributes!;
     let sum = 0;
     let count = 0;
     for (const key in values) {
@@ -165,7 +166,7 @@ export function attributeSummary(player: RatedPlayer): AxisRating[] {
     ? CONFIG.ratings.axes.keeper
     : CONFIG.ratings.axes.outfield;
   const values: Readonly<Record<string, number>> = keeper
-    ? player.keeperAttributes
+    ? player.keeperAttributes!
     : player.attributes;
   return Object.entries(axes).map(([axis, keys]) => ({
     axis: axis as AxisRating['axis'],

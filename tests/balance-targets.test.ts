@@ -48,7 +48,10 @@ describe('1.0 targets', () => {
   });
 
   it('keeps every harness target reported until its phase', () => {
-    for (const entry of [...DRIFT, ...MATCH, ...CAREER]) expect(entry.asserted).toBe(false);
+    // Met by phase 3 (retention, step 3.6) and asserted since.
+    const met = new Set(['save-growth', 'save-34-seasons', 'validator-caps']);
+    for (const entry of [...DRIFT, ...MATCH, ...CAREER])
+      expect(entry.asserted, entry.id).toBe(met.has(entry.id));
   });
 
   it('computes the shared statistics', () => {

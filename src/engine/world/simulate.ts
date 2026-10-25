@@ -58,6 +58,7 @@ import {
   refreshReturningClub,
   seasonalSquadReview,
 } from './lifecycle';
+import { applyRetention } from './retention';
 import {
   exchangeTransfers,
   isLegacyWorld,
@@ -624,5 +625,7 @@ export function startNextSeason(input: World, options: SimulationOptions = {}): 
   rollDiscipline(world);
   // Award baselines once this season's league memberships are set.
   if (world.career) startAwardSeason(world);
+  // Last, once nothing more can be credited to last season's archive (release plan step 3.6).
+  applyRetention(world);
   return world;
 }

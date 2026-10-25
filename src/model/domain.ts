@@ -356,7 +356,12 @@ export interface Player {
   primaryPosition: Position;
   secondaryPositions: PositionFamiliarity[];
   attributes: Attributes;
-  keeperAttributes: KeeperAttributes;
+  /**
+   * Goalkeeping. Absent for an outfield player whose goalkeeping is untrained, as it never
+   * changes: `keeperAttributesOf` (engine/keeping.ts) derives it from the id (schema 23,
+   * retention). Always stored for goalkeepers and for anyone whose values were changed.
+   */
+  keeperAttributes?: KeeperAttributes;
   hidden: HiddenAttributes;
   potential: number;
   personality: Personality;
@@ -394,6 +399,12 @@ export interface ArchivedPlayer {
 }
 export interface WorldArchive {
   players: Record<Id, ArchivedPlayer>;
+  /**
+   * Hall of Fame scores of archived players no longer kept by name (retention, schema 23):
+   * `[score, players]` pairs by ascending score, so every rank among all players ever stays
+   * exact. Absent until the first is pruned.
+   */
+  pruned?: [score: number, players: number][];
 }
 /** A skill-tree node. Its id doubles as the trait id the match engine reads from `traits`. */
 export interface Skill {
@@ -1964,6 +1975,11 @@ export interface SeasonSummary {
   divisionChampions?: Record<string, { competitionId: Id; clubId: Id }>;
   phases?: Record<Id, LeaguePhase>;
   ties?: Record<Id, PostseasonTie>;
+  /**
+   * A season older than the kept window (retention, schema 23): only its champions, division
+   * champions and cup winners remain; `tables` and `movements` are empty, without play-offs.
+   */
+  compact?: true;
 }
 export interface Settings {
   theme: 'system' | 'light' | 'dark';

@@ -1134,10 +1134,12 @@ export const CONFIG = {
         /** Awards kept before the oldest ones nobody's career names are dropped. */
         recordLimit: 400,
         /**
-         * The most a save may hold: careers' awards are never dropped, so generations add to
-         * the record limit.
+         * The most a save may hold. Careers' awards and Golden Balls are never dropped, so they
+         * add to the record limit: at most a Golden Ball and 20 career awards a season (12 months,
+         * three awards in each of two leagues, young player, Golden Ball), 4,600 after 200
+         * seasons in the worst case; about 5 a season in practice (retention, step 3.6).
          */
-        maxRecords: 2000,
+        maxRecords: 5000,
         fame: { month: 3, season: 6, goldenBall: 25, shortlist: 5 },
       },
       /**
@@ -1229,6 +1231,13 @@ export const CONFIG = {
       /** Retired former teammates may become managers. */
       formerTeammateManager: 0.4,
       chronicleLimit: 600,
+      /**
+       * The most legacies a save holds. A career lasts at least 14 seasons (from 18 at the
+       * latest to optional retirement at 32), so 50 take 700 seasons. Chronicle entries and
+       * Moments are bounded per career, so a save holds at most this many careers' worth plus
+       * the current one's.
+       */
+      legacyLimit: 50,
     },
   },
   gallery: { clubs: 15, players: 12, ages: [17, 28, 42] as const },
@@ -1393,6 +1402,26 @@ export const CONFIG = {
       readmissionRetirementAge: 37,
       /** Seasons of world events kept in the live graph (current plus previous). */
       eventSeasonsKept: 2,
+    },
+    /**
+     * Retention (release plan step 3.6): what a long world keeps, applied at every season start
+     * (`engine/world/retention.ts`) and once to older saves when they load. See BALANCING.md,
+     * "Retention".
+     */
+    retention: {
+      /**
+       * Seasons whose summaries keep full tables, movements and play-offs; older seasons keep
+       * their champions, division champions and cup winners. A season's full detail costs about
+       * 240 KB of save; fifteen covers a whole career at the top and a generation of the World
+       * archive for about 3.6 MB.
+       */
+      historySeasons: 15,
+      /**
+       * Archived players kept by Hall of Fame score beyond everyone the world still names. The
+       * others leave the archive and only their scores stay (`WorldArchive.pruned`), so every
+       * rank stays exact. About 370 bytes each: 1.9 MB at most.
+       */
+      archiveTop: 5000,
     },
     generation: {
       reputationCeiling: 99,

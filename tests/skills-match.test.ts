@@ -54,6 +54,7 @@ const KEEPING = [
 ];
 function player(traits: string[]): DecisionContext['player'] {
   return {
+    id: 'skills-player',
     attributes: Object.fromEntries(KEYS.map((key) => [key, 60])) as Player['attributes'],
     keeperAttributes: Object.fromEntries(
       KEEPING.map((key) => [key, 60]),
