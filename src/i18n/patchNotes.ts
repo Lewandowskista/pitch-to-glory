@@ -26,6 +26,21 @@ export type ReleaseSection = (typeof RELEASE_SECTIONS)[number];
 
 export const PATCH_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '0.10.0',
+    date: '2026-10-25',
+    title: 'Help shape the game',
+    summary:
+      'Anonymous play statistics now help balance and speed up the game, and after your first match you can choose to share more. Settings and a new Privacy page put you in charge.',
+    new: [
+      'After your first match you can choose to share how you play over time, to help shape the game. It stays off unless you say yes, and you can change your mind in Settings.',
+      'A new Privacy page explains in plain words what the game shares, what it never shares, and how to switch it off.',
+      'Settings has a Privacy card with a switch for each kind of sharing.',
+    ],
+    improved: [
+      'Anonymous play statistics, such as how key moments turn out and how fast Continue runs, now help us balance and speed up the game. They are never linked to you, and you can turn them off in Settings.',
+    ],
+  },
+  {
     version: '0.9.1',
     date: '2026-10-25',
     title: 'Safe hands',
