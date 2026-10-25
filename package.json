@@ -19,6 +19,7 @@
     "profile": "node --max-old-space-size=6144 --import tsx scripts/career-profile.ts",
     "profile:match": "node --max-old-space-size=4096 --import tsx scripts/match-profile.ts",
     "profile:world": "node --max-old-space-size=6144 --import tsx scripts/world-profile.ts",
+    "drift": "node --max-old-space-size=8192 --import tsx scripts/world-drift.ts",
     "perf:fixtures": "node --max-old-space-size=6144 --import tsx scripts/performance-fixtures.ts",
     "test:performance": "node scripts/performance.mjs",
     "lint": "eslint . --max-warnings 0",
