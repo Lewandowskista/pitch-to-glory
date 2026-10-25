@@ -34,8 +34,7 @@ import { celebrationFame } from './lifestyle/week';
 import { honoursMatch } from './honours/week';
 import { careerMatchSetup, defaultTactics } from './matchSetup';
 export * from './fixtures';
-export { careerMatchSeed, previewObjectives } from './objectives';
-export { careerMatchSetup, defaultTactics, shootoutLeadOf } from './matchSetup';
+export { careerMatchSetup, defaultTactics } from './matchSetup';
 
 const C = CONFIG.career;
 

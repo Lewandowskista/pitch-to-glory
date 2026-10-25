@@ -24,7 +24,7 @@ import { createRng, type Rng } from '../../rng';
 import { playerAbility } from '../../strength';
 import { addXp } from '../progression';
 import { adjustRelationship, postMessage } from '../market/records';
-import { addWeeks, compareDates, managerTrust, relationshipValue, today } from '../market/rules';
+import { addWeeks, compareDates, managerTrust, today } from '../market/rules';
 import { chronicle } from '../honours/chronicle';
 import { fameLevel } from '../lifestyle/wardrobe';
 import { adjustCliques, adjustMood, keyTeammates } from '../social/dressing';
@@ -610,14 +610,6 @@ export function storiesWeek(world: World): void {
   stories.push(story);
   if (stories.length > T.limit) stories.splice(0, stories.length - T.limit);
   postMessage(world, 'story-offer', { story: story.kind, ...story.params }, story.id);
-}
-
-/** The fan affection the story changes at a former club, for the UI's chips. */
-export function oldFansValue(world: World, story: StoryState): number | null {
-  const clubId = story.params.clubId;
-  return typeof clubId === 'string' && world.clubs[clubId]
-    ? relationshipValue(world, 'fans', clubId)
-    : null;
 }
 
 function draft(input: World): World {

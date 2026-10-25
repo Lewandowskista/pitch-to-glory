@@ -29,7 +29,7 @@ import { formatMoney } from '../../i18n/locale';
 const socialMessages = socialText.messages;
 const lifestyleMessages = lifestyleText.messages;
 const honoursMessages = honoursText.messages;
-import { ui, useEditBlock } from './shared';
+import { useEditBlock } from './shared';
 import { audio } from '../../audio';
 
 /** An amount of credits ("12,500 Cr"). */
@@ -242,5 +242,3 @@ export function Stat({
     </div>
   );
 }
-
-export const panel = ui.panel;

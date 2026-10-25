@@ -25,7 +25,6 @@ import { suspension } from '../../world/discipline';
 export const M = CONFIG.career.market;
 export type Role = Contract['role'];
 export type Line = keyof typeof M.slots;
-export const ROLES: readonly Role[] = ['key', 'rotation', 'youth', 'backup'];
 /** Higher is a stronger promise. Youth sits above backup: it carries a development promise. */
 export const ROLE_RANK: Record<Role, number> = { key: 3, rotation: 2, youth: 1, backup: 0 };
 

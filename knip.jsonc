@@ -1,0 +1,28 @@
+// Unused files, exports and dependencies (`npm run knip`, in CI's checks job). Knip's own
+// plugins add the Vite, Vitest, Playwright, ESLint and GitHub Actions entries; src/main.tsx is
+// the Vite entry. Exports used only by tests count as used: the tests are entries.
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    // Loaded with `new Worker(new URL(...))`, which knip does not follow.
+    "src/**/*.worker.ts",
+    "scripts/*.{ts,mjs}",
+    "tests/**/*.test.{ts,tsx}",
+    "e2e/**/*.spec.ts",
+    // The UI kit is a contract (docs/UI-KIT.md): its documented parts stay available to screens.
+    "src/ui/kit/index.ts",
+  ],
+  "project": [
+    "src/**/*.{ts,tsx,css}",
+    "scripts/**/*.{ts,mjs}",
+    "tests/**/*.{ts,tsx}",
+    "e2e/**/*.ts",
+    "*.ts",
+  ],
+  // A module's helper exported for its tests or for clarity is not dead while the module uses it.
+  "ignoreExportsUsedInFile": true,
+  // The accessibility journeys inject node_modules/axe-core/axe.min.js by path.
+  "ignoreDependencies": ["axe-core"],
+  // macOS's audio converter, for `npm run render:music` (scripts/render-music.ts).
+  "ignoreBinaries": ["afconvert"],
+}

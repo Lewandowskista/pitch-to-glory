@@ -41,32 +41,6 @@ export function FootballerAvatar({
   }, [player.avatar, player.clubId, age, home, away]);
   return <Artwork svg={svg} alt={player.name} className={cx('match-avatar', className)} />;
 }
-/** The selected player with their name and position (the friendly selection, the report). */
-export function Footballer({
-  player,
-  season,
-  home,
-  away,
-}: {
-  player: Player;
-  season: number;
-  home: Club;
-  away: Club;
-}) {
-  const age = season - player.birthSeason;
-  return (
-    <div className="match-footballer">
-      <FootballerAvatar player={player} season={season} home={home} away={away} />
-      <div>
-        <span className="match-eyebrow">{m.selected}</span>
-        <h2>{player.name}</h2>
-        <p>
-          {player.primaryPosition} · {matchFormat(m.age, { age })}
-        </p>
-      </div>
-    </div>
-  );
-}
 
 /** A signed percentage with a true minus sign: "+9.5%", "−3.0%". */
 export function signedPercent(value: number, digits = 1) {

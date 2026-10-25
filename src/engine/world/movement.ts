@@ -1,4 +1,4 @@
-import type { League, Tier, World } from '../../model/domain';
+import type { League, World } from '../../model/domain';
 import { admitFeeder, createFeederClub } from './feeder';
 import { rankStandings } from './ranking';
 import { germanRegionalZones } from './profiles';
@@ -175,9 +175,4 @@ export function resetNationalSeason(world: World): void {
     if (world.countries[league.countryId]!.counterpart === 'Germany' && league.tier === 4)
       league.zones = germanRegionalZones(league.region!, world.date.season);
   }
-}
-export function frontierTier(world: World, countryId: string): Tier {
-  return Math.max(
-    ...world.countries[countryId]!.leagueIds.map((id) => world.leagues[id]!.tier),
-  ) as Tier;
 }

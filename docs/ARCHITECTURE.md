@@ -1386,22 +1386,6 @@ export interface SaveFile {
   revision: number;
   payload: SavePayload;
 }
-export interface SaveV1 {
-  format: 'pitch-to-glory';
-  schemaVersion: 1;
-  slot: SlotId;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  seed: string;
-}
-export interface SlotSummary {
-  slot: SlotId;
-  name: string;
-  updatedAt: string;
-  kind: SavePayload['kind'];
-  revision: number;
-}
 ```
 
 Save payloads are validated `FoundationState` or `WorldState`; a career travels inside the world as `World.career` (see the career section below).

@@ -10,7 +10,6 @@ import type {
   DecisionSample,
   Position,
   SeasonGoal,
-  SeasonGoalKind,
   TrainingFocus,
   TrainingPlan,
   World,
@@ -332,12 +331,6 @@ export function goalProgress(world: World, goal: SeasonGoal): number {
       );
   }
 }
-export const GOAL_KINDS: readonly SeasonGoalKind[] = [
-  'appearances',
-  'passing',
-  'defending',
-  'attribute',
-];
 
 /** Accept this season's offered goal. Returns a new world; the career is copied. */
 export function acceptGoal(world: World): World {

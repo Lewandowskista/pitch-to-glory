@@ -48,6 +48,8 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run lint
+      # Unused files, exports and dependencies (knip.jsonc).
+      - run: npm run knip
       # Known vulnerabilities in what ships (development tooling never reaches players);
       # Dependabot (.github/dependabot.yml) proposes updates monthly.
       - run: npm audit --omit=dev --audit-level=high

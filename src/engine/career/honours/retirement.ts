@@ -629,11 +629,3 @@ export function formerTeammates(world: World) {
         world.date.season - person!.birthSeason >= 34,
     );
 }
-
-export const keptPlayerIds = (world: World) =>
-  new Set(
-    world.legacies.flatMap((legacy) => [
-      legacy.playerId,
-      ...(legacy.childPlayerId ? [legacy.childPlayerId] : []),
-    ]),
-  );
