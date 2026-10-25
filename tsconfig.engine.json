@@ -1,0 +1,11 @@
+{
+  // The engine and the data model without the DOM or Node types (AGENTS.md §2): they run
+  // unchanged in Web Workers, Node and the page, so a browser- or Node-only API used there fails
+  // this typecheck. types/engine-runtime.d.ts declares the few globals all three share.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": []
+  },
+  "include": ["src/engine", "src/model", "types/engine-runtime.d.ts"]
+}
