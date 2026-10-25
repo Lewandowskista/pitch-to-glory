@@ -56,6 +56,35 @@ export function afterLoadAndIdle(start: () => void, timeout = 3000): () => void 
   };
 }
 
+/** The least time between two update checks when the game comes back into view. */
+export const UPDATE_CHECK_MS = 15 * 60 * 1000;
+/**
+ * Look for a new version when the game comes back into view or focus, at most once every
+ * `interval` (release 1.0 step 4.1, review S11). Browsers check on navigations, but an installed
+ * app or a tab left open for days navigates only inside the page, so it never would. A failed
+ * check (offline) is simply tried again next time. Returns a function that stops listening.
+ */
+export function checkForUpdatesOnReturn(
+  registration: Pick<ServiceWorkerRegistration, 'update'>,
+  target: Pick<Window, 'addEventListener' | 'removeEventListener'> = window,
+  visible: () => boolean = () => document.visibilityState === 'visible',
+  now: () => number = Date.now,
+  interval = UPDATE_CHECK_MS,
+): () => void {
+  let last = now();
+  const check = () => {
+    if (!visible() || now() - last < interval) return;
+    last = now();
+    void registration.update().catch(() => {});
+  };
+  target.addEventListener('focus', check);
+  target.addEventListener('visibilitychange', check);
+  return () => {
+    target.removeEventListener('focus', check);
+    target.removeEventListener('visibilitychange', check);
+  };
+}
+
 function register(): void {
   if (update) return;
   update = registerSW({
@@ -64,6 +93,9 @@ function register(): void {
     onNeedRefresh: () => set({ needRefresh: true }),
     onOfflineReady: () => set({ offlineReady: true }),
     onRegisterError: (error) => options.onRegisterError?.(error),
+    onRegisteredSW: (_url, registration) => {
+      if (registration) checkForUpdatesOnReturn(registration);
+    },
   });
 }
 

@@ -13,8 +13,11 @@ import { expect, nationalCareer, skipTutorial, test } from './support';
  * (dist-next, from `npm run test:update`) replaces it at the same address; the player accepts
  * the update, the career is checkpointed and continues, then keeps working offline.
  */
-/** Each worker serves its own port, so repeated runs never share a server. */
-const portFor = (worker: number) => 4176 + worker;
+/**
+ * Each worker serves its own port, so repeated runs never share a server (`UPDATE_PORT` moves
+ * the range, for runs beside another checkout's).
+ */
+const portFor = (worker: number) => Number(process.env.UPDATE_PORT ?? 4176) + worker;
 const save = 'artifacts/update-career.json';
 
 function serve(outDir: string, port: number): Promise<ChildProcess> {
@@ -154,4 +157,86 @@ test('an update reaches a saved career, keeps it and works offline', async ({
     await stop(server);
   }
   // Console and page errors fail the journey when it ends (e2e/support.ts).
+});
+
+/**
+ * Release 1.0 step 4.1 (review S2): an update with two tabs open. While one tab holds a world
+ * that is not in a save slot, the other's update is refused and says which tab and why; once
+ * it is saved, the update goes ahead and both tabs reload onto the new version.
+ */
+test('an update waits for a busy tab, then reloads every tab', async ({
+  page,
+  context,
+  runtimeErrors,
+}, testInfo) => {
+  test.skip(
+    !process.env.UPDATE_JOURNEY || !existsSync('dist-next'),
+    'Run npm run test:update to build the second release and run this journey',
+  );
+  test.setTimeout(240000);
+  await skipTutorial(page);
+  const other = await context.newPage();
+  await skipTutorial(other);
+  // The other tab's console counts too.
+  other.on('pageerror', (error) => runtimeErrors.push(`other tab: ${error.message}`));
+
+  const port = portFor(testInfo.workerIndex);
+  const origin = `http://127.0.0.1:${port}`;
+  let server = await serve('dist', port);
+  try {
+    await page.goto(`${origin}/`);
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, {
+      timeout: 30000,
+    });
+    // The other tab creates a world and keeps it outside a save slot.
+    await other.goto(`${origin}/world`);
+    await other.getByLabel('World seed', { exact: true }).fill('two-tab-update');
+    await other.getByRole('button', { name: 'Create world', exact: true }).click();
+    await expect(other.getByRole('button', { name: 'Advance week', exact: true })).toBeEnabled({
+      timeout: 60000,
+    });
+    const canonical = (tab: Page) => tab.locator('link[rel="canonical"]').getAttribute('href');
+    const oldCanonical = await canonical(page);
+
+    // The new release is deployed at the same address.
+    await stop(server);
+    server = await serve('dist-next', port);
+    await page.evaluate(() =>
+      navigator.serviceWorker.getRegistration().then((registration) => registration?.update()),
+    );
+    const prompt = page.locator('.pwa-prompt');
+    await expect(prompt).toContainText('An update is ready.', { timeout: 60000 });
+    await prompt.getByRole('button', { name: 'Save & update' }).click();
+    await expect(prompt).toContainText(
+      'Another tab (World) has a world that is not saved in a slot — save it or close that tab first.',
+      { timeout: 30000 },
+    );
+    // Refused: neither tab reloaded.
+    expect(await canonical(page)).toBe(oldCanonical);
+    expect(await canonical(other)).toBe(oldCanonical);
+
+    // The world is saved; now both tabs are free and the update reloads both.
+    // The page's own link (the other tab's update prompt may offer the same).
+    await other.locator('main').getByRole('link', { name: 'Save this world', exact: true }).click();
+    await other.getByLabel('Save name').fill('Two tabs');
+    await other
+      .locator('.slot-card')
+      .first()
+      .getByRole('button', { name: 'Save world', exact: true })
+      .click();
+    await other.getByRole('link', { name: 'Open world', exact: true }).click();
+    await expect(other.locator('.save-indicator')).toHaveText('All changes saved', {
+      timeout: 30000,
+    });
+    await prompt.getByRole('button', { name: 'Save & update' }).click();
+    await expect.poll(() => canonical(page), { timeout: 60000 }).not.toBe(oldCanonical);
+    await expect.poll(() => canonical(other), { timeout: 60000 }).not.toBe(oldCanonical);
+    // The other tab comes back to its saved world.
+    await expect(other.getByRole('button', { name: 'Advance week', exact: true })).toBeVisible({
+      timeout: 30000,
+    });
+  } finally {
+    await other.close();
+    await stop(server);
+  }
 });
