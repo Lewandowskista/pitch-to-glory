@@ -1,3 +1,4 @@
+import { recordFailure } from '../diagnostics';
 import { SaveError } from './errors';
 import { createChunkReceiver, sendChunked } from '../workers/transport';
 import { CONFIG } from '../engine/config';
@@ -67,6 +68,7 @@ function persistenceWorker(): Worker {
   instance.onmessage = receive;
   instance.onerror = (event) => {
     event.preventDefault();
+    recordFailure('worker', event.message || 'The persistence worker stopped', 'persistence');
     restart(instance);
   };
   instance.onmessageerror = () => restart(instance);

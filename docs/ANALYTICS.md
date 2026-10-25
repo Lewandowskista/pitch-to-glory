@@ -53,8 +53,9 @@ src/analytics/
   observe.ts   lazily loaded: events derived from store updates and committed results
 ```
 
-- `main.tsx` calls `startAnalytics()` after the first render. It registers `error` and
-  `unhandledrejection` listeners and, once the page has loaded, waits for an idle moment
+- `main.tsx` calls `startAnalytics()` after the first render. It subscribes to the local
+  diagnostics log (`src/diagnostics`, release 1.0 step 4.7), hearing this page load's earlier
+  entries too, and turns each into an `error` event; once the page has loaded, it waits for an idle moment
   (`requestIdleCallback` with a 5 s timeout; 2 s after load in Safari) before importing
   `runtime.ts`. Until then `track()` only appends to an in-memory backlog (at most 100 events).
   Nothing of the client is on the critical path or in the match route's static imports.
@@ -168,13 +169,13 @@ All events are sent under tier 1 (personless) and, with tier-2 consent, with the
 
 ### Performance
 
-| Event              | When                                                        | Properties                                                                                                                                   |
-| ------------------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app_loaded`       | The client starts                                           | `ttfb_ms`, `dcl_ms`, `load_ms`, `fcp_ms` (navigation and paint timing), `idle_ms` (when the client could start: a time-to-interactive proxy) |
-| `continue_timed`   | A Continue (`simulate-to-match`) job ends                   | `weeks`, `matchday_ms`, `saved_ms` (until the autosave after it), `outcome` (the job's notice, `error` or `save-error`)                      |
-| `season_simulated` | A season simulation job ends                                | `ms`, `weeks`, `outcome`                                                                                                                     |
-| `save_failed`      | The save status turns to error                              | `kind` (`storage`, `large`, `locked`, `conflict`, `invalid`, `future`, `busy`)                                                               |
-| `error`            | An uncaught error or unhandled rejection (10 per page load) | `kind` (`error`, `unhandledrejection`), `message` (scrubbed)                                                                                 |
+| Event              | When                                                         | Properties                                                                                                                                   |
+| ------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app_loaded`       | The client starts                                            | `ttfb_ms`, `dcl_ms`, `load_ms`, `fcp_ms` (navigation and paint timing), `idle_ms` (when the client could start: a time-to-interactive proxy) |
+| `continue_timed`   | A Continue (`simulate-to-match`) job ends                    | `weeks`, `matchday_ms`, `saved_ms` (until the autosave after it), `outcome` (the job's notice, `error` or `save-error`)                      |
+| `season_simulated` | A season simulation job ends                                 | `ms`, `weeks`, `outcome`                                                                                                                     |
+| `save_failed`      | The save status turns to error                               | `kind` (`storage`, `large`, `locked`, `conflict`, `invalid`, `future`, `busy`)                                                               |
+| `error`            | A failure recorded in the diagnostics log (10 per page load) | `kind` (`error`, `unhandledrejection`, `preload`, `worker`, `boundary`), `message` (scrubbed)                                                |
 
 ### Engagement
 
@@ -197,7 +198,6 @@ All events are sent under tier 1 (personless) and, with tier-2 consent, with the
   headroom until Phase 2.8 moves code off it.
 - Save size in `continue_timed`: the main thread never learns the size of an autosave; it needs
   the persistence worker to report it (Phase 3).
-- `error` from the diagnostics ring buffer (Phase 4.7): today only uncaught errors are sent.
 - International (tournament and window) matches: their decisions are sent as `key_moment`, but
   they have no `match_result`, as they are not club match records.
 - A quick start in the wizard does not exist yet, so `wizard_step` has no `quick` flag.

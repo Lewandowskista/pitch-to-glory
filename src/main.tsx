@@ -5,6 +5,9 @@ import '@fontsource/bebas-neue/latin-400.css';
 import './styles/app.css';
 import App from './App';
 import { startAnalytics } from './analytics';
+import { installDiagnostics } from './diagnostics';
+// Before the first render, so a failure while starting is in the local diagnostics log too.
+installDiagnostics();
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing app root');
 ReactDOM.createRoot(root).render(

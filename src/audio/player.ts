@@ -5,6 +5,7 @@ import { platform } from '../platform';
 import { CROWD_SOUNDS, type SoundName } from './synth';
 import musicOpus from '../assets/audio/after-the-floodlights.ogg?url';
 import musicAac from '../assets/audio/after-the-floodlights.m4a?url';
+import { recordFailure } from '../diagnostics';
 
 /** Lazy playback and mixing. Effects are synthesised off the main thread; music downloads. */
 type AudioName = SoundName | 'music';
@@ -78,7 +79,10 @@ function render(name: SoundName): Promise<Uint8Array<ArrayBuffer>> {
       if (event.data.wav) request.resolve(event.data.wav);
       else request.reject(new Error(event.data.error ?? 'Audio rendering failed'));
     };
-    worker.onerror = failWorker;
+    worker.onerror = (event) => {
+      recordFailure('worker', event?.message || 'The sound worker stopped', 'audio');
+      failWorker();
+    };
     worker.onmessageerror = failWorker;
   }
   const id = nextId++;

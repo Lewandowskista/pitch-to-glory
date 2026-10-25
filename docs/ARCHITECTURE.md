@@ -1524,8 +1524,20 @@ interface PlatformAdapter {
   onBack(handler: () => void): () => void;
   wakeLock(): Promise<() => Promise<void>>;
   notify(title: string, body: string): Promise<boolean>;
+  /** Small device-only text records outside the saves; null reads missing, writing null removes. */
+  readRecord(key: DeviceRecord): string | null;
+  writeRecord(key: DeviceRecord, value: string | null): boolean;
+  /** Open an address outside the game (the bug report form); nothing is sent. */
+  openExternal(url: string): Promise<boolean>;
 }
+type DeviceRecord =
+  | 'release-seen' // the last version seen, for "Updated to x.y.z" (ptg-last-version)
+  | 'diagnostics' // the local diagnostics log (ptg-diagnostics)
+  | 'career-draft' // the new-career wizard's draft, this tab's session only
+  | `match-report-${1 | 2 | 3}`; // each slot's last match report (step 4.8)
 ```
+
+No module outside `src/platform/` touches `localStorage` or `sessionStorage` (release 1.0 step 4.8, review K15): the wizard draft, the release notice, the diagnostics log and the match reports go through `readRecord`/`writeRecord`, which never throw (private windows and blocked storage read as missing).
 
 The web adapter owns download/share fallback, file size limits, storage persistence, optional vibration, popstate, wake lock, optional notifications and analytics delivery (`fetch` with `keepalive`, handing a failed request to `sendBeacon` while the page is hidden). Analytics consent and the tier-2 install id live under the `analytics` preference scope (`ptg-analytics` on the web), never in `Settings` or a save.
 
@@ -1541,7 +1553,15 @@ The career agenda (`src/screens/career/agenda.ts`) derives everything the hub an
 
 English UI strings live in the copy modules under `src/i18n/` (the shell's `en.ts`, and one module per area, split by route for bundle size), served through the locale seam (Localization, below); generated names and recipe identifiers are data. CSS tokens define theme colors, spacing, radii, fonts and shadows, and are exposed to Tailwind utilities through `@theme inline`. New UI uses utilities; screens built before milestone 4 keep their component CSS partials until reworked. Fonts are bundled locally from licensed font packages. Route and reward transitions honour reduced motion.
 
-Vite PWA precaches route chunks, both workers, SVG icons and fonts after one connected visit. Updates flush autosave before activation. Netlify preserves deep-link refresh. CI runs types, lint, Vitest, build and Chromium/Firefox/WebKit tests; deployment requires configured secrets. Nothing has been deployed by these milestones.
+Vite PWA precaches route chunks, both workers, SVG icons and fonts after one connected visit.
+
+**Updates across tabs (release 1.0 step 4.1, review S2).** Activating a new service worker deletes the old version's chunks, so every open tab must reload, and only when nothing is lost. "Save & update" first writes this tab's pending autosave and refuses while it is busy (`release/busy.ts`: a world job, training being saved, a world outside a slot, or a change that could not be saved). It then polls every other tab over the `pitch-to-glory:update` BroadcastChannel (`release/updateTabs.ts`, loaded when the page is idle): each acknowledges at once with its page title, writes its own pending autosave and answers with what still holds it. Any answer that is not free refuses the update with that tab's page and reason ("Another tab (World) has a world that is not saved in a slot…"); a tab that acknowledged but does not answer within 15 s holds it as unresponsive, and one that never acknowledges (frozen, discarded) is not counted. When every tab is free the waiting worker activates; each tab reloads on `controllerchange` (and on the activating tab's `reload` broadcast, for a tab the worker does not control) through `updateApplication`, which flushes and checks again, so a tab that became busy meanwhile keeps running and shows the prompt. Every tab also asks the registration for an update when it comes back into view or focus, at most once every 15 minutes (`checkForUpdatesOnReturn`), since installed apps and long-lived tabs navigate only inside the page.
+
+**Error boundaries (step 4.2).** `RouteBoundary` wraps the `Outlet` inside the shell, keyed by the path, so a failing page leaves the navigation, save indicator and autosave running. It writes the pending autosave at once, records the failure in the diagnostics log, and offers Try again (which also lets a failed lazy page load again), Export unsaved copy (`ui/exportUnsaved.ts`, the save-error banner's path, falling back to the unchecked recovery copy) and Reload; a page whose code did not download says so. `lazyPage` retries a failed load once after 700 ms (Firefox and Safari fetch again; Chromium and WebKit keep a failed module for the page, so the boundary's Reload is the remedy) and never settles while the page is being left. The live pitch has its own boundary (`match/SafePitch.tsx`) that falls back to the SVG pitch (`match/PitchFallback.tsx`, its own chunk) and then to a line of text. The outer `ErrorBoundary` remains for a failing shell, and also flushes; the shell's autosave hook flushes instead of dropping a pending write when it unmounts. Journeys force a page failure through `window.__ptgForceFailure.route`, read only under automation.
+
+**Local diagnostics (step 4.7).** `src/diagnostics` keeps the last 50 failures on the device (`diagnostics` record, never in a save, never sent): caught render errors, uncaught errors, unhandled rejections, `vite:preloadError` (which also covers failed dynamic imports) and world, persistence and sound worker errors. Each entry is a kind, a fixed source tag, the route pattern, the version, the time, a count of identical consecutive repeats, and the message scrubbed exactly like analytics (`diagnostics/scrub.ts`: no addresses, paths, quoted text or digits; class name kept). An unhandled rejection whose stack runs through the game's own scripts shows a non-blocking notice linking to Settings. Settings → Diagnostics shows the count and the latest three, exports `pitch-to-glory-diagnostics-<date>.json` (`format`, app version, schema and engine, a coarse device class, input, viewport, browser engine and whether installed, the loaded save's slot, revision, schema, engine, seed and world format, and the log) and clears it. "Report a bug" (Settings and the clubhouse footer) opens a prefilled GitHub issue through `platform.openExternal` with the version, schema, engine and coarse device, and asks for the file; nothing is attached or sent automatically. Analytics' `error` event reads from this log.
+
+**The post-match report after a refresh (step 4.8).** When a career match is recorded, the match screen keeps its report on the device (`match-report-<slot>`: the session as setup and commands, about the size of the setup, and the commit's outcome). After a refresh the match screen replays it and shows the report again while it is the career's latest match in that world, on the current engine; moving on from the report removes the record, and loading another slot leaves it for later. It is not part of the save. Netlify preserves deep-link refresh. CI runs types, lint, Vitest, build and Chromium/Firefox/WebKit tests; deployment requires configured secrets. Nothing has been deployed by these milestones.
 
 ## Localization
 

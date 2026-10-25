@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { lazyPage } from '../ui/lazyPage';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useAppStore } from '../store';
+import { useAppStore, worldBusy } from '../store';
 import {
   fullTime,
   applyMatchCommand,
@@ -22,7 +22,7 @@ import {
 import type { SlotId } from '../model/domain';
 import { errorCode } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
-import { errorText, format } from '../i18n';
+import { errorText, format, t } from '../i18n';
 import {
   matchText as m,
   matchLabel,
@@ -80,7 +80,9 @@ import { preparePlayback } from './match/playback';
 import { shirtNumbers } from './match/pitchArt';
 import { Tutorial } from '../ui/TutorialLoader';
 import { StakeLine } from './career/stakesUi';
-const Pitch = lazyPage(() => import('./match/Pitch'));
+// The live pitch, behind its own boundary that falls back to the SVG pitch (step 4.2).
+import { SafePitch as Pitch } from './match/SafePitch';
+import { useRestoredReport } from './match/restoreReport';
 /** A friendly between any two clubs, for a world without a career: loaded only there. */
 const Selection = lazyPage(() =>
   import('./match/Selection').then((module) => ({ default: module.Selection })),
@@ -143,6 +145,15 @@ export default function MatchBody() {
   const attemptedSlot = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // A save that could not be restored (open in another tab, say) can be tried again (step 4.8).
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const retryLoad = () => {
+    attemptedSlot.current = null;
+    setError('');
+    setLoadFailed(false);
+    setLoadAttempt((count) => count + 1);
+  };
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const choicesRef = useRef<HTMLDivElement>(null);
@@ -208,10 +219,13 @@ export default function MatchBody() {
       setLoading(true);
       void persistence()
         .then((p) => p.loadSlot(Number(slot) as SlotId))
-        .catch((cause: unknown) => setError(errorText(errorCode(cause))))
+        .catch((cause: unknown) => {
+          setError(errorText(errorCode(cause)));
+          setLoadFailed(true);
+        })
         .finally(() => setLoading(false));
     }
-  }, [world, active, job, params, setParams]);
+  }, [world, active, job, params, setParams, loadAttempt]);
 
   const command = useCallback((input: MatchCommand) => {
     const current = useAppStore.getState().matchSession;
@@ -399,6 +413,12 @@ export default function MatchBody() {
 
   // Career fixtures: the session's setup names the scheduled fixture it plays.
   const careerResult = useAppStore((store) => store.careerResult);
+  // The recorded match's report survives a refresh (step 4.8).
+  useRestoredReport(
+    world,
+    active?.payload.kind === 'world' ? active.slot : null,
+    !session && !careerResult && !job,
+  );
   const careerFixture = session?.setup.fixture;
   const pending = world?.career && !session ? pendingCareerFixture(world) : null;
   // Between seasons, the career player's nation's tournament match (review phase 3).
@@ -524,6 +544,11 @@ export default function MatchBody() {
         <p className="notice error match-notice" role="alert">
           <Icon name="warning" />
           <span>{error}</span>
+          {loadFailed && !world && (
+            <button type="button" className="text-button" onClick={retryLoad}>
+              {t.app.boundary.retry}
+            </button>
+          )}
         </p>
       )}
       {loading ? (
@@ -623,11 +648,11 @@ export default function MatchBody() {
               // Honours actions load on demand: retirement's code stays out of this route.
               void import('../engine/career/honours/actions')
                 .then(({ applyHonoursAction }) => {
-                  const current = useAppStore.getState().world;
-                  if (!current?.career || useAppStore.getState().worldJob) return;
-                  useAppStore
-                    .getState()
-                    .setWorld(applyHonoursAction(current, { type: 'simulate-window' }));
+                  const state = useAppStore.getState();
+                  const current = state.world;
+                  // Never over a job, a match in hand or training being saved (step 4.8).
+                  if (!current?.career || worldBusy(state)) return;
+                  state.setWorld(applyHonoursAction(current, { type: 'simulate-window' }));
                   setError('');
                 })
                 .catch(() => setError(m.unavailable));

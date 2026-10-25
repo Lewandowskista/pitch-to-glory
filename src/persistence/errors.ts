@@ -9,9 +9,6 @@ export class SaveError extends Error {
     super(code);
   }
 }
-/** An update was requested while an unsaved world is open. */
-export class UnsavedWorldError extends Error {}
-
 export function errorCode(error: unknown): string {
   return error instanceof SaveError
     ? error.code

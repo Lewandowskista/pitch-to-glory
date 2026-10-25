@@ -1,3 +1,4 @@
+import { recordFailure } from '../diagnostics';
 import type { World } from '../model/domain';
 import { CONFIG } from '../engine/config';
 import { diffWorld } from './worldPatch';
@@ -53,6 +54,7 @@ export class WorldHost {
     );
     instance.onerror = (event) => {
       event.preventDefault();
+      recordFailure('worker', event.message || 'The world worker stopped', 'world');
       this.stop(instance);
     };
     instance.onmessageerror = () => this.stop(instance);

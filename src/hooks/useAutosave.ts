@@ -72,7 +72,9 @@ export function useAutosave(): void {
       window.removeEventListener('pagehide', leave);
       window.removeEventListener('pageshow', restore);
       window.removeEventListener('beforeunload', preventDirtyExit);
-      save()?.autosave.dispose();
+      // Leaving (the shell failing, or the app closing) writes what was waiting rather than
+      // dropping it: flushing also cancels the pending delayed write.
+      flush();
     };
   }, []);
 }

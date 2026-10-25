@@ -106,6 +106,22 @@ export const en = {
     recoverTitle: 'Reload the saved game?',
     recoverBody:
       'Your unsaved changes will be replaced with the latest version in this slot. Export an unsaved copy first if you want to keep them. If the slot was deleted, your session will be detached so you can save it again.',
+    /** Updating with several tabs open (release 1.0 step 4.1). */
+    updateChecking: 'Saving and checking your other tabs…',
+    /** An unhandled failure in the background (the game carries on). */
+    failure:
+      'Something went wrong in the background. Your game carries on; the details are in Settings.',
+    failureAction: 'View details',
+    /** The page error boundary (release 1.0 step 4.2). */
+    boundary: {
+      title: 'This page ran into a problem.',
+      body: 'The rest of the game is still running and your progress is kept. Try the page again, or reload the game.',
+      loadTitle: 'This page could not load.',
+      loadBody:
+        'Part of the game did not download — the connection may have dropped, or the game was updated in another tab. Reload to fetch it again.',
+      retry: 'Try again',
+      reload: 'Reload game',
+    },
   },
   menu: {
     eyebrow: 'Welcome to your clubhouse',

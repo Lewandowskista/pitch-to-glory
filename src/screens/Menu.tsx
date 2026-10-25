@@ -13,6 +13,9 @@ import { kitArt } from '../ui/kitArt';
 import { Button, ButtonLink, StatusLine, cx } from '../ui/kit';
 import { APP_VERSION } from '../release/version';
 import { track } from '../analytics';
+import { platform } from '../platform';
+import { diagnosticsText } from '../i18n/diagnostics';
+import { bugReportUrl, currentContext } from '../diagnostics/report';
 import { generateGallery } from '../engine/assets/gallery';
 import { renderCrest } from '../engine/assets/crest';
 import { renderKit } from '../engine/assets/kit';
@@ -605,6 +608,19 @@ export default function Menu() {
           >
             {t.app.release.link}
           </Link>
+          <span aria-hidden="true">·</span>
+          {/* A prefilled GitHub issue in a new tab (release 1.0 step 4.7); nothing is sent. */}
+          <button
+            type="button"
+            className="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-semibold text-accent underline underline-offset-4 hover:text-ink"
+            onClick={() =>
+              void platform.openExternal(
+                bugReportUrl(currentContext({ activeSave: null, world: null })),
+              )
+            }
+          >
+            {diagnosticsText.report}
+          </button>
         </p>
       </div>
     </Page>

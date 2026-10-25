@@ -1,19 +1,22 @@
 import { useAppStore } from '../store';
 import { autosave } from './session';
-import { SaveError, UnsavedWorldError } from './errors';
+import { busyReason, UpdateBlockedError } from '../release/busy';
 
-export { UnsavedWorldError };
-
-function assertCanReload(): void {
-  const { world, activeSave, worldJob } = useAppStore.getState();
-  if (worldJob) throw new SaveError('busy');
-  if (world && !activeSave) throw new UnsavedWorldError();
+/** Refuse while this tab is busy; `flushed` once the pending autosave has been written. */
+function assertCanReload(flushed: boolean): void {
+  const reason = busyReason(useAppStore.getState(), flushed);
+  if (reason) throw new UpdateBlockedError(reason);
 }
 
+/**
+ * Reload this tab onto a new version once nothing would be lost (release 1.0 step 4.1): write
+ * the pending autosave first, then check again, since a job, a world or an unsaved change can
+ * appear while IndexedDB finishes its transaction. Rejects with `UpdateBlockedError` (or the
+ * save's own error) and leaves the page as it is.
+ */
 export async function updateApplication(reload: () => Promise<void>): Promise<void> {
-  assertCanReload();
+  assertCanReload(false);
   await autosave.flush();
-  // A new job or world can appear while IndexedDB finishes its transaction.
-  assertCanReload();
+  assertCanReload(true);
   await reload();
 }

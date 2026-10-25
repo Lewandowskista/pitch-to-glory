@@ -275,6 +275,11 @@ test('a finished match report never follows the player into another save', async
     await mkdir('artifacts', { recursive: true });
     await page.screenshot({ path: 'artifacts/career-report.png', fullPage: true });
   }
+  // The report survives a refresh (release 1.0 step 4.8): kept beside the save on the device.
+  await expect(page.locator('.save-indicator')).toHaveText('All changes saved', { timeout: 30000 });
+  await page.reload();
+  await expect(page.getByTestId('career-xp')).toBeVisible({ timeout: 60000 });
+  await expect(page.getByTestId('final-result')).toContainText('Final result');
 
   // Load slot 2 in the same session; Matchday shows slot 2's own fixture, not that report.
   const shell = page.getByRole('navigation').first();

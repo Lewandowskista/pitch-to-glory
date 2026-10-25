@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { AnalyticsTestOverride } from './config';
 import type { EventName, EventProps } from './events';
+import { diagnostics } from '../diagnostics';
 
 /**
  * The always-loaded part of analytics (docs/ANALYTICS.md): a few lines that hold events in
@@ -37,14 +38,9 @@ export function track<E extends EventName>(event: E, properties: EventProps<E> =
 export function startAnalytics(): void {
   if (!on || started) return;
   started = true;
-  // The message only: the client scrubs it and nothing else about the error is sent.
-  const report = (event: ErrorEvent | PromiseRejectionEvent) =>
-    track('error', {
-      kind: event.type,
-      message: String(('reason' in event ? event.reason?.message : event.message) ?? ''),
-    });
-  addEventListener('error', report);
-  addEventListener('unhandledrejection', report);
+  // Errors come from the local diagnostics log (src/diagnostics, release 1.0 step 4.7): its
+  // kind and scrubbed message only; the client scrubs the message again and sends nothing else.
+  diagnostics.onRecord((entry) => track('error', { kind: entry.kind, message: entry.message }));
   const load = () =>
     void import('./runtime').then(
       (runtime) => (sink = runtime.start(backlog.splice(0))),
