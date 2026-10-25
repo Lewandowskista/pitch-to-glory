@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Player, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -25,12 +24,13 @@ import { effectiveAbility, selectLineup, slotFit } from '../src/engine/selection
 import { clubFormation, usesFormations } from '../src/engine/selection/world';
 import { playerAbility } from '../src/engine/strength';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalCareerSeason, nationalWorld } from './support/world';
 
 /** Phase 5.1: one formation-aware selection for background, career and interactive matches. */
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 let world: World;
 beforeAll(() => {
-  const base = generateWorld('selection-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'selection-tests')[0]!;
   world = createCareer(
     base,
@@ -181,7 +181,12 @@ describe('career selection', () => {
     const club = careerClub(source);
     source.managers[club.managerId]!.preferredFormation = '4-3-3';
     const player = careerPlayer(source);
-    // Everyone else in the eleven is far better, except the left winger.
+    // Everyone else in the eleven is far better, except the left winger. The club's other
+    // strikers are too: a semi-professional club's strikers can be weaker than its wingers, who
+    // would otherwise leave the player the centre-forward's place.
+    for (const id of club.playerIds)
+      if (id !== player.id && source.players[id]!.primaryPosition === 'ST')
+        setAll(source.players[id]!, 99);
     const without = selectLineup(club.playerIds, source.players, '4-3-3', {
       exclude: [player.id],
     });
@@ -216,17 +221,16 @@ describe('career selection', () => {
     expect(careerSelection(world, fixture)).toEqual(selection);
   });
 
-  it('keeps line-based competition until a world adopts formations at the new season', () => {
+  it('keeps line-based competition until a world adopts formations at the new season', async () => {
     const before: World = clone(world);
     delete before.selectionVersion;
     expect(usesFormations(before)).toBe(false);
     const competition = slotCompetition(before, careerClub(before), careerPlayer(before));
     expect(competition.formation).toBeNull();
     expect(competition.position).toBe(careerPlayer(before).primaryPosition);
-    let season = before;
-    while (season.phase === 'active')
-      season = advanceCareerWeek(season, { inPlace: true, autoPlay: true }).world;
-    expect(season.selectionVersion).toBeUndefined();
+    // A season played on the line-based rules, at its end.
+    const season = await nationalCareerSeason();
+    delete season.selectionVersion;
     const next = startNextSeason(season);
     expect(next.selectionVersion).toBe(1);
     expect(slotCompetition(next, careerClub(next), careerPlayer(next)).formation).toBe(

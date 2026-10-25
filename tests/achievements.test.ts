@@ -1,11 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Award, Position, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { decidedTitles } from '../src/engine/world/titles';
-import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
-import { advanceCareerWeek } from '../src/engine/career/season';
 import {
   achievementScore,
   addAchievement,
@@ -18,35 +15,14 @@ import {
 } from '../src/engine/career/honours/achievements';
 import { careerHallOfFameScore, hallOfFameRank } from '../src/engine/career/honours/retirement';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalCareerSeason } from './support/world';
 
 const F = CONFIG.career.honours.hallOfFame;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
-const draft: CareerDraft = {
-  name: 'Robin Vale',
-  avatar: {
-    face: 1,
-    skin: 2,
-    hair: 3,
-    hairColor: 4,
-    facialHair: 0,
-    eyebrows: 1,
-    eyes: 2,
-    accessory: 3,
-  },
-  nationalityId: 'country:0',
-  position: 'GK',
-  foot: 'right',
-  age: 17,
-  archetype: 'shot-stopper',
-};
-
 let season: World;
-beforeAll(() => {
-  const base = generateWorld('achievement-tests', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'achievement-tests')[0]!;
-  season = createCareer(base, draft, trial.id, 'achievement-tests');
-  while (season.phase === 'active')
-    season = advanceCareerWeek(season, { inPlace: true, autoPlay: true }).world;
+// The shared national career after its first season (tests/support/world.ts).
+beforeAll(async () => {
+  season = await nationalCareerSeason();
 }, 300000);
 
 describe('one record for every player', () => {

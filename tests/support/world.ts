@@ -10,10 +10,15 @@
  * - `nationalCareerSeason()`: the career after its first season was auto-played to the end,
  *   before the rollover (`startNextSeason`).
  *
- * Every call returns a fresh copy, so tests may change it freely. The legacy compact world is
- * still loadable and keeps a small explicit suite (tests/legacy-compat.test.ts); other tests
- * that still build one use it only as a cheap source of clubs for match-engine checks, where the
- * world's rules do not matter.
+ * Every call returns a fresh copy, so tests may change it freely: each fixture's JSON is read
+ * once per test file and parsed per call, which is about twice as fast as `structuredClone` of
+ * a 40 MB world.
+ *
+ * The legacy compact world is still loadable, and tests that check it on purpose say
+ * "legacy-compat" in their describe or test title (`vitest run -t legacy-compat`; the career
+ * suite is tests/legacy-compat.test.ts). Other tests still build one only as a cheap source of
+ * two squads for the match engine, where the world's rules do not matter, or as a cheap proxy
+ * for a multi-season world rule that a slow test checks on the national world.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { inject } from 'vitest';

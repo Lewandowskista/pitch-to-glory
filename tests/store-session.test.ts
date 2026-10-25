@@ -1,6 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
@@ -16,6 +15,7 @@ import type { MatchSession } from '../src/engine/match/types';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { SlotId } from '../src/model/domain';
 import { useAppStore } from '../src/store';
+import { nationalWorld } from './support/world';
 
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const draft = (name: string): CareerDraft => ({
@@ -37,7 +37,7 @@ const draft = (name: string): CareerDraft => ({
   archetype: 'finisher',
 });
 function careerWorld(seed: string, name: string): World {
-  const base = generateWorld(seed, { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', seed)[0]!;
   return createCareer(base, draft(name), trial.id, seed);
 }

@@ -17,6 +17,7 @@ import { contrastRatio, PALETTES } from '../src/engine/assets/shared';
 import { generateWorld } from '../src/engine/world/generate';
 import { t } from '../src/i18n';
 import { kitArt } from '../src/ui/kitArt';
+import { nationalWorld } from './support/world';
 
 function expectSafe(svg: string) {
   expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/);
@@ -76,7 +77,7 @@ describe('crest v2', () => {
     // Legacy worlds have no identity.
     expect(foundedYear({ id: 'club-0' })).toBeGreaterThanOrEqual(1867);
     // Every world club gets a plausible year.
-    const world = generateWorld('founded', { format: 'legacy' });
+    const world = nationalWorld();
     for (const each of Object.values(world.clubs)) {
       const founded = foundedYear(each);
       expect(founded).toBeGreaterThanOrEqual(1863);

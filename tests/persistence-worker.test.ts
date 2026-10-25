@@ -3,7 +3,7 @@ import { SaveDatabase } from '../src/persistence/repository';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { executePersistenceRequest } from '../src/workers/persistence.worker';
 import type { PersistenceOperation, PersistenceRequest } from '../src/persistence/workerClient';
-import { generateWorld } from '../src/engine/world/generate';
+import { nationalWorld } from './support/world';
 
 const databases: SaveDatabase[] = [];
 const setup = () => {
@@ -34,7 +34,7 @@ afterEach(async () => {
 describe('persistence worker service', () => {
   it('returns normalized write receipts without echoing the world and rejects corrupt writes', async () => {
     const { request } = setup();
-    const world = generateWorld('worker-receipt', { format: 'legacy' });
+    const world = nationalWorld();
     const payload = {
       kind: 'world' as const,
       world,

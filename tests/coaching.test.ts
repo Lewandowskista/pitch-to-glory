@@ -1,10 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { DecisionSample, Injury, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
-import { advanceCareerWeek } from '../src/engine/career/season';
 import {
   acceptGoal,
   adviceDraft,
@@ -16,40 +14,37 @@ import {
 import { defaultTrainingPlan } from '../src/engine/career/training';
 import { trainableAttributes } from '../src/engine/career/progression';
 import { validateWorld } from '../src/persistence/worldSchema';
+import {
+  NATIONAL_SEED,
+  TEST_DRAFT,
+  nationalCareer,
+  nationalCareerSeason,
+  nationalCareerWeeks,
+  nationalWorld,
+} from './support/world';
 
 /** Phase 5.2: advice from recent decisions, safe training choices and season goals. */
 const K = CONFIG.career.coaching;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const draft = (position: CareerDraft['position'], archetype: string): CareerDraft => ({
-  name: 'Robin Vale',
-  avatar: {
-    face: 1,
-    skin: 2,
-    hair: 3,
-    hairColor: 4,
-    facialHair: 0,
-    eyebrows: 1,
-    eyes: 2,
-    accessory: 3,
-  },
-  nationalityId: 'country:0',
+  ...TEST_DRAFT,
   position,
-  foot: 'left',
-  age: 17,
   archetype,
 });
 let striker: World;
 let keeper: World;
 let played: World;
-beforeAll(() => {
-  const base = generateWorld('coaching-tests', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'coaching-tests')[0]!;
-  striker = createCareer(base, draft('ST', 'finisher'), trial.id, 'coaching-tests');
-  keeper = createCareer(base, draft('GK', 'shot-stopper'), trial.id, 'coaching-tests');
-  played = clone(striker);
-  for (let week = 0; week < 12; week++)
-    played = advanceCareerWeek(played, { inPlace: true, autoPlay: true }).world;
-}, 120000);
+let season: World;
+// The shared national career (tests/support/world.ts): fresh, as a keeper, after twelve weeks
+// and after its first season.
+beforeAll(async () => {
+  striker = nationalCareer();
+  const base = nationalWorld();
+  const trial = trialOffers(base, 'country:0', NATIONAL_SEED)[0]!;
+  keeper = createCareer(base, draft('GK', 'shot-stopper'), trial.id, NATIONAL_SEED);
+  played = await nationalCareerWeeks();
+  season = await nationalCareerSeason();
+}, 300000);
 const player = (world: World) => world.players[world.career!.playerId]!;
 const samples = (
   family: DecisionSample['family'],
@@ -256,16 +251,19 @@ describe('season goals', () => {
     const declined = declineGoal(striker);
     expect(goalOffer(declined)).toBeNull();
     expect(declined.career!.coaching!.declinedSeason).toBe(striker.date.season);
-    let season = clone(declined);
-    while (season.phase === 'active')
-      season = advanceCareerWeek(season, { inPlace: true, autoPlay: true }).world;
-    const next = startNextSeason(season);
+    // A season played with the goal turned down (from its first week to its last:
+    // tests/coaching.slow.test.ts).
+    const ended = clone(season);
+    ended.career!.coaching!.goal = null;
+    ended.career!.coaching!.declinedSeason = ended.date.season;
+    const next = startNextSeason(ended);
     expect(next.career!.coaching!.declinedSeason).toBeNull();
     expect(goalOffer(next)!.season).toBe(next.date.season);
   }, 120000);
 
   it('measures progress from finalized records and judges the goal at the new season', () => {
-    let world = clone(played);
+    // A goal accepted in the first week, measured at the season's end.
+    const world = clone(season);
     world.career!.coaching!.goal = {
       version: 1,
       season: world.date.season,
@@ -273,14 +271,13 @@ describe('season goals', () => {
       target: 1,
       attribute: null,
       baseline: 0,
-      accepted: { ...world.date },
+      accepted: { ...world.date, week: 1 },
     };
     const appearances = world.career!.matches.filter(
       (match) => match.season === world.date.season && match.minutes > 0,
     ).length;
+    expect(appearances).toBeGreaterThan(0);
     expect(goalProgress(world, world.career!.coaching!.goal!)).toBe(appearances);
-    while (world.phase === 'active')
-      world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
     const next = startNextSeason(world);
     const result = next.career!.coaching!.history.at(-1)!;
     expect(result).toMatchObject({ kind: 'appearances', target: 1, completed: true });

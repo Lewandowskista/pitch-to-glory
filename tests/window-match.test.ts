@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import {
@@ -14,6 +13,7 @@ import { applyHonoursAction } from '../src/engine/career/honours/actions';
 import { commitWindowMatch, windowMatchSetup } from '../src/engine/career/honours/nationalMatch';
 import { matchSessionFor } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 /**
  * Version 0.9.0: a player who chooses to can play their senior side's window matches in the
@@ -22,7 +22,7 @@ import { validateWorld } from '../src/persistence/worldSchema';
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 let start: World;
 beforeAll(() => {
-  const base = generateWorld('window-match', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'window-match')[0]!;
   start = createCareer(
     base,
@@ -77,6 +77,13 @@ function play(world: World) {
 }
 
 describe('window matches the player plays', () => {
+  /** Opted in and played up to the first window, once (each test takes a copy). */
+  let reached: { world: World; stopped: string | null };
+  beforeAll(() => {
+    reached = toWindow(optedIn());
+  }, 300000);
+  const atWindow = () => ({ world: clone(reached.world), stopped: reached.stopped });
+
   it('simulates windows as before when the player has not chosen to play them', () => {
     const { world, stopped } = toWindow(start);
     expect(stopped).toBeNull();
@@ -85,7 +92,7 @@ describe('window matches the player plays', () => {
   }, 300000);
 
   it('waits on the window week with the nation’s matches, home and away', () => {
-    const { world, stopped } = toWindow(optedIn());
+    const { world, stopped } = atWindow();
     const window = world.international!.window!;
     expect(window.week).toBe(windowWeeks(world)[0]);
     expect(world.date.week).toBe(window.week);
@@ -99,7 +106,7 @@ describe('window matches the player plays', () => {
   }, 300000);
 
   it('records a played match once, then simulates the rest of the window with the week', () => {
-    const { world } = toWindow(optedIn());
+    const { world } = atWindow();
     const caps = world.career!.honours.caps.senior;
     const { fixture, session } = play(world);
     // A saved session belongs to this world while the match waits.
@@ -131,7 +138,7 @@ describe('window matches the player plays', () => {
   }, 300000);
 
   it('simulates a window already set out when the option is turned off', () => {
-    const { world } = toWindow(optedIn());
+    const { world } = atWindow();
     const off = applyHonoursAction(world, { type: 'play-internationals', on: false });
     expect(off.career!.honours.playInternationals).toBeUndefined();
     expect(pendingWindowFixture(off)).toBeNull();

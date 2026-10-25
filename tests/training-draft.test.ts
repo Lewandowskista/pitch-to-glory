@@ -1,5 +1,4 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { useAppStore } from '../src/store';
@@ -7,6 +6,7 @@ import type { TrainingPlan, World } from '../src/model/domain';
 import * as session from '../src/persistence/session';
 import { startWorldJob } from '../src/workers/client';
 import * as transitions from '../src/store/trainingTransitions';
+import { nationalWorld } from './support/world';
 
 const storage = vi.hoisted(() => ({
   acquire: vi.fn().mockResolvedValue(true),
@@ -19,7 +19,7 @@ vi.mock('../src/persistence/runtime', () => ({
 
 let world: World;
 beforeAll(() => {
-  const base = generateWorld('training-draft', { format: 'legacy' });
+  const base = nationalWorld();
   world = createCareer(
     base,
     {

@@ -18,6 +18,7 @@ import { careerInvariants } from '../src/engine/career/invariants';
 import { applyMatchCommand, createMatchSession, createMatchSetup } from '../src/engine/match';
 import { createSave, DEFAULT_SETTINGS, migrateSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const squad = (world: World, clubId: string): Player[] =>
@@ -92,7 +93,7 @@ describe('squad numbers in generated worlds', () => {
     },
   );
   it('give the career player a free number at the trial club', () => {
-    const base = generateWorld('numbers-career', { format: 'legacy' });
+    const base = nationalWorld();
     const club = trialOffers(base, 'country:0', 'numbers')[0]!;
     const world = createCareer(
       base,
@@ -128,7 +129,7 @@ describe('squad numbers in generated worlds', () => {
 
 describe('squad numbers on moves', () => {
   it('keep a transferred player’s number when it is free at the buyer, otherwise pick a free one', () => {
-    const world = generateWorld('numbers-moves', { format: 'legacy' });
+    const world = nationalWorld();
     const [seller, buyer] = Object.values(world.clubs);
     const rng = createRng('numbers-moves');
     const striker = squad(world, seller!.id).find((player) => player.squadNumber === 9)!;
@@ -187,7 +188,7 @@ describe('squad numbers across simulated seasons', () => {
     backfillSquadNumbers(kept);
     expect(kept).toEqual(world);
     // A fresh world backfills to exactly the numbers generation gives it.
-    const fresh = generateWorld('numbers-fresh', { format: 'legacy' });
+    const fresh = nationalWorld();
     const stripped = withoutNumbers(fresh);
     backfillSquadNumbers(stripped);
     expect(stripped).toEqual(fresh);

@@ -77,6 +77,8 @@ describe('ageing curves', () => {
 });
 
 describe('world equilibrium', () => {
+  // Four seasons of a compact world, a cheap proxy; the national world's drift gate over many
+  // seasons is a release-1.0 target (docs/RELEASE-1.0-PLAN.md, step 2.3).
   it('keeps tier ability stable over several seasons instead of drifting upward', () => {
     const tierMean = (world: World) => {
       const totals = new Map<number, number[]>();
@@ -100,7 +102,7 @@ describe('world equilibrium', () => {
     for (const [index, value] of end.entries())
       expect(Math.abs(value - start[index]!)).toBeLessThan(4);
   }, 120000);
-  it('recalibrates worlds saved before development version 2 once', () => {
+  it('legacy-compat: recalibrates worlds saved before development version 2 once', () => {
     const world = generateWorld('old-world', { format: 'legacy' });
     delete world.developmentVersion;
     const player = Object.values(world.players)[3]!;

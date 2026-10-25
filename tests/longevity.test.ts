@@ -4,7 +4,6 @@ import { CONFIG } from '../src/engine/config';
 import { careerCap } from '../src/engine/ageing';
 import { playerAbility } from '../src/engine/strength';
 import { getSeasonWeeks } from '../src/engine/world/calendar';
-import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -20,6 +19,7 @@ import {
 import { retirementState } from '../src/engine/career/honours';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 const L = CONFIG.career.longevity;
 const R = CONFIG.career.honours.retirement;
@@ -46,7 +46,7 @@ const draft: CareerDraft = {
 let career: World;
 let season: World;
 beforeAll(() => {
-  const base = generateWorld('longevity-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'longevity-tests')[0]!;
   career = createCareer(base, draft, trial.id, 'longevity-tests');
   season = clone(career);

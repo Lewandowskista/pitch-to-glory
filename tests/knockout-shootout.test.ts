@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { Position, TournamentFixture, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { autoPlayCommand, defaultTactics } from '../src/engine/career/matches';
 import {
@@ -21,6 +20,7 @@ import {
   tournamentMatchSetup,
 } from '../src/engine/career/honours/nationalMatch';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 /**
  * 0.9.1 (M1): a level international knockout always has a winner, whether the career player
@@ -31,7 +31,7 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 /** A 2026 tournament with the career player's nation through its group, at `stage`. */
 function bracket(position: Position, stage: 'quarter' | 'final' = 'quarter') {
-  const base = generateWorld(`knockout-${position}`, { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'knockout')[0]!;
   const world = createCareer(
     base,

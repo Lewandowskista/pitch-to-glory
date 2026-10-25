@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import {
@@ -11,6 +10,7 @@ import {
 } from '../src/engine/career/commitments';
 import { obligationProgress } from '../src/engine/career/lifestyle/lifestyle';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 /**
  * Review phase 4, step 4.4: up to three weekly commitments outside training, kept every week
@@ -21,7 +21,7 @@ const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as Worl
 const valid = (world: World) => expect(() => validateWorld(clone(world))).not.toThrow();
 let career: World;
 beforeAll(() => {
-  const base = generateWorld('commitment-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'commitment-tests')[0]!;
   career = createCareer(
     base,

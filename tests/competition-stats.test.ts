@@ -1,11 +1,8 @@
 import { refreshDressingRoom } from '../src/engine/world/dressing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Id, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
-import { advanceCareerWeek } from '../src/engine/career/season';
 import { seasonAwards } from '../src/engine/career/honours/awards';
-import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
+import { startNextSeason } from '../src/engine/world/simulate';
 import { applyFinalizedFixture, finalizeFixture } from '../src/engine/world/finalize';
 import {
   allCompetitionTotals,
@@ -16,41 +13,15 @@ import {
 import { selectStartingPlayers } from '../src/engine/strength';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
+import { nationalCareerSeason, nationalWorld } from './support/world';
 
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 
-/** A legacy career world whose season has been played to the end, awards included. */
+/** The shared national career after its first season, awards included (tests/support/world.ts). */
 let complete: World;
-beforeAll(() => {
-  const base = generateWorld('competition-stats', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'competition-stats')[0]!;
-  let world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'competition-stats',
-  );
-  while (world.phase === 'active')
-    world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
-  complete = world;
-}, 120000);
+beforeAll(async () => {
+  complete = await nationalCareerSeason();
+}, 300000);
 
 const careerLeagueId = (world: World) =>
   world.clubs[world.players[world.career!.playerId]!.clubId!]!.leagueId;
@@ -65,14 +36,14 @@ function competitionGoals(world: World, competitionId: Id): Map<Id, number> {
   }
   return goals;
 }
-/** Re-run the season's awards after changing who is where. */
-function rerunAwards(world: World) {
+/**
+ * Re-run the season's awards after changing who is where, and return the golden boot of
+ * `leagueId` (every top-two-tier league has its own, and so does the career player's league).
+ */
+function rerunAwards(world: World, leagueId = careerLeagueId(world)) {
   const season = world.date.season;
   world.awards = world.awards.filter((award) => award.season !== season || award.kind === 'month');
   seasonAwards(world);
-  // Every top-two-tier league has its own golden boot: this is the career player's league's.
-  const player = world.players[world.career!.playerId]!;
-  const leagueId = world.clubs[player.clubId!]!.leagueId;
   return world.awards.find(
     (award) =>
       award.season === season && award.kind === 'golden-boot' && award.competitionId === leagueId,
@@ -116,14 +87,18 @@ describe('league awards count league football only', () => {
   });
   it('keeps a departed player eligible for the league award they earned there', () => {
     const world = clone(complete);
-    const leagueId = careerLeagueId(world);
+    // A top-flight league, which always has its own award (the career player's lower league
+    // has one only while they play in it, and here they may well lead its scorers).
+    const leagueId = Object.values(world.leagues).find(
+      (l) => l.tier === 1 && l.id !== careerLeagueId(world),
+    )!.id;
     const league = competitionGoals(world, leagueId);
     const goals = Math.max(...league.values());
     // Every leader leaves the league before the awards; one of them must still win.
     const leaders = [...league.entries()].filter(([, g]) => g === goals).map(([id]) => id);
     const away = Object.values(world.leagues).find((l) => l.id !== leagueId)!;
     for (const leader of leaders) move(world, leader, away.clubIds[0]!);
-    const boot = rerunAwards(world);
+    const boot = rerunAwards(world, leagueId);
     expect(leaders).toContain(boot.winnerIds[0]);
     expect(boot.value).toBe(goals);
   });
@@ -131,9 +106,8 @@ describe('league awards count league football only', () => {
 
 describe('season competition statistics', () => {
   it("agree with every result and with each player's totals over a national season", () => {
-    let world = generateWorld('competition-stats-national');
-    expect(hasSeasonStatistics(world)).toBe(true);
-    while (world.phase === 'active') world = simulateWeek(world);
+    expect(hasSeasonStatistics(nationalWorld())).toBe(true);
+    const world = complete;
     expect(() => validateWorld(clone(world))).not.toThrow();
     const totals = allCompetitionTotals(world);
     let checked = 0;
@@ -157,10 +131,10 @@ describe('season competition statistics', () => {
     const fromResults = competitionGoals(world, league.id);
     for (const [id, line] of competitionTotals(world, league.id))
       expect(line.goals).toBe(fromResults.get(id) ?? 0);
-  }, 300000);
+  });
 
   it('keeps a loan spell apart from the parent club, and both in the league total', () => {
-    const world = generateWorld('competition-stats-loan', { format: 'legacy' });
+    const world = nationalWorld();
     const league = Object.values(world.leagues)[0]!;
     const [parentId, loanId] = league.clubIds as [Id, Id];
     const xi = (clubId: Id) =>

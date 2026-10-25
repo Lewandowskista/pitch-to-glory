@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Club, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
 import { economyCosts, usualWages } from '../src/engine/world/economy';
 import { clubSupport } from '../src/engine/career/training';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalCareerSeason, nationalWorld } from './support/world';
 
 /**
  * Review phase 4, step 4.4: club balances can go into debt, the wage budget is what a club
@@ -15,8 +15,8 @@ const E = CONFIG.world.background.economy;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 let world: World;
 beforeAll(() => {
-  world = generateWorld('club-economy', { format: 'legacy' });
-}, 120000);
+  world = nationalWorld();
+});
 
 const wagesOf = (w: World, club: Club) =>
   club.playerIds.reduce((sum, id) => sum + w.contracts[w.players[id]!.contractId!]!.weeklyWage, 0);
@@ -86,7 +86,7 @@ describe('the club economy', () => {
     expect(() => validateWorld(clone(w))).not.toThrow();
   }, 120000);
 
-  it('keeps worlds from before it on the old rules until a season starts', () => {
+  it('keeps worlds from before it on the old rules until a season starts', async () => {
     const w = clone(world);
     delete w.economyVersion;
     const club = Object.values(w.clubs).find((c) => w.leagues[c.leagueId])!;
@@ -97,13 +97,15 @@ describe('the club economy', () => {
     expect(w.clubs[club.id]!.finances.balance).toBe(0);
     expect(w.clubs[club.id]!.finances.wageBudget).toBeGreaterThanOrEqual(budget);
     expect(w.clubs[club.id]!.finances.strain).toBeUndefined();
-    while (w.phase === 'active') simulateWeek(w, { inPlace: true });
-    const next = startNextSeason(w);
+    // A season played on the old rules, at its end.
+    const ended = await nationalCareerSeason();
+    delete ended.economyVersion;
+    const next = startNextSeason(ended);
     expect(next.economyVersion).toBe(1);
     const usual = usualWages(next);
     const any = Object.values(next.clubs).find((c) => next.leagues[c.leagueId])!;
     expect(any.finances.weeklyCosts).toBe(
       economyCosts(usual.get(any.id)!, any.finances.weeklyIncome),
     );
-  }, 300000);
+  }, 120000);
 });

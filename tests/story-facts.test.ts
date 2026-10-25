@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import {
@@ -17,6 +16,7 @@ import { adjustRelationship } from '../src/engine/career/market/records';
 import { retireCareer } from '../src/engine/career/honours/retirement';
 import { formerTeammates } from '../src/engine/career/honours/retirement';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 /**
  * Review phase 5, step 5.2: what the football world remembers changes what it does: how far a
@@ -28,7 +28,7 @@ const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as Worl
 const valid = (world: World) => expect(() => validateWorld(clone(world))).not.toThrow();
 let career: World;
 beforeAll(() => {
-  const base = generateWorld('story-facts', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'story-facts')[0]!;
   career = createCareer(
     base,

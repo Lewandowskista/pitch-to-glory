@@ -48,7 +48,9 @@ function assertSquads(world: World) {
   }
 }
 
-describe('seeded world', () => {
+// The compact legacy world's own structure and rules; new worlds are national (pyramid.test.ts,
+// national-save.test.ts and the career suites on tests/support/world.ts).
+describe('legacy-compat: the compact seeded world', () => {
   it('generates six complete four-tier pyramids with varied linked people and assets', async () => {
     const { generateWorld } = await engine();
     const world = generateWorld('world-test', { format: 'legacy' });

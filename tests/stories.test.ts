@@ -1,10 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Injury, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { getSeasonWeeks } from '../src/engine/world/calendar';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { acceptGoal } from '../src/engine/career/coaching';
 import { relationshipValue } from '../src/engine/career/market';
@@ -17,38 +15,15 @@ import {
   proposal,
 } from '../src/engine/career/stories/promise';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalCareer, nationalCareerSeason } from './support/world';
 
 /** Phase 6: the manager's six-week development promise, from offer to conclusion. */
 const P = CONFIG.career.promise;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 let withGoal: World;
+// The shared national career (tests/support/world.ts), with a season goal accepted.
 beforeAll(() => {
-  const base = generateWorld('stories-tests', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'stories-tests')[0]!;
-  const world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'stories-tests',
-  );
-  withGoal = acceptGoal(world);
+  withGoal = acceptGoal(nationalCareer());
 });
 const week = (world: World) => advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
 const managerOf = (world: World) =>
@@ -228,17 +203,21 @@ describe('the milestone', () => {
     }
   });
 
-  it('closes quietly at the new season, and the validator allows one open promise', () => {
-    let world = acceptPromise(offered());
-    world.career!.social.promises!.push({
-      ...currentPromise(world)!,
-      id: `promise:${world.date.season - 1}`,
-      season: world.date.season - 1,
+  it('closes quietly at the new season, and the validator allows one open promise', async () => {
+    const accepted = acceptPromise(offered());
+    accepted.career!.social.promises!.push({
+      ...currentPromise(accepted)!,
+      id: `promise:${accepted.date.season - 1}`,
+      season: accepted.date.season - 1,
     });
-    expect(() => validateWorld(clone(world))).toThrow();
-    world.career!.social.promises!.pop();
-    while (world.phase === 'active') world = week(world);
+    expect(() => validateWorld(clone(accepted))).toThrow();
+    // Still open when the season ends (one played from the first week to its last:
+    // tests/stories.slow.test.ts).
+    const world = await nationalCareerSeason();
+    world.career!.social.promises = [{ ...currentPromise(acceptPromise(offered()))! }];
+    expect(currentPromise(world)!.status).toBe('active');
     const next = startNextSeason(world);
+    expect(next.career!.social.promises!.length).toBeGreaterThan(0);
     for (const promise of next.career!.social.promises!)
       expect(['achieved', 'missed', 'cancelled']).toContain(promise.status);
     expect(() => validateWorld(clone(next))).not.toThrow();

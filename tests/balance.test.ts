@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import {
   addXp,
@@ -18,6 +17,7 @@ import { SKILLS } from '../src/engine/career/catalogue';
 import { performanceXp } from '../src/engine/match/rewards';
 import { createSave, DEFAULT_SETTINGS, migrateSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 /**
  * The balance pass (docs/GAME-DESIGN-REVIEW.md, Phase A): one ability scale, a level curve
@@ -42,7 +42,7 @@ const draft: CareerDraft = {
   age: 17,
   archetype: 'finisher',
 };
-const base = generateWorld('balance-tests', { format: 'legacy' });
+const base = nationalWorld();
 const trial = trialOffers(base, 'country:0', 'balance-tests')[0]!;
 const career = createCareer(base, draft, trial.id, 'balance-tests');
 const player = (world: World) => world.players[world.career!.playerId]!;

@@ -1,8 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Fixture, Id, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
-import { advanceCareerWeek } from '../src/engine/career/season';
 import { createPostseasonTie } from '../src/engine/world/postseason';
 import {
   applyFinalizedFixture,
@@ -18,6 +16,7 @@ import {
 } from '../src/engine/career/matches';
 import { applyMatchCommand, createMatchSession, type MatchSession } from '../src/engine/match';
 import { createSave, DEFAULT_SETTINGS, parseSave } from '../src/persistence/schema';
+import { nationalCareerSeason, nationalWorld } from './support/world';
 
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const draft = (overrides: Partial<CareerDraft> = {}): CareerDraft => ({
@@ -43,10 +42,10 @@ const draft = (overrides: Partial<CareerDraft> = {}): CareerDraft => ({
 let playmaker: World;
 let national: World;
 beforeAll(() => {
-  const base = generateWorld('review-assists', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'review-assists')[0]!;
   playmaker = createCareer(base, draft(), trial.id, 'review-assists');
-  national = generateWorld('accounting-extra-time');
+  national = nationalWorld();
 });
 
 /** A one-legged play-off between two clubs this week: a level 90 minutes goes to extra time. */
@@ -104,10 +103,9 @@ function levelPlayed(world: World, fixture: Fixture) {
 }
 
 describe('career match accounting', () => {
-  it('credits every goal, assist, appearance and minute once across a season', () => {
-    let world = clone(playmaker);
-    while (world.phase === 'active')
-      world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  it('credits every goal, assist, appearance and minute once across a season', async () => {
+    // The shared national career after its first season (tests/support/world.ts).
+    const world = await nationalCareerSeason();
     const records = world.career!.matches;
     const stats = world.players[world.career!.playerId]!.stats;
     expect(records.length).toBeGreaterThan(10);

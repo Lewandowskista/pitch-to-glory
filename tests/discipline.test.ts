@@ -211,7 +211,7 @@ describe('cards in the background world', () => {
     }
   });
 
-  it('draws no background cards in worlds from before the national pyramid', () => {
+  it('legacy-compat: draws no background cards in worlds from before the national pyramid', () => {
     let legacy = generateWorld('discipline-legacy', { format: 'legacy' });
     for (let week = 0; week < 3; week++)
       legacy = simulateWeek(legacy, { inPlace: true, allowCareerFixture: true });

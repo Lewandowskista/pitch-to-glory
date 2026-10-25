@@ -1,6 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { nextCareerFixture } from '../src/engine/career/fixtures';
 import {
@@ -17,6 +16,7 @@ import { COMMON_PROPERTIES, EVENTS, type EventName } from '../src/analytics/even
 import { createObserver, keyMomentEvents, seasonSummary } from '../src/analytics/observe';
 import { useAppStore, type AppStore } from '../src/store';
 import * as stub from '../src/analytics/index';
+import { nationalWorld } from './support/world';
 
 vi.mock('../src/analytics/index', async (original) => ({
   ...(await original<typeof import('../src/analytics/index')>()),
@@ -352,7 +352,7 @@ describe('events derived from play', () => {
   let session: MatchSession;
   let outcome: ReturnType<typeof commitCareerMatch>;
   beforeAll(() => {
-    base = generateWorld('analytics-tests', { format: 'legacy' });
+    base = nationalWorld();
     const trial = trialOffers(base, 'country:0', 'analytics-tests')[0]!;
     career = createCareer(base, draft, trial.id, 'analytics-tests');
     const setup = careerMatchSetup(career, nextCareerFixture(career)!);
