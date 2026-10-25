@@ -10,6 +10,8 @@ import { LeaseLock } from '../persistence/leaseLock';
 import { SAVE_CHANNEL } from '../persistence/database';
 import { createChunkReceiver, sendChunked } from './transport';
 import { packBackup, unpackBackup } from '../persistence/backup';
+import { BackupScheduler, SlotBackups } from '../persistence/backups';
+import { failureCode } from '../persistence/storage';
 
 const databases = new Map<string, SaveDatabase>();
 function databaseFor(name: string): SaveDatabase {
@@ -20,9 +22,16 @@ function databaseFor(name: string): SaveDatabase {
   return database;
 }
 
+/**
+ * The rotating backups of one database (step 4.3): taken after a save or load, off the save
+ * queue. Only the browser worker takes them; Node tests pass their own.
+ */
+export type BackupsFor = (database: SaveDatabase, name: string) => BackupScheduler;
+
 export async function executePersistenceRequest(
   request: PersistenceRequest,
   resolveDatabase = databaseFor,
+  backupsFor: BackupsFor | null = null,
 ): Promise<PersistenceResponse> {
   try {
     if (request.operation === 'validate') {
@@ -40,7 +49,23 @@ export async function executePersistenceRequest(
       const acquired = await lease.acquire(request.slot, request.native);
       return { requestId: request.requestId, ok: true, value: { acquired } };
     }
-    const repository = new LocalSaveRepository(resolveDatabase(request.database), request.owner);
+    const database = resolveDatabase(request.database);
+    const backups = backupsFor?.(database, request.database);
+    const repository = new LocalSaveRepository(database, request.owner, backups ? { backups } : {});
+    if (request.operation === 'backups')
+      return { requestId: request.requestId, ok: true, value: await repository.backups() };
+    if (request.operation === 'restore') {
+      const value = await repository.restore(
+        request.slot,
+        request.backup,
+        request.expectedRevision,
+      );
+      return { requestId: request.requestId, ok: true, value };
+    }
+    if (request.operation === 'export-generation') {
+      const { name, json } = await repository.exportBackupGeneration(request.slot, request.backup);
+      return { requestId: request.requestId, ok: true, value: await packBackup(name, json) };
+    }
     if (request.operation === 'write-without-world') {
       const value = await repository.writeWithoutWorld(request.value, request.expectedRevision);
       return { requestId: request.requestId, ok: true, value };
@@ -104,11 +129,8 @@ export async function executePersistenceRequest(
     }
     return { requestId: request.requestId, ok: true, value };
   } catch (error) {
-    return {
-      requestId: request.requestId,
-      ok: false,
-      code: error instanceof SaveError ? error.code : 'storage',
-    };
+    // The browser refusing to store more is `quota` (step 4.6), not the general storage error.
+    return { requestId: request.requestId, ok: false, code: failureCode(error) };
   }
 }
 
@@ -123,6 +145,23 @@ if (typeof self !== 'undefined' && typeof document === 'undefined') {
   const channel =
     typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(SAVE_CHANNEL);
   let queue: Promise<void> = Promise.resolve();
+  const announce = (database: string) => {
+    try {
+      channel?.postMessage({ database });
+    } catch {
+      // The announcement only refreshes save lists.
+    }
+  };
+  // One backup scheduler per database; a backup taken refreshes every tab's save list.
+  const schedulers = new Map<string, BackupScheduler>();
+  const backupsFor: BackupsFor = (database, name) => {
+    let scheduler = schedulers.get(name);
+    if (!scheduler) {
+      scheduler = new BackupScheduler(new SlotBackups(database), () => announce(name));
+      schedulers.set(name, scheduler);
+    }
+    return scheduler;
+  };
   /**
    * Every request gets a reply (S9): a failure anywhere, even in sending the reply, answers
    * `ok: false` rather than leaving the tab's autosave waiting.
@@ -130,16 +169,11 @@ if (typeof self !== 'undefined' && typeof document === 'undefined') {
   const reply = async (request: PersistenceRequest) => {
     let response: PersistenceResponse;
     try {
-      response = await executePersistenceRequest(request);
+      response = await executePersistenceRequest(request, databaseFor, backupsFor);
     } catch {
       response = { requestId: request.requestId, ok: false, code: 'storage' };
     }
-    if (response.ok && MUTATIONS.has(request.operation))
-      try {
-        channel?.postMessage({ database: request.database });
-      } catch {
-        // The announcement only refreshes save lists; the write itself succeeded.
-      }
+    if (response.ok && MUTATIONS.has(request.operation)) announce(request.database);
     try {
       await sendChunked(scope, response);
     } catch {

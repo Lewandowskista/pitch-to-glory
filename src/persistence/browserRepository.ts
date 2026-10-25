@@ -10,6 +10,7 @@ import type { WorldPatch } from '../workers/worldPatch';
 import type { LeaseStore } from './locks';
 import type { PersistenceOperation } from './protocol';
 import type { BackupFile } from './backup';
+import type { BackupKind, BackupListing } from './backups';
 import { persistenceRequest } from './workerClient';
 import { combineReceipt, withoutWorld } from './receipts';
 import { SAVE_CHANNEL } from './database';
@@ -162,6 +163,18 @@ export class WorkerSaveRepository {
   /** A slot's stored records, unvalidated, for a slot that will not load. */
   exportRecovery(slot: SlotId): Promise<BackupFile> {
     return this.request({ operation: 'export-recovery', slot });
+  }
+  /** Every slot's rotating backups, skips and the storage estimate (step 4.3). */
+  backups(): Promise<BackupListing> {
+    return this.request({ operation: 'backups' });
+  }
+  /** Replace a slot with one of its backups, checked first in the worker. */
+  restore(slot: SlotId, backup: BackupKind, expectedRevision: number | null): Promise<LoadedSave> {
+    return this.changed(this.request({ operation: 'restore', slot, backup, expectedRevision }));
+  }
+  /** One backup generation as a file, assembled like a recovery copy. */
+  exportGeneration(slot: SlotId, backup: BackupKind): Promise<BackupFile> {
+    return this.request({ operation: 'export-generation', slot, backup });
   }
   /** Serialize an unsaved in-memory snapshot as a backup file, off the main thread. */
   serialize(slot: SlotId, name: string, payload: FoundationState | WorldState) {

@@ -1320,6 +1320,24 @@ export const CONFIG = {
      */
     leaseTimeoutMs: 20000,
     requestTimeoutMs: 180000,
+    /**
+     * Storage preflight (step 4.6): a whole write needs this much more than its own bytes free,
+     * by `navigator.storage.estimate()`, or it fails with `quota` before it starts.
+     */
+    quotaMarginBytes: 4 * 1024 * 1024,
+    /**
+     * Rotating backups inside IndexedDB (step 4.3), per slot: `season`, written after the first
+     * whole write in a new season (or of another world), and `day`, taken after the first load
+     * of a calendar day that passed every check. A third, `salvage`, keeps the stored records a
+     * salvage load had to set parts aside from (step 4.4). Stored gzip-compressed where the
+     * browser can. A backup is skipped (and the reason recorded) unless, after it, at least
+     * `minFreeBytes` and `reserveWorlds` times the world's size stay free for the saves
+     * themselves.
+     */
+    backups: {
+      minFreeBytes: 64 * 1024 * 1024,
+      reserveWorlds: 2,
+    },
   },
   accessibility: {
     minFontScale: 0.85,

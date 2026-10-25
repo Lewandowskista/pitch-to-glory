@@ -2,6 +2,7 @@ import type { FoundationState, WorldState, SlotId } from '../model/domain';
 import type { SaveError } from './errors';
 import type { AppSave } from './schema';
 import type { BackupFile } from './backup';
+import type { BackupKind, BackupListing } from './backups';
 import type {
   EncodedWorldSave,
   LoadedSave,
@@ -36,6 +37,12 @@ export type PersistenceOperation =
   | { operation: 'export'; slot: SlotId }
   /** A slot's stored records, unvalidated, for a slot that will not load. */
   | { operation: 'export-recovery'; slot: SlotId }
+  /** Every slot's rotating backups, what was skipped and the storage estimate (step 4.3). */
+  | { operation: 'backups' }
+  /** Replace a slot with one of its backups, checked first; answers the loaded save. */
+  | { operation: 'restore'; slot: SlotId; backup: BackupKind; expectedRevision: number | null }
+  /** One backup generation as a file, assembled like a recovery copy. */
+  | { operation: 'export-generation'; slot: SlotId; backup: BackupKind }
   | {
       operation: 'serialize';
       slot: SlotId;
@@ -56,6 +63,7 @@ export const MUTATIONS: ReadonlySet<PersistenceOperation['operation']> = new Set
   'create',
   'import',
   'remove',
+  'restore',
 ]);
 /** Lease operations skip the save queue in both directions, as they did on the main thread. */
 export const isLeaseOperation = (operation: PersistenceOperation['operation']) =>
@@ -75,6 +83,7 @@ export type PersistenceResponse =
         | SaveWriteReceipt
         | SlotListing[]
         | BackupFile
+        | BackupListing
         | { acquired: boolean }
         | undefined;
     }

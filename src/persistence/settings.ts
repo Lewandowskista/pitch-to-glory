@@ -43,7 +43,9 @@ export function validateSettings(value: unknown): Settings {
     simulationOnly: boolean(s.simulationOnly),
     audio: validateAudio(s.audio),
     tutorial: validateTutorial(s.tutorial),
-  };
+    // Rebuilt field by field: a field added to Settings must be added here, or it would be
+    // dropped on every load (step 4.9).
+  } satisfies Record<keyof Required<Settings>, unknown>;
 }
 /** Audio settings; preferences and saves from before milestone 9 get the defaults. */
 function validateAudio(value: unknown): Settings['audio'] {
@@ -61,7 +63,7 @@ function validateAudio(value: unknown): Settings['audio'] {
     music: a.music === undefined ? DEFAULT_SETTINGS.audio.music : volume(a.music),
     musicEnabled:
       a.musicEnabled === undefined ? DEFAULT_SETTINGS.audio.musicEnabled : boolean(a.musicEnabled),
-  };
+  } satisfies Record<keyof Required<Settings['audio']>, unknown>;
 }
 function validateTutorial(value: unknown): Settings['tutorial'] {
   if (value === undefined) return { ...DEFAULT_SETTINGS.tutorial };

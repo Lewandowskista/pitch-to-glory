@@ -8,13 +8,18 @@ import {
   autosave,
   deleteSlot,
   errorCode,
+  exportBackupGeneration,
   exportSlotBackup,
   exportSlotRecovery,
+  exportUnsavedCopy,
   importSlot,
   loadSlot,
+  restoreSlot,
   saveSlot,
 } from '../persistence/session';
 import type { SlotListing } from '../persistence/localRepository';
+import type { BackupInfo, BackupKind, BackupListing, BackupSkip } from '../persistence/backups';
+import { formatDate, formatInteger } from '../i18n/locale';
 import { backupFileName, backupType, recoveryFileName } from '../persistence/files';
 import type { BackupFile } from '../persistence/backup';
 import { summaryPortrait, type CareerSummary } from '../persistence/summary';
@@ -30,8 +35,29 @@ import { renderCrest } from '../engine/assets/crest';
 import { clubDress, renderAvatar } from '../engine/assets/avatar';
 import { ART } from '../engine/assets/shared';
 
+/** A restore whose backup did not pass its checks: the slot still will not open. */
+class RestoreFailed extends Error {
+  constructor(readonly slot: SlotId) {
+    super('invalid');
+  }
+}
 type Ready = Extract<SlotListing, { status: 'ready' }>;
 type Damaged = Extract<SlotListing, { status: 'error' }>;
+const KINDS: readonly BackupKind[] = ['season', 'day', 'salvage'];
+const backupDate = (iso: string) => formatDate(iso, { dateStyle: 'medium', timeStyle: 'short' });
+/** A backup in words: when in the game (`when`), and what and when on the device (`detail`). */
+function describeBackup(backup: BackupInfo) {
+  return {
+    when:
+      backup.season === null
+        ? backupDate(backup.takenAt)
+        : format(t.saves.backupWhen, { season: backup.season, week: backup.week ?? 1 }),
+    detail: format(t.saves.backupDetail, {
+      kind: t.saves.backupKinds[backup.kind],
+      date: backupDate(backup.takenAt),
+    }),
+  };
+}
 /** What the per-slot buttons need from the screen. */
 interface SlotActions {
   blocked: boolean;
@@ -43,6 +69,10 @@ interface SlotActions {
   exportSlot: (slot: SlotId) => void;
   /** Download a slot's stored records unchecked, for a slot that will not load. */
   exportRecovery: (slot: SlotId) => void;
+  /** Restore a slot that will not load from one of its automatic backups (after confirming). */
+  restore: (slot: SlotId, backup: BackupKind) => void;
+  /** Download one automatic backup as a file. */
+  exportGeneration: (slot: SlotId, backup: BackupInfo) => void;
   importFile: (file: File | undefined, slot: SlotId) => void;
   remove: (slot: SlotId) => void;
 }
@@ -72,6 +102,10 @@ export default function SavesContent() {
         ? t.saves.worldContent
         : t.saves.galleryContent;
   const [collections, setCollections] = useState<SlotListing[] | null>(null);
+  // The automatic backups and the storage estimate, read again whenever the slots change.
+  const [backups, setBackups] = useState<BackupListing | null>(null);
+  // The last action failed because storage is full: the alert offers an export.
+  const [full, setFull] = useState(false);
   const [name, setName] = useState<string>(t.saves.defaultName);
   const [busy, setBusy] = useState(false);
   const blocked = busy || !collections || Boolean(worldJob);
@@ -93,6 +127,13 @@ export default function SavesContent() {
   const action = params.get('action');
   const slot = Number(params.get('slot'));
   const valid = [1, 2, 3].includes(slot);
+  // The backup a restore confirmation is about, while it is still kept.
+  const restoring =
+    action === 'restore'
+      ? backups?.backups.find(
+          (backup) => backup.slot === slot && backup.kind === params.get('backup'),
+        )
+      : undefined;
   const close = () => {
     setPending(null);
     if (opened.current) {
@@ -114,6 +155,20 @@ export default function SavesContent() {
     return saves.watch(setCollections, () => setError(t.errors.storage));
   }, []);
   useEffect(() => {
+    if (!collections) return;
+    let current = true;
+    saves
+      .backups()
+      .then((listing) => {
+        if (current) setBackups(listing);
+      })
+      // Backups are a safety net: without their list the slots work as before.
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [collections]);
+  useEffect(() => {
     if (valid && action && collections && !reviewed) {
       const current = collections[slot - 1];
       setReviewed({
@@ -130,15 +185,27 @@ export default function SavesContent() {
     setError('');
     setNotice('');
     setUnreadable(null);
+    setFull(false);
     try {
       await operation();
     } catch (error) {
       const code = errorCode(error);
+      if (error instanceof RestoreFailed) {
+        setError(t.saves.restoreFailed);
+        setUnreadable(error.slot);
+      }
       // A stored slot that fails its checks is not a bad file: say so, and offer what still works.
-      if (target && code === 'invalid') {
-        setError(format(t.saves.unreadable, { slot: target }));
+      else if (target && code === 'invalid') {
+        const restorable = backups?.backups.some((backup) => backup.slot === target);
+        setError(
+          format(restorable ? t.saves.unreadableBackup : t.saves.unreadable, { slot: target }),
+        );
         setUnreadable(target);
-      } else setError(code === 'large' && large ? large : errorText(code));
+      } else {
+        setError(code === 'large' && large ? large : errorText(code));
+        // Storage is full (step 4.6): keep what is open in a file before freeing space.
+        setFull(code === 'quota');
+      }
     } finally {
       setBusy(false);
     }
@@ -165,7 +232,7 @@ export default function SavesContent() {
       undefined,
       t.saves.exportLarge,
     );
-  const open = async (action: string, slot: SlotId) => {
+  const open = async (action: string, slot: SlotId, extra: Record<string, string> = {}) => {
     // Settle this tab's pending edits before pinning what the player reviews.
     await autosave.flush();
     const current = (await saves.list())[slot - 1];
@@ -175,7 +242,7 @@ export default function SavesContent() {
       name: (current && current.status !== 'empty' ? current.name : null) ?? t.saves.unsaved,
     });
     opened.current = true;
-    setParams({ action, slot: String(slot) });
+    setParams({ action, slot: String(slot), ...extra });
   };
   const importFile = async (file: File | undefined, target: SlotId) => {
     if (!file) return;
@@ -206,6 +273,16 @@ export default function SavesContent() {
       } else if (action === 'import' && pending) {
         if (!(await importSlot(target, pending, reviewed.revision))) return;
         setNotice(t.saves.imported);
+      } else if (action === 'restore' && restoring) {
+        try {
+          if (!(await restoreSlot(target, restoring.kind, reviewed.revision))) return;
+        } catch (error) {
+          if (errorCode(error) !== 'invalid') throw error;
+          // The backup did not pass the checks either: back to the slot's other choices.
+          close();
+          throw new RestoreFailed(target);
+        }
+        setNotice(t.saves.restored);
       }
       close();
     });
@@ -240,6 +317,20 @@ export default function SavesContent() {
         t.saves.exportLarge,
       ),
     exportRecovery,
+    restore: (target, backup) => void run(() => open('restore', target, { backup })),
+    exportGeneration: (target, backup) =>
+      void run(
+        async () => {
+          const file = await exportBackupGeneration(target, backup.kind);
+          await download(
+            file,
+            recoveryFileName(`slot-${target}-${backup.kind}-backup`, file.compressed),
+            t.saves.backupDownloaded,
+          );
+        },
+        undefined,
+        t.saves.exportLarge,
+      ),
     importFile: (file, target) => void importFile(file, target),
     remove: (target) => void run(() => open('delete', target)),
   };
@@ -248,11 +339,13 @@ export default function SavesContent() {
       ? t.saves.deleteTitle
       : action === 'import'
         ? t.saves.importTitle
-        : t.saves.replaceTitle;
+        : action === 'restore'
+          ? t.saves.restoreTitle
+          : t.saves.replaceTitle;
   // A slot that cannot be opened: its confirmations point to the recovery copy first.
   const reviewedDamaged =
     reviewed !== null &&
-    collections?.[reviewed.slot - 1]?.status === 'error' &&
+    (collections?.[reviewed.slot - 1]?.status === 'error' || action === 'restore') &&
     action !== 'import';
   const actionBody =
     action === 'delete'
@@ -261,9 +354,12 @@ export default function SavesContent() {
         : t.saves.deleteBody
       : action === 'import'
         ? t.saves.importBody
-        : reviewedDamaged
-          ? t.saves.replaceDamagedBody
-          : t.saves.replaceBody;
+        : action === 'restore'
+          ? t.saves.restoreBody
+          : reviewedDamaged
+            ? t.saves.replaceDamagedBody
+            : t.saves.replaceBody;
+  const storage = backups?.storage;
   return (
     <div className="flex max-w-[77.5rem] flex-col gap-5">
       {/* What a save button stores, and the name it is stored under. */}
@@ -324,6 +420,21 @@ export default function SavesContent() {
               {t.saves.exportRecovery}
             </Button>
           )}
+          {full && active && (
+            <Button
+              variant="text"
+              className="text-danger"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const copy = await exportUnsavedCopy();
+                  if (copy) await download(copy.backup, copy.name, t.saves.exported);
+                })
+              }
+            >
+              {t.app.exportUnsaved}
+            </Button>
+          )}
           <Button
             variant="text"
             className="text-danger"
@@ -346,6 +457,9 @@ export default function SavesContent() {
             target={target}
             listing={collections ? (collections[target - 1] ?? null) : undefined}
             current={active?.slot === target}
+            failed={unreadable === target}
+            backups={backups?.backups.filter((backup) => backup.slot === target) ?? []}
+            skipped={backups?.skipped.find((skip) => skip.slot === target)}
             actions={actions}
           />
         ))}
@@ -386,6 +500,14 @@ export default function SavesContent() {
               {t.saves.protectTitle}
             </CardTitle>
             <p>{t.saves.protectBody}</p>
+            {storage && (
+              <p className="text-[0.8125rem] text-muted">
+                {format(t.saves.storageUse, {
+                  used: formatInteger(Math.max(1, Math.round(storage.usage / 2 ** 20))),
+                  quota: formatInteger(Math.round(storage.quota / 2 ** 20)),
+                })}
+              </p>
+            )}
             <StatusLine
               tone={protection === 'granted' ? 'success' : 'warning'}
               className="mt-1.5 self-start"
@@ -414,40 +536,50 @@ export default function SavesContent() {
           )}
         </Panel>
       </div>
-      {valid && ['delete', 'replace', 'import'].includes(action ?? '') && reviewed && (
-        <Dialog
-          cancelLabel={t.saves.cancel}
-          title={actionTitle}
-          body={
-            action === 'import' && !pending
-              ? t.saves.wrongFile
-              : format(actionBody, { slot, name: reviewed.name, content })
-          }
-          confirmLabel={
-            action === 'delete'
-              ? t.saves.confirmDelete
-              : action === 'import'
-                ? t.saves.confirmImport
-                : replaceLabel
-          }
-          onConfirm={action === 'import' && !pending ? undefined : confirm}
-          busy={busy}
-          danger={action === 'delete'}
-          onClose={close}
-        >
-          {reviewedDamaged && (
-            <Button
-              variant="tool"
-              icon="download"
-              className="justify-self-start"
-              disabled={busy}
-              onClick={() => exportRecovery(reviewed.slot)}
-            >
-              {t.saves.exportRecovery}
-            </Button>
-          )}
-        </Dialog>
-      )}
+      {valid &&
+        ['delete', 'replace', 'import', 'restore'].includes(action ?? '') &&
+        (action !== 'restore' || restoring) &&
+        reviewed && (
+          <Dialog
+            cancelLabel={t.saves.cancel}
+            title={actionTitle}
+            body={
+              action === 'import' && !pending
+                ? t.saves.wrongFile
+                : format(actionBody, {
+                    slot,
+                    name: reviewed.name,
+                    content,
+                    ...(restoring ? describeBackup(restoring) : {}),
+                  })
+            }
+            confirmLabel={
+              action === 'delete'
+                ? t.saves.confirmDelete
+                : action === 'import'
+                  ? t.saves.confirmImport
+                  : action === 'restore'
+                    ? t.saves.confirmRestore
+                    : replaceLabel
+            }
+            onConfirm={action === 'import' && !pending ? undefined : confirm}
+            busy={busy}
+            danger={action === 'delete'}
+            onClose={close}
+          >
+            {reviewedDamaged && (
+              <Button
+                variant="tool"
+                icon="download"
+                className="justify-self-start"
+                disabled={busy}
+                onClick={() => exportRecovery(reviewed.slot)}
+              >
+                {t.saves.exportRecovery}
+              </Button>
+            )}
+          </Dialog>
+        )}
     </div>
   );
 }
@@ -526,12 +658,20 @@ function SlotCard({
   target,
   listing,
   current,
+  failed,
+  backups,
+  skipped,
   actions,
 }: {
   target: SlotId;
   /** `undefined` while the slots are being read. */
   listing: SlotListing | null | undefined;
   current: boolean;
+  /** Its load just failed its checks, though its record reads. */
+  failed: boolean;
+  /** The slot's automatic backups, and the latest one skipped. */
+  backups: BackupInfo[];
+  skipped: BackupSkip | undefined;
   actions: SlotActions;
 }) {
   const slotName = format(t.saves.slot, { slot: target });
@@ -541,6 +681,18 @@ function SlotCard({
   const empty = !loading && !collection && !damaged;
   const occupied = Boolean(collection || damaged);
   const career = collection?.world?.career;
+  // A slot that will not open offers its backups (one saved by a newer version does not).
+  const restorable =
+    failed || damaged?.code === 'invalid'
+      ? KINDS.flatMap((kind) => backups.filter((backup) => backup.kind === kind))
+      : [];
+  const latest = backups.reduce<BackupInfo | null>(
+    (newest, backup) =>
+      !newest || Date.parse(backup.takenAt) > Date.parse(newest.takenAt) ? backup : newest,
+    null,
+  );
+  const paused =
+    skipped && (!latest || Date.parse(skipped.at) > Date.parse(latest.takenAt)) ? skipped : null;
   const state = loading
     ? t.saves.loadingState
     : damaged
@@ -611,6 +763,22 @@ function SlotCard({
             <span className="block text-xs font-medium text-muted">{career.clubName}</span>
           </p>
         )}
+        {collection && !failed && (paused || latest) && (
+          <p
+            className={cx(
+              'slot-backup mt-1 text-xs',
+              paused
+                ? 'self-start rounded-chip bg-art-gold px-2 py-0.5 font-semibold text-gold-ink'
+                : 'text-muted',
+            )}
+          >
+            {paused
+              ? paused.reason === 'space'
+                ? t.saves.backupsPaused
+                : t.saves.backupFailed
+              : format(t.saves.backedUp, { date: backupDate(latest!.takenAt) })}
+          </p>
+        )}
         {collection && (
           <p className="slot-seed mt-1.5 self-start rounded-chip bg-surface-soft px-2 py-0.5 text-xs font-semibold text-muted [overflow-wrap:anywhere]">
             {collection.world
@@ -623,6 +791,42 @@ function SlotCard({
           </p>
         )}
       </div>
+      {restorable.length > 0 && (
+        <section
+          aria-label={`${t.saves.restoreHeading} — ${slotName}`}
+          className="slot-restore flex flex-col gap-2 rounded-control bg-surface-soft p-3"
+        >
+          <p className={slotEyebrow}>{t.saves.restoreHeading}</p>
+          {restorable.map((backup) => {
+            const { when, detail } = describeBackup(backup);
+            return (
+              <div key={backup.id} className="flex items-center gap-1.5">
+                <Button
+                  variant="secondary"
+                  icon="refresh"
+                  className="h-auto min-w-0 flex-1 justify-start py-2 text-left"
+                  disabled={actions.blocked}
+                  aria-label={format(t.saves.restoreLabel, { when, detail, slot: slotName })}
+                  onClick={() => actions.restore(target, backup.kind)}
+                >
+                  <span className="flex min-w-0 flex-col items-start">
+                    <span>{format(t.saves.restore, { when })}</span>
+                    <span className="text-xs font-medium text-muted">{detail}</span>
+                  </span>
+                </Button>
+                <Button
+                  variant="tool"
+                  icon="download"
+                  disabled={actions.blocked}
+                  aria-label={format(t.saves.downloadBackup, { when, detail, slot: slotName })}
+                  title={format(t.saves.downloadBackup, { when, detail, slot: slotName })}
+                  onClick={() => actions.exportGeneration(target, backup)}
+                />
+              </div>
+            );
+          })}
+        </section>
+      )}
       {loading ? (
         <span aria-hidden="true" className="block h-12 rounded-control bg-surface-soft" />
       ) : (

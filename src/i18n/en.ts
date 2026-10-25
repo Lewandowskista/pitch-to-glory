@@ -101,6 +101,14 @@ export const en = {
         'Your world loaded safely, but a match in progress was saved by an older version of the game and could not be resumed. Start it again from Matchday.',
       'changes-discarded':
         'Your world loaded safely, but your most recent changes since the last completed week could not be restored. Check your latest decisions before you continue.',
+      'salvaged-feed':
+        'Your save loaded, but its social feed was damaged and has been cleared. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
+      'salvaged-statistics':
+        'Your save loaded, but this season’s competition statistics were damaged and have been set aside; they start again next season. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
+      'salvaged-history':
+        'Your save loaded, but the charts of your morale, form and growth were damaged and have been cleared. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
+      salvaged:
+        'Your save loaded, but some damaged parts were set aside: the social feed, this season’s statistics, your history charts or your latest changes. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
     },
     reloadSave: 'Reload saved game',
     recoverTitle: 'Reload the saved game?',
@@ -279,9 +287,9 @@ export const en = {
     collectionType: 'Gallery',
     deleteTitle: 'Delete this save?',
     deleteBody:
-      'This removes “{name}” in slot {slot} from this device. Download a backup first if you want to keep it.',
+      'This removes “{name}” in slot {slot} from this device, with its automatic backups. Download a backup first if you want to keep it.',
     deleteDamagedBody:
-      '“{name}” in slot {slot} cannot be opened here. Deleting it removes it from this device. Export a recovery copy first to keep what is stored.',
+      '“{name}” in slot {slot} cannot be opened here. Deleting it removes it and its automatic backups from this device. Export a recovery copy first to keep what is stored.',
     replaceTitle: 'Replace this save?',
     replaceBody:
       '“{name}” in slot {slot} will be replaced with your current {content} and preferences.',
@@ -318,6 +326,32 @@ export const en = {
     damagedState: 'unreadable',
     futureState: 'needs an update',
     careerTag: 'Career',
+    /** Rotating backups kept on this device (release 1.0 step 4.3). */
+    backedUp: 'Backed up on this device {date}',
+    backupsPaused: 'Automatic backups paused: storage is low on this device.',
+    backupFailed: 'The latest automatic backup could not be made.',
+    restoreHeading: 'Restore from an automatic backup',
+    backupKinds: {
+      season: 'Start of season',
+      day: 'Daily backup',
+      salvage: 'Before repair',
+    },
+    backupWhen: '{season} · Week {week}',
+    backupDetail: '{kind}, {date}',
+    restore: 'Restore {when}',
+    restoreLabel: 'Restore the backup of {when} ({detail}) — {slot}',
+    downloadBackup: 'Download the backup of {when} ({detail}) — {slot}',
+    backupDownloaded: 'Backup copy downloaded. It holds the automatic backup exactly as kept.',
+    restoreTitle: 'Restore this backup?',
+    restoreBody:
+      '“{name}” in slot {slot} will be replaced with its automatic backup of {when} ({detail}). Progress saved after it is lost. Export a recovery copy first to keep what is stored now.',
+    confirmRestore: 'Restore backup',
+    restored: 'Backup restored and loaded.',
+    restoreFailed:
+      'That backup did not pass the game’s checks either, so nothing was replaced. Try another backup, or export a recovery copy to keep what is stored.',
+    unreadableBackup:
+      'Slot {slot} could not be opened: its stored data did not pass the game’s checks. Restore it from an automatic backup on its card, or export a recovery copy to keep it.',
+    storageUse: 'Saves and backups use {used} MB of the {quota} MB this browser allows here.',
   },
   settings: {
     title: 'Settings',
@@ -404,6 +438,8 @@ export const en = {
     simulation: 'The world could not advance. Your last completed week is retained. Try again.',
     'match-active': 'Finish your match on Matchday before advancing or replacing this world.',
     storage: 'The browser could not access local storage. Check available space and try again.',
+    quota:
+      'Storage is full — export a backup and free space on this device, for example by deleting a save you no longer need.',
     render: 'The clubhouse could not open.',
     renderBody: 'Reload the page to try again. Your saves stay on this device.',
     reload: 'Reload page',

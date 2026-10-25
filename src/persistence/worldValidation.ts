@@ -1,4 +1,6 @@
-﻿import type { Attributes, KeeperAttributes, Standing } from '../model/domain';
+﻿import { covers } from './coverage';
+import type { Club, Manager, Player, PlayerStats } from '../model/domain';
+import type { Attributes, KeeperAttributes, Standing } from '../model/domain';
 import { CREST_SHAPES, CREST_SYMBOLS } from '../engine/assets/crest';
 import { AVATAR_OPTIONS, AVATAR_PARTS } from '../engine/assets/avatar';
 
@@ -372,6 +374,9 @@ export function validateEntities(
       number(contract[key]);
     if (contract.releaseClause !== null) number(contract.releaseClause);
     number(contract.sellOnPercent, 0, 100);
+    // Found unchecked on other players' contracts by step 4.9 (the career's is checked fully).
+    if (contract.sellOnClubId !== undefined) id(contract.sellOnClubId);
+    if (contract.optionTaken !== undefined) requireValue(typeof contract.optionTaken === 'boolean');
   }
   for (const manager of Object.values(managers)) {
     text(manager.name);
@@ -436,3 +441,78 @@ export function validateEntities(
     array(room.cliques, 4);
   }
 }
+/** Every player (step 4.9: every field of `Player`, checked by `tests/validator-coverage.test.ts`). */
+export const PLAYER_FIELDS = covers<Player>('players.*', {
+  id: true,
+  name: true,
+  birthSeason: true,
+  nationalityId: true,
+  clubId: true,
+  squadNumber: true,
+  avatar: true,
+  foot: true,
+  primaryPosition: true,
+  secondaryPositions: true,
+  attributes: true,
+  keeperAttributes: true,
+  hidden: true,
+  potential: true,
+  personality: true,
+  contractId: true,
+  traits: true,
+  fitness: true,
+  fatigue: true,
+  morale: true,
+  form: true,
+  injuryId: true,
+  injuryWeeks: true,
+  retired: true,
+  stats: true,
+  releasedSeason: true,
+  hallOfFame: true,
+});
+/** Every club (step 4.9: every field of `Club`, checked by `tests/validator-coverage.test.ts`). */
+export const CLUB_FIELDS = covers<Club>('clubs.*', {
+  id: true,
+  name: true,
+  city: true,
+  countryId: true,
+  leagueId: true,
+  crest: true,
+  kits: true,
+  stadium: true,
+  reputation: true,
+  finances: true,
+  youthFocus: true,
+  playingStyle: true,
+  culture: true,
+  managerId: true,
+  playerIds: true,
+  dressingRoomId: true,
+  identity: true,
+  academy: true,
+});
+/** Every manager (step 4.9). */
+export const MANAGER_FIELDS = covers<Manager>('managers.*', {
+  id: true,
+  name: true,
+  age: true,
+  avatar: true,
+  personality: true,
+  preferredFormation: true,
+  ability: true,
+  formerPlayerId: true,
+  appointed: true,
+});
+/** Every player's statistics (step 4.9). */
+export const PLAYER_STATS_FIELDS = covers<PlayerStats>('players.*.stats', {
+  appearances: true,
+  minutes: true,
+  goals: true,
+  assists: true,
+  cleanSheets: true,
+  ratingTotal: true,
+  trophies: true,
+  yellowCards: true,
+  redCards: true,
+});

@@ -1,4 +1,11 @@
-import type { FoundationState, WorldState, SaveFile, SlotId, World } from '../model/domain';
+import type {
+  FoundationState,
+  GalleryState,
+  WorldState,
+  SaveFile,
+  SlotId,
+  World,
+} from '../model/domain';
 import type { MatchSession } from '../engine/match/types';
 import { attachMarket } from '../engine/career/market/agents';
 import { initialMarket } from '../engine/career/market/records';
@@ -29,9 +36,16 @@ export type AppSave = Omit<SaveFile, 'payload'> & {
 /**
  * `match-discarded`: a match in progress could not be resumed. `changes-discarded`: the slot's
  * latest small changes (stored as patches, step 3.4) no longer applied, so the world loaded as it
- * was last written whole.
+ * was last written whole. `salvaged-…`: the world passed its checks only without an optional
+ * part (`salvage.ts`, step 4.4), named, or `salvaged` for several.
  */
-export type SaveRecovery = 'match-discarded' | 'changes-discarded';
+export type SaveRecovery =
+  | 'match-discarded'
+  | 'changes-discarded'
+  | 'salvaged-feed'
+  | 'salvaged-statistics'
+  | 'salvaged-history'
+  | 'salvaged';
 const invalid = (): never => {
   throw new SaveError('invalid');
 };
@@ -66,7 +80,10 @@ export function validateFoundation(value: unknown): FoundationState {
   const g = object(p.gallery);
   return {
     kind: 'foundation',
-    gallery: { seed: text(g.seed, 120), generation: integer(g.generation) },
+    gallery: {
+      seed: text(g.seed, 120),
+      generation: integer(g.generation),
+    } satisfies Record<keyof Required<GalleryState>, unknown>,
     settings: validateSettings(p.settings),
   };
 }

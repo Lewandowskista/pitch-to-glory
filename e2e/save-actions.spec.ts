@@ -228,6 +228,95 @@ test('a slot that will not load can still be exported as a recovery copy', async
   expect([await stored(page, 'worlds', 2), await stored(page, 'saves', 3)]).toEqual(before);
 });
 
+test('a slot that will not load is restored from its automatic backup', async ({ page }) => {
+  test.setTimeout(180000);
+  await skipTutorial(page);
+  await page.goto('/saves');
+  const cards = page.locator('.slot-card');
+  await cards.nth(1).getByLabel('Import backup — Slot 2').setInputFiles(backups[1]!);
+  await expect(cards.nth(1).getByRole('heading')).toHaveText('Football world', { timeout: 30000 });
+  // The import's whole write is backed up on this device, after the save.
+  await expect(cards.nth(1).locator('.slot-backup')).toContainText('Backed up on this device', {
+    timeout: 30000,
+  });
+  await expect(cards.nth(1).locator('.slot-restore')).toHaveCount(0);
+
+  await damage(page, 'worlds', 2);
+  await page.reload();
+  await cards.nth(1).getByRole('button', { name: 'Load world', exact: true }).click();
+  const alert = page.getByRole('alert').filter({ hasText: 'Slot 2 could not be opened' });
+  await expect(alert).toContainText('Restore it from an automatic backup');
+  const restore = cards.nth(1).getByRole('region', {
+    name: 'Restore from an automatic backup — Slot 2',
+  });
+  await expect(restore).toContainText('Start of season');
+  await restore
+    .getByRole('button', { name: /^Restore the backup of .* — Slot 2$/ })
+    .first()
+    .click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('will be replaced with its automatic backup');
+  // The confirmation offers the recovery copy of what is stored now, as delete does.
+  await expect(dialog.getByRole('button', { name: 'Export a recovery copy' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Restore backup', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator('.notice')).toHaveText('Backup restored and loaded.', {
+    timeout: 30000,
+  });
+  await expect(page.locator('.save-current-copy')).toContainText('Your football world');
+  await expect(cards.nth(1).locator('.active-label')).toBeVisible();
+  await expect(cards.nth(1).locator('.slot-restore')).toHaveCount(0);
+
+  // The restored slot loads again after a reload, as any save does.
+  await page.reload();
+  await cards.nth(1).getByRole('button', { name: 'Load world', exact: true }).click();
+  await expect(page.locator('.notice')).toHaveText('Save loaded.', { timeout: 30000 });
+});
+
+/** Stands in for the persistence worker's storage estimate; the page switches it to full. */
+const FULL_STORAGE_STUB = [
+  'let full = false;',
+  "new BroadcastChannel('e2e-storage').onmessage = (event) => { full = event.data === 'full'; };",
+  'const estimate = StorageManager.prototype.estimate;',
+  'StorageManager.prototype.estimate = function () {',
+  '  return full ? Promise.resolve({ usage: 1e9 - 1024, quota: 1e9 }) : estimate.call(this);',
+  '};',
+].join('\n');
+
+test.describe('when storage is full', () => {
+  // The app's service worker must not answer for the worker script this test rewrites.
+  test.use({ serviceWorkers: 'block' });
+  test('a save says so and offers an export', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Only Chromium routes a dedicated worker’s script');
+    test.setTimeout(180000);
+    await page.route(/persistence\.worker-[\w-]+\.js$/, async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({ response, body: `${FULL_STORAGE_STUB}\n${await response.text()}` });
+    });
+    await skipTutorial(page);
+    await page.goto('/saves');
+    const cards = page.locator('.slot-card');
+    await cards.nth(0).getByLabel('Import backup — Slot 1').setInputFiles(backups[0]!);
+    await expect(cards.nth(0).getByRole('heading')).toHaveText('Robin career', {
+      timeout: 30000,
+    });
+    await cards.nth(0).getByRole('button', { name: 'Continue career', exact: true }).click();
+    await expect(page.locator('.save-current-copy')).toContainText('Your career as Robin Vale');
+    await expect(page.getByText(/^Saves and backups use \d[\d,]* MB/)).toBeVisible();
+
+    await page.evaluate(() => new BroadcastChannel('e2e-storage').postMessage('full'));
+    await cards.nth(1).getByRole('button', { name: 'Save career', exact: true }).click();
+    const alert = page.getByRole('alert').filter({ hasText: 'Storage is full' });
+    await expect(alert).toContainText('export a backup and free space', { timeout: 30000 });
+    await expect(cards.nth(1).getByRole('heading')).toHaveText('A fresh start.');
+    const download = page.waitForEvent('download');
+    await alert.getByRole('button', { name: 'Export unsaved copy' }).click();
+    expect((await download).suggestedFilename()).toMatch(
+      /^pitch-to-glory-unsaved-\d{4}-\d{2}-\d{2}\.json\.gz$/,
+    );
+  });
+});
+
 test.describe('in a browser without compression streams', () => {
   // The app's service worker must not answer for the worker script this test rewrites.
   test.use({ serviceWorkers: 'block' });
