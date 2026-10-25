@@ -7,6 +7,7 @@ import {
   JOURNEY_DRAFT,
   nationalCareer,
   openCareerPage,
+  recordedReport,
   skipTutorial,
   test,
 } from './support';
@@ -244,7 +245,7 @@ test('long player, club and competition names never break inside a word', async 
   if (await pause.isVisible()) await pause.click();
   await check('scoreboard', '.match-scoreboard');
   await playToFullTime(page);
-  await expect(page.getByTestId('career-xp')).toBeVisible({ timeout: 60000 });
+  await recordedReport(page);
   await check('report', '.match-report');
 
   // Every surface was on screen somewhere: a renamed selector cannot pass by finding nothing.

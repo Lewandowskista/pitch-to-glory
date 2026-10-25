@@ -1,5 +1,12 @@
 import type { Page } from '@playwright/test';
-import { expect, nationalCareer, openCareerPage, skipTutorial, test } from './support';
+import {
+  expect,
+  nationalCareer,
+  openCareerPage,
+  recordedReport,
+  skipTutorial,
+  test,
+} from './support';
 import { mkdir } from 'node:fs/promises';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
@@ -140,7 +147,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await expect(page.getByTestId('level-up')).toContainText('Level up!');
 
   // Allocate an attribute point.
-  await page.getByTestId('level-up').getByRole('link', { name: 'Allocate points' }).click();
+  await page.getByTestId('level-up').getByRole('link', { name: 'Spend points' }).click();
   await expect(page).toHaveURL(/\/career\/profile/);
   const points = page.getByTestId('attribute-points');
   const before = Number(await points.textContent());
@@ -268,7 +275,7 @@ test('a finished match report never follows the player into another save', async
   // Finish slot 1's match: its report is shown from memory.
   await page.goto('/match?save=1');
   await playMatch(page);
-  await expect(page.getByTestId('career-xp')).toBeVisible({ timeout: 60000 });
+  await recordedReport(page);
   // The recorded report shows the finalized result.
   await expect(page.getByTestId('final-result')).toContainText('Final result');
   if (browserName === 'chromium') {

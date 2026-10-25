@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, nationalCareer, skipTutorial, test } from './support';
+import { expect, nationalCareer, recordedReport, skipTutorial, test } from './support';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -157,8 +157,7 @@ test('plays a tournament match for the nation, then the rest before the next sea
 
   // Full time records the result once, with the XP it granted.
   await playMatch(page);
-  await expect(page.getByTestId('career-xp')).toBeVisible({ timeout: 60000 });
-  await expect(page.getByTestId('career-xp')).toContainText('XP earned');
+  await recordedReport(page);
 
   // Continue plays the rest of the round and brings the next match.
   await page.getByRole('button', { name: 'Continue the tournament', exact: true }).click();
@@ -310,7 +309,7 @@ test('plays an international window match, then has the rest simulated', async (
   await fixture.getByRole('button', { name: 'Go to the pre-match briefing' }).click();
   await expect(state(page)).toHaveAttribute('data-status', 'preview');
   await playMatch(page);
-  await expect(page.getByTestId('career-xp')).toContainText('XP earned', { timeout: 60000 });
+  await recordedReport(page);
 
   // The second match waits; the player has it simulated with the week instead.
   await page.getByRole('button', { name: 'Your next fixture', exact: true }).click();
