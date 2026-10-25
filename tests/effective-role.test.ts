@@ -8,9 +8,7 @@ import {
   applyMatchCommand,
   createMatchSession,
   createMatchSetup,
-  DISCIPLINE_MATCH_ENGINE,
-  engineFor,
-  MATCH_ENGINE_VERSION,
+  isCurrentSetup,
   rolePosition,
   rolesForPosition,
   slotPosition,
@@ -26,7 +24,7 @@ import { nationalWorld } from './support/world';
 /**
  * One job per match (review phase 2, step 2.1): a player fielded away from their primary
  * position gets the role choices, objectives, involvement and half-time change of the slot
- * they play, on the current engine. Earlier engines keep the primary position.
+ * they play.
  */
 const world = nationalWorld();
 const [home, away] = Object.values(world.clubs);
@@ -44,7 +42,7 @@ function wingerInThreeFiveTwo(): MatchSetup {
 describe('effective match role', () => {
   it('gives a winger in a formation without wingers the slot they play', () => {
     const setup = wingerInThreeFiveTwo();
-    expect(engineFor(setup)).toBe(MATCH_ENGINE_VERSION);
+    expect(isCurrentSetup(setup)).toBe(true);
     const position = rolePosition(setup);
     expect(position).toBe(slotPosition(winger, '3-5-2'));
     expect(['RW', 'LW']).not.toContain(position);
@@ -82,19 +80,6 @@ describe('effective match role', () => {
     expect(session.state.match.status).toBe('halftime');
     const after = applyMatchCommand(session, { type: 'halftime', response: 'role' });
     expect(isRoleFor(position, after.state.match.tactics.role)).toBe(true);
-  });
-
-  it('keeps the primary position on the earlier engine', () => {
-    const setup = wingerInThreeFiveTwo();
-    delete setup.roleSlot;
-    expect(engineFor(setup)).toBe(DISCIPLINE_MATCH_ENGINE);
-    expect(rolePosition(setup)).toBe(winger.primaryPosition);
-    const session = createMatchSession(setup, {
-      role: rolesForPosition(winger.primaryPosition)[0]!,
-      risk: 'balanced',
-      mentality: 'balanced',
-    });
-    expect(session.state.match.objectives).toEqual(objectivesFor(setup.seed, winger));
   });
 
   it('previews on the hub exactly the objectives kickoff sets', () => {

@@ -6,13 +6,13 @@ import { advanceCareerWeek } from '../src/engine/career/season';
 import { nextCareerFixture, pendingCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCommand, careerMatchSetup, defaultTactics } from '../src/engine/career/matches';
 import { careerSelection, slotCompetition } from '../src/engine/career/market';
-import { applyMatchCommand, createMatchSession, validateMatchSession } from '../src/engine/match';
 import {
-  engineFor,
-  LEGACY_MATCH_ENGINE,
+  applyMatchCommand,
+  createMatchSession,
   MATCH_ENGINE_VERSION,
-  PREVIOUS_MATCH_ENGINE,
-} from '../src/engine/match/types';
+  OutdatedMatchSessionError,
+  validateMatchSession,
+} from '../src/engine/match';
 import { SITUATION_BY_ID } from '../src/engine/match/situations';
 import {
   FORMATION_SLOTS,
@@ -330,35 +330,22 @@ describe('interactive matches', () => {
     );
   }, 120000);
 
-  it('replay match-10 sessions, saved before slot-aware moments, as they were', () => {
+  it('refuses setups and sessions from the engines before formations and slot moments', () => {
     const source = pending();
     const setup = careerMatchSetup(source, pendingCareerFixture(source)!);
-    delete setup.slotMoments;
-    expect(engineFor(setup)).toBe(PREVIOUS_MATCH_ENGINE);
     let session = createMatchSession(setup, defaultTactics(source));
-    expect(session.engine).toBe(PREVIOUS_MATCH_ENGINE);
     session = applyMatchCommand(session, { type: 'kickoff' });
     expect(validateMatchSession(clone(session))).toEqual(session);
-    // Neither engine can be claimed for the other's setup.
-    expect(() =>
-      validateMatchSession({ ...clone(session), engine: MATCH_ENGINE_VERSION }),
-    ).toThrow();
-  });
-
-  it('replay sessions from before formations with their 4-3-3', () => {
-    const source = pending();
-    delete source.selectionVersion;
-    const setup = careerMatchSetup(source, pendingCareerFixture(source)!);
-    expect(setup.formations).toBeUndefined();
-    expect(engineFor(setup)).toBe(LEGACY_MATCH_ENGINE);
-    let session = createMatchSession(setup, defaultTactics(source));
-    expect(session.engine).toBe(LEGACY_MATCH_ENGINE);
-    expect(session.state.match.home.formation).toBe('4-3-3');
-    session = applyMatchCommand(session, { type: 'kickoff' });
-    expect(validateMatchSession(clone(session))).toEqual(session);
-    // A legacy session cannot claim formations, and a new one cannot claim the old engine.
-    expect(() =>
-      validateMatchSession({ ...clone(session), engine: MATCH_ENGINE_VERSION }),
-    ).toThrow();
+    for (const flag of ['formations', 'slotMoments'] as const) {
+      const older = clone(session);
+      delete older.setup[flag];
+      expect(() => validateMatchSession(older)).toThrow(OutdatedMatchSessionError);
+      expect(() => createMatchSession(older.setup, defaultTactics(source))).toThrow(
+        OutdatedMatchSessionError,
+      );
+    }
+    expect(() => validateMatchSession({ ...clone(session), engine: 'match-10' })).toThrow(
+      OutdatedMatchSessionError,
+    );
   });
 });

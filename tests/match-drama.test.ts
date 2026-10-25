@@ -6,14 +6,10 @@ import {
   applyMatchCommand,
   createMatchSession,
   createMatchSetup,
-  engineFor,
+  isCurrentSetup,
   situationWeights,
   validateMatchSession,
-  MATCH_ENGINE_VERSION,
   SITUATIONS,
-  SLOT_MATCH_ENGINE,
-  DRAMA_MATCH_ENGINE,
-  ROLE_MATCH_ENGINE,
   type MatchSession,
   type MatchSetup,
 } from '../src/engine/match';
@@ -50,37 +46,14 @@ describe('key moments that follow the game', () => {
   const played = (['ST', 'AM', 'CB', 'GK'] as Position[]).flatMap((position) =>
     Array.from({ length: 60 }, (_, index) => {
       const setup = setupFor(position, `drama:${position}:${index}`, index);
-      const legacy = structuredClone(setup);
-      delete legacy.dramaMoments;
-      return {
-        position,
-        drama: play(createMatchSession(setup, tactics)),
-        before: play(createMatchSession(legacy, tactics)),
-      };
+      return { position, drama: play(createMatchSession(setup, tactics)) };
     }),
   );
 
-  it('replay sessions saved before as they were, without the new situations', () => {
+  it('replay exactly', () => {
     const setup = setupFor('ST', 'drama:replay');
     expect(setup.dramaMoments).toBe(true);
-    expect(engineFor(setup)).toBe(MATCH_ENGINE_VERSION);
-    const legacy = structuredClone(setup);
-    delete legacy.dramaMoments;
-    expect(engineFor(legacy)).toBe(SLOT_MATCH_ENGINE);
-    let session = createMatchSession(legacy, tactics);
-    expect(session.engine).toBe(SLOT_MATCH_ENGINE);
-    session = applyMatchCommand(session, { type: 'kickoff' });
-    expect(validateMatchSession(structuredClone(session))).toEqual(session);
-    expect(() =>
-      validateMatchSession({ ...structuredClone(session), engine: MATCH_ENGINE_VERSION }),
-    ).toThrow();
-    for (const { before } of played) {
-      for (const moment of before.state.match.keyMoments) {
-        expect(DRAMA).not.toContain(moment.situationId);
-        expect(moment.situationKey).toBe(`match.situation.${moment.situationId}`);
-      }
-      expect(validateMatchSession(structuredClone(before))).toEqual(before);
-    }
+    expect(isCurrentSetup(setup)).toBe(true);
     for (const { drama } of played.slice(0, 20))
       expect(validateMatchSession(structuredClone(drama))).toEqual(drama);
   });
@@ -127,19 +100,18 @@ describe('key moments that follow the game', () => {
       state: { minute: 30, margin: -2 },
     });
     expect(early).toEqual(at(0));
-    // Without the drama engine the pool is the one sessions saved before used.
+    // Without `drama` the pool is open play only (set pieces add to it in `shares`).
     expect(situationWeights('ST', 'balanced').some((w) => w.situation.drama)).toBe(false);
   });
 
   it('keep the goals a match expects, wherever they now come from', () => {
-    const mean = (key: 'drama' | 'before') =>
+    const mean =
       played.reduce((sum, entry) => {
-        const score = entry[key].state.match.score;
+        const score = entry.drama.state.match.score;
         return sum + score[0] + score[1];
       }, 0) / played.length;
-    expect(Math.abs(mean('drama') - mean('before'))).toBeLessThan(0.25);
-    expect(mean('drama')).toBeGreaterThan(2.2);
-    expect(mean('drama')).toBeLessThan(3.2);
+    expect(mean).toBeGreaterThan(2.2);
+    expect(mean).toBeLessThan(3.2);
   });
 
   it('offer set pieces and last-ditch moments with stated odds that come true', () => {
@@ -283,17 +255,6 @@ describe('key moments that follow the game', () => {
     expect(chains).toBeGreaterThan(5);
   });
 
-  it('replay sessions from the engine before big occasions as they were', () => {
-    const setup = setupFor('ST', 'drama:occasions');
-    expect(setup.occasions).toBe(true);
-    const earlier = structuredClone(setup);
-    delete earlier.occasions;
-    expect(engineFor(earlier)).toBe(DRAMA_MATCH_ENGINE);
-    const session = play(createMatchSession(earlier, tactics));
-    expect(session.state.match.keyMoments.some((m) => m.follows)).toBe(false);
-    expect(validateMatchSession(structuredClone(session))).toEqual(session);
-  });
-
   it('ask a level knockout for the shootout kick, without touching the score', () => {
     let shootouts = 0;
     for (let index = 0; index < 80 && shootouts < 3; index++) {
@@ -329,7 +290,7 @@ describe('key moments that follow the game', () => {
     let shootouts = 0;
     for (let index = 0; index < 120 && (extra < 4 || shootouts < 1); index++) {
       const setup = setupFor(index % 2 ? 'GK' : 'ST', `extra:${index}`, index);
-      expect(engineFor(setup)).toBe(MATCH_ENGINE_VERSION);
+      expect(isCurrentSetup(setup)).toBe(true);
       setup.fixture = {
         id: `tie:${index}`,
         competitionId: 'cup',
@@ -365,26 +326,6 @@ describe('key moments that follow the game', () => {
     }
     expect(extra).toBeGreaterThan(0);
   }, 120000);
-
-  it('keep the match-17 path: the kick at 90, extra time simulated later', () => {
-    for (let index = 0; index < 60; index++) {
-      const setup = setupFor('ST', `extra:${index}`, index);
-      delete setup.extraTimePlay;
-      expect(engineFor(setup)).toBe(ROLE_MATCH_ENGINE);
-      setup.fixture = {
-        id: `tie:${index}`,
-        competitionId: 'cup',
-        importance: 1.15,
-        shootoutLead: 0,
-        extraTimeLead: 0,
-      };
-      const s = play(createMatchSession(setup, tactics)).state;
-      expect(s.regulation).toBeUndefined();
-      expect(s.penalties).toBeUndefined();
-      expect(s.match.minute).toBe(90);
-      if (s.shootout) return;
-    }
-  }, 60000);
 
   it('write a final’s headline from its result', () => {
     for (let index = 0; index < 20; index++) {

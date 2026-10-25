@@ -108,11 +108,8 @@ export const CONFIG = {
       formFrom: 55,
       form: 0.05,
     },
-    /**
-     * Cosmetic yellow cards (engine match-15): each side is booked in a minute with this
-     * chance (about 3.6 a match), the player weighted base + aggression × a + tackling × t.
-     */
-    discipline: { perTeamPerMinute: 0.02, base: 20, aggression: 1, tackling: 0.5 },
+    /** Who a card is shown to: weighted base + aggression × a + tackling × t. */
+    discipline: { base: 20, aggression: 1, tackling: 0.5 },
     /**
      * Full discipline (engine match-16; docs/MATCH-BALANCING.md "Full discipline"). Each side
      * is shown a card in a minute with `perTeamPerMinute`; the player is drawn among its
@@ -267,8 +264,6 @@ export const CONFIG = {
     },
     /** Odds multipliers 1 + effect for technical/direct choices; pitch below `pitchGood`. */
     conditions: {
-      technical: { clear: 0, rain: -0.06, wind: 0, snow: -0.1 },
-      direct: { clear: 0, rain: -0.02, wind: -0.08, snow: -0.05 },
       pitchGood: 70,
       pitchSlope: 0.004,
       /**

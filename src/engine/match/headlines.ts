@@ -90,7 +90,7 @@ export function headlineKind(session: MatchSession, rating: number): HeadlineKin
   if (lateGoal && margin === 0) return 'late-equaliser';
   if (goals >= 3) return 'hat-trick';
   // Big occasions (match-13): a final or a derby is the story, unless it is level.
-  if (setup.occasions && margin !== 0) {
+  if (margin !== 0) {
     if ((setup.fixture?.importance ?? 1) >= FINAL_IMPORTANCE)
       return margin > 0 ? 'final-won' : 'final-lost';
     if (setup.home.city && setup.home.city === setup.away.city)

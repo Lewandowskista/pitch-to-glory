@@ -47,9 +47,9 @@ export interface DecisionContext {
   tactics: Tactics;
   weather: Match['weather'];
   pitchCondition: number;
-  /** How hard it rains, blows or snows (match-15; steady when absent). */
+  /** How hard it rains, blows or snows (steady when absent). */
   weatherIntensity?: Intensity;
-  /** The state of the pitch (match-15; derived from the weather when absent). */
+  /** The state of the pitch (derived from the weather when absent). */
   pitchState?: PitchState;
   /** Selected team strength minus opposition strength. */
   strengthGap: number;
@@ -67,20 +67,14 @@ export interface DecisionContext {
   chemistry: number;
   /** Attribute points lost to playing an unfamiliar slot (0 in the player's own position). */
   positionPenalty?: number;
-  /** The current engine (`match-15`): its appended choices are offered. */
-  latest?: boolean;
-  /**
-   * Skills stack on the impact path as they do on the odds path (`match-17`): before, any one
-   * covering skill gave the same flat impact however many more covered the choice.
-   */
-  stackImpact?: boolean;
   /** The opposition's playing style (`match-19`): it bears on the odds of some choices. */
   opponentStyle?: string;
   /** The player studied this opponent (`match-19`): the style's penalties are softened. */
   prepared?: boolean;
-  /** Decisive defending (`match-20`): attributes move defending odds further. */
-  defending?: boolean;
-  /** The defending choices' attribute slope multiplier when not match-20's (`match-21`). */
+  /**
+   * The defending choices' attribute slope multiplier for this position (`match-21`); the
+   * general one (`defending.attributeSlope`, match-20) when absent.
+   */
   defendingSlope?: number;
   /**
    * The player's stronger foot and the flank of their post (`match-19`): a shot, cross or carry
@@ -131,19 +125,6 @@ export function governingValue(
         ? player.keeperAttributes[name as keyof Player['keeperAttributes']]
         : player.attributes[name as keyof Player['attributes']]);
   return value;
-}
-
-export function conditionsEffect(
-  sensitivity: ChoiceTemplate['conditions'],
-  weather: Match['weather'],
-  pitchCondition: number,
-): number {
-  if (sensitivity === 'technical')
-    return (
-      C.conditions.technical[weather] -
-      Math.max(0, C.conditions.pitchGood - pitchCondition) * C.conditions.pitchSlope
-    );
-  return sensitivity === 'direct' ? C.conditions.direct[weather] : 0;
 }
 
 /**
@@ -213,13 +194,11 @@ export function traitOdds(count: number): number {
 }
 /**
  * Impact multiplier from skills on an already likely choice: each further skill stacks, to a
- * limit (match-17), or one flat bonus on earlier engines.
+ * limit (match-17).
  */
-export function traitImpactOf(count: number, stack = true): number {
+export function traitImpactOf(count: number): number {
   if (!count) return 1;
-  return stack
-    ? Math.min(D.traitImpactMaximum, D.traitImpact * D.traitStack ** (count - 1))
-    : D.traitImpact;
+  return Math.min(D.traitImpactMaximum, D.traitImpact * D.traitStack ** (count - 1));
 }
 /**
  * Whether skills on a choice sharpen its impact rather than its odds: a choice that is likely
@@ -305,13 +284,13 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
   const intensity = context.weatherIntensity ?? 'steady';
   const pitch =
     context.pitchState ?? pitchStateFor(context.weather, context.pitchCondition, intensity);
-  // Choices appended by the current engine come last, and only while a moment has fewer than
-  // four (the number keys 1–4 cover every option): a skill-unlocked choice keeps its place.
+  // Choices appended by match-15 come last, and only while a moment has fewer than four (the
+  // number keys 1–4 cover every option): a skill-unlocked choice keeps its place.
   const unlocked = situation.choices.filter(
     (t) => !t.requiredTraitId || player.traits.includes(t.requiredTraitId),
   );
   const room = Math.max(0, 4 - unlocked.filter((t) => !t.latest).length);
-  const appended = context.latest ? unlocked.filter((t) => t.latest).slice(0, room) : [];
+  const appended = unlocked.filter((t) => t.latest).slice(0, room);
   return unlocked
     .filter((t) => !t.latest || appended.includes(t))
     .map((t) => {
@@ -319,7 +298,7 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
       const relative = value + context.consistencyShift - context.matchLevel;
       // Defending choices lean harder on the attributes behind them (match-20).
       const slope =
-        context.defending && (t.opponent === 'attacker' || t.direct === 'against')
+        t.opponent === 'attacker' || t.direct === 'against'
           ? D.attributeSlope *
             // A penalty keeps its fixed odds' slope (match-21 steepens open-play saves only).
             (t.fixed === undefined
@@ -355,7 +334,7 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
       // Skills on an already likely choice sharpen what it leads to instead of its odds.
       const skills = traitCount(player.traits, t);
       const traitOnImpact = onImpactPath(t);
-      const traitImpact = traitOnImpact ? traitImpactOf(skills, Boolean(context.stackImpact)) : 1;
+      const traitImpact = traitOnImpact ? traitImpactOf(skills) : 1;
       // A chance made for a teammate is worth more when they finish better than the player
       // would, and less when they do not.
       const CH = CONFIG.career.social.chemistry;
@@ -458,28 +437,18 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
           'attribute',
           t.direct === 'for' ? D.riskShot[tactics.risk] : t.direct ? 1 : risk.odds,
         ],
-        // The current engine (match-15) shows the weather and the pitch as separate factors,
-        // each named ("Heavy rain", "Heavy pitch"); earlier engines one combined factor.
-        ...(context.latest
-          ? ([
-              [
-                `match.factor.weather.${intensity}.${context.weather}`,
-                'attribute',
-                1 + weatherEffect(t.conditions, context.weather, intensity),
-              ],
-              [
-                `match.factor.pitch.${pitch}`,
-                'attribute',
-                1 + pitchEffect(t.conditions, context.weather, pitch, context.pitchCondition),
-              ],
-            ] as [string, ProbabilityFactor['source'], number][])
-          : ([
-              [
-                'match.factor.conditions',
-                'attribute',
-                1 + conditionsEffect(t.conditions, context.weather, context.pitchCondition),
-              ],
-            ] as [string, ProbabilityFactor['source'], number][])),
+        // The weather and the pitch are separate factors (match-15), each named ("Heavy
+        // rain", "Heavy pitch").
+        [
+          `match.factor.weather.${intensity}.${context.weather}`,
+          'attribute',
+          1 + weatherEffect(t.conditions, context.weather, intensity),
+        ],
+        [
+          `match.factor.pitch.${pitch}`,
+          'attribute',
+          1 + pitchEffect(t.conditions, context.weather, pitch, context.pitchCondition),
+        ],
       ];
       let current = round6(clamp(base, D.minimumProbability, D.maximumProbability));
       const factors: ProbabilityFactor[] = [

@@ -41,15 +41,7 @@ function setupAt(position: Position, seed: string, index: number): MatchSetup {
   const [home, away] = index % 2 ? [clubs[1]!, clubs[0]!] : [clubs[0]!, clubs[1]!];
   const club = clubs[0]!;
   const ids = club.playerIds.filter((id) => world.players[id]!.primaryPosition === position);
-  const setup = createMatchSetup(world, home.id, away.id, ids[index % ids.length]!, seed);
-  if (index === 3) {
-    // The legacy 4-3-3 path annotates the same way.
-    delete setup.formations;
-    delete setup.slotMoments;
-    delete setup.dramaMoments;
-    delete setup.occasions;
-  }
-  return setup;
+  return createMatchSetup(world, home.id, away.id, ids[index % ids.length]!, seed);
 }
 function play(setup: MatchSetup) {
   let session = createMatchSession(setup, tactics);
@@ -330,8 +322,8 @@ describe('match bookkeeping stats', { timeout: 120000 }, () => {
     const { session } = matches[0]!;
     expect(session.engine).toBe(MATCH_ENGINE_VERSION);
     expect(MATCH_ENGINE_VERSION).toBe('match-21');
-    // A session saved by match-14 is outdated and restarts from its seed; so is one claiming
-    // match-15 to match-18 for a setup on the current engine's rules.
+    // A session saved by an earlier engine is outdated and restarts from its seed
+    // (docs/COMPATIBILITY.md).
     for (const engine of [
       'match-14',
       'match-15',
@@ -345,11 +337,9 @@ describe('match bookkeeping stats', { timeout: 120000 }, () => {
       previous.engine = engine;
       expect(() => validateMatchSession(previous)).toThrow(OutdatedMatchSessionError);
     }
-    const legacy = matches.find((m) => !m.session.setup.formations)!.session;
-    for (const saved of [session, legacy]) {
-      const before = JSON.parse(JSON.stringify(saved));
-      delete before.state.stats.xg;
-      expect(() => validateMatchSession(before)).toThrow(OutdatedMatchSessionError);
-    }
+    // So is one without the bookkeeping (from before match-14).
+    const before = JSON.parse(JSON.stringify(session));
+    delete before.state.stats.xg;
+    expect(() => validateMatchSession(before)).toThrow(OutdatedMatchSessionError);
   });
 });

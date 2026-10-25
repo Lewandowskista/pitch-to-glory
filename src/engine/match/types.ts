@@ -14,121 +14,46 @@ import type { Formation } from '../selection/formations';
 export type { Tactics } from '../../model/domain';
 
 /**
- * Bumped whenever replayed state changes; saved sessions from another engine are discarded.
- * `match-14` annotated the choreography (beats, a focus range) and kept bookkeeping stats
- * without changing any outcome of `match-13`. `match-15` (redesign phase 6) changes outcomes
- * by design: key moments name their cast and each choice's target (a pass reaches the teammate
- * named before the choice), "Track the runner" when defending, objectives on their own stream,
- * cosmetic yellow cards, AI substitutions with a bench of seven, and weather intensity with a
- * pitch state as separate odds factors. `match-16` (the discipline phase, decision 5) adds full
- * discipline: second yellows and straight reds, sides playing on with fewer men, the career
- * player's own dismissal and a booking risk on defending choices. `match-17` (review phase 2,
- * step 2.1) gives the selected player one effective role: the formation slot they start in sets
- * their role choices, objectives, involvement, half-time role change and back-line credit, not
- * their primary position. `match-18` (review phase 3, step 3.1) plays extra time in the session
- * when a tie needs it, with key moments, and settles the shootout there: the player's kick is
- * taken after extra time, only if the sides are still level. `match-19` (review phase 4, steps
- * 4.1 and 4.2) gives the opposition an identity and the player a stronger foot: the opponent's
- * playing style tilts which situations reach the player and the odds of the choices it
- * affects, and a shot or carry with the weaker foot costs odds unless the player is
- * two-footed. `match-20` (review phase 6) makes defending decide more: a back-line player's
- * moments carry more of the opposition's goals, and their attributes move defending odds
- * further, so choosing well measurably prevents goals. `match-21` goes further where match-20
- * left the choices close: a defensive midfielder's moments carry more of the opposition's
- * goals, and a keeper's saves lean harder on the attributes behind them.
+ * Bumped whenever replayed state changes. A saved session replays only on the engine that made
+ * it; a build keeps at most the previous engine as well, for one minor release
+ * (docs/COMPATIBILITY.md), and loading discards any other session with a notice.
+ *
+ * History: `match-14` annotated the choreography (beats, a focus range) and kept bookkeeping
+ * stats. `match-15` (redesign phase 6): key moments name their cast and each choice's target,
+ * "Track the runner" when defending, objectives on their own stream, AI substitutions with a
+ * bench of seven, and weather intensity with a pitch state. `match-16`: full discipline (second
+ * yellows, straight reds, sides a man short, booking risks). `match-17`: the formation slot the
+ * player starts in sets their role. `match-18`: extra time and the shootout are played in the
+ * session. `match-19`: the opponent's playing style and the player's stronger foot. `match-20`:
+ * a back-line player's moments carry more of the opposition's goals. `match-21`: so do a
+ * defensive midfielder's, and a keeper's saves lean harder on their attributes.
+ *
+ * The 1.0 compatibility cut (docs/RELEASE-1.0-PLAN.md step 2.4) removed every engine before
+ * match-21; their sessions restart from kick-off.
  */
 export const MATCH_ENGINE_VERSION = 'match-21';
 /**
- * The engine before screening (match-21). A setup with `defending` but without `screening`
- * still replays as it was.
+ * The setup flags of the current engine, in the order setups store them. Each one switched on
+ * a step of the engine history above; a session saved by match-21 carries them all, and a
+ * setup without any of them is from an engine this build no longer plays.
  */
-export const DEFENDING_MATCH_ENGINE = 'match-20';
-/**
- * The engine before decisive defending. A setup with `identity` but without `defending` still
- * replays as it was.
- */
-export const IDENTITY_MATCH_ENGINE = 'match-19';
-/**
- * The engine before opponent identity and the preferred foot. A setup with `extraTimePlay` but
- * without `identity` still replays as it was.
- */
-export const EXTRA_TIME_MATCH_ENGINE = 'match-18';
-/**
- * The engine before playable extra time: the shootout kick came at 90 minutes and extra time
- * and penalties were simulated afterwards. A setup with `roleSlot` but without
- * `extraTimePlay` still replays as it was.
- */
-export const ROLE_MATCH_ENGINE = 'match-17';
-/**
- * The engine before the effective role: the primary position set role choices, objectives and
- * involvement. A setup with `discipline` but without `roleSlot` still replays as it was.
- */
-export const DISCIPLINE_MATCH_ENGINE = 'match-16';
-/**
- * The engine before full discipline (redesign phase 6): yellow cards are cosmetic. A setup with
- * `occasions` but without `discipline` still replays as it was, so sessions saved by match-15
- * keep playing.
- */
-export const OCCASIONS_MATCH_ENGINE = 'match-15';
-/**
- * The engine before big occasions (a shootout kick, chained moments, final and derby
- * headlines). A setup with `dramaMoments` but without `occasions` still replays as it was.
- */
-export const DRAMA_MATCH_ENGINE = 'match-12';
-/**
- * The engine before key moments followed the state of the game (late moments in a close game,
- * set pieces, situations weighted by the score). A setup without `dramaMoments` still replays
- * with slot-aware moments only, so sessions saved before keep playing.
- */
-export const SLOT_MATCH_ENGINE = 'match-11';
-/**
- * The engine before key moments followed the formation slot. A setup without `slotMoments`
- * still replays with moments drawn for the primary position, so sessions saved before keep
- * playing.
- */
-export const PREVIOUS_MATCH_ENGINE = 'match-10';
-/**
- * The engine before formations (Phase 5.1). A setup without `formations` still replays with
- * its 4-3-3 lineup and strength, so sessions saved before keep playing.
- */
-export const LEGACY_MATCH_ENGINE = 'match-10-lines';
-/** The engine a setup replays with. */
-export const engineFor = (
-  setup: Pick<
-    MatchSetup,
-    | 'formations'
-    | 'slotMoments'
-    | 'dramaMoments'
-    | 'occasions'
-    | 'discipline'
-    | 'roleSlot'
-    | 'extraTimePlay'
-    | 'identity'
-    | 'defending'
-    | 'screening'
-  >,
-): string =>
-  !setup.formations
-    ? LEGACY_MATCH_ENGINE
-    : !setup.slotMoments
-      ? PREVIOUS_MATCH_ENGINE
-      : !setup.dramaMoments
-        ? SLOT_MATCH_ENGINE
-        : setup.occasions
-          ? setup.discipline
-            ? setup.roleSlot
-              ? setup.extraTimePlay
-                ? setup.identity
-                  ? setup.defending
-                    ? setup.screening
-                      ? MATCH_ENGINE_VERSION
-                      : DEFENDING_MATCH_ENGINE
-                    : IDENTITY_MATCH_ENGINE
-                  : EXTRA_TIME_MATCH_ENGINE
-                : ROLE_MATCH_ENGINE
-              : DISCIPLINE_MATCH_ENGINE
-            : OCCASIONS_MATCH_ENGINE
-          : DRAMA_MATCH_ENGINE;
+export const CURRENT_SETUP_FLAGS = {
+  slotMoments: true,
+  dramaMoments: true,
+  occasions: true,
+  discipline: true,
+  roleSlot: true,
+  extraTimePlay: true,
+  identity: true,
+  defending: true,
+  screening: true,
+} as const;
+/** Whether a setup is the current engine's: formations and every current flag. */
+export const isCurrentSetup = (setup: Partial<MatchSetup>): boolean =>
+  Array.isArray(setup.formations) &&
+  (Object.keys(CURRENT_SETUP_FLAGS) as (keyof typeof CURRENT_SETUP_FLAGS)[]).every(
+    (flag) => setup[flag] === true,
+  );
 
 export interface MatchSetup {
   version: 1;
@@ -141,7 +66,10 @@ export interface MatchSetup {
   neutral: boolean;
   /** A scheduled fixture played by the career player; absent for friendlies. */
   fixture?: MatchFixture;
-  /** Home and away managers' formations; absent for a world on the earlier 4-3-3 selection. */
+  /**
+   * Home and away managers' formations. Every current setup has them (`isCurrentSetup`); the
+   * stored shape keeps them optional because sessions from before formations lacked them.
+   */
   formations?: [Formation, Formation];
   /**
    * Key moments follow the formation slot the selected player fills, and an unfamiliar slot
@@ -271,7 +199,7 @@ export interface LiveStats {
 /** The heat grid: columns along the pitch and rows across it (cells of about 5 m × 5 m). */
 export const HEAT_COLUMNS = 20;
 export const HEAT_ROWS = 13;
-/** `discipline` (cards) exists only on the match-16 path. */
+/** `discipline` (cards) counts from match-16. */
 export type RatingPart =
   RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team' | 'discipline';
 /** How play restarts at the start of the next passage (see motion.ts). */

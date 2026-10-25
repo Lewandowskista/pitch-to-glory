@@ -40,11 +40,12 @@ const REQUIRED = [
  * How each fixture's match in progress loads today: `resume` replays it under its own engine,
  * `restart` means this build no longer supports that engine, so loading discards the session
  * with the `match-discarded` notice and the fixture is played again from kick-off. The 1.0
- * compatibility cut (step 2.4, decision D3) moves sessions from before match-21 to `restart`.
+ * compatibility cut (step 2.4, decision D3) moved sessions from before match-21 to `restart`
+ * (docs/COMPATIBILITY.md).
  */
 const SESSIONS: Record<string, 'resume' | 'restart'> = {
-  'match-16': 'resume',
-  'match-20': 'resume',
+  'match-16': 'restart',
+  'match-20': 'restart',
   'match-21': 'resume',
 };
 const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
@@ -209,10 +210,10 @@ describe('golden saves from past releases', () => {
     await playThrough(entry('v0.3.0-legacy-match.json.br'));
   }, 120_000);
   // Heavy: national worlds. Candidates for the `slow` project.
-  it('0.3.0 national world mid-match (match-16): loads, finishes, commits, simulates and round trips [slow]', async () => {
+  it('0.3.0 national world mid-match (match-16, restarts): loads, finishes, commits, simulates and round trips [slow]', async () => {
     await playThrough(entry('v0.3.0-match.json.br'));
   }, 600_000);
-  it('0.8.0 national world mid-match (match-20): loads, finishes, commits, simulates and round trips [slow]', async () => {
+  it('0.8.0 national world mid-match (match-20, restarts): loads, finishes, commits, simulates and round trips [slow]', async () => {
     await playThrough(entry('v0.8.0-match.json.br'));
   }, 600_000);
   it('0.9.1 national world mid-match (match-21): loads, finishes, commits, simulates and round trips [slow]', async () => {
