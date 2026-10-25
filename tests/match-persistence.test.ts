@@ -8,6 +8,7 @@ import { LocalSaveRepository } from '../src/persistence/localRepository';
 import { executePersistenceRequest } from '../src/workers/persistence.worker';
 import type { World, WorldState } from '../src/model/domain';
 import type { PersistenceOperation } from '../src/persistence/workerClient';
+import { CONFIG } from '../src/engine/config';
 
 let world: World;
 beforeAll(() => {
@@ -98,7 +99,7 @@ describe('saved interactive matches', () => {
     expect((await db.worlds.get(1))?.world).toEqual(world);
     expect(await db.matches.get(1)).toBeUndefined();
     const read = await new LocalSaveRepository(db).read(1);
-    expect(read?.schemaVersion).toBe(22);
+    expect(read?.schemaVersion).toBe(CONFIG.saves.schemaVersion);
     expect(read?.payload).toEqual(state);
   });
   it('writes match checkpoints without the world, with ownership and revision checks', async () => {

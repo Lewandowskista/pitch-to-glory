@@ -18,6 +18,7 @@ import { careerInvariants } from '../src/engine/career/invariants';
 import { applyMatchCommand, createMatchSession, createMatchSetup } from '../src/engine/match';
 import { createSave, DEFAULT_SETTINGS, migrateSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { CONFIG } from '../src/engine/config';
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const squad = (world: World, clubId: string): Player[] =>
@@ -208,7 +209,7 @@ describe('schema 21 migration', () => {
     if (v20.payload.kind !== 'world') throw new Error('Expected world');
     expect(Object.values(v20.payload.world.players)[0]).not.toHaveProperty('squadNumber');
     const migrated = migrateSave(clone(v20));
-    expect(migrated.schemaVersion).toBe(22);
+    expect(migrated.schemaVersion).toBe(CONFIG.saves.schemaVersion);
     if (migrated.payload.kind !== 'world') throw new Error('Expected world');
     expect(squadNumberProblems(migrated.payload.world)).toEqual([]);
     // The same rules as generation, so an untouched world gets the numbers it would have had.

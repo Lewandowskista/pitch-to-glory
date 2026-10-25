@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
 import { mkdir, readFile } from 'node:fs/promises';
+import { CONFIG } from '../src/engine/config';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
@@ -175,7 +176,7 @@ test('worker advances, autosaves, finishes and rolls over a reproducible season'
   const json = await readFile(backupPath, 'utf8');
   console.log(`Completed-season backup: ${Buffer.byteLength(json, 'utf8')} bytes`);
   const saved = JSON.parse(json);
-  expect(saved.schemaVersion).toBe(22);
+  expect(saved.schemaVersion).toBe(CONFIG.saves.schemaVersion);
   expect(saved.payload.kind).toBe('world');
   expect(saved.payload.world.phase).toBe('complete');
   expect(saved.payload.world.history).toHaveLength(1);

@@ -5,6 +5,7 @@ import { validateWorld } from '../src/persistence/worldSchema';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import Dexie from 'dexie';
 import { SaveDatabase, SaveRepository } from '../src/persistence/repository';
+import { CONFIG } from '../src/engine/config';
 
 describe('national world persistence', () => {
   it('preserves version three worlds and their original rules', () => {
@@ -16,7 +17,7 @@ describe('national world persistence', () => {
       gallery: { seed: 'art', generation: 0 },
     });
     const migrated = migrateSave({ ...save, schemaVersion: 3 });
-    expect(migrated.schemaVersion).toBe(22);
+    expect(migrated.schemaVersion).toBe(CONFIG.saves.schemaVersion);
     expect(migrated.payload).toEqual(save.payload);
     expect(world.format).toBeUndefined();
   });
@@ -39,7 +40,7 @@ describe('national world persistence', () => {
     const upgraded = new SaveDatabase(name);
     try {
       const read = await new SaveRepository(upgraded).read(1);
-      expect(read?.schemaVersion).toBe(22);
+      expect(read?.schemaVersion).toBe(CONFIG.saves.schemaVersion);
       expect(read?.payload).toEqual(save.payload);
     } finally {
       upgraded.close();

@@ -3,6 +3,7 @@ import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
+import { CONFIG } from '../src/engine/config';
 
 let backupPath: string;
 let fatiguedBackupPath: string;
@@ -158,7 +159,7 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   const download = page.waitForEvent('download');
   await page.locator('.slot-card').first().getByRole('button', { name: 'Export backup' }).click();
   const saved = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
-  expect(saved.schemaVersion).toBe(22);
+  expect(saved.schemaVersion).toBe(CONFIG.saves.schemaVersion);
   expect(saved.payload.matchSession.state.match.status).toBe('finished');
   expect(
     saved.payload.matchSession.commands.some(
