@@ -84,6 +84,9 @@ The same rules run as unit tests in `tests/release.test.ts`.
 
 ## Save schema
 
+What each release can load and replay, and how long an earlier match engine is kept, is in
+[COMPATIBILITY.md](COMPATIBILITY.md).
+
 `CONFIG.saves.schemaVersion` (`src/engine/config.ts`) is the version written into every save. A
 build refuses a save from a newer schema (the slot shows as made by a newer version) instead of
 loading data it does not understand, so **any change to what a save stores needs a schema bump**:

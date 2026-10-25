@@ -1,5 +1,10 @@
 # Interactive match balancing
 
+> **1.0 compatibility cut.** Only engine `match-21` is live. The earlier engine paths described
+> below as kept for replay (`match-10-lines` to `match-20`, the 4-3-3 line-up, cosmetic cards, the
+> combined weather factor) were removed; their sessions restart from kick-off. The history is
+> kept here for the reasoning behind each rule. See [COMPATIBILITY.md](COMPATIBILITY.md).
+
 Engine `match-8` (`MATCH_ENGINE_VERSION`); sessions saved by `match-7` replay with their original 4-3-3. The engine plays the 90 minutes of friendlies and career fixtures; extra time is simulated when a fixture is finalized (see Phase 1.2 in BALANCING.md). Scalar tunables live in `CONFIG.match` (`src/engine/config.ts`; `engine/match/tuning.ts` is an alias). The key-moment catalogue — situations, their choices, governing attributes, base probabilities and weights — is data in `src/engine/match/situations.ts`; personal roles and their effects are in `src/engine/match/roles.ts`. Pitch geometry, formation slots and regulation minutes are structural values.
 
 All replayed floats are produced with `+ − × ÷`, `Math.round`, `min`/`max` only and rounded to six decimals where they are stored or compared (`round6`). No `Math.exp`, `Math.pow` or `Math.hypot` result enters replayed state, so a saved session replays byte-for-byte on any JavaScript engine. Sessions carry their engine version (`engine: 'match-7'`); `validateMatchSession` throws `OutdatedMatchSessionError` before replaying a session whose `engine` is missing or different.

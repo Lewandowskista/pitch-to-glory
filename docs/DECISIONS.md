@@ -247,3 +247,62 @@ Implementation decisions:
 - **LazyMotion and a CSS page entrance.** Framer Motion (mandated) stays for reward and UI animations, loaded as lazy features; the page entrance is CSS and starts visible, so Largest Contentful Paint never waits for an animation library.
 - **One variable font.** Inter variable (Latin) replaces four static weights: same typeface, half the bytes, one request.
 - **Time to interactive.** Measured with Lighthouse's mobile preset (simulated slow 4G at 1.6 Mbps and 4× CPU slowdown), which is harsher than typical 4G. Routes that need engine or save code (career hub, Matchday, Saves) stay a little above 3 s there; they are recorded rather than hidden.
+
+## The 1.0 compatibility cut (release 1.0 step 2.4, decision D3)
+
+The policy and the live versions are in [COMPATIBILITY.md](COMPATIBILITY.md); these are the choices
+behind the cut and its limits.
+
+- **Only `match-21` plays.** The `match-10` to `match-20` paths are gone: their engine ids, the
+  ten-deep `engineFor`, the gate helpers and every setup-flag branch they guarded, the 4-3-3
+  line-up, cosmetic yellow cards, the combined weather factor and the flat skill impact. A saved
+  session from an earlier engine fails validation as outdated, so loading discards it with the
+  `match-discarded` notice and the fixture is played again from kick-off; the world, the season
+  and every result before it are kept. The setup flags stay in the stored shape (a `match-21`
+  session carries them all) and are now only a check that a setup is current
+  (`isCurrentSetup`). `decidingHeadline` stays as a narrative flag: `match-21` sessions saved by
+  0.9.0 lack it and keep the late-goal headline rule they started with.
+- **The outcome snapshot proves the cut changed nothing current.** Two in five of its samples
+  played the pre-formation and slot-only paths; they were switched to the current engine and the
+  table re-recorded on the code before the cut, and the cut left it byte-identical. The tables of
+  the deleted engines went with them.
+- **Rules are adopted on load, once.** The schema 23 migration runs `adoptCurrentRules`
+  (`src/engine/world/rules.ts`) on a save from an earlier release: development version 2,
+  formation-aware selection, the club economy, the shared Hall of Fame record and career
+  development rules 3. All are deterministic and need no random draw. Part-way through a season:
+  - **Selection** changes who starts from the next fixture; results already played stand. Legacy
+    worlds adopt it too, which is what lets them play the current engine.
+  - **Economy** sets running costs from what each club's peers pay now. Balances are kept, so a
+    club that overspent under the old rules may show strain from the next week; that is the rule
+    working, not an invented past.
+  - **Development version 2** re-estimates potentials once, as the first simulated week used to.
+  - **Development rules 3** start conditioning from the current training plan and availability
+    from the career's recent appearances, all counted as played, because benching was not
+    recorded before. Late decline and focus-weighted growth apply to the rest of the season.
+  - **The Hall of Fame record** is seeded from the numbers kept before this season; this season's
+    club contributions accrue at its end like everyone's, and titles it has already decided are
+    credited when the record is adopted. Other players' international caps from before the record
+    were never recorded, so they count from adoption, as they did at a season start. A world
+    between seasons, or one without complete season statistics (schema 13 and earlier), keeps
+    adopting the record at its next season start, so `startNextSeason` still adopts it.
+- **A resumed session keeps its squads in step.** Adoption changes club finances, players'
+  potential and Hall of Fame points, which a saved session holds copies of. The match engine reads
+  none of them, so the migration gives the session's matching copies the adopted values and a
+  `match-21` session resumes unchanged.
+- **The earlier rules' code is gone where adoption made it unreachable.** Line-based selection
+  (`usesFormations` and the line ranks behind squad-role promises), the pre-economy finances,
+  weekly recalibration and rollover adoption of selection, economy and development rules. The
+  achievement record keeps its gate (it can still be adopted at a season start), and the career
+  development rules keep theirs: careers still compare rules in tests, and the gates are a few
+  comparisons.
+- **Legacy worlds are frozen in one module.** `src/engine/world/legacy.ts` holds what only compact
+  worlds play (table order by points, goal difference and goals; two up and two down; fixed
+  transfer weeks; same-position exchanges) and `leagueTable`, the one choice between their tables
+  and the national ranking. The remaining national branches gate national-only systems (the
+  pyramid, continental cups, real identities, reputations that move, the AI market) and stay
+  where those systems live.
+- **Migrations are not squashed.** The 22 chained steps are each a few lines; most are no-ops and
+  the rest attach a record once (market, social, style, honours, level XP, squad numbers).
+  Squashing them would save little code and would change the order in which records are
+  attached for the oldest saves, which the golden saves do not cover (none is older than schema
+  22), so the risk outweighs the gain.

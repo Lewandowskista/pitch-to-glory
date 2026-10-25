@@ -6,9 +6,11 @@
 > Milestone 11 (Android) has not started; Capacitor is not installed. Since 20 October the
 > [review plan](REVIEW-PLAN-2026-10-20.md) has been carried out through Phase 6, with measurements in
 > [REVIEW-PROGRESS-2026-10-20.md](REVIEW-PROGRESS-2026-10-20.md) and rules in [BALANCING.md](BALANCING.md).
-> Live versions: save schema **22**; match engine **match-21** (earlier sessions replay on their
-> own engine); career development rules **3**; world flags `selectionVersion` 1,
-> `achievements` 1 and `economyVersion` 1 (adopted at a season start by older saves).
+> Live versions ([COMPATIBILITY.md](COMPATIBILITY.md)): save schema **23**; match engine
+> **match-21** only (sessions from earlier engines restart from kick-off); career development
+> rules **3**; world flags `developmentVersion` 2, `selectionVersion` 1, `achievements` 1 and
+> `economyVersion` 1, adopted once by older saves when they load (`engine/world/rules.ts`).
+> Legacy compact worlds keep their frozen sporting rules in `engine/world/legacy.ts`.
 >
 > Since this document's milestone notes: the engine gained tournaments played round by round
 > and qualification (`career/honours/international.ts`, `nationalMatch.ts`), weekly commitments
@@ -1827,4 +1829,4 @@ Balance pass A (October 2026): `playerAbility` in `src/engine/strength.ts` is po
 
 Balance pass C: `src/engine/world/transfers.ts` runs the AI market from `simulateWeek` on the lifecycle weeks (`lifecycleWeeks`); `updateReputations` runs in `archiveSeason`; `selectLineup` takes a seed and a rotation range for background elevens; `injureParticipants` in `finalize.ts` sets `Player.injuryWeeks`; `Manager.appointed` dates sackings' grace period; `MatchSetup.strengthBonus` carries the managers' strength into interactive matches so played and simulated fixtures agree. `scripts/world-profile.ts` measures the world over seasons and checks its gates.
 
-Connected systems, phase 0: `CareerStyle.experiences` records when each experience was last taken, for its cooldown (schema 18, a no-op migration). `MatchSetup.slotMoments` makes key moments follow the selected player's formation slot (`playedSlot` in `src/engine/match/index.ts`, engine `match-11`); `engineFor(setup)` derives the engine from the setup, so `match-10` sessions keep replaying. `INBOX_KINDS` in `src/persistence/marketValidation.ts` must list every message kind that has copy in an i18n `messages` table; `tests/market.test.ts` checks the two agree.
+Connected systems, phase 0: `CareerStyle.experiences` records when each experience was last taken, for its cooldown (schema 18, a no-op migration). `MatchSetup.slotMoments` makes key moments follow the selected player's formation slot (`playedSlot` in `src/engine/match/index.ts`, engine `match-11`); `engineFor(setup)` derived the engine from the setup, so `match-10` sessions kept replaying (until the 1.0 compatibility cut, which kept only the current engine: `isCurrentSetup`). `INBOX_KINDS` in `src/persistence/marketValidation.ts` must list every message kind that has copy in an i18n `messages` table; `tests/market.test.ts` checks the two agree.
