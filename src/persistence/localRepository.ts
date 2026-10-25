@@ -25,7 +25,7 @@ import { compactSession, storedSession, type StoredMatchSession } from './matchR
 import { SAVE_DATABASE } from './database';
 import { applyWorldPatches, patchSize, validPatches, type WorldPatch } from '../workers/worldPatch';
 import { decodeWorldBytes, encodeWorld } from '../workers/worldCodec';
-export { summaryPortrait, summarizeWorld, type CareerSummary, type WorldSummary } from './summary';
+export type { WorldSummary } from './summary';
 export interface Lease {
   slot: SlotId;
   owner: string;
@@ -714,4 +714,4 @@ function receiptOf(meta: SaveMeta): SaveWriteReceipt {
         : { kind: 'foundation', gallery: meta.gallery, settings: meta.settings },
   };
 }
-export type { SaveRecovery, WorldPatch };
+export type { WorldPatch };
