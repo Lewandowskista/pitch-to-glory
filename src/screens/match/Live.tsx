@@ -1,5 +1,6 @@
-import { useId, useMemo, useState, type ReactNode } from 'react';
-import type { DecisionOutcome, MatchEvent, World } from '../../model/domain';
+import { useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import type { DecisionOutcome, MatchEvent, ProbabilityFactor, World } from '../../model/domain';
+import { plural } from '../../i18n/locale';
 import type { MatchSession } from '../../engine/match';
 import { attacksRightAt, fullTime } from '../../engine/match';
 import { renderAvatar } from '../../engine/assets/avatar';
@@ -9,9 +10,10 @@ import { Artwork } from '../../ui/Artwork';
 import { Icon } from '../../ui/Icon';
 import { cx } from '../../ui/kit';
 import { ClubBadge, Factors, strongest, verdictOf } from './Shared';
-import { kitAppearance } from './pitchKit';
+import { edgeStyle, kitAppearance } from './pitchKit';
 import { buildFeed, type FeedRow, type NarrationLine } from './feed';
 import { selectedSide, surname } from './cam';
+import { goalLine, goalStory } from './goals';
 
 const u = m.ui;
 export type LiveStatus = 'preview' | 'live' | 'decision' | 'halftime' | 'finished';
@@ -19,6 +21,16 @@ export type LiveStatus = 'preview' | 'live' | 'decision' | 'halftime' | 'finishe
 /** The engine's commentary line for an event. */
 export function commentaryText(event: MatchEvent): string {
   return matchFormat(matchLabel(event.commentaryKey), event.commentaryParams ?? {});
+}
+/** The live line for an event: goals name the team and the new score (step 5.1). */
+export function liveText(
+  setup: MatchSession['setup'],
+  events: readonly MatchEvent[],
+  event: MatchEvent,
+): string {
+  return event.kind === 'goal'
+    ? goalLine(setup, goalStory(setup, events, event))
+    : commentaryText(event);
 }
 /** A club's three-letter mark for the phone scoreboard and a side too narrow for its name. */
 const mark = (name: string) =>
@@ -53,8 +65,11 @@ export function Scoreboard({
   competition,
   stadium,
   controls,
+  score,
 }: {
   session: MatchSession;
+  /** The score to show, when a goal on the pitch has not gone in yet (step 5.1). */
+  score?: [number, number];
   status: LiveStatus;
   playing: boolean;
   competition: string;
@@ -64,7 +79,7 @@ export function Scoreboard({
   controls?: ReactNode;
 }) {
   const { setup, state } = session;
-  const [homeScore, awayScore] = state.match.score;
+  const [homeScore, awayScore] = score ?? state.match.score;
   const side = selectedSide(setup);
   const kits = kitAppearance(setup.home, setup.away);
   const momentum = state.match.momentum;
@@ -155,8 +170,20 @@ export function Scoreboard({
                 awayValue: 100 - momentum,
               })}
             >
-              <span style={{ flexGrow: momentum, background: kits.home }} />
-              <span style={{ flexGrow: 100 - momentum, background: kits.away }} />
+              <span
+                style={{
+                  flexGrow: momentum,
+                  background: kits.home,
+                  ...edgeStyle(kits.edge.home, 'night'),
+                }}
+              />
+              <span
+                style={{
+                  flexGrow: 100 - momentum,
+                  background: kits.away,
+                  ...edgeStyle(kits.edge.away, 'night'),
+                }}
+              />
             </span>
           )}
         </div>
@@ -240,7 +267,7 @@ export function MatchControls({
   );
 }
 
-/** Chips over the live pitch: both formations, who attacks which way, and the weather. */
+/** Chips above the live pitch: both formations, who attacks which way, and the weather. */
 export function PitchOverlay({ session }: { session: MatchSession }) {
   const { setup, state } = session;
   const side = selectedSide(setup);
@@ -297,6 +324,7 @@ export function Timeline({ session }: { session: MatchSession }) {
     /** A dismissal (match-16): the card is red. */
     red?: boolean;
     colour?: string;
+    edge?: CSSProperties;
     text: string;
   };
   const teamName = (teamId: string) =>
@@ -319,6 +347,10 @@ export function Timeline({ session }: { session: MatchSession }) {
         kind: event.kind === 'goal' ? ('goal' as const) : ('card' as const),
         red: event.kind === 'card' && !!event.card && event.card !== 'yellow',
         colour: event.teamId === setup.home.id ? kits.home : kits.away,
+        edge:
+          event.kind === 'goal'
+            ? edgeStyle(event.teamId === setup.home.id ? kits.edge.home : kits.edge.away, 'card')
+            : undefined,
         text: matchFormat(
           event.kind === 'goal'
             ? u.timelineGoal
@@ -348,6 +380,7 @@ export function Timeline({ session }: { session: MatchSession }) {
             style={{
               left: at(entry.minute),
               ...(entry.colour ? { background: entry.colour } : {}),
+              ...entry.edge,
             }}
             title={entry.text}
           >
@@ -506,11 +539,11 @@ export function StatsCard({ session }: { session: MatchSession }) {
         </h2>
         <span className="match-legend" aria-hidden="true">
           <span>
-            <span style={{ background: kits.home }} />
+            <span style={{ background: kits.home, ...edgeStyle(kits.edge.home, 'card') }} />
             {setup.home.name}
           </span>
           <span>
-            <span style={{ background: kits.away }} />
+            <span style={{ background: kits.away, ...edgeStyle(kits.edge.away, 'card') }} />
             {setup.away.name}
           </span>
         </span>
@@ -531,8 +564,20 @@ export function StatsCard({ session }: { session: MatchSession }) {
                   {b}
                 </span>
                 <span className="match-duel-bars" aria-hidden="true">
-                  <span style={{ flexGrow: share, background: kits.home }} />
-                  <span style={{ flexGrow: 100 - share, background: kits.away }} />
+                  <span
+                    style={{
+                      flexGrow: share,
+                      background: kits.home,
+                      ...edgeStyle(kits.edge.home, 'card'),
+                    }}
+                  />
+                  <span
+                    style={{
+                      flexGrow: 100 - share,
+                      background: kits.away,
+                      ...edgeStyle(kits.edge.away, 'card'),
+                    }}
+                  />
                 </span>
               </dd>
             </div>
@@ -563,9 +608,12 @@ export function CommentaryCard({
   session,
   narration,
   celebration,
+  hidden,
 }: {
   session: MatchSession;
   narration?: readonly NarrationLine[];
+  /** An event not shown yet: a goal whose build-up is still playing on the pitch. */
+  hidden?: string;
   /** Your equipped celebration's name, shown under your goals. */
   celebration?: string;
 }) {
@@ -575,17 +623,17 @@ export function CommentaryCard({
   const rows = useMemo(
     () =>
       buildFeed(
-        state.match.events,
-        commentaryText,
+        hidden ? state.match.events.filter((event) => event.id !== hidden) : state.match.events,
+        (event) => liveText(setup, state.match.events, event),
         (event) =>
           event.playerId
             ? setup.players[event.playerId]?.name
             : event.teamId === setup.home.id
               ? setup.home.name
               : setup.away.name,
-        narration,
+        hidden ? narration?.filter((line) => line.eventId !== hidden) : narration,
       ),
-    [state.match.events, setup, narration],
+    [state.match.events, setup, narration, hidden],
   );
   return (
     <section
@@ -952,6 +1000,9 @@ export function OutcomePanel({
   const roll = outcome.roll * 100;
   const verdict = verdictOf(outcome.probability, outcome.success);
   const key = outcome.success ? strongest(outcome.factors, 1) : strongest(outcome.factors, -1);
+  const shown = (factor: ProbabilityFactor) => Number((factor.contribution * 100).toFixed(1)) !== 0;
+  const moved = outcome.factors.filter(shown);
+  const still = outcome.factors.filter((factor) => !shown(factor));
   return (
     <section
       className={cx('match-panel match-outcome', outcome.success ? 'is-success' : 'is-miss')}
@@ -1025,7 +1076,14 @@ export function OutcomePanel({
       )}
       <div>
         <h3 className="match-factors-title">{m.factors}</h3>
-        <Factors factors={outcome.factors} total={outcome.probability} />
+        {/* What moved the chance; the factors that moved nothing fold away (review U13). */}
+        <Factors factors={moved} total={outcome.probability} />
+        {still.length > 0 && (
+          <details className="match-factors-more">
+            <summary>{plural(still.length, u.zeroFactors)}</summary>
+            <Factors factors={still} />
+          </details>
+        )}
       </div>
       {key && (
         <p className="match-key-factor">
