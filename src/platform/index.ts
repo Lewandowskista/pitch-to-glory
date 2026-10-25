@@ -30,11 +30,49 @@ export interface PlatformAdapter {
   send(url: string, body: string, hiding?: boolean): Promise<boolean>;
   /** Whether the device asks sites to save data (Save-Data, or `prefers-reduced-data`). */
   prefersReducedData(): boolean;
+  /**
+   * Small device-only records kept outside the saves, as text (the caller encodes them): the
+   * last version seen, the diagnostics log, each slot's last match report, and the new-career
+   * draft, which lasts only for this tab's session. Reads never throw and return null when the
+   * record is missing or storage is unavailable; writing `null` removes the record, and a
+   * write reports whether it was stored.
+   */
+  readRecord(key: DeviceRecord): string | null;
+  writeRecord(key: DeviceRecord, value: string | null): boolean;
+  /**
+   * Open an address outside the game (the bug report form) in a new browser tab or the
+   * system browser. Nothing is sent: the player sees the page and decides.
+   */
+  openExternal(url: string): Promise<boolean>;
 }
 export type PreferenceScope = 'settings' | 'analytics';
 const PREFERENCE_KEYS: Record<PreferenceScope, string> = {
   settings: 'ptg-preferences',
   analytics: 'ptg-analytics',
+};
+export type DeviceRecord =
+  | 'release-seen'
+  | 'diagnostics'
+  | 'career-draft'
+  | 'match-report-1'
+  | 'match-report-2'
+  | 'match-report-3';
+/**
+ * Where each record lives on the web. The release and draft keys predate the adapter
+ * (release 1.0 step 4.8 moved them behind it) and keep their names, so nothing is lost.
+ */
+const RECORDS: Record<DeviceRecord, { key: string; session?: true }> = {
+  'release-seen': { key: 'ptg-last-version' },
+  diagnostics: { key: 'ptg-diagnostics' },
+  'career-draft': { key: 'pitch-to-glory:career-draft', session: true },
+  'match-report-1': { key: 'ptg-match-report-1' },
+  'match-report-2': { key: 'ptg-match-report-2' },
+  'match-report-3': { key: 'ptg-match-report-3' },
+};
+/** Private windows and blocked storage can throw on any access, including the lookup. */
+const recordStorage = (key: DeviceRecord): Storage => {
+  const where = RECORDS[key];
+  return where.session ? sessionStorage : localStorage;
 };
 const saveFile: PlatformAdapter['saveFile'] = async (name, content, mime) => {
   const url = URL.createObjectURL(
@@ -157,6 +195,32 @@ export const platform: PlatformAdapter = {
         }
       },
     );
+  },
+  readRecord(key) {
+    try {
+      return recordStorage(key).getItem(RECORDS[key].key);
+    } catch {
+      return null;
+    }
+  },
+  writeRecord(key, value) {
+    try {
+      const storage = recordStorage(key);
+      if (value === null) storage.removeItem(RECORDS[key].key);
+      else storage.setItem(RECORDS[key].key, value);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  async openExternal(url) {
+    try {
+      // `noopener`: the opened page gets no handle on the game's window.
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return true;
+    } catch {
+      return false;
+    }
   },
   prefersReducedData() {
     try {

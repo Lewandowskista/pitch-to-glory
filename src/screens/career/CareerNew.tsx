@@ -43,10 +43,10 @@ import { formatNumber } from '../../i18n/locale';
 import { CrestImage, JobProgress, useRestoredWorld } from './shared';
 import { POSITIONS } from './selectors';
 import { track } from '../../analytics';
+import { platform } from '../../platform';
 
 const STEPS = ['identity', 'appearance', 'position', 'world', 'trial', 'confirm'] as const;
 type Step = (typeof STEPS)[number];
-const STORAGE_KEY = 'pitch-to-glory:career-draft';
 const [MIN_AGE, MAX_AGE] = CONFIG.career.start.ageRange;
 const AGES = Array.from({ length: MAX_AGE - MIN_AGE + 1 }, (_, index) => MIN_AGE + index);
 const NAME_MAX = 40;
@@ -92,8 +92,9 @@ function rollAvatar(roll: number): Avatar {
 }
 function readDraft(): WizardDraft {
   try {
+    // This tab's session only (the platform adapter's `career-draft` record).
     const stored = JSON.parse(
-      sessionStorage.getItem(STORAGE_KEY) ?? 'null',
+      platform.readRecord('career-draft') ?? 'null',
     ) as Partial<WizardDraft>;
     if (stored && typeof stored === 'object') {
       const draft = { ...defaultDraft(), ...stored };
@@ -107,12 +108,8 @@ function readDraft(): WizardDraft {
   return defaultDraft();
 }
 function writeDraft(draft: WizardDraft | null): void {
-  try {
-    if (draft) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-    else sessionStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Non-essential convenience.
-  }
+  // Non-essential convenience: a draft that cannot be stored lives in memory only.
+  platform.writeRecord('career-draft', draft ? JSON.stringify(draft) : null);
 }
 /** The current wizard query with another step, keeping `save` and `parent`. */
 const withStep = (params: URLSearchParams, step: Step) => {
