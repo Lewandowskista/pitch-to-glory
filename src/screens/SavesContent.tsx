@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { SlotId, World } from '../model/domain';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store';
 import { saves } from '../persistence/runtime';
 import {
@@ -48,19 +49,27 @@ interface SlotActions {
 /** The save slots: loaded as its own chunk, with the save system, after the page heading. */
 export default function SavesContent() {
   const active = useAppStore((s) => s.activeSave);
-  const world = useAppStore((s) => s.world);
+  // What is loaded, as plain values: the page does not re-render for every change to the world.
+  const current = useAppStore(useShallow(currentContent));
   const worldJob = useAppStore((s) => s.worldJob);
-  const replaceLabel = world?.career
-    ? t.saves.replaceCareer
-    : world
-      ? t.saves.replaceWorld
-      : t.saves.replace;
-  const saveLabel = world?.career ? t.saves.saveCareer : world ? t.saves.saveWorld : t.saves.save;
-  const content = world?.career
-    ? t.saves.careerContent
-    : world
-      ? t.saves.worldContent
-      : t.saves.galleryContent;
+  const replaceLabel =
+    current.kind === 'career'
+      ? t.saves.replaceCareer
+      : current.kind === 'world'
+        ? t.saves.replaceWorld
+        : t.saves.replace;
+  const saveLabel =
+    current.kind === 'career'
+      ? t.saves.saveCareer
+      : current.kind === 'world'
+        ? t.saves.saveWorld
+        : t.saves.save;
+  const content =
+    current.kind === 'career'
+      ? t.saves.careerContent
+      : current.kind === 'world'
+        ? t.saves.worldContent
+        : t.saves.galleryContent;
   const [collections, setCollections] = useState<SlotListing[] | null>(null);
   const [name, setName] = useState<string>(t.saves.defaultName);
   const [busy, setBusy] = useState(false);
@@ -232,7 +241,6 @@ export default function SavesContent() {
         : reviewedDamaged
           ? t.saves.replaceDamagedBody
           : t.saves.replaceBody;
-  const careerPlayer = world?.career ? world.players[world.career.playerId] : undefined;
   return (
     <div className="flex max-w-[77.5rem] flex-col gap-5">
       {/* What a save button stores, and the name it is stored under. */}
@@ -241,16 +249,16 @@ export default function SavesContent() {
         className="flex flex-wrap items-center gap-x-7 gap-y-4.5"
       >
         <div className="flex min-w-0 flex-[1_1_20rem] items-center gap-4">
-          <CurrentArt world={world} />
+          <CurrentArt />
           <div className="save-current-copy min-w-0">
             <CardTitle id="save-current-heading">{t.saves.current}</CardTitle>
             <p className="mt-1 text-muted">
-              {world?.career
-                ? format(t.saves.currentCareer, { name: careerPlayer?.name ?? '' })
-                : world
+              {current.kind === 'career'
+                ? format(t.saves.currentCareer, { name: current.name })
+                : current.kind === 'world'
                   ? format(t.saves.currentWorld, {
-                      season: world.date.season,
-                      week: world.date.week,
+                      season: current.season,
+                      week: current.week,
                     })
                   : t.saves.currentGallery}
             </p>
@@ -324,11 +332,17 @@ export default function SavesContent() {
           <ButtonLink
             variant="secondary"
             iconEnd="arrow"
-            to={world?.career ? '/career' : world ? '/world' : '/gallery'}
+            to={
+              current.kind === 'career'
+                ? '/career'
+                : current.kind === 'world'
+                  ? '/world'
+                  : '/gallery'
+            }
           >
-            {world?.career
-              ? format(t.menu.continueCareer, { name: careerPlayer?.name ?? '' })
-              : world
+            {current.kind === 'career'
+              ? format(t.menu.continueCareer, { name: current.name })
+              : current.kind === 'world'
                 ? t.saves.loadWorld
                 : t.saves.loadGallery}
           </ButtonLink>
@@ -430,11 +444,32 @@ function ShieldGlyph() {
   );
 }
 
-/** Who or what the save buttons store: the career player, or the world or gallery mark. */
-function CurrentArt({ world }: { world: World | null }) {
+/** What is loaded in this tab, in plain values (compared shallowly). */
+function currentContent(state: { world: World | null }) {
+  const world = state.world;
   const player = world?.career ? world.players[world.career.playerId] : undefined;
-  const club = player?.clubId ? world?.clubs[player.clubId] : undefined;
-  const season = world?.date.season ?? 0;
+  return {
+    kind: world?.career ? 'career' : world ? 'world' : null,
+    name: player?.name ?? '',
+    season: world?.date.season ?? 0,
+    week: world?.date.week ?? 0,
+  } as const;
+}
+
+/** Who or what the save buttons store: the career player, or the world or gallery mark. */
+function CurrentArt() {
+  const { player, club, season, hasWorld } = useAppStore(
+    useShallow((s) => {
+      const world = s.world;
+      const player = world?.career ? world.players[world.career.playerId] : undefined;
+      return {
+        player,
+        club: player?.clubId ? world?.clubs[player.clubId] : undefined,
+        season: world?.date.season ?? 0,
+        hasWorld: world !== null,
+      };
+    }),
+  );
   const svg = useMemo(() => {
     if (!player) return null;
     try {
@@ -449,7 +484,7 @@ function CurrentArt({ world }: { world: World | null }) {
       aria-hidden="true"
       className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-accent-soft text-accent"
     >
-      <Icon name={world ? 'globe' : 'gallery'} className="h-7 w-7" />
+      <Icon name={hasWorld ? 'globe' : 'gallery'} className="h-7 w-7" />
     </span>
   );
 }

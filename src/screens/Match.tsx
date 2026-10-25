@@ -16,7 +16,7 @@ import '../styles/match.css';
 const MatchBody = lazyPage(() => import('./MatchBody'));
 
 export default function MatchScreen() {
-  const world = useAppStore((store) => store.world);
+  const world = useAppStore((store) => store.world !== null);
   const [params] = useSearchParams();
   const saved = ['1', '2', '3'].includes(params.get('save') ?? '');
   if (world || saved)
