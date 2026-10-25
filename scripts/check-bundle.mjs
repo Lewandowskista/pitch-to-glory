@@ -104,13 +104,16 @@ const STARTED_WORKERS = /persistence\.worker-[\w-]+\.js/g;
 /** The match renderer, which must stay out of every route's static and usable sets. */
 const RENDERER = /pitchScene|WebGLRenderer|WebGPURenderer|CanvasRenderer/;
 
-const keyOf = (name) => {
-  const key = Object.keys(manifest).find((candidate) =>
-    name.startsWith('/') ? candidate.endsWith(name) : candidate === name,
-  );
-  if (!key) throw new Error(`Missing chunk in build manifest: ${name}`);
-  return key;
-};
+/**
+ * Whether a manifest key is the declared module: its own chunk, or the shared chunk Rollup
+ * named after it when the module sits in one (`_avatar-<hash>.js` for avatar.ts).
+ */
+const isModule = (key, name) =>
+  name.startsWith('/')
+    ? key.endsWith(name)
+    : key === name ||
+      (!manifest[key]?.src &&
+        manifest[key]?.name === name.replace(/^.*\//, '').replace(/\..*$/, ''));
 function measure(route) {
   const files = new Set();
   const keys = new Set();
@@ -131,9 +134,10 @@ function measure(route) {
   visit(routeKey);
   const staticFiles = new Set(files);
   for (const name of [...SHELL, ...FIRST_RENDER[route]]) {
-    const key = keyOf(name);
-    const requested = [...keys].some((owner) => manifest[owner].dynamicImports?.includes(key));
-    if (!requested)
+    const key = [...keys]
+      .flatMap((owner) => manifest[owner].dynamicImports ?? [])
+      .find((candidate) => isModule(candidate, name));
+    if (!key)
       throw new Error(
         `${route}: ${name} is listed as a first-render import, but nothing the route loads requests it. Update FIRST_RENDER in scripts/check-bundle.mjs.`,
       );
