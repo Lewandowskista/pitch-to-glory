@@ -1,4 +1,4 @@
-import { LOCALE, type Translations } from './locale';
+import { LOCALE, plurals, type Translations } from './locale';
 /** The weather as the match reports it, with its intensity (engine match-15). */
 const weatherNames = {
   light: { clear: 'Sunny spells', rain: 'Light rain', snow: 'Light snow', wind: 'A breeze' },
@@ -96,7 +96,8 @@ const matchTextEn = {
   next: 'Next key moment',
   speed: 'Match speed',
   speedValue: '{speed}×',
-  shortcuts: 'Space: play/pause · 1–4 or Enter: choose · arrows: move between choices',
+  shortcuts:
+    'Space: play/pause · 1–4 or Enter: choose · arrows: move between choices · R: replay a goal',
   simulation: 'Simulation only',
   simulationBody:
     'Follow the commentary and make every decision without loading the pitch renderer.',
@@ -308,6 +309,20 @@ const matchTextEn = {
       success: 'to come off',
     },
     successChance: 'Success chance',
+    /**
+     * The value hint beside a choice's chance (release 1.0, step 5.1): its expected goal swing
+     * against the best choice on offer.
+     */
+    value: { best: 'Best value', even: 'Even value', costly: 'Costly' },
+    valueTitle: 'Value',
+    valueLine: 'Expected goal swing {net} ({for} for, {against} against). Best on offer: {best}.',
+    valueExplain:
+      'Value weighs the chance against what success and failure lead to, in expected goals. Best value has the biggest swing on offer; costly gives away {costly} or more against it; the rest are even.',
+    /** The outcome's factors that moved nothing, folded away. */
+    zeroFactors: plurals({
+      one: '1 more factor had no effect',
+      other: '{count} more factors had no effect',
+    }),
     escNote: 'Esc closes the breakdown first, then means back.',
     cam: 'Tactical cam · {view}',
     camViews: {

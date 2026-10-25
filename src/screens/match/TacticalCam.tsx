@@ -307,6 +307,7 @@ export function TacticalCam({
           if (!player) return null;
           const home = setup.home.playerIds.includes(member.id);
           const colour = home ? kits.home : kits.away;
+          const edge = (home ? kits.edge.home : kits.edge.away).pitch;
           const ink = kitNumberColor(colour);
           const you = member.role === 'you';
           const label = labels.get(member.id);
@@ -348,6 +349,17 @@ export function TacticalCam({
                 stroke={you ? pitchArt.gold : '#102c26'}
                 strokeWidth={you ? 4 : 2.5}
               />
+              {edge && (
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={token + 2.5 * scale}
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth={2.5}
+                  opacity={0.9}
+                />
+              )}
               <text
                 x={x}
                 y={y}

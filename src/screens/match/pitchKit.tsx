@@ -1,15 +1,50 @@
+import type { CSSProperties } from 'react';
 import type { Club } from '../../model/domain';
-import { chooseMatchKits } from '../../engine/assets/clash';
+import { matchColours, type MatchSurface } from '../../engine/assets/clash';
 import { pitchArt } from './pitchArt';
+
+/**
+ * The surfaces team colours are drawn on: the grass, the card in each theme (`--surface` in
+ * tokens.css) and the always-dark scoreboard (`--color-night`).
+ */
+export const MATCH_SURFACES: Record<MatchSurface, `#${string}`> = {
+  pitch: pitchArt.grass,
+  light: '#ffffff',
+  dark: '#192c23',
+  night: '#14251e',
+};
 
 /**
  * Token colours for a match, shared by the SVG fallback and GPU scene (importing this does
  * not load Pixi). The away kit is chosen to be distinct for colour-blind viewers too; when no
- * kit is, `clash` adds a second marker to away tokens.
+ * kit is, `clash` adds a second marker to away tokens. `edge` says where a side's colour would
+ * vanish into the grass, a card or the scoreboard, so it is outlined there (review U19).
  */
 export function kitAppearance(home: Club, away: Club) {
-  const kits = chooseMatchKits(home, away);
-  return { home: kits.home.colors[0], away: kits.away.colors[0], clash: kits.clash };
+  const colours = matchColours(home, away, MATCH_SURFACES);
+  return {
+    home: colours.home.colour,
+    away: colours.away.colour,
+    clash: colours.clash,
+    edge: { home: colours.home.edge, away: colours.away.edge },
+  };
+}
+export type TeamEdge = ReturnType<typeof kitAppearance>['edge']['home'];
+
+/**
+ * An outline for a swatch or bar in a team's colour where that colour would vanish: on a card
+ * (in the theme whose card it matches) or on the always-dark scoreboard.
+ */
+export function edgeStyle(edge: TeamEdge, surface: 'card' | 'night'): CSSProperties | undefined {
+  const rings =
+    surface === 'night'
+      ? [edge.night && 'inset 0 0 0 1.5px var(--color-night-ink)']
+      : [
+          edge.light && 'inset 0 0 0 1.5px var(--edge-if-light)',
+          edge.dark && 'inset 0 0 0 1.5px var(--edge-if-dark)',
+        ];
+  const shadow = rings.filter(Boolean).join(', ');
+  return shadow ? { boxShadow: shadow } : undefined;
 }
 
 export function PitchMarkings() {

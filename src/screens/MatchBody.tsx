@@ -18,6 +18,7 @@ import {
   createMatchSetup,
   type MatchCommand,
   type MatchMotion,
+  type MatchSession,
 } from '../engine/match';
 import type { SlotId } from '../model/domain';
 import { errorCode } from '../persistence/errors';
@@ -51,8 +52,8 @@ import {
 import {
   CaptainPanel,
   CommentaryCard,
-  commentaryText,
   HalfTimePanel,
+  liveText,
   MatchControls,
   OutcomePanel,
   PitchOverlay,
@@ -76,13 +77,31 @@ import { celebrationNames } from '../i18n/celebrations';
 import '../styles/match.css';
 
 import { useMatchAudio } from './match/useMatchAudio';
-import { preparePlayback } from './match/playback';
+import { preparePassage } from './match/playback';
+import {
+  GOAL_BUILD_UP_BEATS,
+  JUMP_GOAL_HOLD_MS,
+  KICKOFF_MS,
+  JUMP_MS,
+  REPLAY_PACE,
+  passageGoal,
+  passagePace,
+  passageWait,
+} from './match/pace';
+import { goalLine, goalStory } from './match/goals';
+import { rememberSpeed, storedSpeed, MATCH_SPEEDS, type MatchSpeed } from './match/speed';
+import { usePlayClock } from './match/usePlayClock';
+import type { PitchReplay } from './match/Pitch';
+import { kitAppearance } from './match/pitchKit';
 import { shirtNumbers } from './match/pitchArt';
 import { Tutorial } from '../ui/TutorialLoader';
 import { StakeLine } from './career/stakesUi';
 // The live pitch, behind its own boundary that falls back to the SVG pitch (step 4.2).
 import { SafePitch as Pitch } from './match/SafePitch';
 import { useRestoredReport } from './match/restoreReport';
+/** The GOAL banner: fetched once a match is under way, shown when a goal goes in. */
+const loadGoalBanner = () => import('./match/GoalBanner');
+const GoalBanner = lazyPage(loadGoalBanner);
 /** A friendly between any two clubs, for a world without a career: loaded only there. */
 const Selection = lazyPage(() =>
   import('./match/Selection').then((module) => ({ default: module.Selection })),
@@ -102,16 +121,6 @@ function Report(props: ComponentProps<typeof LazyReport>) {
       <LazyReport {...props} />
     </Suspense>
   );
-}
-/** Real milliseconds per simulated minute at 1× speed. */
-const MINUTE_MS = 2200;
-/**
- * Normal play leaves time to follow the ball; decision build-ups and outcomes play slower.
- */
-function motionPace(kind: MatchMotion['kind'], speed: number) {
-  if (kind === 'minute') return { rate: 18 * speed, maxMs: (MINUTE_MS / speed) * 0.95 };
-  if (kind === 'kickoff') return { rate: 1, maxMs: 0 };
-  return { rate: 6, maxMs: 4200 };
 }
 /** Whether the viewport is at least `query` wide, following resizes. */
 function useMediaQuery(query: string): boolean {
@@ -136,7 +145,9 @@ export default function MatchBody() {
   // Fetch the report's code while the match is played, so the final whistle never waits.
   const hasSession = Boolean(session);
   useEffect(() => {
-    if (hasSession) void loadReport().catch(() => undefined);
+    if (!hasSession) return;
+    void loadReport().catch(() => undefined);
+    void loadGoalBanner().catch(() => undefined);
   }, [hasSession]);
   const active = useAppStore((store) => store.activeSave);
   const settings = useAppStore((store) => store.settings);
@@ -155,7 +166,13 @@ export default function MatchBody() {
     setLoadAttempt((count) => count + 1);
   };
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
+  // The speed the last match was watched at on this device (review M19).
+  const [speed, setSpeedState] = useState<MatchSpeed>(storedSpeed);
+  const setSpeed = useCallback((value: number) => {
+    const next = MATCH_SPEEDS.find((entry) => entry === value) ?? 1;
+    setSpeedState(next);
+    rememberSpeed(next);
+  }, []);
   const choicesRef = useRef<HTMLDivElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
   const wide = useMediaQuery(WIDE);
@@ -181,17 +198,6 @@ export default function MatchBody() {
   );
   const reduced = settings.reducedMotion || systemReduced;
   const momentId = state?.currentMoment?.id;
-  const latestEvent = state?.match.events[state.match.events.length - 1];
-  const latestText = latestEvent ? commentaryText(latestEvent) : '';
-  const scoreText =
-    session && state
-      ? matchFormat(m.announceScore, {
-          home: session.setup.home.name,
-          away: session.setup.away.name,
-          homeScore: state.match.score[0],
-          awayScore: state.match.score[1],
-        })
-      : '';
   const momentText = state?.currentMoment
     ? matchFormat(m.announceMoment, {
         minute: state.currentMoment.minute,
@@ -282,26 +288,78 @@ export default function MatchBody() {
     }
   }, []);
 
+  /**
+   * Simulation-only mode jumps straight to the next key moment, interruption or goal instead of
+   * running the clock minute by minute (review M15); a goal stops the jump for its banner.
+   */
+  const jump = useCallback(() => {
+    let current = useAppStore.getState().matchSession;
+    if (!current || useAppStore.getState().worldJob) return;
+    const waiting = (s: MatchSession['state']) =>
+      s.match.status !== 'live' || s.captainDecisionPending || s.substitutionDecisionPending;
+    try {
+      for (let step = 0; step < 240 && !waiting(current.state); step++) {
+        current = applyMatchCommand(current, { type: 'advance' });
+        if (passageGoal(current.state.motion.frames)) break;
+      }
+      useAppStore.getState().setMatchSession(current);
+      setError('');
+      if (waiting(current.state)) setPlaying(false);
+    } catch {
+      setError(m.error);
+      setPlaying(false);
+    }
+  }, []);
+
+  // Each passage plays at the pace that fills its minute; a goal slows down and holds.
+  const pace = useMemo(() => (motion ? passagePace(motion, speed) : null), [motion, speed]);
+  const passage = useMemo(
+    () => (motion && pace ? preparePassage(motion.frames, pace) : null),
+    [motion, pace],
+  );
+  const goal = useMemo(() => (motion ? passageGoal(motion.frames) : null), [motion]);
+  const simulationOnly = settings.simulationOnly;
+  const [replay, setReplay] = useState<(PitchReplay & { motion: MatchMotion }) | null>(null);
+  const replays = useRef(0);
+  const replayActive = Boolean(replay && motion && replay.motion === motion);
+  // The pitch moves while the match plays, while a decision's outcome plays out, and during a
+  // replay; the passage clock runs with it, but not during a replay, so play waits for it.
+  const pitchPaused = !playing && status === 'live' && !outcomeId && !replayActive;
+  // The first passage this page shows (a reloaded match's last one) is drawn at its end, not
+  // played: nothing to wait for. Every later one arrives live.
+  const firstMotion = useRef(motion);
+  if (!firstMotion.current) firstMotion.current = motion;
+  const arrivedLive = Boolean(motion) && motion !== firstMotion.current;
+  const elapsed = usePlayClock(
+    motion,
+    status === 'live' && (playing || Boolean(outcomeId)) && !replayActive && !job,
+  );
   useEffect(() => {
     if (
       !playing ||
       status !== 'live' ||
       state?.captainDecisionPending ||
       state?.substitutionDecisionPending ||
-      job
+      job ||
+      replayActive ||
+      !motion
     )
       return;
-    const pace = motionPace(motion!.kind, speed);
-    const passage = preparePlayback(motion!.frames, pace.rate, pace.maxMs);
+    const wait = simulationOnly
+      ? (goal ? JUMP_GOAL_HOLD_MS : JUMP_MS) / speed
+      : !arrivedLive || motion.kind === 'kickoff'
+        ? KICKOFF_MS / speed
+        : passageWait(motion, passage?.duration ?? 0, speed);
     const timer = window.setTimeout(
       () => {
         if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) {
           setPlaying(false);
           return;
         }
-        command({ type: 'advance' });
+        if (simulationOnly) jump();
+        else command({ type: 'advance' });
       },
-      Math.max(MINUTE_MS / speed, passage.duration + 80 / speed),
+      Math.max(0, wait - elapsed()),
     );
     return () => window.clearTimeout(timer);
   }, [
@@ -311,9 +369,91 @@ export default function MatchBody() {
     state?.captainDecisionPending,
     state?.substitutionDecisionPending,
     motion,
+    passage,
+    goal,
+    simulationOnly,
+    arrivedLive,
+    replayActive,
+    elapsed,
     job,
     command,
+    jump,
   ]);
+  // The GOAL banner (review M3): over the pitch once the ball is in the net; at once without
+  // the pitch (simulation only, reduced motion) or after a decision's outcome.
+  const [bannerFor, setBannerFor] = useState<MatchMotion | null>(null);
+  const bannerOnPitch = Boolean(motion?.kind === 'minute' && !simulationOnly);
+  const goalRunning = status === 'live' && (playing || Boolean(outcomeId));
+  useEffect(() => {
+    if (!motion || !goal || bannerFor === motion) return;
+    if (!bannerOnPitch || reduced || !arrivedLive) {
+      setBannerFor(motion);
+      return;
+    }
+    if (!goalRunning) return;
+    const timer = window.setTimeout(
+      () => setBannerFor(motion),
+      Math.max(0, (passage?.times[goal.shot] ?? 0) - elapsed()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [motion, goal, bannerFor, bannerOnPitch, reduced, arrivedLive, goalRunning, passage, elapsed]);
+  const goalEvent =
+    goal && motion && bannerFor === motion
+      ? (state?.match.events.find((event) => event.id === goal.eventId) ??
+        state?.match.events.findLast((event) => event.kind === 'goal'))
+      : undefined;
+  const story =
+    goalEvent && session ? goalStory(session.setup, session.state.match.events, goalEvent) : null;
+  // Until the ball is in the net on the pitch, the score, the commentary and the announcement
+  // keep the goal back, so the build-up is not spoiled.
+  const heldGoal =
+    goal && motion && bannerFor !== motion
+      ? state?.match.events.find((event) => event.id === goal.eventId)
+      : undefined;
+  const shownScore: [number, number] | undefined =
+    state && session
+      ? heldGoal
+        ? heldGoal.teamId === session.setup.home.id
+          ? [state.match.score[0] - 1, state.match.score[1]]
+          : [state.match.score[0], state.match.score[1] - 1]
+        : state.match.score
+      : undefined;
+  const latestEvent = state?.match.events.findLast((event) => event.id !== heldGoal?.id);
+  const latestText =
+    latestEvent && session ? liveText(session.setup, session.state.match.events, latestEvent) : '';
+  const scoreText =
+    session && shownScore
+      ? matchFormat(m.announceScore, {
+          home: session.setup.home.name,
+          away: session.setup.away.name,
+          homeScore: shownScore[0],
+          awayScore: shownScore[1],
+        })
+      : '';
+  // An instant replay of the goal's build-up, shot and celebration, on the live pitch.
+  const canReplay = Boolean(story && bannerOnPitch && !reduced && status === 'live');
+  const replayGoal = useCallback(() => {
+    const current = useAppStore.getState().matchSession?.state.motion;
+    const scored = current?.kind === 'minute' ? passageGoal(current.frames) : null;
+    if (!current || !scored) return;
+    replays.current += 1;
+    setReplay({
+      key: replays.current,
+      frames: current.frames.slice(Math.max(0, scored.shot - GOAL_BUILD_UP_BEATS)),
+      pace: REPLAY_PACE,
+      motion: current,
+    });
+  }, []);
+  const replayable = useRef(false);
+  replayable.current = canReplay && !replayActive;
+  useEffect(() => {
+    if (!replay || !replayActive) return;
+    const timer = window.setTimeout(
+      () => setReplay(null),
+      preparePassage(replay.frames, replay.pace).duration + 400,
+    );
+    return () => window.clearTimeout(timer);
+  }, [replay, replayActive]);
   useEffect(() => {
     const pause = () => {
       if (document.hidden) setPlaying(false);
@@ -353,6 +493,11 @@ export default function MatchBody() {
       // Focus jumps to the first choice when a moment opens, so a Space pressed to play or
       // pause must not pick that choice by accident; Enter and 1–4 choose.
       if (event.code === 'Space' && current.state.currentMoment) event.preventDefault();
+      // R replays the goal just scored, while its banner is up.
+      if ((event.key === 'r' || event.key === 'R') && replayable.current) {
+        event.preventDefault();
+        replayGoal();
+      }
       const choice = current.state.currentMoment?.choices[Number(event.key) - 1];
       if (choice && /^[1-4]$/.test(event.key)) {
         event.preventDefault();
@@ -377,7 +522,7 @@ export default function MatchBody() {
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
-  }, [command]);
+  }, [command, replayGoal]);
 
   // Polite announcements: score changes, then the key moment or the latest commentary line.
   useEffect(() => {
@@ -410,6 +555,29 @@ export default function MatchBody() {
       : first.closest<HTMLElement>('.match-decision');
     target?.scrollIntoView({ block: 'start' });
   }, [momentId]);
+
+  // The briefing opens at its top (review U3); kick-off brings the score bar and the pitch
+  // into view (U4), wherever the briefing was scrolled to.
+  const shownStatus = useRef(status);
+  useEffect(() => {
+    const was = shownStatus.current;
+    shownStatus.current = status;
+    if (status === 'preview' && was !== 'preview') window.scrollTo({ top: 0 });
+    const live = document.querySelector('.match-live');
+    if (was === 'preview' && status === 'live' && live)
+      window.scrollTo({
+        top: live.getBoundingClientRect().top + window.scrollY - 8,
+        behavior: reduced ? 'auto' : 'smooth',
+      });
+  }, [status, reduced]);
+
+  // A decision's outcome starts with its replay: bring it back into view if the player had
+  // scrolled down the choices or their breakdowns (review U13).
+  useEffect(() => {
+    const layout = layoutRef.current;
+    if (outcomeId && layout && layout.getBoundingClientRect().top < 0)
+      layout.scrollIntoView({ block: 'start' });
+  }, [outcomeId]);
 
   // Career fixtures: the session's setup names the scheduled fixture it plays.
   const careerResult = useAppStore((store) => store.careerResult);
@@ -498,6 +666,8 @@ export default function MatchBody() {
     careerResult && world?.career && (!session || status === 'finished') ? careerResult : null;
   const reportSession = committed?.session ?? (status === 'finished' ? session : null);
   const numbers = session ? shirtNumbers(session.setup.players) : undefined;
+  const kits = session ? kitAppearance(session.setup.home, session.setup.away) : null;
+  const teamColour = (side: 0 | 1) => (side === 0 ? kits!.home : kits!.away);
   return (
     <Page className={`match-page${inMatch ? ' is-live' : ''}`}>
       {/* During play the scoreboard leads, and the report has its own title: one heading. */}
@@ -732,6 +902,7 @@ export default function MatchBody() {
         <div className={inMatch ? 'match-live' : 'match-session'}>
           <Scoreboard
             session={session}
+            score={shownScore}
             status={status!}
             playing={playing}
             competition={competition}
@@ -824,6 +995,17 @@ export default function MatchBody() {
                     reducedMotion={reduced}
                   />
                 )}
+                {story && !bannerOnPitch && !simulationOnly && (
+                  <Suspense fallback={null}>
+                    <GoalBanner
+                      setup={session.setup}
+                      story={story}
+                      line={goalLine(session.setup, story)}
+                      colour={teamColour(story.side)}
+                      placement="strip"
+                    />
+                  </Suspense>
+                )}
                 {outcome && outcomeMoment && (
                   <OutcomePanel
                     outcome={outcome}
@@ -843,7 +1025,20 @@ export default function MatchBody() {
                   aria-labelledby="match-stage-heading"
                 >
                   {settings.simulationOnly ? (
-                    <SimulationCard session={session} />
+                    <>
+                      {story && (
+                        <Suspense fallback={null}>
+                          <GoalBanner
+                            setup={session.setup}
+                            story={story}
+                            line={goalLine(session.setup, story)}
+                            colour={teamColour(story.side)}
+                            placement="strip"
+                          />
+                        </Suspense>
+                      )}
+                      <SimulationCard session={session} />
+                    </>
                   ) : (
                     <Suspense
                       fallback={
@@ -861,9 +1056,12 @@ export default function MatchBody() {
                         selectedPlayerId={session.setup.selectedPlayerId}
                         numbers={numbers}
                         motion={state!.motion.frames}
-                        {...motionPace(state!.motion.kind, speed)}
+                        rate={pace?.rate}
+                        maxMs={pace?.maxMs}
+                        slow={pace?.slow}
+                        replay={replayActive ? replay : null}
                         reducedMotion={reduced}
-                        paused={!playing && status === 'live' && !outcomeId}
+                        paused={pitchPaused}
                         still={pitchAway}
                         celebration={celebration}
                         label={matchFormat(pitchCopy.liveLabel, {
@@ -874,7 +1072,24 @@ export default function MatchBody() {
                             awayFormation: state!.match.away.formation,
                           }),
                         })}
-                        overlay={<PitchOverlay session={session} />}
+                        header={<PitchOverlay session={session} />}
+                        overlay={
+                          <>
+                            {story && bannerOnPitch && (
+                              <Suspense fallback={null}>
+                                <GoalBanner
+                                  setup={session.setup}
+                                  story={story}
+                                  line={goalLine(session.setup, story)}
+                                  colour={teamColour(story.side)}
+                                  placement="pitch"
+                                  replaying={replayActive}
+                                  onReplay={canReplay ? replayGoal : undefined}
+                                />
+                              </Suspense>
+                            )}
+                          </>
+                        }
                       />
                     </Suspense>
                   )}
@@ -915,6 +1130,7 @@ export default function MatchBody() {
                 <StatsCard session={session} />
                 <CommentaryCard
                   session={session}
+                  hidden={heldGoal?.id}
                   narration={narration}
                   celebration={celebrationItem ? celebrationNames[celebrationItem.id] : undefined}
                 />

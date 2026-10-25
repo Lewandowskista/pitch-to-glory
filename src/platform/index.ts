@@ -45,10 +45,12 @@ export interface PlatformAdapter {
    */
   openExternal(url: string): Promise<boolean>;
 }
-export type PreferenceScope = 'settings' | 'analytics';
+/** `match`: how the live match last played on this device, such as its speed (step 5.1). */
+export type PreferenceScope = 'settings' | 'analytics' | 'match';
 const PREFERENCE_KEYS: Record<PreferenceScope, string> = {
   settings: 'ptg-preferences',
   analytics: 'ptg-analytics',
+  match: 'ptg-match',
 };
 export type DeviceRecord =
   | 'release-seen'

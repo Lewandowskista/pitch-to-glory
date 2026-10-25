@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReplayFrame } from '../../model/domain';
-import { preparePlayback, samplePlayback, type PlaybackSample, type Playback } from './playback';
+import { preparePassage, samplePlayback, type PlaybackSample, type Playback } from './playback';
+import type { PassagePace } from './pace';
 import { pitchAssetScale } from './pitchArt';
 
 export function useSvgAssetScale(viewBox: string) {
@@ -30,13 +31,34 @@ export function useSvgPlayback(
   maxMs: number,
   reduced: boolean,
   paused: boolean,
+  slow?: PassagePace['slow'],
+  /** An instant replay of `frames` from their start, once per `key`. */
+  replay?: { key: number; frames: ReplayFrame[]; pace: PassagePace } | null,
 ) {
   const [sample, setSample] = useState<PlaybackSample | null>(null);
   const source = useRef(motion);
   const shown = useRef(frame);
-  const playing = useRef<{ playback: Playback; elapsed: number } | null>(null);
+  const playing = useRef<{ playback: Playback; elapsed: number; replay?: true } | null>(null);
+  const replayed = useRef(replay?.key);
+  const slowFrom = slow?.from,
+    slowRate = slow?.rate,
+    slowMax = slow?.maxMs;
   useEffect(() => {
-    if (source.current !== motion) {
+    const pace = {
+      rate,
+      maxMs,
+      ...(slowFrom !== undefined
+        ? { slow: { from: slowFrom, rate: slowRate!, maxMs: slowMax! } }
+        : {}),
+    };
+    if (replay && replayed.current !== replay.key && !reduced) {
+      replayed.current = replay.key;
+      playing.current = {
+        playback: preparePassage(replay.frames, replay.pace),
+        elapsed: 0,
+        replay: true,
+      };
+    } else if (source.current !== motion) {
       source.current = motion;
       if (!reduced && motion && motion.length > 1) {
         const first = {
@@ -49,13 +71,13 @@ export function useSvgPlayback(
           })),
         };
         playing.current = {
-          playback: preparePlayback([first, ...motion.slice(1)], rate, maxMs),
+          playback: preparePassage([first, ...motion.slice(1)], pace),
           elapsed: 0,
         };
       } else playing.current = null;
-    } else if (playing.current) {
+    } else if (playing.current && !playing.current.replay) {
       const { playback, elapsed } = playing.current;
-      const next = preparePlayback(playback.frames, rate, maxMs);
+      const next = preparePassage(playback.frames, pace);
       playing.current = {
         playback: next,
         elapsed: playback.duration > 0 ? (elapsed * next.duration) / playback.duration : 0,
@@ -91,6 +113,6 @@ export function useSvgPlayback(
     };
     if (!paused) raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [frame, motion, rate, maxMs, reduced, paused]);
+  }, [frame, motion, rate, maxMs, slowFrom, slowRate, slowMax, reduced, paused, replay]);
   return sample;
 }

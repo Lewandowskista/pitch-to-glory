@@ -93,12 +93,15 @@ function LineupPitch({
   club,
   lineup,
   colour,
+  edge = false,
   players,
   selectedId,
 }: {
   club: Club;
   lineup: Lineup;
   colour: Hex;
+  /** The colour would vanish into the grass: a light ring (review U19). */
+  edge?: boolean;
   players: MatchSession['setup']['players'];
   selectedId: string;
 }) {
@@ -145,6 +148,17 @@ function LineupPitch({
                 stroke={selected ? '#efcf63' : '#102c26'}
                 strokeWidth={selected ? 9 : 5}
               />
+              {edge && (
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="40"
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth="5"
+                  strokeOpacity="0.9"
+                />
+              )}
               <text x={x} y={y + 10} textAnchor="middle" fontSize="30" fontWeight="800" fill={ink}>
                 {players[id]?.squadNumber}
               </text>
@@ -466,6 +480,7 @@ export function Preview({
                   club={club}
                   lineup={lineup}
                   colour={index === 0 ? kits.home : kits.away}
+                  edge={(index === 0 ? kits.edge.home : kits.edge.away).pitch}
                   players={setup.players}
                   selectedId={player.id}
                 />

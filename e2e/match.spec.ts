@@ -4,10 +4,14 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { CONFIG } from '../src/engine/config';
+import { sessionBeforeGoal } from './matchSessions';
 
 let backupPath: string;
 let fatiguedBackupPath: string;
 let longNamesBackupPath: string;
+let goalBackupPath: string;
+/** The minute the goal of `goalBackupPath`'s session goes in. */
+let goalMinute: number;
 test.beforeAll(async ({ browserName }, workerInfo) => {
   const world = generateWorld('match-browser');
   const save = createSave(1, 'Matchday test', {
@@ -36,6 +40,21 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
   Object.values(named.clubs).forEach((club, index) => {
     club.name = index % 2 ? 'Matlock Albion' : 'Featherstonehaugh Rovers';
   });
+  // A friendly one minute before a goal in open play (release 1.0, step 5.1).
+  const beforeGoal = sessionBeforeGoal(world);
+  goalMinute = beforeGoal.state.match.minute + 1;
+  goalBackupPath = `artifacts/match-goal-${browserName}-${workerInfo.workerIndex}.json`;
+  await writeFile(
+    goalBackupPath,
+    JSON.stringify(
+      createSave(1, 'Goal match', {
+        ...save.payload,
+        kind: 'world',
+        world,
+        matchSession: beforeGoal,
+      }),
+    ),
+  );
   longNamesBackupPath = `artifacts/match-names-${browserName}-${workerInfo.workerIndex}.json`;
   await writeFile(
     longNamesBackupPath,
@@ -391,4 +410,210 @@ test('captain and substitution responses stop skip before completing the match',
   expect(substitution).toBe(true);
   await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'finished');
   await expect(page.getByRole('heading', { name: 'Your match report', exact: true })).toBeVisible();
+});
+
+/** Import a save and open its matchday, at whatever viewport the page has. */
+async function importAndOpen(page: Page, backup: string) {
+  await page.goto('/saves');
+  await page
+    .locator('.slot-card')
+    .nth(0)
+    .getByLabel('Import backup — Slot 1')
+    .setInputFiles(backup);
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
+  await page.goto('/match?save=1');
+}
+const score = (page: Page) => page.locator('.match-score-value').innerText();
+
+test('the pitch keeps moving through each minute at 1× (review M2)', async ({ page }) => {
+  test.setTimeout(90000);
+  await prepare(page);
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  await page.getByRole('button', { name: '1×', exact: true }).click();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  const state = page.getByTestId('match-state');
+  await expect(state).not.toHaveAttribute('data-minute', '0');
+  const stage = page.locator('.match-pitch-stage').first();
+  // A sample every ~150 ms over a few minutes of play: before 1.0 the pitch stood still for
+  // about two thirds of every minute, so most pairs of pictures in a row matched.
+  const shots: Buffer[] = [];
+  for (let sample = 0; sample < 20; sample++) {
+    if ((await state.getAttribute('data-status')) !== 'live') break;
+    shots.push(await stage.screenshot({ animations: 'allow' }));
+    await page.waitForTimeout(150);
+  }
+  expect(shots.length).toBeGreaterThanOrEqual(10);
+  const moved = shots.slice(1).filter((shot, index) => !shot.equals(shots[index]!)).length;
+  expect(moved / (shots.length - 1)).toBeGreaterThanOrEqual(0.8);
+});
+
+test('a goal in open play slows down, then shows the GOAL banner and can be replayed (review M3)', async ({
+  page,
+}) => {
+  test.setTimeout(90000);
+  await importAndOpen(page, goalBackupPath);
+  const state = page.getByTestId('match-state');
+  await expect(state).toHaveAttribute('data-status', 'live', { timeout: 30000 });
+  const before = await score(page);
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(state).toHaveAttribute('data-minute', String(goalMinute), { timeout: 10000 });
+  // The build-up plays first: the scoreboard keeps the goal back until the ball is in.
+  expect(await score(page)).toBe(before);
+  const banner = page.getByTestId('goal-banner');
+  await expect(banner).toBeVisible({ timeout: 8000 });
+  const after = await score(page);
+  expect(after).not.toBe(before);
+  await expect(banner).toContainText(/Goal!|Own goal!/);
+  await expect(banner).toContainText(after.replace(/\s/g, ''));
+  // The commentary names the team and the new score.
+  const scoreline = await banner.locator('.match-goal-score').innerText();
+  await expect(page.locator('.match-commentary')).toContainText(
+    scoreline.replace(/\s+/g, ' ').trim(),
+  );
+  // R replays the goal on the pitch; the banner returns once it has played.
+  await page.locator('main').focus();
+  await page.keyboard.press('r');
+  await expect(page.getByTestId('goal-replaying')).toBeVisible();
+  await expect(banner).toBeHidden();
+  await expect(banner).toBeVisible({ timeout: 10000 });
+  await page.getByRole('button', { name: /^Replay/ }).click();
+  await expect(page.getByTestId('goal-replaying')).toBeVisible();
+  // Play goes on after the banner.
+  await expect(state).not.toHaveAttribute('data-minute', String(goalMinute), { timeout: 15000 });
+  await expect(banner).toBeHidden();
+});
+
+test('reduced motion shows the GOAL banner without movement or replay', async ({ page }) => {
+  test.setTimeout(90000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await importAndOpen(page, goalBackupPath);
+  const state = page.getByTestId('match-state');
+  await expect(state).toHaveAttribute('data-status', 'live', { timeout: 30000 });
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  const banner = page.getByTestId('goal-banner');
+  await expect(banner).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('button', { name: /^Replay/ })).toHaveCount(0);
+  const animations = await banner.evaluate((element) =>
+    element.ownerDocument
+      .getAnimations()
+      .filter((animation) => {
+        const target = (animation.effect as KeyframeEffect | null)?.target;
+        return target ? element.contains(target) : false;
+      })
+      .map((animation) => animation.playState),
+  );
+  expect(animations).toEqual([]);
+});
+
+test('simulation-only mode jumps from moment to moment (review M15)', async ({ page }) => {
+  test.setTimeout(120000);
+  await prepare(page);
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  await pause(page);
+  await page.getByRole('switch', { name: 'Simulation only', exact: true }).check();
+  await expect(page.locator('.match-simulation')).toBeVisible();
+  const state = page.getByTestId('match-state');
+  // Two moments in a row: each arrives within moments, not at 2.2 s a simulated minute.
+  for (let moment = 0; moment < 2; moment++) {
+    const start = Date.now();
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await expect
+      .poll(async () => state.getAttribute('data-status'), { timeout: 10000 })
+      .toMatch(/decision|halftime|finished/);
+    expect(Date.now() - start).toBeLessThan(7000);
+    if ((await state.getAttribute('data-status')) !== 'decision') break;
+    await page.locator('.match-choices button').first().click();
+    await expect(state).toHaveAttribute('data-status', 'live');
+    await page.getByRole('button', { name: 'Continue play', exact: true }).click();
+    await pause(page);
+  }
+});
+
+test('the match speed is remembered for the next match (review M19)', async ({ page }) => {
+  test.setTimeout(120000);
+  await prepare(page);
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  await expect(page.getByRole('button', { name: '1×', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: '4×', exact: true }).click();
+  // The next match starts at the speed chosen last.
+  await finish(page);
+  await page.getByRole('button', { name: 'Play again', exact: true }).click();
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  await expect(page.getByRole('button', { name: '4×', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  // And after a reload, once the new match is saved.
+  await expect(page.locator('.save-indicator')).toHaveText('All changes saved', { timeout: 30000 });
+  await page.reload();
+  await expect(page.getByRole('button', { name: '4×', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+    { timeout: 30000 },
+  );
+  await page.getByRole('button', { name: '2×', exact: true }).click();
+  expect(
+    await page.evaluate(() => JSON.parse(localStorage.getItem('ptg-match') ?? 'null')),
+  ).toEqual({ speed: 2 });
+});
+
+test('on a phone the briefing opens at its top, kick-off shows the pitch, and the tab bar steps aside (U3, U4, U16)', async ({
+  page,
+}) => {
+  test.setTimeout(150000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await importAndOpen(page, backupPath);
+  const select = page.getByRole('combobox', { name: 'Your footballer', exact: true });
+  await expect(select.locator('option')).toHaveCount(22, { timeout: 30000 });
+  const striker = await select
+    .locator('option')
+    .evaluateAll(
+      (options) =>
+        (options.find((option) => option.textContent?.endsWith('ST')) as HTMLOptionElement).value,
+    );
+  await select.selectOption(striker);
+  await page.getByRole('button', { name: 'Prepare match', exact: true }).click();
+  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'preview');
+  // The briefing opens at its top, its player header stacked: name, then the tiles.
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  const header = await page.evaluate(() => {
+    const box = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+    const name = box('.match-briefing-name');
+    const tiles = box('.match-briefing-player .match-tiles');
+    const meta = box('.match-briefing-player .match-card-note');
+    return { nameBottom: name.bottom, tilesTop: tiles.top, metaHeight: meta.height };
+  });
+  expect(header.tilesTop).toBeGreaterThanOrEqual(header.nameBottom);
+  expect(header.metaHeight).toBeLessThan(60);
+  await expect(page.locator('.bottom-nav')).toBeVisible();
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  // Kick-off brings the score and the pitch into view.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const board = document.querySelector('.match-live .match-scoreboard')!;
+        const pitch = document.querySelector('.match-stage')!;
+        const a = board.getBoundingClientRect(),
+          b = pitch.getBoundingClientRect();
+        return a.top >= 0 && b.top < window.innerHeight * 0.6;
+      }),
+    )
+    .toBe(true);
+  // A live match is a focused flow: no tab bar; the score stays in view while scrolling.
+  await expect(page.locator('.bottom-nav')).toBeHidden();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.querySelector('.match-live .match-scoreboard')!.getBoundingClientRect().top,
+      ),
+    )
+    .toBeLessThan(24);
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
+  await finish(page);
+  await expect(page.getByRole('heading', { name: 'Your match report', exact: true })).toBeVisible();
+  await expect(page.locator('.bottom-nav')).toBeVisible();
 });

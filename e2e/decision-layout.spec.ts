@@ -192,6 +192,10 @@ for (const layout of CASES)
       expect(await visibleShare(page, '.match-pitch-panel canvas, .match-pitch-panel svg')).toBe(1);
     else expect(await visibleShare(page, '.match-situation')).toBe(1);
     await expect(page.locator('.match-decision .match-eyebrow')).toContainText('0–0');
+    // Every choice says what it is worth beside its chance (step 5.1, review M14).
+    const values = await page.locator('.match-choice-reason .match-value-pill').allInnerTexts();
+    expect(values).toHaveLength(await page.locator('.match-choices button').count());
+    for (const value of values) expect(value).toMatch(/^(Best value|Even value|Costly)$/);
     await noSidewaysScroll(page);
     if (browserName === 'chromium') expect(await accessibilityViolations(page)).toEqual([]);
   });
@@ -331,4 +335,36 @@ test('the tutorial card on desktop moves rather than cover the focused choice', 
     await expect.poll(() => focusedCovered(page), { message: `choice ${index + 1}` }).toBe(false);
   }
   expect(await visibleShare(page, '.match-pitch-panel canvas, .match-pitch-panel svg')).toBe(1);
+});
+
+test('the outcome keeps the replay in view and folds away the factors that moved nothing', async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  await page.setViewportSize(DESKTOP);
+  await keyMoment(page);
+  // The breakdown explains the value hint with the expected goals behind it.
+  const first = page.locator('.match-choice').first();
+  await first.locator('summary').click();
+  await expect(first.locator('.match-value-breakdown')).toContainText('Expected goal swing');
+  await page.keyboard.press('1');
+  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'live');
+  const outcome = page.locator('.match-outcome');
+  await expect(outcome).toBeVisible();
+  // Only factors that moved the chance are listed; the rest wait behind a disclosure.
+  const shown = await outcome
+    .locator(':scope > div > .match-factors > li:not(.match-factor-total) > strong')
+    .allInnerTexts();
+  expect(shown.length).toBeGreaterThan(0);
+  for (const value of shown) expect(value).not.toBe('0.0%');
+  const more = outcome.locator('.match-factors-more');
+  if (await more.count()) {
+    await expect(more).not.toHaveAttribute('open', '');
+    await expect(more.locator('summary')).toContainText(/had no effect/);
+  }
+  // On a desktop the decision's replay stays in view above the outcome.
+  await settled(page);
+  expect(await visibleShare(page, '.match-replay')).toBe(1);
+  if (test.info().project.name === 'chromium')
+    expect(await accessibilityViolations(page)).toEqual([]);
 });
