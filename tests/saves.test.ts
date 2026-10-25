@@ -2,7 +2,7 @@ import Dexie from 'dexie';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SaveDatabase, SaveRepository } from '../src/persistence/repository';
 import { createSave, migrateSave, parseSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { LeaseLock } from '../src/persistence/locks';
+import { LeaseLock } from '../src/persistence/leaseLock';
 import { CONFIG } from '../src/engine/config';
 
 const databases: SaveDatabase[] = [];

@@ -153,6 +153,29 @@ describe('persistence worker service', () => {
     expect(await request(operation, 'tab-a')).toMatchObject({ ok: true, value: { revision: 1 } });
   });
 
+  it('keeps each tab’s slot leases, so the main thread never opens IndexedDB', async () => {
+    const { request, save } = setup();
+    const acquire = (owner: string | undefined, native = false) =>
+      request({ operation: 'lease-acquire', slot: 1, native }, owner);
+    expect(await acquire(undefined)).toMatchObject({ ok: false, code: 'locked' });
+    expect(await acquire('tab-a')).toMatchObject({ ok: true, value: { acquired: true } });
+    // Another tab cannot take a live lease, unless it holds the slot's native Web Lock and the
+    // lease was taken under one (the earlier holder's page is gone).
+    expect(await acquire('tab-b')).toMatchObject({ ok: true, value: { acquired: false } });
+    const write = { operation: 'write' as const, value: save, expectedRevision: null };
+    expect(await request(write, 'tab-b')).toMatchObject({ ok: false, code: 'locked' });
+    expect(await request(write, 'tab-a')).toMatchObject({ ok: true, value: { revision: 1 } });
+    expect(await request({ operation: 'lease-release', slot: 1 }, 'tab-a')).toMatchObject({
+      ok: true,
+      value: undefined,
+    });
+    expect(await acquire('tab-b', true)).toMatchObject({ ok: true, value: { acquired: true } });
+    expect(await acquire('tab-a', true)).toMatchObject({ ok: true, value: { acquired: true } });
+    expect(
+      await request({ operation: 'lease-acquire', slot: 4 as 1, native: false }, 'tab-a'),
+    ).toMatchObject({ ok: false, code: 'invalid' });
+  });
+
   it('validates untrusted imports fully and preserves existing data on rejection', async () => {
     const { request, save } = setup();
     await request({ operation: 'write', value: save, expectedRevision: null });

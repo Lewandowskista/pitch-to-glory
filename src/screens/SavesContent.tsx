@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { liveQuery } from 'dexie';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { SlotId, World } from '../model/domain';
 import { useAppStore } from '../store';
@@ -100,11 +99,8 @@ export default function SavesContent() {
     };
   }, []);
   useEffect(() => {
-    const subscription = liveQuery(() => saves.list()).subscribe({
-      next: setCollections,
-      error: () => setError(t.errors.storage),
-    });
-    return () => subscription.unsubscribe();
+    // The list follows every committed change, from this tab or another.
+    return saves.watch(setCollections, () => setError(t.errors.storage));
   }, []);
   useEffect(() => {
     if (valid && action && collections && !reviewed) {

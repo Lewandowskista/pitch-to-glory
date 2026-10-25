@@ -1,6 +1,13 @@
 import { SaveDatabase, LocalSaveRepository } from '../persistence/localRepository';
 import { createSave, parseSave, SaveError, unvalidatedSave } from '../persistence/schema';
-import type { PersistenceRequest, PersistenceResponse } from '../persistence/workerClient';
+import {
+  isLeaseOperation,
+  MUTATIONS,
+  type PersistenceRequest,
+  type PersistenceResponse,
+} from '../persistence/protocol';
+import { LeaseLock } from '../persistence/leaseLock';
+import { SAVE_CHANNEL } from '../persistence/database';
 import { createChunkReceiver, sendChunked } from './transport';
 
 const databases = new Map<string, SaveDatabase>();
@@ -20,6 +27,16 @@ export async function executePersistenceRequest(
     if (request.operation === 'validate') {
       parseSave(request.json);
       return { requestId: request.requestId, ok: true, value: undefined };
+    }
+    if (request.operation === 'lease-acquire' || request.operation === 'lease-release') {
+      if (!request.owner) throw new SaveError('locked');
+      const lease = new LeaseLock(resolveDatabase(request.database), request.owner);
+      if (request.operation === 'lease-release') {
+        await lease.release(request.slot);
+        return { requestId: request.requestId, ok: true, value: undefined };
+      }
+      const acquired = await lease.acquire(request.slot, request.native);
+      return { requestId: request.requestId, ok: true, value: { acquired } };
     }
     const repository = new LocalSaveRepository(resolveDatabase(request.database), request.owner);
     if (request.operation === 'write-without-world') {
@@ -96,12 +113,23 @@ if (typeof self !== 'undefined' && typeof document === 'undefined') {
     onmessage: ((event: MessageEvent) => void) | null;
     postMessage(message: unknown): void;
   };
+  // Tabs refresh their save lists when a slot changes, in this tab or another.
+  const channel =
+    typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(SAVE_CHANNEL);
   let queue: Promise<void> = Promise.resolve();
   const receive = createChunkReceiver<PersistenceRequest>((request) => {
+    // Leases touch only their own store, so they never wait behind a large save (as when the
+    // tab kept them itself); their small replies go out whole, beside any chunked reply.
+    if (isLeaseOperation(request.operation)) {
+      void executePersistenceRequest(request).then((response) => scope.postMessage(response));
+      return;
+    }
     queue = queue
       .catch(() => {})
       .then(async () => {
         const response = await executePersistenceRequest(request);
+        if (response.ok && MUTATIONS.has(request.operation))
+          channel?.postMessage({ database: request.database });
         await sendChunked(scope, response);
       });
   });

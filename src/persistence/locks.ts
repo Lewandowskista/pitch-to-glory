@@ -1,56 +1,26 @@
 import { CONFIG } from '../engine/config';
 import type { SlotId } from '../model/domain';
-import type { SaveDatabase } from './repository';
-import { validateSlot } from './schema';
-export class LeaseLock {
-  constructor(
-    private readonly db: SaveDatabase,
-    private readonly owner: string,
-    private readonly now = Date.now,
-  ) {}
-  async acquire(slot: SlotId, native = false): Promise<boolean> {
-    validateSlot(slot);
-    return this.db.transaction('rw', this.db.leases, async () => {
-      const current = await this.db.leases.get(slot);
-      // A newly acquired native Web Lock proves an earlier native holder is gone,
-      // even when its page closed before its async IndexedDB cleanup completed.
-      if (
-        current &&
-        current.owner !== this.owner &&
-        current.expires > this.now() &&
-        !(native && current.mode === 'native')
-      )
-        return false;
-      await this.db.leases.put({
-        slot,
-        owner: this.owner,
-        expires: this.now() + CONFIG.saves.leaseDurationMs,
-        mode: native ? 'native' : 'lease',
-      });
-      return true;
-    });
-  }
-  async owns(slot: SlotId): Promise<boolean> {
-    const lease = await this.db.leases.get(slot);
-    return lease?.owner === this.owner && lease.expires > this.now();
-  }
-  async release(slot: SlotId): Promise<void> {
-    await this.db.transaction('rw', this.db.leases, async () => {
-      const current = await this.db.leases.get(slot);
-      if (current?.owner === this.owner) await this.db.leases.delete(slot);
-    });
-  }
+import { SaveError } from './errors';
+
+/** Where a slot's lease is kept: IndexedDB, through the persistence worker (leaseLock.ts). */
+export interface LeaseStore {
+  acquire(slot: SlotId, native: boolean): Promise<boolean>;
+  release(slot: SlotId): Promise<void>;
 }
+function validateSlot(slot: number): asserts slot is SlotId {
+  if (![1, 2, 3].includes(slot)) throw new SaveError('invalid');
+}
+/**
+ * This tab's hold on its save slots: a native Web Lock where the browser has them, plus the
+ * lease that every write checks, renewed on a heartbeat. Main-thread code, free of IndexedDB.
+ */
 export class SlotLocks {
-  private readonly lease: LeaseLock;
   private readonly held = new Map<
     SlotId,
     { releaseNative: () => void; timer: ReturnType<typeof setInterval>; native: boolean }
   >();
   private readonly acquiring = new Map<SlotId, Promise<boolean>>();
-  constructor(db: SaveDatabase, owner: string) {
-    this.lease = new LeaseLock(db, owner);
-  }
+  constructor(private readonly lease: LeaseStore) {}
   /** Concurrent requests for the same slot in one tab share one acquisition. */
   acquire(slot: SlotId): Promise<boolean> {
     validateSlot(slot);
