@@ -111,8 +111,19 @@ function load(name: AudioName): Promise<Howl> {
  * The music file in the first format the browser plays. Howler only tries the first source it
  * believes playable, so a source that fails to decode falls through to the next here.
  */
-function loadMusic(): Promise<Howl> {
-  return MUSIC_SOURCES.filter((source) => Howler.codecs(source.format)).reduce<Promise<Howl>>(
+async function loadMusic(): Promise<Howl> {
+  let sources = MUSIC_SOURCES.filter((source) => Howler.codecs(source.format));
+  // Offline, only a file the service worker cached on an earlier play can load: never request
+  // one that would fail. The music starts when the connection returns (`online` below).
+  if (navigator.onLine === false) {
+    const cached = await Promise.all(
+      sources.map(async (source) =>
+        typeof caches === 'undefined' ? false : Boolean(await caches.match(source.src)),
+      ),
+    );
+    sources = sources.filter((_, index) => cached[index]);
+  }
+  return sources.reduce<Promise<Howl>>(
     (previous, source) =>
       // A 600 KB download on a slow connection: allow far longer than a local render.
       previous.catch(() => decode('music', source.src, source.format, 60000)),
@@ -308,3 +319,5 @@ export function crowd(level: number | null): void {
   syncLoop(music);
 }
 document.addEventListener('visibilitychange', () => configure(settings));
+// Music skipped while offline (nothing cached yet) starts once the connection returns.
+addEventListener('online', () => syncLoop(music));
