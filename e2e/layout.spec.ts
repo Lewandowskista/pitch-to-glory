@@ -1,10 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import { expect, openCareerPage, skipTutorial, test } from './support';
 
 /**
  * Layout geometry that a page-width check misses: responsive visibility, labels that must not
@@ -57,14 +57,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 test.beforeEach(async ({ page }) => {
   test.setTimeout(120000);
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
   await page.goto('/saves');
   await page
     .locator('.slot-card')
@@ -76,9 +68,6 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Career hub', exact: true })).toBeVisible({
     timeout: 30000,
   });
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 
 const openFirstMessage = async (page: Page) => {

@@ -1,4 +1,4 @@
-import type { ConsoleMessage, Page } from '@playwright/test';
+import { expect, test as base, type ConsoleMessage, type Page } from '@playwright/test';
 import type { World } from '../src/model/domain';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
@@ -130,9 +130,9 @@ const ABORTED_LOAD = new RegExp(
     'ServiceWorker intercepted the request and encountered an unexpected error',
   ].join('|'),
 );
-export const isAbortedLoad = (text: string): boolean => ABORTED_LOAD.test(text);
+const isAbortedLoad = (text: string): boolean => ABORTED_LOAD.test(text);
 
-export function isBrowserNoise(message: ConsoleMessage): boolean {
+function isBrowserNoise(message: ConsoleMessage): boolean {
   const { url } = message.location();
   return (
     isAbortedLoad(message.text()) ||
@@ -142,6 +142,65 @@ export function isBrowserNoise(message: ConsoleMessage): boolean {
     /\{file: "chrome:\/\/juggler\//.test(message.text()) ||
     message.text().startsWith('[JavaScript Error: "NS_BINDING_ABORTED"')
   );
+}
+
+/**
+ * The journeys' `test` and `expect`. Every test's page fails it on a console error, an uncaught
+ * exception or an unhandled promise rejection (AGENTS.md §11), apart from the browser noise
+ * above; the check runs when the test ends, after its own hooks. `runtimeErrors` is what has
+ * been collected so far, for a journey that wants to look at it sooner.
+ */
+export const test = base.extend<{ runtimeErrors: string[] }>({
+  runtimeErrors: [
+    async ({ page }, use) => {
+      const errors: string[] = [];
+      page.on('pageerror', (error) => {
+        if (!isAbortedLoad(error.message)) errors.push(error.message);
+      });
+      page.on('console', (message) => {
+        if (message.type() === 'error' && !isBrowserNoise(message))
+          errors.push(`${message.text()} (${message.location().url || 'no location'})`);
+      });
+      // An unhandled rejection becomes an uncaught error, which every engine reports.
+      await page.addInitScript(() => {
+        window.addEventListener('unhandledrejection', (event) => {
+          throw new Error(`Unhandled rejection: ${String(event.reason)}`);
+        });
+      });
+      await use(errors);
+      expect(errors, 'console errors, uncaught exceptions and unhandled rejections').toEqual([]);
+    },
+    { auto: true },
+  ],
+});
+export { expect };
+
+/**
+ * Wait until the page has stopped moving: no finite CSS or Web Animation running (Framer Motion
+ * runs its transitions as Web Animations) and every scroll position the same a frame later.
+ * For a layout measurement or a screenshot right after something changed, instead of a sleep.
+ */
+export async function settled(page: Page): Promise<void> {
+  await page.waitForFunction(async () => {
+    const moving = () =>
+      document
+        .getAnimations()
+        .some(
+          (animation) =>
+            animation.playState === 'running' &&
+            Number.isFinite(Number(animation.effect?.getComputedTiming().endTime ?? 0)),
+        );
+    const scrolls = () => {
+      const positions = [window.scrollX, window.scrollY];
+      for (const element of document.querySelectorAll('*'))
+        if (element.scrollTop || element.scrollLeft)
+          positions.push(element.scrollTop, element.scrollLeft);
+      return positions.join();
+    };
+    const before = scrolls();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return !moving() && scrolls() === before;
+  });
 }
 
 /** The career group each page tab belongs to (src/screens/career/navigation.ts). */

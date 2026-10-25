@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -6,7 +6,7 @@ import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCareerFixture } from '../src/engine/career/matches';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { isAbortedLoad, isBrowserNoise, nationalCareer, skipTutorial } from './support';
+import { expect, nationalCareer, skipTutorial, test } from './support';
 
 /**
  * Phase 4.2: a real deployment update. The old build (dist) runs a saved career; the new build
@@ -95,13 +95,6 @@ test('an update reaches a saved career, keeps it and works offline', async ({
   test.skip(browserName !== 'chromium', 'One engine is enough for the release mechanics');
   test.setTimeout(240000);
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
 
   const port = portFor(testInfo.workerIndex);
   const origin = `http://127.0.0.1:${port}`;
@@ -160,5 +153,5 @@ test('an update reaches a saved career, keeps it and works offline', async ({
   } finally {
     await stop(server);
   }
-  expect(errors).toEqual([]);
+  // Console and page errors fail the journey when it ends (e2e/support.ts).
 });

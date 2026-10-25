@@ -1,9 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { readBackup, skipTutorial } from './support';
+import { expect, readBackup, skipTutorial, test } from './support';
 
 const backups: string[] = [];
 test.beforeAll(async ({ browserName }, workerInfo) => {

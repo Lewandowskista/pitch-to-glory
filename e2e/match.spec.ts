@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, readBackup, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import { expect, readBackup, skipTutorial, test } from './support';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
@@ -44,17 +44,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 });
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 async function prepare(page: Page, keeper = false, tired = false, backup?: string) {
   await page.goto('/saves');
@@ -278,6 +267,7 @@ test('playback pauses when hidden and the pitch survives resize and context loss
   });
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
   const minute = await page.getByTestId('match-state').getAttribute('data-minute');
+  // A paused clock stays put: only time can show it (a match minute is well under a second).
   await page.waitForTimeout(1200);
   await expect(page.getByTestId('match-state')).toHaveAttribute('data-minute', minute!);
   await page.evaluate(() => {
@@ -318,6 +308,7 @@ test('pausing freezes pitch movement and resuming continues the action', async (
   await expect(pitch).toBeVisible();
   if (browserName === 'chromium') await expect(pitch.locator('canvas')).toHaveCount(1);
   const frozen = await pitch.screenshot();
+  // Paused, nothing moves: only time can show it.
   await page.waitForTimeout(350);
   expect((await pitch.screenshot()).equals(frozen)).toBe(true);
   await page.getByRole('button', { name: 'Play', exact: true }).click();
@@ -354,8 +345,12 @@ test('the vector fallback animates decisions and respects reduced motion', async
     timeout: 5000,
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForTimeout(150);
+  // The pitch draws on a canvas: still once two pictures in a row match...
+  await expect
+    .poll(async () => (await pitch.screenshot()).equals(await pitch.screenshot()))
+    .toBe(true);
   const still = await pitch.screenshot();
+  // ...and it stays still. Only time can show nothing moves.
   await page.waitForTimeout(350);
   expect((await pitch.screenshot()).equals(still)).toBe(true);
 });

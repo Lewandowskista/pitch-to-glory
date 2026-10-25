@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import {
@@ -9,13 +9,7 @@ import {
 } from '../src/engine/career/matches';
 import { applyMatchCommand, createMatchSession } from '../src/engine/match';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import {
-  isAbortedLoad,
-  isBrowserNoise,
-  nationalCareer,
-  openCareerPage,
-  skipTutorial,
-} from './support';
+import { expect, nationalCareer, openCareerPage, skipTutorial, test } from './support';
 
 let backup: string;
 test.beforeAll(async ({ browserName }, workerInfo) => {
@@ -46,14 +40,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 test.beforeEach(async ({ page }) => {
   test.setTimeout(120000);
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
   await page.goto('/saves');
   await page
     .locator('.slot-card')
@@ -63,9 +49,6 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
   await page.goto('/career/training?save=1');
   await expect(page.locator('#focus-0')).toBeVisible({ timeout: 30000 });
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 const firstSession = (page: Page) => page.getByRole('region', { name: 'Session 1', exact: true });
 const high = (page: Page) => firstSession(page).locator('input[value="high"]');

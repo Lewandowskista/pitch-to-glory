@@ -1,8 +1,8 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { PATCH_NOTES, RELEASE_SECTIONS } from '../src/i18n/patchNotes';
 import { whatsNewText } from '../src/i18n/whatsNew';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import { expect, skipTutorial, test } from './support';
 
 /** Versions and patch notes: the What's new screen and the "Updated" notice. */
 const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
@@ -11,18 +11,6 @@ const LAST_SEEN = 'ptg-last-version';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (message) => {
-    if (message.type() === 'error' && !isBrowserNoise(message))
-      errors.push(`${message.text()} (${message.location().url || 'no location'})`);
-  });
-  (page as typeof page & { runtimeErrors: string[] }).runtimeErrors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as typeof page & { runtimeErrors: string[] }).runtimeErrors).toEqual([]);
 });
 
 test('Settings and the clubhouse lead to What’s new, and Back returns', async ({ page }) => {

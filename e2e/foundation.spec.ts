@@ -1,25 +1,7 @@
-import { expect, test } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, readBackup, skipTutorial } from './support';
+import { expect, readBackup, skipTutorial, test } from './support';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (message) => {
-    if (message.type() === 'error' && !isBrowserNoise(message))
-      errors.push(`${message.text()} (${message.location().url || 'no location'})`);
-  });
-  await page.addInitScript(() => {
-    window.addEventListener('unhandledrejection', (event) => {
-      throw new Error(String(event.reason));
-    });
-  });
-  (page as typeof page & { runtimeErrors: string[] }).runtimeErrors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as typeof page & { runtimeErrors: string[] }).runtimeErrors).toEqual([]);
 });
 
 test('title, URLs, route refresh and keyboard navigation', async ({ page }) => {

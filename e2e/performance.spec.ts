@@ -347,6 +347,7 @@ for (const fixture of FIXTURES)
       await page.getByRole('link', { name: 'Play matchday' }).click();
       await page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }).click();
       await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+      // A second of play first: the measurement is of steady play, not of kick-off.
       await page.waitForTimeout(1000);
       const frames = await page.evaluate(async () => {
         const gaps: number[] = [];
