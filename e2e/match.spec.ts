@@ -231,7 +231,7 @@ test('keeper decisions work in simulation-only mode with large mobile text', asy
   // Each is framed in one of several sentences, so the keeper's choices identify it.
   await expect(page.locator('#decision-heading')).not.toBeEmpty();
   await expect(page.locator('.match-choices button').first()).toHaveText(
-    /Catch and hold|Parry|Rush off|Stay on your line|Come and claim|Punch|Roll it out|Kick it long|Read the taker|Stay big/,
+    /Catch and hold|Parry|Rush off|Stay on your line|Come and claim|Punch|Roll it out|Kick it long|Read the taker|Stay big|Clear it first time|Take a touch|Go round the striker|Rush out and clear|Come out and take it down|Stay home/,
   );
   expect(await page.locator('.match-choices button').count()).toBeGreaterThanOrEqual(2);
   await expect(page.locator('canvas')).toHaveCount(0);

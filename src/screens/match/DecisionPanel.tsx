@@ -271,11 +271,6 @@ export function DecisionPanel({
             </span>
             {pressure && <p className="match-pressure">{pressure}</p>}
             <h2 id="decision-heading">{situation}</h2>
-            {reads.length > 0 && (
-              <p className="mt-1 text-[0.8125rem] text-muted">
-                <span className="font-semibold">{readsLabel}:</span> {reads.join(' · ')}
-              </p>
-            )}
           </div>
           <p className="match-paused-note">
             <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
@@ -364,6 +359,12 @@ export function DecisionPanel({
             );
           })}
         </div>
+        {/* What the pitch shows (match-22), after the choices so the first action stays in view. */}
+        {reads.length > 0 && (
+          <p className="mt-2 text-[0.8125rem] text-muted">
+            <span className="font-semibold">{readsLabel}:</span> {reads.join(' · ')}
+          </p>
+        )}
       </div>
       {/* On phones the tour's key-moment step appears here, after the choices it explains. */}
       <div data-tour-slot="decision" />
