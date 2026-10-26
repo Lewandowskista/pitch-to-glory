@@ -568,7 +568,7 @@ The remaining spread of the means (6.56–6.84) is the players': the profile rot
 
 ### XP and fame
 
-Performance XP (`performanceXp`) and fame (`performanceFame`) take the match's scale (`rewardScale(session)`: null for a match-21 report, else the position played), so a match-21 match pays exactly as before. On match-22 the rating term is `rewards22.xp.perRating` 45 × max(0, rating − 5.2) × the position's weight, and fame's `rewards22.fame.perRating` 3.75 × max(0, rating − 6.2) × the same weight; minutes, goals, assists, objectives and clean sheets pay as in `xp` and `fame`. The weights (GK 1.2, CB 1.1, LB and RB 1, DM 0.9, LW and RW 0.9, AM 0.85, ST 0.85, CM 0.8; since step 5.2 CB 1.21, CM 0.62, AM 0.74, LW and RW 0.78) keep each position's XP a match where match-21's ratings had it (inflated for keepers and defenders), so levelling stays on its curve.
+Performance XP (`performanceXp`) and fame (`performanceFame`) take the match's scale (`rewardScale(session)`: null for a match-21 report, else the position played), so a match-21 match pays exactly as before. On match-22 the rating term is `rewards22.xp.perRating` 45 × max(0, rating − 5.2) × the position's weight, and fame's `rewards22.fame.perRating` 3.75 × max(0, rating − 6.2) × the same weight; minutes, goals, assists, objectives and clean sheets pay as in `xp` and `fame`. The weights (GK 1.2, CB 1.1, LB and RB 1, DM 0.9, LW and RW 0.9, AM 0.85, ST 0.85, CM 0.8; since step 5.2 CB 1.21, CM, AM, LW and RW 0.78) keep each position's XP a match where match-21's ratings had it (inflated for keepers and defenders), so levelling stays on its curve.
 
 Report XP and fame a match over the match profile (both seeds, 600 matches a position, best policy):
 
@@ -730,7 +730,7 @@ When the player's ability exceeds both the match level and the opposition's mean
 
 ### Ratings and rewards after 5.2
 
-The rating's par (step 5.3) counts the reads: the reference odds a moment is measured against are the base odds with each read factor's multiplier applied (recovered from its contribution), so taking what the pitch offers is worth its goals rather than extra rating. To keep the asserted ratings target on both seeds, `rating22.decision` is now shooting 0.2, passing 0.35, dribbling 0.4, defending 0.35, keeping 0.37 (0.25/0.25/0.25/0.35/0.4), and `assist` 0.85 (0.7): midfielders' best matches reach 9 again without raising the striker's share of 9s. `rewards22.position` keeps XP a match within 1% of the table above: CB 1.21, CM 0.62, AM 0.74, LW/RW 0.78 (1.1, 0.8, 0.85, 0.9).
+The rating's par (step 5.3) counts the reads: the reference odds a moment is measured against are the base odds with each read factor's multiplier applied (recovered from its contribution), so taking what the pitch offers is worth its goals rather than extra rating. To keep the asserted ratings target on both seeds, `rating22.decision` is now shooting 0.2, passing 0.35, dribbling 0.4, defending 0.35, keeping 0.37 (0.25/0.25/0.25/0.35/0.4), and `assist` 0.85 (0.7): midfielders' best matches reach 9 again without raising the striker's share of 9s. `rewards22.position` is refitted: CB 1.21, CM, AM, LW and RW 0.78 (1.1, 0.8, 0.85, 0.9, 0.9), XP a match within 2% of the table above except the centre-midfielder's, +10% (127.5 against 115.9): more goals and assists pass through its moments, and its weight stays at 0.78 so a rating point is worth at least 0.7 of match-21's (`tests/match-ratings.test.ts`).
 
 ### Results (300 matches a position, both seeds)
 
