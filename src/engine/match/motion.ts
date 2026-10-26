@@ -12,7 +12,8 @@ import type {
 import { createRng, hashSeed, type Rng } from '../rng';
 import { clamp } from './decisions';
 import { OFF_ANIMATION, PARKED } from './parked';
-import { SITUATION_BY_ID, type Situation } from './situations';
+import type { Situation } from './situations';
+import { situationOf } from './situations22';
 import { HEAT_COLUMNS, HEAT_ROWS, rules22, type MatchSession, type PlayState } from './types';
 import {
   FORMATION_SLOTS,
@@ -128,7 +129,7 @@ const WIDTH = 0.65;
 /** Metres per length unit (105 m along the pitch). */
 export const METRES_PER_UNIT = 1.05;
 /** Top running speed in length units per sporting millisecond (about 9 m/s). */
-const RUN = 0.0085;
+export const RUN = 0.0085;
 /** Longest pause a keyframe may take while players walk to their marks. */
 const MAX_STEP_MS = 14000;
 const CENTRE: Point = { x: 50, y: 50 };
@@ -2065,15 +2066,32 @@ class Director {
       case 'penalty-save':
       case 'shot-incoming':
       case 'one-on-one':
-      case 'cross-ball': {
+      case 'cross-ball':
+      // Engine match-22's defending situations (step 5.2).
+      case 'last-man':
+      case 'cross-defence':
+      case 'two-on-one':
+      case 'set-piece-marking':
+      case 'sweeping': {
         const fallback = ownFrame(at.d + 6, at.w);
-        const attacker =
-          situation.id === 'cross-ball'
-            ? (byRole(this.teammates(opposition), at.w <= 50 ? 'wide-right' : 'wide-left') ??
-              outfield(opponents.attacker, fallback))
-            : outfield(opponents.attacker, fallback);
+        const wide =
+          situation.id === 'cross-ball' ||
+          situation.id === 'cross-defence' ||
+          situation.id === 'set-piece-marking';
+        const attacker = wide
+          ? (byRole(this.teammates(opposition), at.w <= 50 ? 'wide-right' : 'wide-left') ??
+            outfield(opponents.attacker, fallback))
+          : outfield(opponents.attacker, fallback);
+        const later: Record<string, Point> = {
+          'last-man': ownFrame(at.d + 7, at.w),
+          'cross-defence': ownFrame(16, at.w <= 50 ? 92 : 8),
+          'two-on-one': ownFrame(at.d + 9, at.w + 6),
+          'set-piece-marking': ownFrame(0.5, at.w <= 50 ? 99 : 1),
+          sweeping: ownFrame(26, at.w),
+        };
         const ballAt =
-          situation.id === 'defend-attack'
+          later[situation.id] ??
+          (situation.id === 'defend-attack'
             ? ownFrame(at.d + 4, at.w + (this.rng.next() - 0.5) * 2)
             : situation.id === 'offside-line'
               ? ownFrame(at.d + 18, at.w + (this.rng.next() - 0.5) * 20)
@@ -2085,7 +2103,7 @@ class Director {
                     ? ownFrame(19 + this.rng.next() * 4, 40 + this.rng.next() * 20)
                     : situation.id === 'one-on-one'
                       ? ownFrame(13, 44 + this.rng.next() * 12)
-                      : ownFrame(8, at.w <= 50 ? 94 : 6);
+                      : ownFrame(8, at.w <= 50 ? 94 : 6));
         // The opposition's move into the danger the selected player faces (not a penalty).
         this.bringBall({ side: opposition, target: attacker }, ballAt, {
           air: situation.id === 'one-on-one' || situation.id === 'penalty-save' ? false : undefined,
@@ -2096,7 +2114,10 @@ class Director {
         const ball = this.toSpot(own, this.ball);
         marks.set(
           selected.id,
-          situation.id === 'defend-attack' || situation.id === 'offside-line'
+          situation.id === 'defend-attack' ||
+            situation.id === 'offside-line' ||
+            situation.id === 'last-man' ||
+            situation.id === 'two-on-one'
             ? spot
             : ownFrame(at.d, 50 + (ball.w - 50) * 0.3),
         );
@@ -2128,6 +2149,14 @@ class Director {
           );
           if (target) marks.set(target.id, ownFrame(9, 50));
         }
+        if (situation.id === 'cross-defence' || situation.id === 'set-piece-marking') {
+          // Their striker is the man the selected defender marks in the box.
+          const target = byRole(
+            this.teammates(opposition).filter((actor) => actor.id !== attacker.id),
+            'striker',
+          );
+          if (target) marks.set(target.id, ownFrame(at.d + 1, at.w + 2));
+        }
         this.emit({
           dt: 600,
           ball: this.ball,
@@ -2145,7 +2174,7 @@ class Director {
         this.bringBall({ side: own, target: selected }, spot, {
           move: { purpose: 'scene', situationId: situation.id },
         });
-        const presser = situation.id === 'build-out';
+        const presser = situation.id === 'build-out' || situation.id === 'back-pass';
         const opponent = outfield(presser ? opponents.attacker : opponents.defender, spot);
         this.direct = opponent.id;
         marks.set(
@@ -2191,7 +2220,13 @@ class Director {
         : undefined;
     };
     // Set pieces keep their set-up: the cast is named, not moved.
-    const setPiece = ['penalty', 'free-kick', 'corner-kick', 'penalty-save'].includes(situation.id);
+    const setPiece = [
+      'penalty',
+      'free-kick',
+      'corner-kick',
+      'penalty-save',
+      'set-piece-marking',
+    ].includes(situation.id);
     if (situation.phase === 'defence') {
       const carrier = this.carrier();
       const onBall =
@@ -2208,7 +2243,11 @@ class Director {
       if (runner) {
         cast.runner = runner.id;
         taken.add(runner.id);
-        if (situation.id === 'defend-attack' || situation.id === 'offside-line')
+        if (
+          situation.id === 'defend-attack' ||
+          situation.id === 'offside-line' ||
+          situation.id === 'two-on-one'
+        )
           marks.set(runner.id, near(runner.id, ownFrame(at.d + 1, at.w + (at.w < 50 ? 12 : -12))));
       }
       // Teammates covering, goal-side of the ball.
@@ -2425,7 +2464,7 @@ function outcomeScene(
     ),
   );
   const scene = director(session, lastFrame(session), minute * 60000 - 20000, 'outcome', dismissed);
-  scene.run(events, SITUATION_BY_ID[situationId] ?? null, decisionEvents);
+  scene.run(events, situationOf(situationId) ?? null, decisionEvents);
   scene.fill(2);
   return scene.finish();
 }

@@ -520,7 +520,10 @@ export function autoPlayCommand(session: MatchSession): MatchCommand {
       .map((choice) => ({ choice, net: expectedImpact(choice).net }))
       .sort((a, b) => b.net - a.net || (a.choice.id < b.choice.id ? -1 : 1));
     const best = ranked[0]!.net;
-    const margin = CONFIG.match.autoPlayMargin;
+    // Match-22's reads make the best call matter: only near-equal calls are drawn between.
+    const margin = rules22(session.setup)
+      ? CONFIG.match.moments22.autoPlayMargin
+      : CONFIG.match.autoPlayMargin;
     const near = ranked.filter((entry) => entry.net >= best - margin);
     const pick = createRng(`${session.setup.seed}:auto:${s.currentMoment.id}`).int(
       0,

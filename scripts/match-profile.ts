@@ -44,7 +44,7 @@ import {
 import { ABILITY_WEIGHTS } from '../src/engine/strength';
 import { FORMATION_SLOTS, FORMATIONS } from '../src/engine/selection/formations';
 import { expectedImpact } from '../src/engine/match/decisions';
-import { SITUATION_BY_ID } from '../src/engine/match/situations';
+import { situationOf } from '../src/engine/match/situations22';
 import { autoPlayCommand } from '../src/engine/career/matches';
 import { motionProbe } from '../src/engine/match/motion';
 
@@ -347,7 +347,7 @@ export function profilePosition(
       const mine = goals.filter((event) => event.teamId === club.id).length;
       const theirs = goals.length - mine;
       const state = mine < theirs ? 'behind' : mine > theirs ? 'ahead' : 'level';
-      const phase = SITUATION_BY_ID[moment.situationId]?.phase;
+      const phase = situationOf(moment.situationId)?.phase;
       if (phase === 'attack') late[state].attack++;
       else if (phase === 'defence') late[state].defence++;
     }

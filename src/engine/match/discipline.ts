@@ -139,9 +139,15 @@ export function bookingRisk(
   player: Pick<Player, 'attributes'>,
   probability: number,
   booked: boolean,
+  /**
+   * Engine match-22: a foul that is the choice itself (a professional foul) risks its card on
+   * success, with this straight-red share.
+   */
+  foul?: { onSuccess: true; straight: number },
 ): BookingRisk | null {
-  const entry = B.choices[choiceId];
-  if (!entry) return null;
+  const listed = B.choices[choiceId];
+  if (!listed) return null;
+  const entry = foul ? { ...listed, straight: foul.straight } : listed;
   const round = (n: number) => Math.round(n * 1e6) / 1e6;
   const a = player.attributes;
   const steps: [string, number][] = [
@@ -158,21 +164,23 @@ export function bookingRisk(
     factors.push({ labelKey, source: 'attribute', contribution: round(next - current) });
     current = next;
   }
-  const foul = round(Math.max(B.minimum, Math.min(B.maximum, current)));
-  if (foul !== current)
+  // A professional foul is a foul whenever it is made (match-22): no upper limit.
+  const chance = round(Math.max(B.minimum, Math.min(foul ? 1 : B.maximum, current)));
+  if (chance !== current)
     factors.push({
       labelKey: 'match.factor.limit',
       source: 'attribute',
-      contribution: round(foul - current),
+      contribution: round(chance - current),
     });
-  const fail = 1 - probability;
+  const fail = foul ? probability : 1 - probability;
   return {
-    foul,
+    foul: chance,
     straight: entry.straight,
-    yellow: booked ? 0 : round(fail * foul * (1 - entry.straight)),
-    red: round(fail * foul * (booked ? 1 : entry.straight)),
+    yellow: booked ? 0 : round(fail * chance * (1 - entry.straight)),
+    red: round(fail * chance * (booked ? 1 : entry.straight)),
     booked,
     factors,
+    ...(foul ? { onSuccess: true as const } : {}),
   };
 }
 

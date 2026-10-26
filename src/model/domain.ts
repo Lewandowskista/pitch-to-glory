@@ -1593,9 +1593,20 @@ export interface KeyMoment {
   zone?: PitchZone;
   /** Who the moment involves (engine match-15); absent on earlier engines. */
   cast?: MomentCast;
+  /**
+   * What the pitch shows (engine match-22): the read of the play each choice's odds depend on
+   * (`match.read.<id>.<state>`, e.g. the keeper off his line, a wall of four), in order.
+   * Absent on earlier engines.
+   */
+  reads?: MomentRead[];
   /** Expected goals this moment replaces for the selected team and against it. */
   budget: { for: number; against: number };
   choices: DecisionChoice[];
+}
+/** One read of a key moment (engine match-22): a state of the play, drawn or from a matchup. */
+export interface MomentRead {
+  id: Id;
+  state: Id;
 }
 export interface DecisionInput {
   momentId: Id;
@@ -1671,6 +1682,16 @@ export interface BookingRisk {
   /** Already booked: a second yellow sends the player off. */
   booked: boolean;
   factors: ProbabilityFactor[];
+  /**
+   * The foul is the choice itself (engine match-22, a professional foul): a card is risked when
+   * it succeeds, not when it fails, and `yellow` and `red` are computed that way.
+   */
+  onSuccess?: true;
+  /**
+   * Expected goals the card would cost the side (engine match-22): a dismissal's chance times
+   * what playing a man down for the rest of the match costs. Counted in the choice's value.
+   */
+  cost?: number;
 }
 export interface MatchReport {
   playerId: Id;

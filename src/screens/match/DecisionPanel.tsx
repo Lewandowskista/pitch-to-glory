@@ -11,6 +11,7 @@ import {
   situationText,
 } from '../../i18n/match';
 import { careerText as c } from '../../i18n/career';
+import { readsLabel } from '../../i18n/moments';
 import { Factors, signedPercent, strongest } from './Shared';
 import { TacticalCam } from './TacticalCam';
 import { shirtNumbers } from './pitchArt';
@@ -264,6 +265,14 @@ export function DecisionPanel({
             </span>
             {pressure && <p className="match-pressure">{pressure}</p>}
             <h2 id="decision-heading">{situation}</h2>
+            {moment.reads && moment.reads.length > 0 && (
+              <p className="mt-1 text-[0.8125rem] text-muted">
+                <span className="font-semibold">{readsLabel}:</span>{' '}
+                {moment.reads
+                  .map((read) => matchLabel(`match.read.${read.id}.${read.state}`))
+                  .join(' · ')}
+              </p>
+            )}
           </div>
           <p className="match-paused-note">
             <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">

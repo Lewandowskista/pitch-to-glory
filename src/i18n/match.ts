@@ -1,4 +1,5 @@
 import { LOCALE, plurals, type Translations } from './locale';
+import { momentLabels } from './moments';
 /** The weather as the match reports it, with its intensity (engine match-15). */
 const weatherNames = {
   light: { clear: 'Sunny spells', rain: 'Light rain', snow: 'Light snow', wind: 'A breeze' },
@@ -574,6 +575,8 @@ const engineTextEn: Record<string, string> = {
   'match.situation.shootout-keeper':
     'Level at full time. If it comes to penalties, it is you against their takers.',
   ...situationVariants,
+  // The 1.0 key moments (engine match-22): new situations, choices and reads.
+  ...momentLabels,
   'match.pressure.level': 'Level, {minute}th minute. This could decide it.',
   'match.pressure.behind': 'A goal down, {minute}th minute. Time is running out.',
   'match.pressure.ahead': 'One goal in it, {minute}th minute. Hold on.',
