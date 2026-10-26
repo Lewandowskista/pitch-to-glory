@@ -464,6 +464,8 @@ test('the pitch keeps moving through each minute at 1× (review M2)', async ({ p
   const shots: Buffer[] = [];
   for (let sample = 0; sample < 20; sample++) {
     if ((await state.getAttribute('data-status')) !== 'live') break;
+    // Play stops for a decision the player owes (match-22: a knock, the captain's call).
+    if (await page.locator('.match-play').isDisabled()) break;
     shots.push(await stage.screenshot({ animations: 'allow' }));
     await page.waitForTimeout(150);
   }
