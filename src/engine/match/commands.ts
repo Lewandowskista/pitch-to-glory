@@ -18,9 +18,14 @@ import { applyPassage } from './passage';
 import { showCards } from './cards';
 import { replacement } from './lineup';
 import { managerSubstitutions } from './substitutions';
-import { openMoment, placeLateMoment } from './moments';
+import { momentDue, openMoment, placeLateMoment } from './moments';
 import { resolveChoice } from './resolve';
 import { resolveShootout, settleShootout } from './extraTime';
+import { tick } from './stoppage';
+import { benchCheck, changesLeft } from './bench';
+import { answerKnock, careerKnock, playerInjuries } from './injuries';
+import { playKick, resolveShootoutKick } from './shootout';
+import { askCaptain, halftimeTalk, substitutionResponse } from './touchline';
 import { finish, poorRating } from './report';
 import { currentRates, shares, updatePossession } from './rates';
 import { afterMinute, simulateMinuteGoals } from './minute';
@@ -52,8 +57,17 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     if (m.status !== 'preview') throw new Error('Match already started');
     m.status = 'live';
   } else if (command.type === 'advance') {
-    if (m.status !== 'live' || state.captainDecisionPending || state.substitutionDecisionPending)
+    if (
+      m.status !== 'live' ||
+      state.captainDecisionPending ||
+      state.substitutionDecisionPending ||
+      state.injuryDecisionPending
+    )
       throw new Error('Cannot advance paused match');
+    if (rules22(setup)) {
+      advance22(next);
+      return next;
+    }
     m.minute++;
     const first = m.events.length;
     if (!offPitch(state)) {
@@ -125,6 +139,11 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     }
   } else if (command.type === 'choose') {
     if (m.status !== 'decision' || !state.currentMoment) throw new Error('No decision pending');
+    if (state.currentMoment.follows === 'shootout' && rules22(setup)) {
+      // A kick of the match-22 shootout: the next one comes with the next advance.
+      resolveShootoutKick(next, command.choiceId);
+      return next;
+    }
     if (state.currentMoment.follows === 'shootout') {
       resolveShootout(next, command.choiceId);
       state.currentMoment = null;
@@ -157,6 +176,16 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
   } else if (command.type === 'halftime') {
     if (m.status !== 'halftime' || !['motivate', 'role', 'complain'].includes(command.response))
       throw new Error('Invalid halftime response');
+    if (rules22(setup)) {
+      halftimeTalk(next, command);
+      state.stats.fatigue = round6(Math.max(0, state.stats.fatigue - C.halftimeRecovery));
+      state.play = { side: 1, carrierId: null, restart: 'second-half' };
+      m.status = 'live';
+      // The captain's first call of the second half, if they are on the pitch.
+      askCaptain(next);
+      return next;
+    }
+    if (command.role !== undefined) throw new Error('Invalid halftime response');
     // The challenge is a demand for the ball (match-13): more of the second half goes through
     // the player, at a smaller cost in trust and no sulk.
     const demand = command.response === 'complain';
@@ -207,7 +236,8 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     )
       throw new Error('No substitution response pending');
     state.substitutionDecisionPending = false;
-    if (command.response === 'encourage') state.managerTrustDelta += 1;
+    if (rules22(setup)) substitutionResponse(next, command.response);
+    else if (command.response === 'encourage') state.managerTrustDelta += 1;
   } else if (command.type === 'captain') {
     if (
       m.status !== 'live' ||
@@ -231,6 +261,110 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     }
     state.expectedGoals = currentRates(next, m.tactics);
     updatePossession(next);
+  } else if (command.type === 'injury') {
+    // A knock (match-22): play on, or come off.
+    if (
+      !rules22(setup) ||
+      m.status === 'finished' ||
+      !['play-on', 'off'].includes(command.response)
+    )
+      throw new Error('No injury decision pending');
+    answerKnock(next, command.response);
   } else throw new Error('Unknown match command');
   return next;
+}
+
+/**
+ * A minute on the match-22 engine: the shootout's next kick once it began; else a knock asks
+ * its question before the minute; else the clock moves on (an added minute while the board's
+ * remain), and the minute plays as before with the bench, injuries and keepers' cards.
+ */
+function advance22(next: MatchSession): void {
+  const state = next.state,
+    m = state.match;
+  if (state.penaltyShootout) {
+    playKick(next);
+    return;
+  }
+  if (careerKnock(next)) return;
+  tick(state);
+  const first = m.events.length;
+  if (!offPitch(state)) {
+    // Minutes played are the regulation count: added time adds none (as statistics count).
+    if (!state.added) state.selectedPlayerMinutes++;
+    accrueFatigue(next);
+    ownSubstitution(next);
+  }
+  benchCheck(next);
+  managerSubstitutions(next);
+  showCards(next);
+  playerInjuries(next);
+  if (m.minute === C.drama.lateDecisionMinute && !state.added) placeLateMoment(next);
+  if (!offPitch(state) && momentDue(next)) openMoment(next);
+  else {
+    simulateMinuteGoals(next);
+    applyPassage(next, 'minute', minutePassage(next, m.events.slice(first)));
+    afterMinute(next);
+  }
+}
+/** The selected player's fatigue for a minute on the pitch (as every engine accrues it). */
+function accrueFatigue(next: MatchSession): void {
+  const state = next.state,
+    m = state.match;
+  const player = next.setup.players[next.setup.selectedPlayerId]!;
+  const stamina =
+    player.primaryPosition === 'GK'
+      ? Math.max(C.keeperStamina, player.attributes.stamina)
+      : player.attributes.stamina;
+  state.stats.fatigue = round6(
+    clamp(
+      state.stats.fatigue +
+        (C.fatiguePerMinute * (1.3 - stamina / 150) +
+          (m.tactics.risk === 'high' ? C.highRiskFatigue : 0)) *
+          (player.traits.includes('second-wind') ? C.decision.secondWindFatigue : 1),
+      0,
+      100,
+    ),
+  );
+}
+/**
+ * The selected player's own substitution (match-22): tired, or a manager's tactical change at a
+ * few set minutes, as before (none in extra time: its extra change is the managers'), with a
+ * change kept for it. Not for a player who came off the bench.
+ */
+function ownSubstitution(next: MatchSession): void {
+  const state = next.state,
+    m = state.match,
+    setup = next.setup;
+  const player = setup.players[setup.selectedPlayerId]!;
+  if (state.bench || state.added) return;
+  const T = C.tacticalSubstitution;
+  const own = selectedSide(setup);
+  const inWindow = m.minute >= C.minimumSubstitutionMinute && m.minute < C.substitutionCutoffMinute;
+  const tired = player.primaryPosition !== 'GK' && state.stats.fatigue >= C.substitutionFatigue;
+  const tactical =
+    player.primaryPosition !== 'GK' &&
+    (T.minutes as readonly number[]).includes(m.minute) &&
+    (state.stats.rating < T.ratingBelow || m.score[own]! - m.score[1 - own]! >= T.leadingBy) &&
+    createRng(`${setup.seed}:substitution:${m.minute}`).next() < T.chance;
+  if (!inWindow || !(tired || tactical) || changesLeft(next, own, true) <= 0) return;
+  const team = own === 0 ? 'home' : 'away';
+  const current = m[team];
+  const incoming = replacement(next, current.benchIds, player);
+  if (!incoming) return;
+  state.substituted = true;
+  state.substitutionDecisionPending = true;
+  m[team] = {
+    ...current,
+    starterIds: current.starterIds.map((id) => (id === player.id ? incoming : id)),
+    benchIds: current.benchIds.filter((id) => id !== incoming),
+  };
+  const sub = event(
+    next,
+    'substitution',
+    player.clubId!,
+    player.id,
+    'match.commentary.substitution',
+  );
+  sub.receiverId = incoming;
 }

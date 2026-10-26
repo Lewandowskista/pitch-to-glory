@@ -71,6 +71,8 @@ export function event(
     commentaryKey,
     ...(name ? { commentaryParams: { player: name } } : {}),
     outcome,
+    // In added time (match-22): the added minute.
+    ...(session.state.added ? { addedTime: session.state.added } : {}),
   };
   m.events.push(created);
   return created;

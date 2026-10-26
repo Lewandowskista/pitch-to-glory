@@ -512,6 +512,8 @@ export interface CareerMatchRecord {
   yellowCards?: number;
   /** Sent off, and why (the discipline phase). */
   sentOff?: SentOff;
+  /** Came on as a substitute at this minute, after starting on the bench (release 1.0). */
+  cameOn?: number;
 }
 /**
  * The career. The player is an ordinary entry in `world.players` and their club's squad;
@@ -1584,6 +1586,8 @@ export interface KeyMoment {
   pressureKey?: string;
   /** A follow-up moment (match-13): the shot after a beaten defender, or the shootout kick. */
   follows?: 'chain' | 'shootout';
+  /** In added time (engine match-22): the added minute. */
+  addedTime?: number;
   frame: ReplayFrame;
   /** The third the moment happens in, from the selected team's goal (engine match-15). */
   zone?: PitchZone;
@@ -1642,6 +1646,8 @@ export interface MatchEvent {
    * second yellow (a yellow, then red: off) and a straight red.
    */
   card?: CardKind;
+  /** In added time (engine match-22): the added minute, shown as `minute+addedTime`. */
+  addedTime?: number;
 }
 export type CardKind = 'yellow' | 'second-yellow' | 'red';
 /** Where a shot that did not go in ended (engine match-22). */
@@ -1684,6 +1690,11 @@ export interface MatchReport {
    * dismissal, if any. Absent on earlier engines.
    */
   cards?: { yellow: number; sentOff?: SentOff };
+  /**
+   * The player started on the bench (engine match-22): the minute they came on, or null when
+   * they were an unused substitute (no rating, XP or fame then).
+   */
+  bench?: { cameOn: number | null };
 }
 export interface Match {
   id: Id;

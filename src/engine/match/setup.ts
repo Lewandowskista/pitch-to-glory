@@ -9,10 +9,10 @@ import { lineupAbility } from '../selection/lineup';
 import { FORMATION_SLOTS, type Formation } from '../selection/formations';
 import { clubFormation } from '../selection/world';
 import {
+  rules22,
   CURRENT_SETUP_FLAGS,
   MATCH_ENGINE_VERSION,
   PREVIOUS_MATCH_ENGINE,
-  rules22,
   setupEngine,
   type MatchSetup,
   type MatchSession,
@@ -61,6 +61,12 @@ export function createMatchSetup(
     suspended?: readonly string[];
     /** The player studied the opponent in training this week (match-19). */
     prepared?: boolean;
+    /** The player starts on the bench, with the role they were promised (match-22). */
+    bench?: NonNullable<MatchSetup['bench']>['role'];
+    /** The career's injury factor and a rushed return's risk (match-22). */
+    injury?: MatchSetup['injury'];
+    /** Trust with the manager, 0–100 (match-22). */
+    trust?: number;
   } = {},
 ): MatchSetup {
   const home = world.clubs[homeId],
@@ -97,6 +103,10 @@ export function createMatchSetup(
     ...CURRENT_SETUP_FLAGS,
     decidingHeadline: true as const,
     ...(options.prepared ? { prepared: true as const } : {}),
+    // The occasions (match-22): the bench, the injury factor, the manager's trust.
+    ...(options.bench ? { bench: { role: options.bench } } : {}),
+    ...(options.injury ? { injury: options.injury } : {}),
+    ...(options.trust !== undefined ? { trust: Math.round(options.trust) } : {}),
     ...(options.suspended?.some((id) => id !== selectedPlayerId)
       ? { suspended: options.suspended.filter((id) => id !== selectedPlayerId) }
       : {}),
@@ -118,12 +128,15 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   validateTactics(tactics, position);
   const formations = setup.formations!;
   const suspended = setup.suspended ?? [];
+  // Match-22: a career player left out starts on the bench.
+  const bench = rules22(setup) && setup.bench !== undefined;
   const home = formationLineup(
       setup.home,
       setup.players,
       formations[0],
       setup.selectedPlayerId,
       suspended,
+      bench,
     ),
     away = formationLineup(
       setup.away,
@@ -131,7 +144,10 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       formations[1],
       setup.selectedPlayerId,
       suspended,
+      bench,
     );
+  const benched =
+    bench && ![...home.starterIds, ...away.starterIds].includes(setup.selectedPlayerId);
   const starters = (team: Lineup) => team.starterIds.map((id) => setup.players[id]!);
   // Each starter is valued in their slot, as background results are.
   const strengthOf = (club: MatchSetup['home'], team: Lineup) =>
@@ -178,6 +194,8 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       ),
     );
   minutes.push(C.drama.routineLateMinute);
+  // Match-22: a player on the bench has no moments until they come on (bench.ts).
+  if (benched) minutes.length = 0;
   // Objectives have their own stream (match-15, decision 3), so the hub can show them before
   // matchday.
   const objectives = objectivesFor(setup.seed, selected, position);
@@ -272,6 +290,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       managerReactionKey: 'match.reaction.manager.steady',
       fanReactionKey: 'match.reaction.fans.steady',
       headlineKey: 'match.headline.steady',
+      ...(benched ? { bench: {} } : {}),
     },
   };
   updatePossession(session);

@@ -31,14 +31,17 @@ export function applyPassage(
   const last = passage.frames[passage.frames.length - 1]!;
   // Snapshots keep positions only: beats live in the passage's keyframes (and the last one in
   // the play state), so the per-minute history stays small.
-  const snapshot: ReplayFrame = { ...last, timeMs: s.match.minute * 60000 };
+  const snapshot: ReplayFrame = { ...last, timeMs: (s.match.minute + (s.added ?? 0)) * 60000 };
   delete snapshot.beat;
   if (replace) s.frames[s.frames.length - 1] = snapshot;
   else s.frames.push(snapshot);
   s.play = passage.play;
   // Narration from the passage's beats (match-14), on its own stream.
   const narrationStart = s.narration.length;
-  const lines = timedNarration(() => narrate(session, passage.frames, kind, narrationStart));
+  const told = timedNarration(() => narrate(session, passage.frames, kind, narrationStart));
+  // In added time (match-22) each line is stamped with its added minute.
+  const added = s.added;
+  const lines = added ? told.map((entry) => ({ ...entry, addedTime: added })) : told;
   if (lines.length) s.narration = [...s.narration, ...lines];
   s.motion = {
     kind,

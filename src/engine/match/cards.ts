@@ -9,7 +9,9 @@ import { cardsOfMinute, type Card } from './discipline';
 import { event, line } from './events';
 import { addRating } from './report';
 import { currentRates, updatePossession } from './rates';
-import { offPitch, sideTeam } from './shared';
+import { clockKey, offPitch, sideTeam } from './shared';
+import { rules22 } from './types';
+import { keeperSentOff } from './bench';
 
 const F = C.cards;
 
@@ -32,20 +34,25 @@ export function showCards(session: MatchSession): void {
   const s = session.state,
     m = s.match,
     setup = session.setup;
-  // While on, the selected player's defending moments carry part of their risk.
-  const scaled = offPitch(s)
-    ? undefined
-    : {
-        id: setup.selectedPlayerId,
-        factor: Math.max(0, 1 - s.shares.defence * F.selectedDefence),
-      };
+  const r22 = rules22(setup);
+  // While on, the selected player's defending moments carry part of their risk (a keeper's
+  // moments carry none on match-22, where keepers are booked).
+  const scaled =
+    offPitch(s) || (r22 && setup.players[setup.selectedPlayerId]!.primaryPosition === 'GK')
+      ? undefined
+      : {
+          id: setup.selectedPlayerId,
+          factor: Math.max(0, 1 - s.shares.defence * F.selectedDefence),
+        };
   for (const card of cardsOfMinute(
     setup.seed,
-    m.minute,
+    // Match-22: an added minute has its own draw, and keepers can be booked.
+    r22 ? clockKey(s) : m.minute,
     [m.home, m.away],
     setup.players,
     bookedPlayers(m),
     scaled,
+    r22 ? C.occasions.injuries.keeperCard : undefined,
   ))
     showCard(session, card.side, card.playerId, card.card);
 }
@@ -97,6 +104,8 @@ function dismiss(
     s.managerTrustDelta += F.trust[reason];
     s.captainDecisionPending = false;
   }
+  // Match-22: a keeper sent off is replaced in goal.
+  if (rules22(session.setup)) keeperSentOff(session, side, playerId);
   s.expectedGoals = currentRates(session, m.tactics);
   updatePossession(session);
 }

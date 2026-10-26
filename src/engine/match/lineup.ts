@@ -38,9 +38,13 @@ export function formationLineup(
   selected: string,
   /** Players suspended for this match (match-16), as long as eleven remain. */
   suspended: readonly string[] = [],
+  /** The selected player starts on the bench (match-22), as long as eleven remain without them. */
+  bench = false,
 ): Lineup {
   const ready = club.playerIds.filter((id) => available(players[id]));
   if (ready.length < 11) throw new Error('A match requires eleven available players per team');
+  if (bench && club.playerIds.includes(selected) && ready.length > 11)
+    return benchLineup(club, players, formation, selected, suspended, ready);
   const banned = suspended.filter((id) => id !== selected && ready.includes(id));
   const exclude = banned.slice(0, Math.max(0, ready.length - 11));
   // With every keeper out, the shared selection puts an outfielder in goal rather than
@@ -57,6 +61,29 @@ export function formationLineup(
     formation,
     starterIds: choice.starterIds,
     benchIds: matchdayBench(choice.benchIds, players),
+  };
+}
+/**
+ * The eleven without the selected player, who leads the bench (match-22): the manager left them
+ * out, and the best of the rest fill the other six places.
+ */
+function benchLineup(
+  club: Club,
+  players: Record<string, Player>,
+  formation: Formation,
+  selected: string,
+  suspended: readonly string[],
+  ready: readonly string[],
+): Lineup {
+  const banned = suspended.filter((id) => id !== selected && ready.includes(id));
+  const exclude = [selected, ...banned.slice(0, Math.max(0, ready.length - 12))];
+  const choice = selectLineup(club.playerIds, players, formation, { exclude });
+  if (choice.starterIds.length !== 11) throw new Error('Invalid lineup');
+  return {
+    teamId: club.id,
+    formation,
+    starterIds: choice.starterIds,
+    benchIds: [selected, ...matchdayBench(choice.benchIds, players).slice(0, C.benchSize - 1)],
   };
 }
 /**

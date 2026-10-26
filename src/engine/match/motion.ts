@@ -2306,13 +2306,16 @@ function director(
   exempt?: ReadonlySet<string>,
 ) {
   const minute = session.state.match.minute;
+  // In added time (match-22) the clock stands at the period's last minute: the passage has its
+  // own stream and runs on past it.
+  const added = session.state.added ?? 0;
   return new Director(
     session,
     start,
     session.state.play,
     minute,
-    startTime,
-    createRng(`${session.setup.seed}:motion:${minute}:${tag}`),
+    startTime + added * 60000,
+    createRng(`${session.setup.seed}:motion:${added ? `${minute}+${added}` : minute}:${tag}`),
     exempt,
   );
 }

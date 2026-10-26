@@ -54,8 +54,24 @@ export const onPitch = (team: Lineup): string[] =>
   team.sentOffIds?.length
     ? team.starterIds.filter((id) => !team.sentOffIds!.includes(id))
     : team.starterIds;
-/** The selected player no longer plays: substituted, or sent off (match-16). */
-export const offPitch = (state: MatchState) => state.substituted || state.sentOff !== undefined;
+/**
+ * The selected player is not on the pitch: substituted, sent off (match-16), or still on the
+ * bench (match-22; `bench.on` is set when they come on).
+ */
+export const offPitch = (state: MatchState) =>
+  state.substituted || state.sentOff !== undefined || onBench(state);
+/** Still on the bench (match-22): started there and not brought on yet. */
+export const onBench = (state: Pick<MatchState, 'bench'>) =>
+  state.bench !== undefined && state.bench.on === undefined;
+/**
+ * The key of the minute being played for per-minute streams: the minute, or `minute+added` in
+ * added time (match-22), so an added minute never replays its period's last minute's draws.
+ */
+export const clockKey = (state: Pick<MatchState, 'match' | 'added'>): string =>
+  state.added ? `${state.match.minute}+${state.added}` : String(state.match.minute);
+/** The added minute being played (match-22), as an event or line stamps it, or nothing. */
+export const addedStamp = (state: Pick<MatchState, 'added'>): { addedTime?: number } =>
+  state.added ? { addedTime: state.added } : {};
 /** How many men each side is down (match-16). */
 export const menDown = (match: MatchState['match']): [number, number] => [
   match.home.sentOffIds?.length ?? 0,

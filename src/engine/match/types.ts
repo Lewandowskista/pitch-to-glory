@@ -177,6 +177,19 @@ export interface MatchSetup {
    * leadership order. Absent, the most experienced leader on the pitch wears the armband.
    */
   captain?: true;
+  /**
+   * The career player starts on the bench (match-22, release 1.0 step 5.4): the manager may
+   * bring them on later, by the role they were promised. Absent for a starter.
+   */
+  bench?: { role: 'key' | 'rotation' | 'backup' | 'youth' };
+  /**
+   * The career player's injury factor (match-22): fatigue, injury proneness, Iron Man and a
+   * physio, as the career's injury system has it, and a rushed return's re-injury risk.
+   * Absent, the factor is taken from the player alone.
+   */
+  injury?: { factor: number; reinjury?: { risk: number; kind: string } };
+  /** The career player's trust with their manager (0–100; 50 when absent), match-22. */
+  trust?: number;
 }
 export interface MatchFixture {
   id: string;
@@ -200,9 +213,16 @@ export type MatchCommand =
   | { type: 'kickoff' }
   | { type: 'advance' }
   | { type: 'choose'; choiceId: string }
-  | { type: 'halftime'; response: 'motivate' | 'role' | 'complain' }
+  | {
+      type: 'halftime';
+      response: 'motivate' | 'role' | 'complain';
+      /** The role asked for (match-22); absent, the first role that differs from the current. */
+      role?: string;
+    }
   | { type: 'substitution'; response: 'accept' | 'encourage' }
-  | { type: 'captain'; instruction: 'push' | 'calm' };
+  | { type: 'captain'; instruction: 'push' | 'calm' }
+  /** After a knock (match-22): play on, or come off. */
+  | { type: 'injury'; response: 'play-on' | 'off' };
 export interface LiveStats {
   homeShots: number;
   awayShots: number;
@@ -294,6 +314,40 @@ export interface NarrationLine {
   params: Record<string, string>;
   /** The engine event the move led to (a shot, or the decision it played). */
   eventId?: string;
+  /** In added time (match-22): the added minute, shown as `minute+addedTime`. */
+  addedTime?: number;
+}
+/** One kick of a match-22 shootout. */
+export interface ShootoutKick {
+  side: 0 | 1;
+  takerId: string;
+  keeperId: string;
+  scored: boolean;
+  probability: number;
+  roll: number;
+  /** The career player's own kick or save: the choice they made. */
+  choiceId?: string;
+}
+/** A player forced off injured during a match-22 session (not the career player). */
+export interface MatchInjury {
+  playerId: string;
+  minute: number;
+  addedTime?: number;
+  /** The injury type (`CONFIG.career.injuries.types`). */
+  kind: string;
+}
+/** The career player's knock in a match-22 session and what came of it. */
+export interface MatchKnock {
+  minute: number;
+  addedTime?: number;
+  /** The injury type it is, or becomes when aggravated. */
+  kind: string;
+  /** An injury at once: the player's match ends there, without a choice. */
+  serious: boolean;
+  /** Their answer to a knock that was not serious. */
+  decision?: 'play-on' | 'off';
+  /** Playing on, the knock became an injury at this minute. */
+  aggravated?: { minute: number; addedTime?: number };
 }
 export interface MatchState {
   match: Match;
@@ -362,6 +416,38 @@ export interface MatchState {
   sentOff?: SentOff;
   /** A follow-up moment due after a beaten defender (match-13): the chance it carries. */
   chain?: { goal: number };
+  /**
+   * Stoppage time (match-22): each period's board, in order. While `added` is set, the clock
+   * stands at the period's last minute and plays its added minutes.
+   */
+  stoppage?: { at: number; minutes: number }[];
+  /** The added minute being played (match-22), absent in normal time. */
+  added?: number;
+  /** The late key moment of a close game falls in this minute of second-half added time. */
+  lateAdded?: number;
+  /**
+   * A career player who started on the bench (match-22): the minute they came on, and
+   * whether they asked to come on at half-time.
+   */
+  bench?: { on?: number; asked?: true };
+  /** The career player's knock (match-22). */
+  knock?: MatchKnock;
+  /** Waiting for the career player's answer to a knock (match-22). */
+  injuryDecisionPending?: true;
+  /** Other players forced off injured (match-22), for the world's injury table. */
+  injuries?: MatchInjury[];
+  /**
+   * The minutes the captain's calls were asked for (match-22): at the second half's start,
+   * after conceding and late on, a few at most.
+   */
+  captainCalls?: number[];
+  /** The half-time role request (match-22): what was asked, and the refusal roll. */
+  roleRequest?: { role: string; refusal: number; roll: number; granted: boolean };
+  /**
+   * A match-22 shootout, kick by kick: the side that kicks first, each side's order of takers
+   * (players on the pitch at the end, best takers first), and the kicks taken.
+   */
+  penaltyShootout?: { first: 0 | 1; order: [string[], string[]]; kicks: ShootoutKick[] };
 }
 export interface MatchSession {
   version: 1;
