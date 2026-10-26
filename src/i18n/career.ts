@@ -678,6 +678,8 @@ const careerTextEn = {
       importance: 'Better odds at every key moment in cup ties, playoffs and finals (+{value}%).',
       leadership: 'Leadership decides who wears the armband and leads the team talk.',
       foot: 'No weaker foot: shots, crosses and carries on either side lose nothing (otherwise −{value}% on the weaker foot).',
+      clutch:
+        'Every key-moment choice +{value}% from the {minute}th minute of a game within a goal, and in cup ties, playoffs and finals.',
     },
     unlock: 'Unlock skill',
     unlockTitle: 'Unlock {name}?',

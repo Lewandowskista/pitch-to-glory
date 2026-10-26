@@ -22,7 +22,7 @@ import {
   type MatchCommand,
   type MatchSession,
 } from '../match';
-import { expectedImpact } from '../match/decisions';
+import { expectedImpact } from '../match/value';
 import { performanceFame, performanceXp, rewardScale } from '../match/rewards';
 import { commitPlayedFixture, type PlayedFixture } from '../world/simulate';
 import { recordEvent } from '../world/events';
@@ -520,7 +520,10 @@ export function autoPlayCommand(session: MatchSession): MatchCommand {
       .map((choice) => ({ choice, net: expectedImpact(choice).net }))
       .sort((a, b) => b.net - a.net || (a.choice.id < b.choice.id ? -1 : 1));
     const best = ranked[0]!.net;
-    const margin = CONFIG.match.autoPlayMargin;
+    // Match-22's reads make the best call matter: only near-equal calls are drawn between.
+    const margin = rules22(session.setup)
+      ? CONFIG.match.moments22.autoPlayMargin
+      : CONFIG.match.autoPlayMargin;
     const near = ranked.filter((entry) => entry.net >= best - margin);
     const pick = createRng(`${session.setup.seed}:auto:${s.currentMoment.id}`).int(
       0,

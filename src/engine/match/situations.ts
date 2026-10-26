@@ -72,6 +72,13 @@ export interface ChoiceTemplate {
    * budget averages the same, keeping a match's expected goals.
    */
   fixed?: number;
+  /**
+   * Engine match-22: the goal chance a success starts for the selected side on top of the
+   * moment's budget (a counter-attack: a skill's mechanic), in expected goals.
+   */
+  counter?: number;
+  /** Engine match-22: the choice is a foul (a professional foul), so a card follows success. */
+  foulOnSuccess?: true;
 }
 
 export interface Situation {
@@ -92,7 +99,7 @@ export interface Situation {
   phase?: 'attack' | 'defence';
 }
 
-const choice = (
+export const choice = (
   value: Pick<ChoiceTemplate, 'id' | 'attributes' | 'event' | 'family' | 'commentary'> &
     Partial<ChoiceTemplate>,
 ): ChoiceTemplate => ({

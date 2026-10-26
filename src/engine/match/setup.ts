@@ -252,7 +252,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       strength,
       matchLevel,
       expectedGoals: rates(setup, strength, tactics),
-      shares: shares(position, tactics.role),
+      shares: shares(position, tactics.role, rules22(setup)),
       stats: {
         homeShots: 0,
         awayShots: 0,

@@ -67,9 +67,15 @@ describe('deterministic personal match', () => {
       api,
     );
     for (const moment of final.state.match.keyMoments)
-      expect(['shot-incoming', 'one-on-one', 'cross-ball', 'distribution']).toContain(
-        moment.situationId,
-      );
+      expect([
+        'shot-incoming',
+        'one-on-one',
+        'cross-ball',
+        'distribution',
+        // Match-22 (step 5.2).
+        'sweeping',
+        'back-pass',
+      ]).toContain(moment.situationId);
     expect(final.state.match.events.some((e) => e.kind === 'save')).toBe(true);
     for (const event of final.state.match.events.filter((e) => e.outcome)) {
       expect(event.outcome!.factors.map((f) => f.source)).toEqual(

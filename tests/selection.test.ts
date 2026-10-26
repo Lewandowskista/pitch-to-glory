@@ -12,7 +12,7 @@ import {
   OutdatedMatchSessionError,
   validateMatchSession,
 } from '../src/engine/match';
-import { SITUATION_BY_ID } from '../src/engine/match/situations';
+import { SITUATION_22_BY_ID as SITUATION_BY_ID } from '../src/engine/match/situations22';
 import {
   FORMATION_SLOTS,
   FORMATIONS,

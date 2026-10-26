@@ -1,6 +1,7 @@
 import type { DecisionChoice } from '../../model/domain';
-import { SITUATIONS, type ChoiceEvent } from '../../engine/match/situations';
-import { expectedImpact } from '../../engine/match/decisions';
+import type { ChoiceEvent } from '../../engine/match/situations';
+import { templateOf } from '../../engine/match/situations22';
+import { expectedImpact } from '../../engine/match/value';
 import { CONFIG } from '../../engine/config';
 import type { matchText } from '../../i18n/match';
 
@@ -29,9 +30,7 @@ const EVENT_MEANING = {
  * and anything else succeeds as its kind of action.
  */
 export function chanceMeaning(situationId: string, choiceId: string): ChanceMeaning {
-  const template = SITUATIONS.find((situation) => situation.id === situationId)?.choices.find(
-    (choice) => choice.id === choiceId,
-  );
+  const template = templateOf(situationId, choiceId);
   if (!template) return 'success';
   if (template.direct === 'for') return 'score';
   if (template.direct === 'against') return 'keepOut';

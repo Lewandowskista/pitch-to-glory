@@ -219,7 +219,7 @@ describe('the previous match engine (match-21)', () => {
     expect(session.engine).toBe(MATCH_ENGINE_VERSION);
     // The same setup without the flag plays the previous engine, on its own rules: step 5.5
     // changed the lines the events log, step 5.3 the ratings and statistics (and so results),
-    // step 5.4 added time and the occasions.
+    // step 5.4 added time and the occasions, step 5.2 the moments (reads of the play).
     const [current, previous] = playOnEngines(setup, tactics);
     expect(current!.engine).toBe(MATCH_ENGINE_VERSION);
     expect(previous!.engine).toBe(PREVIOUS_MATCH_ENGINE);
@@ -231,6 +231,8 @@ describe('the previous match engine (match-21)', () => {
     expect(current!.state.stoppage?.length).toBeGreaterThanOrEqual(2);
     expect(previous!.state.stoppage).toBeUndefined();
     expect(previous!.state.ratingByMinute).toHaveLength(90);
+    expect(current!.state.match.keyMoments.some((moment) => moment.reads?.length)).toBe(true);
+    expect(previous!.state.match.keyMoments.some((moment) => moment.reads)).toBe(false);
   }, 120000);
 
   it('replays a session only on the engine its setup plays', () => {

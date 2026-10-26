@@ -21,6 +21,12 @@ const world = generateWorld('match-tests', { format: 'legacy' });
 const clubs = Object.values(world.clubs).slice(0, 4);
 const tactics = { role: 'balanced', risk: 'balanced', mentality: 'balanced' } as const;
 const DEFENSIVE = [
+  // Match-22's defending situations (step 5.2).
+  'last-man',
+  'cross-defence',
+  'two-on-one',
+  'set-piece-marking',
+  'sweeping',
   'defend-attack',
   'shot-incoming',
   'one-on-one',

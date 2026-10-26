@@ -1,4 +1,5 @@
 import { LOCALE, plurals, type Translations } from './locale';
+import { momentLabels } from './moments';
 /** The weather as the match reports it, with its intensity (engine match-15). */
 const weatherNames = {
   light: { clear: 'Sunny spells', rain: 'Light rain', snow: 'Light snow', wind: 'A breeze' },
@@ -574,6 +575,8 @@ const engineTextEn: Record<string, string> = {
   'match.situation.shootout-keeper':
     'Level at full time. If it comes to penalties, it is you against their takers.',
   ...situationVariants,
+  // The 1.0 key moments (engine match-22): new situations, choices and reads.
+  ...momentLabels,
   'match.pressure.level': 'Level, {minute}th minute. This could decide it.',
   'match.pressure.behind': 'A goal down, {minute}th minute. Time is running out.',
   'match.pressure.ahead': 'One goal in it, {minute}th minute. Hold on.',
@@ -727,7 +730,14 @@ export function situationText(moment: {
   situationKey: string;
   situationParams?: Record<string, string>;
 }): string {
-  return matchFormat(matchLabel(moment.situationKey), moment.situationParams ?? {});
+  // A match-22 framing loads with the match (momentsCopy.ts); until then, the plain sentence.
+  const key = moment.situationKey;
+  const text = engineText[key] ?? engineText[key.replace(/\.\d+$/, '')] ?? key;
+  return matchFormat(text, moment.situationParams ?? {});
+}
+/** Copy that loads with the match (step 5.2: match-22's framings and reads, momentsCopy.ts). */
+export function addMatchLabels(labels: Readonly<Record<string, string>>): void {
+  Object.assign(engineText, labels);
 }
 /** What a late moment in a close game means, or an empty string. */
 export function pressureText(moment: {

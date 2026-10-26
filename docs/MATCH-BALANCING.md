@@ -520,6 +520,8 @@ The match profile (`scripts/match-profile.ts`) reports five 1.0 targets after it
 - **Match statistics.** From the best-policy matches, pooled per seed (`statistics`): shots on target 30–40% of shots, 11–14 shots a team, home possession with p10 ≤ 40% and p90 ≥ 60%. The 10,000-match test keeps the goal, home-advantage and upset bands.
 - **Goals in added time** (split from the match statistics in step 5.3; asserted from step 5.4): goals marked with an added minute (`MatchEvent.addedTime`), 6–10% of all goals (`TARGET_BANDS.addedTimeShare`; football data puts it at about 7–9%).
 
+Step 5.2 met the first two and asserts them (`asserted: true`), step 5.3 the ratings and match statistics; the figures after each are in their sections.
+
 Baseline on 25 October 2026 (0.10.0, 300 matches a position, both seeds):
 
 | Target                           | `match-profile`                                                                                                                                                                                                                       | `match-profile-b`                                                                                                                                   |
@@ -541,7 +543,7 @@ Findings M6, M10 and M11 of the [25 October review](APP-REVIEW-2026-10-25.md). E
 
 Match-21 gave flat credits on 8–15 moments (±0.6 a decision, +0.6 a goal or assist, 2 × danger ÷ odds a stop, −0.45 a goal conceded), so ratings were wide (standard deviation 1.1–1.7), every position reached 10, and the centre depended on the position: keepers and defenders collected stop credit on average, strikers and wide players lost decision credit. Match-22 measures every key moment against what the **reference player** (the choice's base odds, before attributes, form and conditions) would have made of it, so its expected credit is zero for that player whatever the moment, and the rating centres on the same base in every position whatever the mix of moments (step 5.2 can change the mix without moving the centre):
 
-- **Decision**, to the choice's family: `decision[family] × (success − reference odds)`, with shooting, passing and dribbling 0.25 and defending and keeping 0.35 and 0.4 (their value is mostly in the decision itself).
+- **Decision**, to the choice's family: `decision[family] × (success − reference odds)`, with shooting, passing and dribbling 0.25 and defending and keeping 0.35 and 0.4 (their value is mostly in the decision itself; step 5.2 retuned them, below).
 - **As it happens**: a goal `goal` 0.9 and an assist `assist` 0.7, each further one in the match × `repeat` 0.55 of the one before, and a hat-trick's third goal `hatTrick` +1.2; a save or stop `stop` 0.9 × danger ÷ reference odds (the odds at least `stopFloor` 0.3, the credit at most `stopCap` 0.85); a goal conceded from the moment `error` −0.4.
 - **Par** (the new part "Expected from your moments" in the report), subtracted at every moment: `goal` × the reference player's expected own goals + `assist` × expected assists (both × `repeat` as above) + reference odds × the stop credit + `error` × expected goals conceded. Expected goals and assists come from the choice's stakes: a direct shot's are its odds, a chance made for oneself or a teammate the odds × the chance's goal probability (none for a dribble that leads into a follow-up shot, whose own moment carries it); goals conceded are the odds × `successConcede` + (1 − odds) × `failureConcede` (1 for a direct save). The hat-trick bonus stays out of the par: it is rare enough not to move the centre, and a striker on two goals is not marked down for every chance that might have made it three.
 - **Involvement**: every credit above is × √(`moments` 10 ÷ the match's planned moments, at least `fewest` 6), so a busy match is not a wider one. The square root is Newton's method rounded to six decimals, so replay never depends on `Math.sqrt`.
@@ -566,7 +568,7 @@ The remaining spread of the means (6.56–6.84) is the players': the profile rot
 
 ### XP and fame
 
-Performance XP (`performanceXp`) and fame (`performanceFame`) take the match's scale (`rewardScale(session)`: null for a match-21 report, else the position played), so a match-21 match pays exactly as before. On match-22 the rating term is `rewards22.xp.perRating` 45 × max(0, rating − 5.2) × the position's weight, and fame's `rewards22.fame.perRating` 3.75 × max(0, rating − 6.2) × the same weight; minutes, goals, assists, objectives and clean sheets pay as in `xp` and `fame`. The weights (GK 1.2, CB 1.1, LB and RB 1, DM 0.9, LW and RW 0.9, AM 0.85, ST 0.85, CM 0.8) keep each position's XP a match where match-21's ratings had it (inflated for keepers and defenders), so levelling stays on its curve.
+Performance XP (`performanceXp`) and fame (`performanceFame`) take the match's scale (`rewardScale(session)`: null for a match-21 report, else the position played), so a match-21 match pays exactly as before. On match-22 the rating term is `rewards22.xp.perRating` 45 × max(0, rating − 5.2) × the position's weight, and fame's `rewards22.fame.perRating` 3.75 × max(0, rating − 6.2) × the same weight; minutes, goals, assists, objectives and clean sheets pay as in `xp` and `fame`. The weights (GK 1.2, CB 1.1, LB and RB 1, DM 0.9, LW and RW 0.9, AM 0.85, ST 0.85, CM 0.8; since step 5.2 CB 1.21, CM, AM, LW and RW 0.78) keep each position's XP a match where match-21's ratings had it (inflated for keepers and defenders), so levelling stays on its curve.
 
 Report XP and fame a match over the match profile (both seeds, 600 matches a position, best policy):
 
@@ -610,7 +612,7 @@ The background converts `shots22.conversion` 0.095 of its shots (match-21: 0.12)
 | `match-21` | 2.6638 | 1.452 / 1.227     | 42.1%    | 26.8% | 23.1%       | 8.7%       | 10.5         | 57.1%     | —        |
 | `match-22` | 2.6564 | 1.454 / 1.220     | 42.4%    | 26.3% | 22.8%       | 8.4%       | 12.6         | 36.0%     | 0.87     |
 
-**After step 5.2.** Choices that succeed more or less often change the mix but not the centre (each moment is measured against its own par). Re-check the ratings target's means, the 9.0+ shares (ST and RW on `match-profile-b` and CB carry the largest, 2.0–2.7%), the keeper's p90 and that every position still reaches 9. If the means move, `rating22.base` moves them all; if a position's tail does, its family weight or `stopCap` is the knob. Re-fit the `rewards22` weights only if a position's XP a match leaves ±5% of the table above.
+**After step 5.2.** Done: see "Ratings and rewards after 5.2" below.
 
 ## The occasions (engine `match-22`, release 1.0 step 5.4)
 
@@ -651,3 +653,96 @@ Five kicks a side, then sudden death, kick by kick on `advance` (`penaltyShootou
 | Rally the side going off | own expected goals × 1.3, theirs × 0.85 for the rest, no trust                                                     | 7.5% (10% of close games)                         |
 
 "Best" plays the same half-time (or substitution) out with every answer on the same seeds and scores result points × 0.5 + rating + trust × 0.1. The captain's call comes at the second half's start, after a goal conceded and at 80′ in a game within a goal, at most three times and ten minutes apart. The headless player picks the answer its context favours (`touchlinePolicy`).
+
+## Choices that decide matches (engine `match-22`, release 1.0 step 5.2)
+
+Before this step every choice of a moment was worth the same at the reference player (by construction: `forShare × budget` for and `againstShare × budget` against), so only attribute gaps told choices apart: perfect against worst play was worth 0.03–0.32 goals a match and 15 of 32 situation-seeds had a choice that was best almost always (review M4, M5). Everything below is gated on `rules22(setup)`; match-21 replays byte for byte (the outcome snapshot's `PREVIOUS` table and match-21 session hash are unchanged).
+
+### Reads of the play
+
+Each situation has one or two **reads** (`READS` in `src/engine/match/readTable.ts`): what the pitch shows at that moment. A drawn read takes one draw on `${seed}:reads:${minute}:${keyMoments.length}` (its own stream, so no other roll moves); a matchup read compares the player with the drawn direct opponent without a draw: `pace` ((pace + acceleration) / 2) or `aerial` ((heading + jumping + strength) / 3; at a corner the best three of each side), ahead beyond `moments22.matchupMargin` 5 points, behind below −5, level otherwise. Each state multiplies the odds (`scaleOdds`) of the choices it bears on and is a named factor right after the opposition's quality and style (`match.read.<read>.<state>`, the same words the decision panel shows under "What you see"), so the factors still sum to the chance. The moment stores its reads (`KeyMoment.reads`).
+
+| Situation         | Reads (states, weight)                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| box-chance        | keeper: set .35, covering the near post .35, off his line .30; cover: clear sight .35, defender tight .35, one against one .30 |
+| edge-of-area      | keeper: set .40, off his line .30, view screened .30; space: room .35, closing .35, crowded .30                                |
+| aerial-chance     | delivery: whipped .38, looping .37, behind you .25; aerial matchup                                                             |
+| build-up          | their line: high .35, deep .35, midway .30; space: room .40, closed .60                                                        |
+| defend-attack     | carrier: heavy touch, tricky dribbler, looking for a pass, runner in behind (.25 each)                                         |
+| build-out         | press: high .35, mid-block .30, sitting off .35; their line: space behind .40, none .60                                        |
+| shot-incoming     | shot: tame .35, powerful .35, dipping .30; range: distance .5, close .5                                                        |
+| one-on-one        | your position: off your line .45, deep .55; angle: central .5, tight .5                                                        |
+| cross-ball        | traffic: clear .35, crowded .35, late runner .30; delivery: floated .5, whipped .5                                             |
+| distribution      | press: high .5, sitting off .5; their shape: men forward .35, back in shape .65                                                |
+| penalty           | keeper: dives early .35, stays big .35, guessing .30                                                                           |
+| free-kick         | distance: close .35, 25 yards .35, long .30; wall: four .5, two .5                                                             |
+| corner-kick       | marking: zonal .35, man .35, packed .30; aerial matchup                                                                        |
+| goal-line         | shot: low drive .5, lofted .5                                                                                                  |
+| offside-line      | your line: together .5, broken .5; pace matchup                                                                                |
+| penalty-save      | taker: picks a corner early .4, waits for you .4, nervous .2                                                                   |
+| last-man          | cover: behind you .45, none .55; pace matchup                                                                                  |
+| cross-defence     | delivery: early .35, cut-back .35, whipped .30; aerial matchup                                                                 |
+| two-on-one        | carrier: looking to pass .5, going alone .5; help: coming .45, none .55                                                        |
+| set-piece-marking | delivery: far post .35, near post .35, middle .30; aerial matchup                                                              |
+| sweeping          | race: the ball runs to you .35, fifty-fifty .35, they get there first .30                                                      |
+| back-pass         | pass: under-hit .4, firm .6; press: high .45, off .55                                                                          |
+| rebound           | keeper: on the ground .45, back up .55; ball: falls kindly .35, awkward .35, bodies in the way .30                             |
+| weak-foot         | pressure: closing fast .5, time to adjust .5; keeper: set .6, off his line .4                                                  |
+
+The multipliers (in the table file, one per state and choice) lean down more than up: the right read is worth a little more than the moment's budget (best choice +0.05 to +0.15 of the budget at the reference player), the wrong one a lot less (worst −0.35 to −0.6, one-on-ones and shots at goal −0.6 to −0.75). A player who chooses at random therefore realises 10–25% less than the budget, one who reads the pitch slightly more; the striker's benchmark in the 10,000-match test plays fixed choices and still scores 2.6 a match. `npm run profile:match` measures it; at the reference player every base choice wins under some combination of reads (`tests/match-choices-22.test.ts`).
+
+**The pitch shows them** (`stageReads`): the moment's last keyframe moves the people a read is about — the keeper off his line or across to the near post, the striker's angle and your own position in a one-on-one, the shot's distance, the runner in the race for a ball over the top, two more defenders in a wall, the press closing in or sitting off, bodies in the six-yard box, zonal or man marking at a corner, your line together or one man deep, the cover behind a last man. The free kick's distance moves its spot (81, 76 or 71 from the player's own goal line). The last step is drawn out by up to 2.5 s so they reach their marks at a sprint, never faster; the player on the ball moves only with it.
+
+### Situations per position (review M9)
+
+Eight new situations (`SITUATIONS_22` in `src/engine/match/situations22.ts`), with their attacking and defending weights for the moment budget: **last-man** (defence 2.2: take him down, chase him back, show him wide), **cross-defence** (0.9: attack the ball, stay with the runner, close the crosser), **two-on-one** (1.4: go to the ball, cut out the pass, back off and delay), **set-piece-marking** (0.8, with the set pieces: hold your zone, mark their best header, attack the near post), **sweeping** (defence 1.6, attack 0.2: rush out and clear, come out and take it down, stay home), **back-pass** (defence 0.7, attack 0.35: clear first time, take a touch and pass, go round the striker), **rebound** (attack 1: first time, control and place, cut it back), **weak-foot** (attack 0.8: shoot with the weaker foot, shift onto the stronger, lay it off; never offered to a two-footed player; the weaker-foot shot carries the weaker-foot factor wherever the post is). The match-21 situations take new position weights (`POSITIONS_22`), so no position spends more than about a third of its moments in one situation:
+
+| Position | Situations before → after | Most common before → after (`match-profile` / `-b`)  |
+| -------- | ------------------------- | ---------------------------------------------------- |
+| GK       | 5 → 7                     | shot incoming 41 / 43% → 30 / 31%                    |
+| CB       | 5 → 9                     | defend-attack 54 / 46% → 32 / 27%                    |
+| LB       | 6 → 10                    | defend-attack 50 / 43% → 29 / 26%                    |
+| DM       | 6 → 10                    | defend-attack 49 / 41% → 35 / 30%                    |
+| CM       | 9 → 12                    | build-up 27 / 25% → 23 / 21%                         |
+| AM       | 7 → 9                     | box-chance 34% / edge-of-area 31% → 26% / 25%        |
+| RW       | 7 → 9                     | build-up 34% / box-chance 32% → 27% / 25% (build-up) |
+| ST       | 6 → 8                     | box-chance 42 / 36% → 30 / 25%                       |
+
+Each situation has five framings on match-22 (`moments22.situationVariants`; the shootout keeps its three). The new framings and the reads' words load with the match's commentary (`src/i18n/momentsCopy.ts`, through `screens/match/lines.ts`), off the route's first render; until then a moment reads its situation's plain sentence.
+
+### Shares and auto-play
+
+More of a match passes through the player's decisions (`moments22.shares` replaces `shares` × `defending`; [attack, defence]): ST 0.37/0.05 (unchanged attack, which the striker's goal gate holds), LW/RW 0.50/0.08, AM 0.36/0.07, CM 0.32/0.16, DM 0.12/0.48, CB 0.08/0.60, LB/RB 0.12/0.55, GK 0.06/0.82 (match-21: ST 0.37/0.04, wide and AM 0.32/0.05, CM 0.26/0.12, DM 0.10/0.546, CB 0.07/0.48, full-backs 0.10/0.42, GK 0.03/0.585). Auto-play (simulated career matches and the profile's best policy) draws only between choices within `moments22.autoPlayMargin` 0.004 goals of the best (`autoPlayMargin` 0.02 before, when most choices were within it).
+
+### Skill mechanics (review C13, C14)
+
+- **A skill's choice replaces the weakest base choice** (lowest expected value at that moment) when more than four would be offered, instead of hiding an appended one: Last-Ditch no longer hides Track the runner.
+- **Clutch** no longer boosts four shots at any time. In a clutch moment — from `clutch.fromMinute` 75 with the game within `closeMargin` 1 goal, in a fixture of importance `importance` 1.25 or more, or the shootout — every choice takes a "Clutch" factor × `odds` 1.15.
+- **Ball Winner** unlocks "Win it and drive forward" in defend-attack, **Maestro** "Play a first-time ball over the press" in build-out (`UNLOCKS_22`), and **Distributor**'s quick release starts a counter (`COUNTER_22`): a success adds `counter` 0.05, 0.06 and 0.05 expected goals on top of the moment's budget (counted in the choice's stakes, so its value hint shows it). The stacking cap for multipliers is unchanged.
+
+### The professional foul and a card's cost
+
+The last man's "Take him down" is the foul (`foulOnSuccess`): it succeeds 0.86 at the reference (some danger stays: `againstOnFailure` 0.7, the free kick), and when it succeeds a card follows with the foul chance (`booking.choices['professional-foul'].foul` 1, by aggression and tackling, up to 1), a straight red with `moments22.professionalFoul` 0.04 when covered and 0.12 when no one covers (`BookingRisk.onSuccess`). On match-22 every booking risk also carries its **cost** in the choice's value (`BookingRisk.cost`): the dismissal chance × the rest of the match ÷ 90 × (own expected goals × `cards.menDown.attack` + the opposition's × `concede`), so a reckless challenge reads as costly. New defending choices have booking risks too (chase back 0.08, go to the ball 0.10, close the crosser 0.06, mark their best header 0.05, win it and drive 0.12).
+
+### The marked man (review C17)
+
+When the player's ability exceeds both the match level and the opposition's mean ability by more than `marked.threshold` 8, opponents double-mark them: e = min(`maximum` 0.3, excess × `slope` 0.025). Their shots and dribbles × (1 − e), passes to a teammate × (1 + e × `passShare` 0.5) — one "Double-marked" factor — and clean chances in the box come up × (1 − e × `boxChance` 1). From `relaxFromMinute` 60 an opposition behind in the game marks × `relax` 0.5 as tightly. A lower-league star sees fewer clean looks and a teammate left free; in a league that matches them, nothing changes.
+
+### Ratings and rewards after 5.2
+
+The rating's par (step 5.3) counts the reads: the reference odds a moment is measured against are the base odds with each read factor's multiplier applied (recovered from its contribution), so taking what the pitch offers is worth its goals rather than extra rating. To keep the asserted ratings target on both seeds, `rating22.decision` is now shooting 0.2, passing 0.35, dribbling 0.36, defending 0.35, keeping 0.3 (0.25/0.25/0.25/0.35/0.4), and `assist` 0.85 (0.7): midfielders' best matches reach 9 again without raising the striker's share of 9s. `rewards22.position` is refitted: GK 1.3, CB 1.21, CM, AM, LW and RW 0.78 (1.2, 1.1, 0.8, 0.85, 0.9, 0.9), XP a match within 3% of the table above except the centre-midfielder's, +11% (128.5 against 115.9): more goals and assists pass through its moments, and its weight stays at 0.78 so a rating point is worth at least 0.7 of match-21's (`tests/match-ratings.test.ts`).
+
+### Results (300 matches a position, both seeds)
+
+| Position | Perfect vs worst before → after (`match-profile` / `-b`) | Rating mean after | Striker's goals a match   |
+| -------- | -------------------------------------------------------- | ----------------- | ------------------------- |
+| GK       | 0.09 / 0.16 → 0.38 / 0.42                                | 6.75 / 6.50       |                           |
+| CB       | 0.17 / 0.09 → 0.49 / 0.50                                | 6.57 / 6.72       |                           |
+| LB       | 0.12 / 0.03 → 0.50 / 0.49                                | 6.80 / 6.61       |                           |
+| DM       | 0.10 / 0.08 → 0.48 / 0.49                                | 6.83 / 6.90       |                           |
+| CM       | 0.24 / 0.15 → 0.53 / 0.42                                | 6.71 / 6.81       |                           |
+| AM       | 0.16 / 0.10 → 0.59 / 0.46                                | 6.76 / 6.56       |                           |
+| RW       | 0.09 / 0.16 → 0.34 / 0.56                                | 6.54 / 6.82       |                           |
+| ST       | 0.32 / 0.31 → 0.41 / 0.50                                | 6.77 / 6.69       | 0.50 / 0.47 → 0.49 / 0.45 |
+
+Standard errors 0.06–0.08. No dominant choice: 48 situation-seeds judged, the most dominated free kick _short_ 59%, one-on-one _stay_ 59%, rebound _cut back_ 58%, edge of the area _lay off_ 57% (before: one-on-one _stay_ 96%, penalty save _stay_ 71–100%, free kick _short_ 76–85%, corner _short_ 76–77%, short distribution 78–84%; punch now best in 16–31% of crosses). Every asserted gate holds on both seeds, including the ratings and match-statistics targets of step 5.3 and the choreography's 10 ms (5–7 ms a match on an idle machine). The 10,000-match test (the striker's benchmark, which plays fixed choices, so it pays the reads' lean): 2.58 goals a match (2.65 after step 5.4), home 1.38 / away 1.22, home wins 40.4%, draws 26.6%, close upsets 24.7%, wide upsets 9.6%, all in their bands.

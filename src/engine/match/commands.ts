@@ -220,7 +220,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
       const position = rolePosition(setup);
       m.tactics.role = halftimeRole(position, m.tactics.role);
       state.expectedGoals = currentRates(next, m.tactics);
-      state.shares = shares(position, m.tactics.role);
+      state.shares = shares(position, m.tactics.role, rules22(setup));
     }
     state.stats.fatigue = round6(Math.max(0, state.stats.fatigue - C.halftimeRecovery));
     // Ends are switched and the away side kicks off the second half.

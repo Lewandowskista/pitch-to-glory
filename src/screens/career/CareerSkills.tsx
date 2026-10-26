@@ -21,7 +21,7 @@ import {
   SYSTEMIC_SKILLS,
 } from '../../engine/career/catalogue';
 import { skillState, unlockSkill, type SkillState } from '../../engine/career/progression';
-import { SITUATIONS } from '../../engine/match/situations';
+import { ALL_SITUATIONS, UNLOCKS_22 } from '../../engine/match/situations22';
 import { skillEffects } from '../../engine/match/decisions';
 import type { Career, Player, Skill, SkillBranch, World } from '../../model/domain';
 import { format, t } from '../../i18n';
@@ -57,8 +57,12 @@ function useSideBySide(): boolean {
 /** Key-moment choices a skill unlocks (choices requiring it as a trait). */
 const UNLOCKED_CHOICES: Readonly<Record<string, string[]>> = (() => {
   const result: Record<string, string[]> = {};
-  for (const situation of SITUATIONS)
-    for (const choice of situation.choices)
+  // The match-22 catalogue: its situations and the skill mechanics (UNLOCKS_22).
+  for (const choices of [
+    ...ALL_SITUATIONS.map((situation) => situation.choices),
+    ...Object.values(UNLOCKS_22),
+  ])
+    for (const choice of choices)
       if (choice.requiredTraitId) (result[choice.requiredTraitId] ??= []).push(choice.id);
   return result;
 })();
@@ -173,8 +177,13 @@ function systemicText(id: string): string | null {
               ? longevityPoints(id)
               : kind === 'foot'
                 ? percent(1 - CONFIG.match.foot.weak)
-                : 0;
-  return format(c.skills.systemic[kind], { value });
+                : kind === 'clutch'
+                  ? percent(CONFIG.match.moments22.clutch.odds - 1)
+                  : 0;
+  return format(c.skills.systemic[kind], {
+    value,
+    minute: CONFIG.match.moments22.clutch.fromMinute,
+  });
 }
 
 const NODE: Record<SkillState, string> = {

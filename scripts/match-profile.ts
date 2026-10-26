@@ -44,7 +44,7 @@ import {
 import { ABILITY_WEIGHTS } from '../src/engine/strength';
 import { FORMATION_SLOTS, FORMATIONS } from '../src/engine/selection/formations';
 import { expectedImpact } from '../src/engine/match/decisions';
-import { SITUATION_BY_ID } from '../src/engine/match/situations';
+import { situationOf } from '../src/engine/match/situations22';
 import { autoPlayCommand } from '../src/engine/career/matches';
 import { motionProbe } from '../src/engine/match/motion';
 
@@ -347,7 +347,7 @@ export function profilePosition(
       const mine = goals.filter((event) => event.teamId === club.id).length;
       const theirs = goals.length - mine;
       const state = mine < theirs ? 'behind' : mine > theirs ? 'ahead' : 'level';
-      const phase = SITUATION_BY_ID[moment.situationId]?.phase;
+      const phase = situationOf(moment.situationId)?.phase;
       if (phase === 'attack') late[state].attack++;
       else if (phase === 'defence') late[state].defence++;
     }
@@ -766,7 +766,8 @@ export const TARGETS: Target<PositionProfile[]>[] = [
     id: 'choices-matter',
     name: `choices matter: perfect vs worst play ≥ ${TARGET_BANDS.swing} goals a match for every position, on ${TARGET_BANDS.seeds} seeds`,
     phase: 5,
-    asserted: false,
+    // Met and asserted in release 1.0 step 5.2 (engine match-22).
+    asserted: true,
     evaluate: (profiles) => {
       const seeds = bySeed(profiles).filter(([, list]) => list.every((p) => p.swing));
       if (!seeds.length) return { met: null, value: 'no swing data (rerun the profile)' };
@@ -788,7 +789,8 @@ export const TARGETS: Target<PositionProfile[]>[] = [
     id: 'no-dominant-choice',
     name: `no dominant choice: none best in more than ${TARGET_BANDS.dominantShare * 100}% of its situation's instances (situations with ≥ ${TARGET_BANDS.dominantMinimum})`,
     phase: 5,
-    asserted: false,
+    // Met and asserted in release 1.0 step 5.2 (engine match-22).
+    asserted: true,
     evaluate: (profiles) => {
       if (!profiles.some((p) => p.dominance)) return { met: null, value: 'no dominance data' };
       const offenders: string[] = [];

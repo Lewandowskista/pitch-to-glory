@@ -15,7 +15,11 @@ import { createCareer, trialOffers } from '../../src/engine/career/create';
 import { applyEditAction } from '../../src/engine/world/edits';
 import { refreshChallenges, swapChallenge } from '../../src/engine/career/lifestyle/challenges';
 import { COMMITMENTS } from '../../src/engine/career/commitments';
-import { LIFESTYLE, STAFF_SPECIALITIES } from '../../src/engine/career/lifestyle/catalogue';
+import {
+  COSMETICS,
+  LIFESTYLE,
+  STAFF_SPECIALITIES,
+} from '../../src/engine/career/lifestyle/catalogue';
 import { CONFIG } from '../../src/engine/config';
 import { nationalCareerSeason, TEST_DRAFT } from './world';
 
@@ -95,6 +99,12 @@ function populate(world: World): World {
   // Lifestyle: an experience taken and a member of staff with a speciality and upkeep.
   const experience = LIFESTYLE.find((item) => item.kind === 'experience')!;
   career.style.experiences = { [experience.id]: today };
+  // A signature celebration used in a big match (set here: whether the simulated career scores
+  // in one depends on the match engine's results).
+  const celebration =
+    career.style.equipped.celebration ?? COSMETICS.find((item) => item.kind === 'celebration')!.id;
+  career.style.signatureUsesBy = { ...career.style.signatureUsesBy, [celebration]: 1 };
+  career.style.signatureUses += 1;
   const staff = LIFESTYLE.find((item) => item.kind === 'staff' && STAFF_SPECIALITIES[item.id])!;
   career.style.assets.push({
     id: 'asset:populated',

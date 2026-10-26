@@ -348,7 +348,8 @@ describe('full discipline (match-16)', () => {
             booking.foul,
             6,
           );
-          const fail = 1 - choice.probability;
+          // A professional foul (match-22) risks its card when it succeeds.
+          const fail = booking.onSuccess ? choice.probability : 1 - choice.probability;
           expect(booking.yellow + booking.red).toBeCloseTo(fail * booking.foul, 5);
           if (booking.booked) expect(booking.yellow).toBe(0);
         }
@@ -356,7 +357,8 @@ describe('full discipline (match-16)', () => {
         const outcome = event.outcome;
         if (!outcome?.booking) continue;
         rolled++;
-        expect(outcome.success).toBe(false);
+        // A professional foul (match-22) is booked when it succeeds; any other choice when it fails.
+        expect(outcome.success).toBe(outcome.input.choiceId === 'professional-foul');
         const card = outcome.booking.card;
         if (card) {
           carded++;

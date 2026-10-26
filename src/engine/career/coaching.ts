@@ -17,7 +17,7 @@ import type {
 import { CONFIG } from '../config';
 import type { AnyAttribute } from '../ageing';
 import { SITUATION_BY_ID } from '../match/situations';
-import { expectedImpact } from '../match/decisions';
+import { expectedImpact } from '../match/value';
 import type { MatchSession } from '../match/types';
 import { currentRole } from './market/rules';
 import { attributeCost, attributeValue, trainableAttributes } from './progression';

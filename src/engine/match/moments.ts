@@ -16,8 +16,10 @@ import {
   momentBudget,
   round6,
   situationWeights,
+  type ContextRead,
   type DecisionContext,
 } from './decisions';
+import { contextReads, drawReads, markedBy, readDepth, stageReads } from './reads';
 import { applyPassage } from './passage';
 import { bookedPlayers } from './cards';
 import { choiceTarget, pickReceivers, spotWidth, zoneAt } from './targets';
@@ -27,6 +29,7 @@ import {
   addedStamp,
   attacksRight,
   clockKey,
+  fullTime,
   menDown,
   onBench,
   onPitch,
@@ -45,6 +48,7 @@ function contextFor(
   drawn: { keeper?: string; defender?: string; attacker?: string } = {},
   weights = situationWeights(playedSlot(session).position, session.state.match.tactics.role, {
     opponentStyle: opposingStyle(session.setup),
+    ...(rules22(session.setup) ? { rules22: true } : {}),
   }),
 ): DecisionContext {
   const s = session.state,
@@ -130,12 +134,17 @@ function framing(
   situation: Situation,
   opponents: { keeper?: string; defender?: string; attacker?: string },
   margin: number,
+  shootout = false,
 ): Pick<KeyMoment, 'situationKey' | 'situationParams' | 'pressureKey'> {
   const setup = session.setup,
     m = session.state.match,
     side = selectedSide(setup);
   const rng = createRng(`${setup.seed}:framing:${clockKey(session.state)}`);
-  const variant = rng.int(0, C.drama.situationVariants - 1);
+  // Match-22 has more sentences per situation (review M9); the shootout keeps its three.
+  const variant = rng.int(
+    0,
+    (rules22(setup) && !shootout ? C.moments22.situationVariants : C.drama.situationVariants) - 1,
+  );
   const name = (id: string | undefined) => (id ? setup.players[id]?.name : undefined);
   const own = side === 0 ? m.home : m.away;
   const teammate = onPitch(own)
@@ -227,10 +236,21 @@ export function openMoment(next: MatchSession, forced?: ForcedMoment): void {
   );
   const side = selectedSide(setup);
   const margin = m.score[side]! - m.score[1 - side]!;
+  const v22 = rules22(setup);
+  // The 1.0 rules (match-22): the new situations, the marked man's fewer clean chances, and no
+  // weaker-foot chance for a two-footed player.
+  const marked = v22 ? markedBy(next) : 0;
   const weights = situationWeights(playedSlot(next).position, m.tactics.role, {
     drama: true,
     state: { minute: m.minute, margin },
     opponentStyle: opposingStyle(setup),
+    ...(v22
+      ? {
+          rules22: true,
+          twoFooted: player.foot === 'both' || player.traits.includes('two-footed'),
+          ...(marked ? { marked } : {}),
+        }
+      : {}),
   });
   let situation = weights[weights.length - 1]!.situation;
   if (forced) situation = forced.situation;
@@ -248,12 +268,31 @@ export function openMoment(next: MatchSession, forced?: ForcedMoment): void {
   const context = contextFor(next, situation, rng, opponents, weights);
   // A chained shot is worth what the dribble opened up; the rest of the match is unchanged.
   if (forced?.kind === 'chain') context.budget = { for: forced.goal ?? 0, against: 0 };
+  // What the pitch shows (match-22): reads on their own stream (not for the shootout kick),
+  // the marked man, and Clutch's condition.
+  const reads = v22 && forced?.kind !== 'shootout' ? drawReads(next, situation, opponents) : [];
+  if (v22) {
+    const K = C.moments22.clutch;
+    const factors: ContextRead[] = contextReads(situation, reads, marked);
+    context.rules22 = true;
+    if (factors.length) context.reads = factors;
+    if (
+      player.traits.includes('clutch') &&
+      ((m.minute >= K.fromMinute && Math.abs(margin) <= K.closeMargin) ||
+        (setup.fixture?.importance ?? 1) >= K.importance ||
+        forced?.kind === 'shootout')
+    )
+      context.clutch = true;
+    if (marked) reads.push({ id: 'marked', state: 'double' });
+  }
   // Place the selected player where the situation happens, attacking the correct end, on the
   // side of their formation post (match-15).
   const right = attacksRight(next, player.clubId!, m.minute);
   const width = spotWidth(next, situation, rng);
+  // A free kick's distance read moves its spot (match-22).
+  const depth = v22 ? readDepth(situation, reads) : situation.spot.depth;
   const spot = {
-    x: right ? situation.spot.depth : 100 - situation.spot.depth,
+    x: right ? depth : 100 - depth,
     y: !right ? 100 - width : width,
   };
   // The teammates the moment's passes go to are picked before the choice (match-15), on their
@@ -267,6 +306,7 @@ export function openMoment(next: MatchSession, forced?: ForcedMoment): void {
   };
   // A follow-up moment continues its minute: it replaces the minute's snapshot.
   const passage = momentPassage(next, situation, spot, opponents, plan);
+  if (v22) stageReads(next, passage, situation, reads);
   applyPassage(next, 'moment', passage, [], !!forced);
   const momentFrame = s.frames[s.frames.length - 1]!;
   const choices = buildChoices(context);
@@ -282,6 +322,7 @@ export function openMoment(next: MatchSession, forced?: ForcedMoment): void {
     budget: context.budget,
     choices,
   };
+  if (reads.length) moment.reads = reads;
   if (passage.cast) {
     const cast = passage.cast;
     moment.zone = zoneAt(situation.spot.depth);
@@ -294,12 +335,33 @@ export function openMoment(next: MatchSession, forced?: ForcedMoment): void {
   // Defending choices carry a booking risk (match-16), shown with the odds.
   if (player.primaryPosition !== 'GK') {
     const booked = bookedPlayers(m).has(player.id);
+    // Match-22: a professional foul risks its card on success, a red by the cover read, and a
+    // card's cost (a man down for the rest of the match) counts in a choice's value.
+    const cover = reads.find((read) => read.id === 'cover')?.state;
+    const F = C.cards.menDown;
+    const dismissal = v22
+      ? (Math.max(0, fullTime(next) - m.minute) / 90) *
+        (s.expectedGoals[side]! * F.attack + s.expectedGoals[1 - side]! * F.concede)
+      : 0;
     moment.choices = moment.choices.map((choice) => {
-      const booking = bookingRisk(choice.id, player, choice.probability, booked);
+      const foul = v22 && choice.id === 'professional-foul';
+      const booking = bookingRisk(
+        choice.id,
+        player,
+        choice.probability,
+        booked,
+        foul
+          ? {
+              onSuccess: true,
+              straight: C.moments22.professionalFoul[cover === 'alone' ? 'alone' : 'covered'],
+            }
+          : undefined,
+      );
+      if (booking && v22 && booking.red > 0) booking.cost = round6(booking.red * dismissal);
       return booking ? { ...choice, booking } : choice;
     });
   }
-  Object.assign(moment, framing(next, situation, opponents, margin));
+  Object.assign(moment, framing(next, situation, opponents, margin, forced?.kind === 'shootout'));
   if (forced) moment.follows = forced.kind;
   if (forced?.kind === 'shootout')
     moment.situationKey = `match.situation.${

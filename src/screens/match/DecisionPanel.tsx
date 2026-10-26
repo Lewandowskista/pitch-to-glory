@@ -5,12 +5,14 @@ import type { MatchSession } from '../../engine/match';
 import { t } from '../../i18n';
 import {
   matchText as m,
+  hasMatchLabel,
   matchLabel,
   matchFormat,
   pressureText,
   situationText,
 } from '../../i18n/match';
 import { careerText as c } from '../../i18n/career';
+import { readsLabel } from '../../i18n/moments';
 import { Factors, signedPercent, strongest } from './Shared';
 import { TacticalCam } from './TacticalCam';
 import { shirtNumbers } from './pitchArt';
@@ -226,6 +228,11 @@ export function DecisionPanel({
   const traits = session.setup.players[session.setup.selectedPlayerId]!.traits;
   const situation = situationText(moment);
   const pressure = pressureText(moment);
+  // What the pitch shows (match-22), once its copy has loaded with the match.
+  const reads = (moment.reads ?? [])
+    .map((read) => `match.read.${read.id}.${read.state}`)
+    .filter(hasMatchLabel)
+    .map(matchLabel);
   const cam = useMemo(
     () => momentCamera(session.setup, moment, compact ? COMPACT_ASPECT : undefined),
     [session.setup, moment, compact],
@@ -352,6 +359,12 @@ export function DecisionPanel({
             );
           })}
         </div>
+        {/* What the pitch shows (match-22), after the choices so the first action stays in view. */}
+        {reads.length > 0 && (
+          <p className="mt-2 text-[0.8125rem] text-muted">
+            <span className="font-semibold">{readsLabel}:</span> {reads.join(' · ')}
+          </p>
+        )}
       </div>
       {/* On phones the tour's key-moment step appears here, after the choices it explains. */}
       <div data-tour-slot="decision" />

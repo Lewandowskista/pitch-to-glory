@@ -73,19 +73,28 @@ function rallied(session: MatchSession, base: [number, number]): [number, number
   scaled[1 - own] = round6(base[1 - own]! * R.against);
   return scaled;
 }
-export function shares(position: Position, role: string): MatchState['shares'] {
-  const [attack, base] = C.shares[position];
+export function shares(
+  position: Position,
+  role: string,
+  /** The match-22 catalogue (step 5.2): its situations and weights. */
+  v22 = false,
+): MatchState['shares'] {
+  // Match-22 (step 5.2) has its own table: more of the match passes through the player.
+  const [attack, base] = v22 ? C.moments22.shares[position]! : C.shares[position];
   // Decisive defending (match-20): the back line's moments carry more of the opposition's goals.
   // Screening (match-21) raises a defensive midfielder's further.
   const multiplier = C.defending.screening.share[position] ?? C.defending.share[position] ?? 1;
-  const defence = round6(Math.min(C.defending.maximum, base * multiplier));
-  const weights = situationWeights(position, role);
+  const defence = v22 ? base : round6(Math.min(C.defending.maximum, base * multiplier));
+  const catalogue = v22 ? { rules22: true } : {};
+  const weights = situationWeights(position, role, catalogue);
   // A set-piece taker (engine match-12) carries more of the team's attack: set pieces add to
   // the open-play moments rather than taking from them, and the background plays less.
   const mass = (pool: typeof weights) =>
     pool.reduce((sum, w) => sum + w.weight * w.situation.attackWeight, 0);
   const open = mass(weights);
-  const setPieces = open ? mass(situationWeights(position, role, { drama: true })) / open : 1;
+  const setPieces = open
+    ? mass(situationWeights(position, role, { drama: true, ...catalogue })) / open
+    : 1;
   return {
     attack: weights.some((w) => w.situation.attackWeight > 0)
       ? round6(attack * Math.min(C.drama.setPieceShareCap, setPieces))

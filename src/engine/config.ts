@@ -156,6 +156,15 @@ export const CONFIG = {
         'track-runner': { foul: 0.07, straight: 0.04 },
         jockey: { foul: 0.02, straight: 0.02 },
         'drop-off': { foul: 0.02, straight: 0.02 },
+        // Engine match-22 (step 5.2): the new defending choices. A professional foul is a foul
+        // whenever it succeeds (`foulOnSuccess`); its straight-red share follows the cover read
+        // (`moments22.professionalFoul`).
+        'professional-foul': { foul: 1, straight: 0.1 },
+        'chase-back': { foul: 0.08, straight: 0.06 },
+        'engage-carrier': { foul: 0.1, straight: 0.04 },
+        'block-cross': { foul: 0.06, straight: 0.03 },
+        'man-mark': { foul: 0.05, straight: 0.02 },
+        'press-carry': { foul: 0.12, straight: 0.05 },
       } as Record<string, { foul: number; straight: number }>,
       aggression: 0.012,
       tackling: 0.008,
@@ -332,14 +341,14 @@ export const CONFIG = {
       moments: 10,
       fewest: 6,
       decision: {
-        shooting: 0.25,
-        passing: 0.25,
-        dribbling: 0.25,
+        shooting: 0.2,
+        passing: 0.35,
+        dribbling: 0.36,
         defending: 0.35,
-        goalkeeping: 0.4,
+        goalkeeping: 0.3,
       },
       goal: 0.9,
-      assist: 0.7,
+      assist: 0.85,
       repeat: 0.55,
       hatTrick: 1.2,
       stop: 0.9,
@@ -408,6 +417,64 @@ export const CONFIG = {
       situationVariants: 3,
       /** Set pieces raise a taker's attacking share by their weight, up to this factor. */
       setPieceShareCap: 1.3,
+    },
+    /**
+     * Choices that decide matches (engine match-22, release 1.0 step 5.2; docs/MATCH-BALANCING.md
+     * "Reads, situations and mechanics"). The read tables and the new situations are catalogue
+     * data in `match/situations22.ts`; the scalars are here.
+     */
+    moments22: {
+      /** Framing sentences per situation (the shootout keeps its three). */
+      situationVariants: 5,
+      /**
+       * Fraction of own [attack] and opposition [defence] expected goals replaced by the
+       * player's key moments, replacing `shares` × `defending` (match-20, match-21): more of a
+       * match passes through the player's decisions, the striker's share unchanged.
+       */
+      shares: {
+        ST: [0.37, 0.05],
+        LW: [0.5, 0.08],
+        RW: [0.5, 0.08],
+        AM: [0.36, 0.07],
+        CM: [0.32, 0.16],
+        DM: [0.12, 0.48],
+        CB: [0.08, 0.6],
+        LB: [0.12, 0.55],
+        RB: [0.12, 0.55],
+        GK: [0.06, 0.82],
+      } as Record<string, readonly [number, number]>,
+      /** Auto-play draws only between choices this close to the best (`autoPlayMargin` before). */
+      autoPlayMargin: 0.004,
+      /**
+       * A matchup read (pace: pace + acceleration; aerial: heading + jumping + strength, each
+       * averaged) is "ahead" when the player's mean beats the direct opponent's by more than
+       * `margin` points, "behind" below −margin, else level (no factor).
+       */
+      matchupMargin: 5,
+      /**
+       * Clutch (review C13): its odds apply only to a clutch moment — from `fromMinute` with the
+       * game within `closeMargin` goals, or in a fixture of importance `importance` or more —
+       * and then to every choice, × `odds` (a named factor), instead of four shots at any time.
+       */
+      clutch: { fromMinute: 75, closeMargin: 1, importance: 1.25, odds: 1.15 },
+      /**
+       * The marked man (review C17): when the player's ability exceeds both the match level and
+       * the opposition's mean by more than `threshold`, opponents double-mark them. Shots and
+       * dribbles × (1 − e), passes to a teammate × (1 + e × `passShare`), and clean chances in
+       * the box come up × (1 − e × `boxChance`), where e = min(`maximum`, excess × `slope`).
+       * From `relaxFromMinute`, an opposition chasing the game marks × `relax` as tightly.
+       */
+      marked: {
+        threshold: 8,
+        slope: 0.025,
+        maximum: 0.3,
+        passShare: 0.5,
+        boxChance: 1,
+        relaxFromMinute: 60,
+        relax: 0.5,
+      },
+      /** The straight-red share of a professional foul by the cover read (last man: a red). */
+      professionalFoul: { covered: 0.04, alone: 0.12 },
     },
     /** Simulated career matches pick among choices within this many expected goals of the best. */
     autoPlayMargin: 0.02,
@@ -591,15 +658,15 @@ export const CONFIG = {
       xp: { ratingThreshold: 5.2, perRating: 45 },
       fame: { ratingThreshold: 6.2, perRating: 3.75 },
       position: {
-        GK: 1.2,
-        CB: 1.1,
+        GK: 1.3,
+        CB: 1.21,
         LB: 1,
         RB: 1,
         DM: 0.9,
-        CM: 0.8,
-        AM: 0.85,
-        LW: 0.9,
-        RW: 0.9,
+        CM: 0.78,
+        AM: 0.78,
+        LW: 0.78,
+        RW: 0.78,
         ST: 0.85,
       } as Record<string, number>,
     },

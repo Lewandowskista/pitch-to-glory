@@ -1,5 +1,5 @@
 import type { KeyMoment, Point, ReplayFrame } from '../../model/domain';
-import { attacksRightAt, SITUATION_BY_ID, type MatchSetup } from '../../engine/match';
+import { attacksRightAt, situationOf, templateOf, type MatchSetup } from '../../engine/match';
 import { OFF_ANIMATION } from '../../engine/match/parked';
 
 /**
@@ -193,7 +193,7 @@ export function deriveCast(
 
 /** Whether the selected team is on the ball at a key moment, from its situation. */
 export function attackingMoment(moment: KeyMoment, side: 0 | 1, home: { playerIds: string[] }) {
-  const phase = SITUATION_BY_ID[moment.situationId]?.phase;
+  const phase = situationOf(moment.situationId)?.phase;
   if (phase) return phase === 'attack';
   const carrier = moment.frame.carrierId;
   if (carrier) return home.playerIds.includes(carrier) === (side === 0);
@@ -207,12 +207,11 @@ export function attackingMoment(moment: KeyMoment, side: 0 | 1, home: { playerId
  * targets with the engine's cast (phase 6).
  */
 export function choiceArrows(moment: KeyMoment, you: Point): CamArrow[] {
-  const situation = SITUATION_BY_ID[moment.situationId];
-  if (!situation) return [];
+  if (!situationOf(moment.situationId)) return [];
   const right = you.x > PITCH_WIDTH_M / 2;
   const arrows: CamArrow[] = [];
   moment.choices.forEach((choice, index) => {
-    const template = situation.choices.find((c) => c.id === choice.id);
+    const template = templateOf(moment.situationId, choice.id);
     if (!template || template.target === undefined || template.direct !== 'for') return;
     const offset = ((template.target - 50) * PITCH_WIDTH_M) / 100;
     const post = /near-post/.test(choice.id)
