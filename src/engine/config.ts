@@ -343,9 +343,9 @@ export const CONFIG = {
       decision: {
         shooting: 0.2,
         passing: 0.35,
-        dribbling: 0.4,
+        dribbling: 0.36,
         defending: 0.35,
-        goalkeeping: 0.37,
+        goalkeeping: 0.3,
       },
       goal: 0.9,
       assist: 0.85,
@@ -433,15 +433,15 @@ export const CONFIG = {
        */
       shares: {
         ST: [0.37, 0.05],
-        LW: [0.46, 0.08],
-        RW: [0.46, 0.08],
+        LW: [0.5, 0.08],
+        RW: [0.5, 0.08],
         AM: [0.36, 0.07],
         CM: [0.32, 0.16],
         DM: [0.12, 0.48],
         CB: [0.08, 0.6],
         LB: [0.12, 0.55],
         RB: [0.12, 0.55],
-        GK: [0.06, 0.75],
+        GK: [0.06, 0.82],
       } as Record<string, readonly [number, number]>,
       /** Auto-play draws only between choices this close to the best (`autoPlayMargin` before). */
       autoPlayMargin: 0.004,
@@ -658,7 +658,7 @@ export const CONFIG = {
       xp: { ratingThreshold: 5.2, perRating: 45 },
       fame: { ratingThreshold: 6.2, perRating: 3.75 },
       position: {
-        GK: 1.2,
+        GK: 1.3,
         CB: 1.21,
         LB: 1,
         RB: 1,

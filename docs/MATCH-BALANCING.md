@@ -700,19 +700,19 @@ Eight new situations (`SITUATIONS_22` in `src/engine/match/situations22.ts`), wi
 | Position | Situations before → after | Most common before → after (`match-profile` / `-b`)  |
 | -------- | ------------------------- | ---------------------------------------------------- |
 | GK       | 5 → 7                     | shot incoming 41 / 43% → 30 / 31%                    |
-| CB       | 5 → 9                     | defend-attack 54 / 46% → 30 / 26%                    |
-| LB       | 6 → 10                    | defend-attack 50 / 43% → 28 / 25%                    |
-| DM       | 6 → 10                    | defend-attack 49 / 41% → 34 / 29%                    |
+| CB       | 5 → 9                     | defend-attack 54 / 46% → 32 / 27%                    |
+| LB       | 6 → 10                    | defend-attack 50 / 43% → 29 / 26%                    |
+| DM       | 6 → 10                    | defend-attack 49 / 41% → 35 / 30%                    |
 | CM       | 9 → 12                    | build-up 27 / 25% → 23 / 21%                         |
 | AM       | 7 → 9                     | box-chance 34% / edge-of-area 31% → 26% / 25%        |
 | RW       | 7 → 9                     | build-up 34% / box-chance 32% → 27% / 25% (build-up) |
-| ST       | 6 → 8                     | box-chance 42 / 36% → 29 / 25%                       |
+| ST       | 6 → 8                     | box-chance 42 / 36% → 30 / 25%                       |
 
 Each situation has five framings on match-22 (`moments22.situationVariants`; the shootout keeps its three). The new framings and the reads' words load with the match's commentary (`src/i18n/momentsCopy.ts`, through `screens/match/lines.ts`), off the route's first render; until then a moment reads its situation's plain sentence.
 
 ### Shares and auto-play
 
-More of a match passes through the player's decisions (`moments22.shares` replaces `shares` × `defending`; [attack, defence]): ST 0.37/0.05 (unchanged attack, which the striker's goal gate holds), LW/RW 0.46/0.08, AM 0.36/0.07, CM 0.32/0.16, DM 0.12/0.48, CB 0.08/0.60, LB/RB 0.12/0.55, GK 0.06/0.75 (match-21: ST 0.37/0.04, wide and AM 0.32/0.05, CM 0.26/0.12, DM 0.10/0.546, CB 0.07/0.48, full-backs 0.10/0.42, GK 0.03/0.585). Auto-play (simulated career matches and the profile's best policy) draws only between choices within `moments22.autoPlayMargin` 0.004 goals of the best (`autoPlayMargin` 0.02 before, when most choices were within it).
+More of a match passes through the player's decisions (`moments22.shares` replaces `shares` × `defending`; [attack, defence]): ST 0.37/0.05 (unchanged attack, which the striker's goal gate holds), LW/RW 0.50/0.08, AM 0.36/0.07, CM 0.32/0.16, DM 0.12/0.48, CB 0.08/0.60, LB/RB 0.12/0.55, GK 0.06/0.82 (match-21: ST 0.37/0.04, wide and AM 0.32/0.05, CM 0.26/0.12, DM 0.10/0.546, CB 0.07/0.48, full-backs 0.10/0.42, GK 0.03/0.585). Auto-play (simulated career matches and the profile's best policy) draws only between choices within `moments22.autoPlayMargin` 0.004 goals of the best (`autoPlayMargin` 0.02 before, when most choices were within it).
 
 ### Skill mechanics (review C13, C14)
 
@@ -730,19 +730,19 @@ When the player's ability exceeds both the match level and the opposition's mean
 
 ### Ratings and rewards after 5.2
 
-The rating's par (step 5.3) counts the reads: the reference odds a moment is measured against are the base odds with each read factor's multiplier applied (recovered from its contribution), so taking what the pitch offers is worth its goals rather than extra rating. To keep the asserted ratings target on both seeds, `rating22.decision` is now shooting 0.2, passing 0.35, dribbling 0.4, defending 0.35, keeping 0.37 (0.25/0.25/0.25/0.35/0.4), and `assist` 0.85 (0.7): midfielders' best matches reach 9 again without raising the striker's share of 9s. `rewards22.position` is refitted: CB 1.21, CM, AM, LW and RW 0.78 (1.1, 0.8, 0.85, 0.9, 0.9), XP a match within 2% of the table above except the centre-midfielder's, +10% (127.5 against 115.9): more goals and assists pass through its moments, and its weight stays at 0.78 so a rating point is worth at least 0.7 of match-21's (`tests/match-ratings.test.ts`).
+The rating's par (step 5.3) counts the reads: the reference odds a moment is measured against are the base odds with each read factor's multiplier applied (recovered from its contribution), so taking what the pitch offers is worth its goals rather than extra rating. To keep the asserted ratings target on both seeds, `rating22.decision` is now shooting 0.2, passing 0.35, dribbling 0.36, defending 0.35, keeping 0.3 (0.25/0.25/0.25/0.35/0.4), and `assist` 0.85 (0.7): midfielders' best matches reach 9 again without raising the striker's share of 9s. `rewards22.position` is refitted: GK 1.3, CB 1.21, CM, AM, LW and RW 0.78 (1.2, 1.1, 0.8, 0.85, 0.9, 0.9), XP a match within 3% of the table above except the centre-midfielder's, +11% (128.5 against 115.9): more goals and assists pass through its moments, and its weight stays at 0.78 so a rating point is worth at least 0.7 of match-21's (`tests/match-ratings.test.ts`).
 
 ### Results (300 matches a position, both seeds)
 
 | Position | Perfect vs worst before → after (`match-profile` / `-b`) | Rating mean after | Striker's goals a match   |
 | -------- | -------------------------------------------------------- | ----------------- | ------------------------- |
-| GK       | 0.09 / 0.16 → 0.40 / 0.38                                | 6.87 / 6.52       |                           |
-| CB       | 0.17 / 0.09 → 0.58 / 0.46                                | 6.59 / 6.70       |                           |
-| LB       | 0.12 / 0.03 → 0.52 / 0.54                                | 6.83 / 6.65       |                           |
-| DM       | 0.10 / 0.08 → 0.50 / 0.44                                | 6.85 / 6.88       |                           |
-| CM       | 0.24 / 0.15 → 0.48 / 0.46                                | 6.70 / 6.79       |                           |
-| AM       | 0.16 / 0.10 → 0.61 / 0.50                                | 6.77 / 6.58       |                           |
-| RW       | 0.09 / 0.16 → 0.36 / 0.49                                | 6.58 / 6.86       |                           |
-| ST       | 0.32 / 0.31 → 0.46 / 0.48                                | 6.80 / 6.68       | 0.50 / 0.47 → 0.52 / 0.47 |
+| GK       | 0.09 / 0.16 → 0.38 / 0.42                                | 6.75 / 6.50       |                           |
+| CB       | 0.17 / 0.09 → 0.49 / 0.50                                | 6.57 / 6.72       |                           |
+| LB       | 0.12 / 0.03 → 0.50 / 0.49                                | 6.80 / 6.61       |                           |
+| DM       | 0.10 / 0.08 → 0.48 / 0.49                                | 6.83 / 6.90       |                           |
+| CM       | 0.24 / 0.15 → 0.53 / 0.42                                | 6.71 / 6.81       |                           |
+| AM       | 0.16 / 0.10 → 0.59 / 0.46                                | 6.76 / 6.56       |                           |
+| RW       | 0.09 / 0.16 → 0.34 / 0.56                                | 6.54 / 6.82       |                           |
+| ST       | 0.32 / 0.31 → 0.41 / 0.50                                | 6.77 / 6.69       | 0.50 / 0.47 → 0.49 / 0.45 |
 
-Standard errors 0.06–0.08. No dominant choice: 48 situation-seeds judged, the most dominated free kick _short_ 58%, rebound _cut back_ 58%, edge of the area _lay off_ 57% (before: one-on-one _stay_ 96%, penalty save _stay_ 71–100%, free kick _short_ 76–85%, corner _short_ 76–77%, short distribution 78–84%; punch now best in 16–31% of crosses). Every asserted gate holds on both seeds, including the ratings and match-statistics targets of step 5.3 and the choreography's 10 ms (5–7 ms a match on an idle machine). The 10,000-match test (the striker's benchmark, which plays fixed choices, so it pays the reads' lean): 2.58 goals a match (2.66 after step 5.3), home 1.38 / away 1.24, home wins 40.2%, draws 26.7%, close upsets 24.3%, wide upsets 10.1%, all in their bands.
+Standard errors 0.06–0.08. No dominant choice: 48 situation-seeds judged, the most dominated free kick _short_ 59%, one-on-one _stay_ 59%, rebound _cut back_ 58%, edge of the area _lay off_ 57% (before: one-on-one _stay_ 96%, penalty save _stay_ 71–100%, free kick _short_ 76–85%, corner _short_ 76–77%, short distribution 78–84%; punch now best in 16–31% of crosses). Every asserted gate holds on both seeds, including the ratings and match-statistics targets of step 5.3 and the choreography's 10 ms (5–7 ms a match on an idle machine). The 10,000-match test (the striker's benchmark, which plays fixed choices, so it pays the reads' lean): 2.58 goals a match (2.65 after step 5.4), home 1.38 / away 1.22, home wins 40.4%, draws 26.6%, close upsets 24.7%, wide upsets 9.6%, all in their bands.

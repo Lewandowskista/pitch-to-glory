@@ -38,7 +38,6 @@ import {
   postFlank,
   selectedSide,
 } from './shared';
-import { rules22 } from './types';
 
 const F = C.cards;
 
