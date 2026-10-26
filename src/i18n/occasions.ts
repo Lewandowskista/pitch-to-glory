@@ -3,64 +3,12 @@ import { LOCALE, plurals, type Translations } from './locale';
 
 /*
  * The occasions of a match-22 session (release 1.0 step 5.4): stoppage time, coming off the
- * bench, in-match injuries, the shootout and the touchline decisions. The engine's commentary
- * and situation sentences are registered with the match copy when this module loads (with the
- * lazy occasion panels, before kick-off), so the live match screen's first load stays small.
+ * bench, in-match injuries, the shootout and the touchline decisions. The shootout's situation
+ * sentences are registered with the match copy when this module loads (with the lazy occasion
+ * panels, before kick-off), so the live match screen's first load stays small; their commentary
+ * lines are in src/i18n/commentary.ts.
  */
 
-/** Commentary: three variants per line, as the engine draws them. */
-const commentaryEn: Record<string, [string, string, string]> = {
-  'added-time': [
-    'The fourth official raises the board: +{minutes}.',
-    'Added time on the board: +{minutes}.',
-    'Stoppage time: +{minutes}.',
-  ],
-  'bench-on': [
-    '{receiver} comes off the bench for {player}.',
-    'A change: {receiver} replaces {player}.',
-    '{player} makes way for {receiver}.',
-  ],
-  'injury-change': [
-    '{player} cannot continue. {receiver} comes on.',
-    'Injury: {player} limps off and {receiver} replaces them.',
-    '{player} is hurt and signals to the bench. On comes {receiver}.',
-  ],
-  knock: [
-    '{player} takes a knock and stays down.',
-    '{player} is down after that challenge and needs treatment.',
-    'The physio is on for {player}.',
-  ],
-  'knock-serious': [
-    '{player} is badly hurt and cannot carry on.',
-    'Bad news: {player} goes down and signals to the bench straight away.',
-    '{player} is in real pain after that one.',
-  ],
-  'knock-off': [
-    '{player} comes off as a precaution. {receiver} replaces them.',
-    'Not worth the risk: {player} makes way for {receiver}.',
-    '{player} walks off gingerly and {receiver} comes on.',
-  ],
-  'knock-aggravated': [
-    '{player} pulls up: playing on has made it worse. {receiver} comes on.',
-    'The knock gets the better of {player}, who has to come off for {receiver}.',
-    '{player} cannot run it off any longer. {receiver} replaces them.',
-  ],
-  'shootout-start': [
-    'Penalties! A shootout will decide it.',
-    'Nothing between them: it goes to a shootout.',
-    'The players gather in the centre circle. Penalties.',
-  ],
-  'shootout-kick.scored': [
-    '{player} scores past {keeper}.',
-    '{player} sends {keeper} the wrong way.',
-    'Calmly done by {player}.',
-  ],
-  'shootout-kick.missed': [
-    '{keeper} saves from {player}!',
-    '{player} misses!',
-    '{player}’s penalty is kept out by {keeper}.',
-  ],
-};
 /** Key-moment sentences for a kick of the shootout itself. */
 const situationsEn: Record<string, [string, string, string]> = {
   'shootout-kick': [
@@ -74,18 +22,11 @@ const situationsEn: Record<string, [string, string, string]> = {
     'The shootout: {attacker} on the spot, you on the line. Your plan?',
   ],
 };
-const engineEn = {
-  ...Object.fromEntries(
-    Object.entries(commentaryEn).flatMap(([key, lines]) =>
-      lines.map((text, index) => [`match.commentary.${key}.${index}`, text]),
-    ),
+const engineEn = Object.fromEntries(
+  Object.entries(situationsEn).flatMap(([key, lines]) =>
+    lines.map((text, index) => [`match.situation.${key}.${index}`, text]),
   ),
-  ...Object.fromEntries(
-    Object.entries(situationsEn).flatMap(([key, lines]) =>
-      lines.map((text, index) => [`match.situation.${key}.${index}`, text]),
-    ),
-  ),
-} as Record<string, string>;
+) as Record<string, string>;
 registerMatchText(({ en: engineEn } satisfies Translations<typeof engineEn>)[LOCALE]);
 
 /** The panels' copy. */
@@ -131,10 +72,9 @@ const occasionsEn = {
     refused: 'The manager said no ({roll} against a {chance}% chance of refusal).',
   },
   substitution: {
-    accept: 'Accept the decision',
-    acceptBody: 'Shake hands and sit down. Trust +{trust}.',
-    rally: 'Rally the side as you go off',
-    rallyBody: 'Momentum +{momentum} for your side for what is left. No trust gained.',
+    acceptBody: 'Shake the manager’s hand and sit down. Trust +{trust}.',
+    rallyBody:
+      'Rally the side as you go off: momentum +{momentum} for what is left. No trust gained.',
     note: 'Accepting pays when the game is settled; rallying when it is still in the balance.',
   },
   injury: {

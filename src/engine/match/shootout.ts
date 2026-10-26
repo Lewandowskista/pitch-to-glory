@@ -224,7 +224,11 @@ function record(session: MatchSession, kick: ShootoutKick, told = false): void {
       kick.scored ? 'shot' : 'save',
       sideTeam(session, kick.side),
       kick.takerId,
-      line(session, `match.commentary.shootout-kick.${kick.scored ? 'scored' : 'missed'}`),
+      line(
+        session,
+        `match.commentary.shootout-kick.${kick.scored ? 'scored' : kick.roll > 0.9 ? 'missed' : 'saved'}`,
+        kick.side,
+      ),
     );
     shown.commentaryParams = {
       ...shown.commentaryParams,

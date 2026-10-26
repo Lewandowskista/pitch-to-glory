@@ -24,12 +24,6 @@ export function addedDue(state: MatchState): boolean {
   const board = boardAt(state, state.match.minute);
   return board !== undefined && (state.added ?? 0) < board.minutes;
 }
-/** Whether the period that ends at this minute has played all of its added time. */
-export function periodOver(state: MatchState): boolean {
-  const board = boardAt(state, state.match.minute);
-  return board !== undefined && (state.added ?? 0) >= board.minutes;
-}
-
 /**
  * The added minutes for the period ending at `at` (`${seed}:added:${at}`; three draws always):
  * base + goals × goal + substitutions × substitution + cards × card + injuries × injury +
@@ -85,9 +79,9 @@ export function showBoard(session: MatchSession): { at: number; minutes: number 
       'halftime',
       session.setup.players[session.setup.selectedPlayerId]!.clubId!,
       null,
-      line(session, 'match.commentary.added-time'),
+      line(session, 'match.commentary.stoppage'),
     );
-    shown.commentaryParams = { minutes: String(board.minutes) };
+    shown.commentaryParams = { added: String(board.minutes) };
   }
   return board;
 }

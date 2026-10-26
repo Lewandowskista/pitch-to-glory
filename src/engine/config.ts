@@ -444,7 +444,7 @@ export const CONFIG = {
         injury: 0.9,
         jitter: 1.6,
         long: { chance: 0.04, upTo: 10 },
-        matchMinutes: 97.4,
+        matchMinutes: 98.3,
         /**
          * The last key moment of a close game (placed at minute 80) lands in second-half added
          * time with this chance, in one of its first `lateAddedMinutes` minutes.

@@ -119,7 +119,7 @@ export function bringOn(session: MatchSession, outgoing?: string): boolean {
     'substitution',
     team.teamId,
     off,
-    line(session, 'match.commentary.bench-on'),
+    line(session, 'match.commentary.bench-on', own),
   );
   sub.receiverId = player.id;
   sub.commentaryParams = { ...sub.commentaryParams, receiver: player.name };
@@ -215,7 +215,7 @@ export function keeperSentOff(session: MatchSession, side: 0 | 1, keeperId: stri
     'substitution',
     team.teamId,
     mover,
-    line(session, careerKeeper ? 'match.commentary.bench-on' : 'match.commentary.change'),
+    line(session, careerKeeper ? 'match.commentary.bench-on' : 'match.commentary.change', side),
   );
   sub.receiverId = reserve!;
   sub.commentaryParams = { ...sub.commentaryParams, receiver: setup.players[reserve!]!.name };

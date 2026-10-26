@@ -364,7 +364,7 @@ function ownSubstitution(next: MatchSession): void {
     'substitution',
     player.clubId!,
     player.id,
-    'match.commentary.substitution',
+    line(next, 'match.commentary.substitution', own),
   );
   sub.receiverId = incoming;
 }

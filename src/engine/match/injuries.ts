@@ -105,7 +105,7 @@ function forcedOff(session: MatchSession, side: 0 | 1, id: string): void {
     'substitution',
     team.teamId,
     id,
-    line(session, 'match.commentary.injury-change'),
+    line(session, 'match.commentary.injury-off', side),
   );
   sub.receiverId = on;
   sub.commentaryParams = { ...sub.commentaryParams, receiver: setup.players[on]!.name };
@@ -134,7 +134,7 @@ export function careerKnock(session: MatchSession): boolean {
     if (createRng(`${setup.seed}:aggravate:${clockKey(s)}`).next() >= I.playOn.aggravate)
       return false;
     s.knock = { ...s.knock, aggravated: { minute: s.match.minute, ...addedStamp(s) } };
-    leave(session, 'match.commentary.knock-aggravated');
+    leave(session, 'match.commentary.injury-aggravated');
     return false;
   }
   const rng = createRng(`${setup.seed}:knock:${clockKey(s)}`);
@@ -158,10 +158,14 @@ export function careerKnock(session: MatchSession): boolean {
     'tackle',
     player.clubId!,
     player.id,
-    line(session, serious ? 'match.commentary.knock-serious' : 'match.commentary.knock'),
+    line(
+      session,
+      serious ? 'match.commentary.injury-serious' : 'match.commentary.injury',
+      selectedSide(setup),
+    ),
   );
   if (serious) {
-    leave(session, 'match.commentary.injury-change');
+    leave(session, 'match.commentary.injury-off');
     return false;
   }
   s.injuryDecisionPending = true;
@@ -182,7 +186,7 @@ export function answerKnock(session: MatchSession, response: 'play-on' | 'off'):
   s.knock = { ...s.knock, decision: response };
   if (response === 'play-on')
     s.stats.fatigue = round6(clamp(s.stats.fatigue + I.playOn.fatigue, 0, 100));
-  else leave(session, 'match.commentary.knock-off');
+  else leave(session, 'match.commentary.injury-precaution');
 }
 
 /**
@@ -209,7 +213,7 @@ function leave(session: MatchSession, key: string): void {
       starterIds: current.starterIds.map((id) => (id === player.id ? incoming : id)),
       benchIds: current.benchIds.filter((id) => id !== incoming),
     };
-    const sub = event(session, 'substitution', current.teamId, player.id, line(session, key));
+    const sub = event(session, 'substitution', current.teamId, player.id, line(session, key, side));
     sub.receiverId = incoming;
     sub.commentaryParams = { ...sub.commentaryParams, receiver: setup.players[incoming]!.name };
   }

@@ -116,6 +116,7 @@ export function buildFeed(
     rows.push({
       id: `spell:${spell.id}`,
       minute: last.minute,
+      ...(last.addedTime ? { addedTime: last.addedTime } : {}),
       kind: 'play',
       ...words,
       subject: subject(last),

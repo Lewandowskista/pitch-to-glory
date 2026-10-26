@@ -22,9 +22,8 @@ export { rolePosition, fullTime } from './shared';
 export { sessionPenalties } from './extraTime';
 export { applyMatchCommand } from './commands';
 // The occasions (match-22): stoppage time, the bench, injuries, the shootout, the touchline.
-export { addedDue, boardAt, periodEnds } from './stoppage';
-export { benchHazard, changesLeft } from './bench';
-export { canComeOff, injuryKind } from './injuries';
+export { benchHazard } from './bench';
+export { canComeOff } from './injuries';
 export { shootoutTally, shootoutWinner } from './shootout';
 export {
   demandTrust,
@@ -35,5 +34,5 @@ export {
   roleRefusal,
   touchlinePolicy,
 } from './touchline';
-export { onBench, clockKey } from './shared';
+export { onBench } from './shared';
 export { validateMatchSession } from './replay';

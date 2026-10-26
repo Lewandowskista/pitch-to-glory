@@ -378,7 +378,7 @@ function SubstitutionTalk({
               className="match-talk-option grid content-start gap-1.5 text-left"
               onClick={() => onCommand({ type: 'substitution', response: 'accept' })}
             >
-              <strong>{o.substitution.accept}</strong>
+              <strong>{m.acceptSubstitution}</strong>
               <span>{matchFormat(o.substitution.acceptBody, { trust: T.acceptTrust })}</span>
             </button>
             <button
@@ -386,7 +386,7 @@ function SubstitutionTalk({
               className="match-talk-option grid content-start gap-1.5 text-left"
               onClick={() => onCommand({ type: 'substitution', response: 'encourage' })}
             >
-              <strong>{o.substitution.rally}</strong>
+              <strong>{m.encourageSubstitution}</strong>
               <span>{matchFormat(o.substitution.rallyBody, { momentum: T.momentum })}</span>
             </button>
           </div>

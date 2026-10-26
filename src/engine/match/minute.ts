@@ -145,7 +145,7 @@ function afterMinute22(session: MatchSession): void {
         'halftime',
         session.setup.players[session.setup.selectedPlayerId]!.clubId!,
         null,
-        'match.commentary.halftime',
+        halftimeLine(session),
       );
       return;
     }

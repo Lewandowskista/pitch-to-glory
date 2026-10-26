@@ -672,6 +672,72 @@ const commentaryEn: Record<string, readonly string[]> = {
     '{player} scores, and surely that’s the winner!',
     'Pandemonium! {player} has won it late on!',
   ],
+  // The occasions (match-22, release 1.0 step 5.4): {added} is the board's added minutes.
+  stoppage: [
+    'The fourth official raises the board: +{added}.',
+    'Added time on the board: +{added}.',
+    'Stoppage time: +{added}.',
+    'Up goes the board. {home} {scoreline} {away}, +{added} to play.',
+  ],
+  'bench-on': [
+    '{receiver} comes off the bench for {player}.',
+    'A change for {team}: {receiver} replaces {player}.',
+    '{player} makes way for {receiver}.',
+    'On comes {receiver} for {team}, and off goes {player}.',
+  ],
+  injury: [
+    '{player} takes a knock and stays down.',
+    '{player} is down after that challenge and needs treatment.',
+    'The physio is on for {player}.',
+    'Concern for {team}: {player} is still down, holding a leg.',
+  ],
+  'injury-serious': [
+    '{player} is badly hurt and cannot carry on.',
+    'Bad news for {team}: {player} goes down and signals to the bench straight away.',
+    '{player} is in real pain after that one.',
+  ],
+  'injury-off': [
+    '{player} cannot continue. {receiver} comes on.',
+    'Injury: {player} limps off and {receiver} replaces them.',
+    '{player} is hurt and signals to the bench. On comes {receiver}.',
+    'A blow for {team}: {player} is helped off, {receiver} on.',
+  ],
+  'injury-precaution': [
+    '{player} comes off as a precaution. {receiver} replaces them.',
+    'Not worth the risk: {player} makes way for {receiver}.',
+    '{player} walks off gingerly and {receiver} comes on.',
+  ],
+  'injury-aggravated': [
+    '{player} pulls up: playing on has made it worse. {receiver} comes on.',
+    'The knock gets the better of {player}, who has to come off for {receiver}.',
+    '{player} cannot run it off any longer. {receiver} replaces them.',
+  ],
+  'shootout-start': [
+    'Penalties! A shootout will decide it.',
+    'Nothing between {home} and {away}: it goes to a shootout.',
+    'The players gather in the centre circle. Penalties.',
+  ],
+  'shootout-kick.scored': [
+    '{player} scores past {keeper}.',
+    '{player} sends {keeper} the wrong way.',
+    'Calmly done by {player} for {team}.',
+    'Top corner from {player}. No chance for {keeper}.',
+    '{player} smashes it down the middle. In.',
+    '{player} waits for {keeper} to move, and rolls it in.',
+  ],
+  'shootout-kick.saved': [
+    '{keeper} saves from {player}!',
+    'Saved! {keeper} guesses right and keeps out {player}.',
+    '{player}’s penalty is kept out by {keeper}.',
+    'Great save from {keeper}, low to stop {player}.',
+    '{keeper} gets a strong hand to it. {player} cannot believe it.',
+  ],
+  'shootout-kick.missed': [
+    '{player} misses! Wide of the post.',
+    'Over the bar! {player} has blazed it.',
+    '{player} hits the post, and it stays out!',
+    'A terrible penalty from {player}, nowhere near the target.',
+  ],
 };
 const commentary = ({ en: commentaryEn } satisfies Translations<typeof commentaryEn>)[LOCALE];
 /** Match-21's single lines for the whistles and the player's substitution. */
