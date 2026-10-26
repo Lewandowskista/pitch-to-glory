@@ -203,6 +203,13 @@ the one helper `rules22(setup)` (`src/engine/match/types.ts`):
    `onEngine` moves a setup to either; `expectReplays` checks a session survives a save). The
    0.9.1 golden session (`goldenSession`) must still replay and finish on match-21.
 
+**Step 5.4 (the occasions).** Stoppage time, the bench, in-match injuries, keepers' cards, the
+shootout and the touchline answers are match-22 rules. One part reaches the career outside a
+session: a player left out of the eleven now plays the fixture from the bench
+(`pendingCareerFixture`) instead of the background resolving it without them. It applies from
+the first fixture after loading (a fixture is never half-played), like the other rules the 1.0
+cut adopts on load; earlier fixtures keep their results.
+
 Replay compares the whole session, so anything the engine writes into it is gated like a rule,
 even when it only reads differently: events and their commentary keys (and the number of
 variants they draw from), narration lines, headlines and reactions, keyframes and statistics.

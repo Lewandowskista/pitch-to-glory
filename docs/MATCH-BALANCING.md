@@ -518,7 +518,7 @@ The match profile (`scripts/match-profile.ts`) reports five 1.0 targets after it
 - **No dominant choice.** At every key moment of the best-policy matches, the choice with the highest expected value (`expectedImpact(...).net`; ties share the credit) is tallied per situation (`dominance`). Pooled over positions per seed, no choice may be best in more than 60% of a situation's instances (situations with at least 30).
 - **Ratings.** Per position: mean 6.5–6.9, standard deviation 0.7–1.0 (`rating.sd`), at most 3% at 9.0 or more and at most 3% at 5.0 or less (`rating.fiveOrLess`).
 - **Match statistics.** From the best-policy matches, pooled per seed (`statistics`): shots on target 30–40% of shots, 11–14 shots a team, home possession with p10 ≤ 40% and p90 ≥ 60%. The 10,000-match test keeps the goal, home-advantage and upset bands.
-- **Goals in added time** (split from the match statistics in step 5.3, for step 5.4): some goals after the 90th minute of a match without extra time, or marked as added time once the engine has it.
+- **Goals in added time** (split from the match statistics in step 5.3; asserted from step 5.4): goals marked with an added minute (`MatchEvent.addedTime`), 6–10% of all goals (`TARGET_BANDS.addedTimeShare`; football data puts it at about 7–9%).
 
 Baseline on 25 October 2026 (0.10.0, 300 matches a position, both seeds):
 
@@ -531,7 +531,7 @@ Baseline on 25 October 2026 (0.10.0, 300 matches a position, both seeds):
 | Possession p10–p90               | 48–52%                                                                                                                                                                                                                                | 47–52%                                                                                                                                              |
 | Goals in added time              | 0 of 6,485                                                                                                                                                                                                                            | 0 of 6,524                                                                                                                                          |
 
-Step 5.3 met the ratings and match statistics targets on both seeds and asserts them; goals in added time is now its own target, for step 5.4 (stoppage time). Measured values below, in "Believable ratings and statistics".
+Step 5.3 met the ratings and match statistics targets on both seeds and asserts them; step 5.4 meets and asserts goals in added time (7.1% and 7.0% of all goals; "The occasions" below). Measured values below, in "Believable ratings and statistics".
 
 ## Believable ratings and statistics (engine `match-22`, release 1.0 step 5.3)
 
@@ -611,3 +611,43 @@ The background converts `shots22.conversion` 0.095 of its shots (match-21: 0.12)
 | `match-22` | 2.6564 | 1.454 / 1.220     | 42.4%    | 26.3% | 22.8%       | 8.4%       | 12.6         | 36.0%     | 0.87     |
 
 **After step 5.2.** Choices that succeed more or less often change the mix but not the centre (each moment is measured against its own par). Re-check the ratings target's means, the 9.0+ shares (ST and RW on `match-profile-b` and CB carry the largest, 2.0–2.7%), the keeper's p90 and that every position still reaches 9. If the means move, `rating22.base` moves them all; if a position's tail does, its family weight or `stopCap` is the knob. Re-fit the `rewards22` weights only if a position's XP a match leaves ±5% of the table above.
+
+## The occasions (engine `match-22`, release 1.0 step 5.4)
+
+Findings M7, M12 and M13 (and M1's follow-up) of the [25 October review](APP-REVIEW-2026-10-25.md). Every rule is gated on `rules22(setup)`; match-21 keeps its rules byte for byte (the snapshot's `PREVIOUS` table and whole-session hash are unchanged). New random draws are on new streams; per-minute streams in added time are keyed `minute+added` (`clockKey`), so normal time's draws keep their keys. Constants: `CONFIG.match.occasions` (`stoppage`, `bench`, `injuries`, `extraSub`, `shootout`, `touchline`). Modules: `stoppage.ts`, `bench.ts`, `injuries.ts`, `shootout.ts`, `touchline.ts`.
+
+### Stoppage time
+
+At the end of each period (45, 90, and 105 and 120 in extra time) the board shows N = base + goals × 0.45 + substitutions × 0.2 + cards × 0.2 + injuries × 0.9 + a uniform draw below 1.6 (`${seed}:added:${minute}`), rounded within the period's band: 1–4 (base 0.7), 3–7 (base 2.6; with 4% a long stoppage of 2–4 more, up to 10), 0–2 and 1–3 in extra time. The clock stands at the period's last minute while the added minutes are played (`state.added`; shown 45+2′, 90+4′); events, moments and narration lines carry `addedTime`. Added minutes are played minutes (fatigue, cards, injuries, a rating sample), but `selectedPlayerMinutes` counts regulation time only. A minute's background goal rate is expected goals ÷ `matchMinutes` 98.3 (90 plus the mean added time), so goals a match hold. The last moment of a close game, placed at the 80th minute, lands in one of the first three added minutes with 30% (`${seed}:late:added`).
+
+Measured (2,000 friendlies): boards 2.56 (45′), 5.69 (90′, up to 10), 1.39 and 1.65 in extra time; goals a match 2.67 (match-21 on the same setups 2.65); 7.3% of goals in added time (profile, both seeds: 7.1% and 7.0%). The 10,000-match gate: 2.65 goals, home 42.9%, draw 25.6%, close upsets 22.7%, wide 8.3%.
+
+### Coming off the bench
+
+A career player the manager leaves out (`careerSelection`, not suspended, registered) now has a playable fixture (`pendingCareerFixture` → `matchdaySquad`) and starts on the bench (`setup.bench.role`, the role promised): out of the eleven, first on the bench of seven, no moments. From 55′ to 80′ (91′–105′ in extra time) the manager brings them on with a per-minute hazard (`${seed}:bench:${minute}`): base by role (key 0.09, rotation 0.05, backup 0.03, youth 0.02) × a ramp (0.5 at 55′, 1.4 at 68′, 0.9 at 80′) × the score (chasing: attackers 1.6, defenders 0.6; leading: attackers 0.8, defenders 1.4) × form (1 + (form − 50) × 0.012) × freshness (1 − fatigue × 0.008) × 1.5 if they asked at half-time (−2 trust). They replace whoever fills their natural slot, take 2–4 moments in the time left (`${seed}:bench:moments`), and a moment's budget divides by the moments a whole match would hold at that rate (`momentCount`). A keeper on the bench comes on only for an injured or dismissed keeper; an outfielder can also come on for an injured teammate whose like-for-like change they are. Measured over 1,400 outfield bench sessions: on in 95% (key), 84% (rotation), 66% (backup), 51% (youth), at 62′–66′ on average, for 26 minutes and about 3 moments.
+
+At commit the record has `cameOn`; the matchday counts as dropped (not a start) and posts the "dropped" note; an unused substitute's match records only the club's result (no appearance, rating, XP or fame; the availability entry stays `benched`), with its own headline (`unused-sub`) and reactions. A substitute who scores or assists in a win or draw gets `impact-sub`.
+
+### In-match injuries
+
+Each side's players on the pitch carry a per-minute hazard of 0.012 ÷ 90 × (0.5 + proneness ÷ 100) × (1 + fatigue ÷ 50) (the world's background rate), one draw a side a minute (`${seed}:injury:${clock}`); the injured player is replaced from the bench while the side has a change left (the career side keeps one back for the career player), and the world's injury table takes the session's injuries at commit instead of its post-match draw (`PlayedFixture.injuries`). Measured: 0.29 forced off a match.
+
+The career player takes a knock with 0.035 ÷ 90 a minute × their injury factor (`setup.injury`, the career's `injuryFactor`: fatigue, proneness, Iron Man, a physio), plus a rushed return's risk ÷ 90 (`${seed}:knock:${clock}`, before the minute). A quarter of knocks (and every rushed return breaking down) are injuries that end the match; the rest ask "play on or come off": playing on adds 20 fatigue (odds fall through the fatigue factor) and a 1% a minute risk of the knock becoming an injury; coming off ends the match unhurt (only with a change left). At commit a serious or aggravated knock is an injury of that type in the career's system (`sessionInjury`; internationals too); the post-match roll is not made. Measured: a knock in 3.6% of matches (about 0.9% an injury at once, as the old post-match chance).
+
+Keepers are booked with a card weight × 0.3 (0.10 keeper cards a match); a keeper sent off is replaced by the reserve keeper for an outfielder, or an outfielder takes the gloves. Each side has one more change in extra time (75%, between 91′ and 110′): 1.4 extra-time changes a match that goes to extra time.
+
+### The shootout
+
+Five kicks a side, then sudden death, kick by kick on `advance` (`penaltyShootout`); the toss on `${seed}:shootout:toss`. Takers: each side's players on the pitch, by (finishing + composure + set pieces) ÷ 3, the keeper last; the career player on the pitch takes one of the first five. A kick goes in with 0.76 + (taker − 60) × 0.004 − (keeper − 60) × 0.003 − 0.04 if a miss loses it, within 0.55–0.92 (`${seed}:shootout:kick:${index}`); the career player chooses the placement (a penalty moment) or, in goal, faces every kick (a save moment each). Off the pitch it is simulated without moments, and the session settles `penalties` itself, so `sessionPenalties` and every commit path read it. Measured: 76.5% of kicks scored, 10.6 kicks a shootout.
+
+### Touchline decisions
+
+| Answer                   | Effect                                                                                                             | Best in (300+ branched half-times; substitutions) |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| Motivate                 | momentum +8 × 1.25 behind / 1 level / 0.4 ahead (× 1.5 Leader), odds × 1.03 (× 1.005 ahead), trust +1              | 56% (63% behind, 57% level, 50% ahead)            |
+| Ask for a role (chosen)  | refused with 0.3 − (trust − 50) × 0.008 + 0.25 against the score, within 0.05–0.85; refused: trust −1, odds × 0.98 | 31% (21% behind, 36% level, 33% ahead)            |
+| Demand the ball          | attacking share × 1.35 and two more second-half moments; trust 0 after a first half rated 7+, −2, or −4 below 6.2  | 13% (16% behind, 7% level, 17% ahead)             |
+| Accept a substitution    | trust +1                                                                                                           | 92.5%                                             |
+| Rally the side going off | own expected goals × 1.3, theirs × 0.85 for the rest, no trust                                                     | 7.5% (10% of close games)                         |
+
+"Best" plays the same half-time (or substitution) out with every answer on the same seeds and scores result points × 0.5 + rating + trust × 0.1. The captain's call comes at the second half's start, after a goal conceded and at 80′ in a game within a goal, at most three times and ten minutes apart. The headless player picks the answer its context favours (`touchlinePolicy`).
