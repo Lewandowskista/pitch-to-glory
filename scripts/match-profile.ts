@@ -766,7 +766,8 @@ export const TARGETS: Target<PositionProfile[]>[] = [
     id: 'choices-matter',
     name: `choices matter: perfect vs worst play ≥ ${TARGET_BANDS.swing} goals a match for every position, on ${TARGET_BANDS.seeds} seeds`,
     phase: 5,
-    asserted: false,
+    // Met and asserted in release 1.0 step 5.2 (engine match-22).
+    asserted: true,
     evaluate: (profiles) => {
       const seeds = bySeed(profiles).filter(([, list]) => list.every((p) => p.swing));
       if (!seeds.length) return { met: null, value: 'no swing data (rerun the profile)' };
@@ -788,7 +789,8 @@ export const TARGETS: Target<PositionProfile[]>[] = [
     id: 'no-dominant-choice',
     name: `no dominant choice: none best in more than ${TARGET_BANDS.dominantShare * 100}% of its situation's instances (situations with ≥ ${TARGET_BANDS.dominantMinimum})`,
     phase: 5,
-    asserted: false,
+    // Met and asserted in release 1.0 step 5.2 (engine match-22).
+    asserted: true,
     evaluate: (profiles) => {
       if (!profiles.some((p) => p.dominance)) return { met: null, value: 'no dominance data' };
       const offenders: string[] = [];

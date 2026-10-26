@@ -624,7 +624,9 @@ export function situationWeights(
   const M = C.moments22;
   return (v22 ? ALL_SITUATIONS : SITUATIONS).flatMap((situation) => {
     if (situation.drama && !options.drama) return [];
-    const positions = v22 ? (POSITIONS_22[situation.id] ?? situation.positions) : situation.positions;
+    const positions = v22
+      ? (POSITIONS_22[situation.id] ?? situation.positions)
+      : situation.positions;
     let weight =
       (positions[position] ?? 0) *
       (effect.situations?.[situation.id] ?? 1) *

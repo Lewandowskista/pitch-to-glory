@@ -184,6 +184,9 @@ describe('picking a line (match-22)', () => {
       }
     for (const session of previous)
       expect(session.state.match.events.some((event) => event.shotResult)).toBe(false);
+    // Step 5.2 gives match-22's moments reads of the play; match-21 never draws them.
+    expect(current.some((s) => s.state.match.keyMoments.some((k) => k.reads?.length))).toBe(true);
+    expect(previous.some((s) => s.state.match.keyMoments.some((k) => k.reads))).toBe(false);
   });
 });
 

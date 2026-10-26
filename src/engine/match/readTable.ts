@@ -111,18 +111,18 @@ export const READS: Readonly<Record<string, readonly Read[]>> = {
         state('high', 0.35, {
           'through-ball': 1.35,
           'disguised-pass': 1.3,
-          'cross-switch': 0.45,
-          'carry-forward': 0.72,
+          'cross-switch': 0.35,
+          'carry-forward': 0.65,
         }),
-        state('deep', 0.35, { 'through-ball': 0.35, 'disguised-pass': 0.45, 'cross-switch': 1.25 }),
-        state('mid', 0.3, { 'cross-switch': 0.67, 'through-ball': 0.67, 'carry-forward': 1.1 }),
+        state('deep', 0.35, { 'through-ball': 0.26, 'disguised-pass': 0.35, 'cross-switch': 1.25 }),
+        state('mid', 0.3, { 'cross-switch': 0.59, 'through-ball': 0.59, 'carry-forward': 1.1 }),
       ],
     },
     {
       id: 'space',
       states: [
         state('room', 0.4, { 'carry-forward': 1.3 }),
-        state('closed', 0.6, { 'carry-forward': 0.4 }),
+        state('closed', 0.6, { 'carry-forward': 0.3 }),
       ],
     },
   ],
@@ -144,8 +144,18 @@ export const READS: Readonly<Record<string, readonly Read[]>> = {
           intercept: 0.62,
           jockey: 1.3,
         }),
-        state('head-up', 0.25, { intercept: 1.45, 'track-runner': 0.56, tackle: 0.62, jockey: 0.5 }),
-        state('runner', 0.25, { 'track-runner': 1.45, intercept: 0.39, jockey: 0.45, tackle: 0.74 }),
+        state('head-up', 0.25, {
+          intercept: 1.45,
+          'track-runner': 0.56,
+          tackle: 0.62,
+          jockey: 0.5,
+        }),
+        state('runner', 0.25, {
+          'track-runner': 1.45,
+          intercept: 0.39,
+          jockey: 0.45,
+          tackle: 0.74,
+        }),
       ],
     },
   ],
@@ -343,8 +353,8 @@ export const READS: Readonly<Record<string, readonly Read[]>> = {
     {
       id: 'taker',
       states: [
-        state('early', 0.4, { 'penalty-read': 1.3, 'penalty-stay': 0.7 }),
-        state('waits', 0.4, { 'penalty-read': 0.65, 'penalty-stay': 1.2 }),
+        state('early', 0.4, { 'penalty-read': 1.25, 'penalty-stay': 0.7 }),
+        state('waits', 0.4, { 'penalty-read': 0.65 }),
         state('nervous', 0.2),
       ],
     },
@@ -353,7 +363,11 @@ export const READS: Readonly<Record<string, readonly Read[]>> = {
     {
       id: 'cover',
       states: [
-        state('covered', 0.45, { 'show-wide': 1.35, 'professional-foul': 0.56, 'chase-back': 0.74 }),
+        state('covered', 0.45, {
+          'show-wide': 1.35,
+          'professional-foul': 0.56,
+          'chase-back': 0.74,
+        }),
         state('alone', 0.55, { 'show-wide': 0.34, 'professional-foul': 1.15 }),
       ],
     },

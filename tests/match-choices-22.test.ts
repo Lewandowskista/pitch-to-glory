@@ -8,7 +8,12 @@ import {
   skillEffects,
   type DecisionContext,
 } from '../src/engine/match/decisions';
-import { ALL_SITUATIONS, SITUATIONS_22, UNLOCKS_22, situationOf } from '../src/engine/match/situations22';
+import {
+  ALL_SITUATIONS,
+  SITUATIONS_22,
+  UNLOCKS_22,
+  situationOf,
+} from '../src/engine/match/situations22';
 import { READS } from '../src/engine/match/readTable';
 import { contextReads, markedBy } from '../src/engine/match/reads';
 import { bookingRisk } from '../src/engine/match/discipline';
@@ -55,12 +60,22 @@ const KEYS = [
   'leadership',
   'aggression',
 ];
-const KEEPING = ['handling', 'reflexes', 'diving', 'oneOnOnes', 'kicking', 'commandOfArea', 'aerialReach'];
+const KEEPING = [
+  'handling',
+  'reflexes',
+  'diving',
+  'oneOnOnes',
+  'kicking',
+  'commandOfArea',
+  'aerialReach',
+];
 function player(traits: string[] = []): DecisionContext['player'] {
   return {
     id: 'p',
     attributes: Object.fromEntries(KEYS.map((key) => [key, 60])) as Player['attributes'],
-    keeperAttributes: Object.fromEntries(KEEPING.map((key) => [key, 60])) as Player['keeperAttributes'],
+    keeperAttributes: Object.fromEntries(
+      KEEPING.map((key) => [key, 60]),
+    ) as Player['keeperAttributes'],
     traits,
     morale: CONFIG.career.social.matchMorale.neutral,
     hidden: {
@@ -73,10 +88,7 @@ function player(traits: string[] = []): DecisionContext['player'] {
     },
   };
 }
-function context(
-  situationId: string,
-  overrides: Partial<DecisionContext> = {},
-): DecisionContext {
+function context(situationId: string, overrides: Partial<DecisionContext> = {}): DecisionContext {
   return {
     player: player(),
     situation: situationOf(situationId)!,
@@ -126,7 +138,9 @@ describe('reads of the play (match-22)', () => {
     expect(hasMatchLabel('match.factor.clutch')).toBe(true);
     for (const situation of ALL_SITUATIONS) {
       for (let variant = 0; variant < M.situationVariants; variant++)
-        expect(hasMatchLabel(`match.situation.${situation.id}.${variant}`), situation.id).toBe(true);
+        expect(hasMatchLabel(`match.situation.${situation.id}.${variant}`), situation.id).toBe(
+          true,
+        );
       for (const choice of situation.choices)
         expect(hasMatchLabel(`match.choice.${choice.id}`), choice.id).toBe(true);
     }
@@ -157,7 +171,8 @@ describe('reads of the play (match-22)', () => {
         const values = choices.map((c) => expectedImpact(c).net);
         winners.add(choices[values.indexOf(Math.max(...values))]!.id);
       }
-      for (const choice of base) expect(winners.has(choice.id), `${situationId}/${choice.id}`).toBe(true);
+      for (const choice of base)
+        expect(winners.has(choice.id), `${situationId}/${choice.id}`).toBe(true);
     }
   });
 
@@ -174,12 +189,12 @@ describe('reads of the play (match-22)', () => {
     const choices = buildChoices(context('box-chance', { reads }));
     const near = choices.find((c) => c.id === 'near-post')!;
     const far = choices.find((c) => c.id === 'far-post')!;
-    expect(near.factors.some((f) => f.labelKey === 'match.read.keeper.near' && f.contribution < 0)).toBe(
-      true,
-    );
-    expect(far.factors.some((f) => f.labelKey === 'match.read.keeper.near' && f.contribution > 0)).toBe(
-      true,
-    );
+    expect(
+      near.factors.some((f) => f.labelKey === 'match.read.keeper.near' && f.contribution < 0),
+    ).toBe(true);
+    expect(
+      far.factors.some((f) => f.labelKey === 'match.read.keeper.near' && f.contribution > 0),
+    ).toBe(true);
     for (const choice of choices) expect(sum(choice)).toBeCloseTo(choice.probability, 5);
     // The same moment without reads (match-21's path) has no read factor.
     const plain = buildChoices(context('box-chance', { rules22: false }));
@@ -219,7 +234,8 @@ describe('reads of the play (match-22)', () => {
     // Four opponents stand in a line about ten yards from the ball.
     const ball = wall!.frame.ball;
     const inWall = wall!.frame.players.filter(
-      (p) => Math.abs(Math.abs(p.point.x - ball.x) - 8.7) < 0.6 && Math.abs(p.point.y - ball.y) < 14,
+      (p) =>
+        Math.abs(Math.abs(p.point.x - ball.x) - 8.7) < 0.6 && Math.abs(p.point.y - ball.y) < 14,
     );
     expect(inWall.length).toBeGreaterThanOrEqual(4);
     // The opposition keeper is about ten yards off his line.
@@ -235,7 +251,8 @@ describe('situations per position (match-22)', () => {
       const weights = situationWeights(position, 'balanced', { drama: true, rules22: true });
       const total = weights.reduce((s, w) => s + w.weight, 0);
       expect(weights.length, position).toBeGreaterThanOrEqual(6);
-      for (const w of weights) expect(w.weight / total, `${position} ${w.situation.id}`).toBeLessThan(0.4);
+      for (const w of weights)
+        expect(w.weight / total, `${position} ${w.situation.id}`).toBeLessThan(0.4);
       // Match-21's pool is unchanged.
       expect(
         situationWeights(position, 'balanced', { drama: true }).some((w) =>
@@ -248,9 +265,13 @@ describe('situations per position (match-22)', () => {
     );
     for (const id of ['last-man', 'cross-defence', 'two-on-one', 'set-piece-marking'])
       expect(defenders).toContain(id);
-    const keepers = situationWeights('GK', 'balanced', { rules22: true }).map((w) => w.situation.id);
+    const keepers = situationWeights('GK', 'balanced', { rules22: true }).map(
+      (w) => w.situation.id,
+    );
     expect(keepers).toEqual(expect.arrayContaining(['sweeping', 'back-pass']));
-    const strikers = situationWeights('ST', 'balanced', { rules22: true }).map((w) => w.situation.id);
+    const strikers = situationWeights('ST', 'balanced', { rules22: true }).map(
+      (w) => w.situation.id,
+    );
     expect(strikers).toEqual(expect.arrayContaining(['rebound', 'weak-foot']));
     // A two-footed player has no weaker foot to be caught on.
     const twoFooted = situationWeights('ST', 'balanced', { rules22: true, twoFooted: true });
@@ -259,7 +280,9 @@ describe('situations per position (match-22)', () => {
 
   it('the weaker-foot shot carries the weaker-foot factor unless two-footed', () => {
     const foot = { strong: 'right' as const, flank: 'centre' as const, twoFooted: false };
-    const weak = buildChoices(context('weak-foot', { foot })).find((c) => c.id === 'weak-foot-shot')!;
+    const weak = buildChoices(context('weak-foot', { foot })).find(
+      (c) => c.id === 'weak-foot-shot',
+    )!;
     expect(weak.factors.some((f) => f.labelKey === 'match.factor.foot.weak')).toBe(true);
     expect(weak.foot).toEqual({ side: 'left', weak: true });
     const able = buildChoices(context('weak-foot', { foot: { ...foot, twoFooted: true } })).find(
@@ -274,11 +297,13 @@ describe('skills as mechanics (match-22)', () => {
     const traits = ['last-ditch', 'ball-winner'];
     const choices = buildChoices(context('defend-attack', { player: player(traits) }));
     expect(choices).toHaveLength(4);
-    expect(choices.map((c) => c.id)).toEqual(expect.arrayContaining(['slide-block', 'press-carry']));
-    // The two base choices dropped are the weakest of the five base and skill choices built.
-    const all = buildChoices(context('defend-attack', { player: player(traits), rules22: true })).map(
-      (c) => c.id,
+    expect(choices.map((c) => c.id)).toEqual(
+      expect.arrayContaining(['slide-block', 'press-carry']),
     );
+    // The two base choices dropped are the weakest of the five base and skill choices built.
+    const all = buildChoices(
+      context('defend-attack', { player: player(traits), rules22: true }),
+    ).map((c) => c.id);
     expect(all).toHaveLength(4);
     // Under a read that favours tracking the runner, it stays.
     const runner = buildChoices(
@@ -290,7 +315,9 @@ describe('skills as mechanics (match-22)', () => {
     expect(runner.map((c) => c.id)).toContain('track-runner');
     expect(runner.map((c) => c.id)).toContain('slide-block');
     // Match-21 still hides the appended choice.
-    const old = buildChoices(context('defend-attack', { player: player(['last-ditch']), rules22: false }));
+    const old = buildChoices(
+      context('defend-attack', { player: player(['last-ditch']), rules22: false }),
+    );
     expect(old.map((c) => c.id)).not.toContain('track-runner');
   });
 
@@ -298,7 +325,10 @@ describe('skills as mechanics (match-22)', () => {
     const plain = buildChoices(context('defend-attack', { budget: { for: 0, against: 0.06 } }));
     expect(plain.every((c) => c.stakes.successGoal === 0)).toBe(true);
     const winner = buildChoices(
-      context('defend-attack', { budget: { for: 0, against: 0.06 }, player: player(['ball-winner']) }),
+      context('defend-attack', {
+        budget: { for: 0, against: 0.06 },
+        player: player(['ball-winner']),
+      }),
     ).find((c) => c.id === 'press-carry')!;
     expect(winner.stakes.successGoal).toBeGreaterThan(0);
     const maestro = buildChoices(context('build-out', { player: player(['maestro']) })).find(
@@ -315,14 +345,18 @@ describe('skills as mechanics (match-22)', () => {
   it('Clutch works only in a clutch moment, on every choice', () => {
     const traits = ['clutch'];
     const calm = buildChoices(context('box-chance', { player: player(traits) }));
-    expect(calm.flatMap((c) => c.factors).some((f) => f.labelKey === 'match.factor.clutch')).toBe(false);
+    expect(calm.flatMap((c) => c.factors).some((f) => f.labelKey === 'match.factor.clutch')).toBe(
+      false,
+    );
     // Its old boost to four shots is gone on match-22.
     const near = calm.find((c) => c.id === 'near-post')!;
     const neutral = buildChoices(context('box-chance')).find((c) => c.id === 'near-post')!;
     expect(near.probability).toBe(neutral.probability);
     const late = buildChoices(context('box-chance', { player: player(traits), clutch: true }));
     for (const choice of late)
-      expect(choice.factors.find((f) => f.labelKey === 'match.factor.clutch')!.contribution).toBeGreaterThan(0);
+      expect(
+        choice.factors.find((f) => f.labelKey === 'match.factor.clutch')!.contribution,
+      ).toBeGreaterThan(0);
     expect(skillEffects(['clutch'], 'clutch')).toEqual([]);
   });
 
@@ -343,7 +377,8 @@ describe('skills as mechanics (match-22)', () => {
         const close = Math.abs(2 * own - goals.length) <= M.clutch.closeMargin;
         if (moment.minute < M.clutch.fromMinute) expect(clutch).toBe(false);
         if (clutch) found = true;
-        if (moment.minute >= M.clutch.fromMinute && close && !moment.follows) expect(clutch).toBe(true);
+        if (moment.minute >= M.clutch.fromMinute && close && !moment.follows)
+          expect(clutch).toBe(true);
       }
     }
     expect(found).toBe(true);
@@ -433,7 +468,10 @@ describe('the marked man (match-22, C17)', () => {
     const session = starSession(30);
     const tight = markedBy(session);
     session.state.match.minute = M.marked.relaxFromMinute;
-    const side = session.setup.players[session.setup.selectedPlayerId]!.clubId === session.setup.home.id ? 0 : 1;
+    const side =
+      session.setup.players[session.setup.selectedPlayerId]!.clubId === session.setup.home.id
+        ? 0
+        : 1;
     session.state.match.score[side] = 1;
     expect(markedBy(session)).toBeCloseTo(tight * M.marked.relax, 5);
   });

@@ -221,14 +221,30 @@ const readsEn: Record<string, Record<string, string>> = {
   distance: { close: 'Close range free kick', mid: 'Twenty-five yards out', long: 'Long range' },
   wall: { big: 'Wall of four', thin: 'Wall of two' },
   marking: { zonal: 'Zonal marking', man: 'Man marking', packed: 'Packed six-yard box' },
-  taker: { early: 'Taker picks a corner early', waits: 'Taker waits for you', nervous: 'Nervous taker' },
+  taker: {
+    early: 'Taker picks a corner early',
+    waits: 'Taker waits for you',
+    nervous: 'Nervous taker',
+  },
   help: { coming: 'Help coming back', none: 'No help coming' },
-  race: { yours: 'The ball runs to you', even: 'A fifty-fifty race', theirs: 'They will get there first' },
+  race: {
+    yours: 'The ball runs to you',
+    even: 'A fifty-fifty race',
+    theirs: 'They will get there first',
+  },
   pass: { 'under-hit': 'Under-hit back-pass', firm: 'Firm back-pass' },
-  ball: { kindly: 'The ball falls kindly', awkward: 'Awkward bounce', crowded: 'Bodies in the way' },
+  ball: {
+    kindly: 'The ball falls kindly',
+    awkward: 'Awkward bounce',
+    crowded: 'Bodies in the way',
+  },
   pressure: { closing: 'Defender closing fast', time: 'Time to adjust' },
   pace: { ahead: 'Quicker than him', level: 'Level for pace', behind: 'Beaten for pace' },
-  aerial: { ahead: 'You win in the air', level: 'Even in the air', behind: 'Outmatched in the air' },
+  aerial: {
+    ahead: 'You win in the air',
+    level: 'Even in the air',
+    behind: 'Outmatched in the air',
+  },
   marked: { double: 'Double-marked' },
 };
 const momentsEn = {

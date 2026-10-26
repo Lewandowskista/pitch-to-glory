@@ -354,8 +354,7 @@ export function openMoment(next: MatchSession, forced?: ForcedMoment): void {
         foul
           ? {
               onSuccess: true,
-              straight:
-                C.moments22.professionalFoul[cover === 'alone' ? 'alone' : 'covered'],
+              straight: C.moments22.professionalFoul[cover === 'alone' ? 'alone' : 'covered'],
             }
           : undefined,
       );
@@ -363,10 +362,7 @@ export function openMoment(next: MatchSession, forced?: ForcedMoment): void {
       return booking ? { ...choice, booking } : choice;
     });
   }
-  Object.assign(
-    moment,
-    framing(next, situation, opponents, margin, forced?.kind === 'shootout'),
-  );
+  Object.assign(moment, framing(next, situation, opponents, margin, forced?.kind === 'shootout'));
   if (forced) moment.follows = forced.kind;
   if (forced?.kind === 'shootout')
     moment.situationKey = `match.situation.${

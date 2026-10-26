@@ -19,6 +19,8 @@ import { READS } from './readTable';
 import { attacksRight, onPitch, selectedSide } from './shared';
 
 const M = C.moments22;
+/** The longest a scene's last step is drawn out so the reads' people reach their marks. */
+const STAGE_MS = 2500;
 const pace = (p: Pick<Player, 'attributes'>) => (p.attributes.pace + p.attributes.acceleration) / 2;
 const aerial = (p: Pick<Player, 'attributes'>) =>
   (p.attributes.heading + p.attributes.jumping + p.attributes.strength) / 3;
@@ -61,7 +63,9 @@ export function markedBy(session: MatchSession): number {
   const excess = playerAbility(player) - reference - M.marked.threshold;
   if (excess <= 0) return 0;
   const chasing = m.minute >= M.marked.relaxFromMinute && m.score[side]! > m.score[1 - side]!;
-  return round6(Math.min(M.marked.maximum, excess * M.marked.slope) * (chasing ? M.marked.relax : 1));
+  return round6(
+    Math.min(M.marked.maximum, excess * M.marked.slope) * (chasing ? M.marked.relax : 1),
+  );
 }
 
 /**
@@ -80,7 +84,9 @@ export function drawReads(
   return (READS[situation.id] ?? []).map((read) => {
     if (read.kind) {
       const opponent =
-        setup.players[(situation.phase === 'attack' ? opponents.defender : opponents.attacker) ?? ''];
+        setup.players[
+          (situation.phase === 'attack' ? opponents.defender : opponents.attacker) ?? ''
+        ];
       const margin =
         read.kind === 'pace'
           ? opponent
@@ -181,7 +187,9 @@ export function stageReads(
   const isKeeper = (id: string) => setup.players[id]?.primaryPosition === 'GK';
   const inFrame = (id: string) => frame.players.some((p) => p.id === id);
   const keeperOf = (s: number) => team(s).find(isKeeper);
-  const outfield = (s: number) => team(s).filter((id) => !isKeeper(id) && inFrame(id));
+  // The player on the ball moves only with it (moveCarrier).
+  const outfield = (s: number) =>
+    team(s).filter((id) => !isKeeper(id) && inFrame(id) && id !== frame.carrierId);
   /** Outfielders of a side nearest a spot, not yet moved, never the selected player. */
   const nearest = (s: number, d: number, w: number, count: number) =>
     outfield(s)
@@ -297,7 +305,8 @@ export function stageReads(
     }
     case 'last-man':
     case 'two-on-one': {
-      const help = situation.id === 'last-man' ? state('cover') === 'covered' : state('help') === 'coming';
+      const help =
+        situation.id === 'last-man' ? state('cover') === 'covered' : state('help') === 'coming';
       const [mate] = nearest(side, you.d - 6, you.w, 1);
       if (help && mate) moved.set(mate, toPitch(you.d - 6, you.w + (you.w < 50 ? 8 : -8)));
       break;
@@ -305,24 +314,42 @@ export function stageReads(
   }
   if (carried && carrier) moved.set(carrier, carried);
   if (!moved.size && ball === frame.ball) return;
-  // Nobody outruns a sprint from the keyframe before: a move falls short when it must.
+  // Nobody outruns a sprint from the keyframe before: the scene's last step takes up to
+  // `STAGE_MS` longer so the people the reads are about reach their marks, then falls short.
   const before = passage.frames[index - 1];
+  const from = (id: string) => before?.players.find((p) => p.id === id)?.point;
+  const needed = Math.max(
+    0,
+    ...[...moved].map(([id, point]) => {
+      const start = from(id);
+      return start ? (span(start, point) - 1.2) / RUN : 0;
+    }),
+  );
+  const step = before
+    ? Math.round(
+        Math.min(
+          Math.max(frame.timeMs - before.timeMs, needed),
+          frame.timeMs - before.timeMs + STAGE_MS,
+        ),
+      )
+    : 0;
   const reach = (id: string, point: Point): Point => {
-    const from = before?.players.find((p) => p.id === id)?.point;
-    if (!before || !from) return point;
-    const limit = 1.2 + (frame.timeMs - before.timeMs) * RUN;
-    const length = span(from, point);
+    const start = from(id);
+    if (!before || !start) return point;
+    const limit = 1.2 + step * RUN;
+    const length = span(start, point);
     if (length <= limit) return point;
     const share = limit / length;
     return {
-      x: Math.round((from.x + (point.x - from.x) * share) * 10) / 10,
-      y: Math.round((from.y + (point.y - from.y) * share) * 10) / 10,
+      x: Math.round((start.x + (point.x - start.x) * share) * 10) / 10,
+      y: Math.round((start.y + (point.y - start.y) * share) * 10) / 10,
     };
   };
   for (const [id, point] of moved) moved.set(id, reach(id, point));
   if (carried && carrier) ball = moved.get(carrier)!;
   passage.frames[index] = {
     ...frame,
+    ...(before ? { timeMs: before.timeMs + step } : {}),
     ball,
     players: frame.players.map((p) => {
       const point = moved.get(p.id);

@@ -19,7 +19,12 @@ import {
   type MatchSession,
   type MatchSetup,
 } from '../src/engine/match';
-import { NARRATION_FAMILIES, NARRATION_VARIANTS, SITUATIONS } from '../src/engine/match';
+import {
+  NARRATION_FAMILIES,
+  NARRATION_VARIANTS,
+  SITUATIONS,
+  templateOf,
+} from '../src/engine/match';
 import { hasMatchLabel } from '../src/i18n/match';
 import { hasCommentaryLabel } from '../src/i18n/commentary';
 import { commentaryVariants, narrationVariants } from '../src/engine/match/commentary';
@@ -548,9 +553,11 @@ describe('match edge cases', () => {
         s = applyMatchCommand(s, { type: 'choose', choiceId: moment.choices[0]!.id });
         const added = s.state.match.events.slice(count);
         const action = added.find((e) => e.outcome?.input.momentId === moment.id)!;
-        if (moment.situationId === 'distribution') {
-          distributions++;
-          expect(action.kind).toBe('pass');
+        const kind = templateOf(moment.situationId, moment.choices[0]!.id)!.event;
+        if (kind !== 'save') {
+          // Distribution, and match-22's back-pass and sweep-and-play: the keeper's feet.
+          if (moment.situationId === 'distribution') distributions++;
+          expect(action.kind).toBe(kind);
           expect(added.some((e) => e.kind === 'save')).toBe(false);
         } else {
           expect(action.kind).toBe('save');

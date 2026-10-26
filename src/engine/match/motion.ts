@@ -2060,6 +2060,7 @@ class Director {
         });
         return;
       }
+      // Defending scenes, with engine match-22's (step 5.2) from last-man on.
       case 'defend-attack':
       case 'offside-line':
       case 'goal-line':
@@ -2067,7 +2068,6 @@ class Director {
       case 'shot-incoming':
       case 'one-on-one':
       case 'cross-ball':
-      // Engine match-22's defending situations (step 5.2).
       case 'last-man':
       case 'cross-defence':
       case 'two-on-one':
