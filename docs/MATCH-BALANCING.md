@@ -482,6 +482,34 @@ A card is a `card` event with `card: 'yellow' | 'second-yellow' | 'red'` and com
 
 The profile's other gates hold: a striker scores 0.50 a match, every position reaches 9, objectives complete 10–75% of the time, outfield substitutions 6–9%, attacker involvement best/worst ×1.4–1.8, stated odds honest, and choreography 5.3–5.9 ms a match (8.0–9.2 ms a whole match).
 
+## Commentary and reactions (engine `match-22`, release 1.0 step 5.5)
+
+Words only: no roll, probability, goal or rating moves. The commentary keys an event logs are part of the saved session, so the new selection is gated on `rules22`; match-21 keeps drawing one of three variants on `${seed}:commentary:${matchId}:${eventCount}` and one of four narration variants, byte for byte (the outcome snapshot's `PREVIOUS` table and match-21 session hash are unchanged). The match-22 snapshot was re-recorded; goals and moments per position equal match-21's.
+
+**Picking a line** (`src/engine/match/commentary.ts`). `line(session, base, side)` picks `match.commentary.<family>.<variant>`:
+
+- Variants per family: `COMMENTARY_VARIANTS` (eight to twelve for the lines a player sees most; three for any family not listed, `commentaryVariants`), and `NARRATION_VARIANTS_22` for narration (eight to sixteen for the frequent moves, four otherwise).
+- A family's variants are used once each in a shuffled order, then reshuffled, never repeating the last one (`cycledVariant`), on `${seed}:lines22:${matchId}:${family}:${cycle}` (`:narration22:` for narration). The order is counted from the family's earlier keys in the session, so nothing new is stored. Narration still draws its match-21 variant, so the moves narrated are unchanged.
+- Context (`CONTEXTS`): a line prefers a context family while it has unused variants in the match: a missed shot held or wide from the 80th minute by a side level or behind (`attempt-held-late`, `attempt-wide-late`); a card in the first 15 minutes or from the 80th (`card-early`, `card-late`); a substitution by a side behind, or ahead from the 70th (`change-chasing`, `change-protecting`); the player's own substitution with a live rating of 7 or more (`substitution-applauded`); half-time goalless, level or with a leader (`halftime-*`).
+- A shot outside the player's choices that does not go in (a background attempt, or the player's own shot that a successful choice led to; a teammate's `chance` and an opponent's `counter` keep their neutral lines) names how it was missed: `missedShot` weights held 0.42, parried 0.15, wide 0.20, over 0.13, blocked 0.10 on `${seed}:missed22:${matchId}:${eventCount}` (on target 57%, as match-21's lines and pitch drew them), and the pitch draws the same (`MISSED_SHOTS` in motion.ts). The goal roll now comes before the shot is logged; the log draws nothing from that stream, so match-21's draws are unchanged. Failed near-post and far-post shots have eight variants, each tied to what the pitch draws (`FAILED_SHOTS`). A parried miss gives a corner, so a shot can follow from a ball won in the box at the other end; match-22 carries such a shot on into shooting range (`SHOOTING_DEPTH` 62) instead of striking it from midfield, which match-21 did in about 1 match in 80.
+
+**Adding lines.** A new event kind is a new family: log it with `line(session, 'match.commentary.<family>', side)`, write its lines in `src/i18n/commentary.ts`, and list it in `COMMENTARY_VARIANTS` if it has more than three; a context is one more `CONTEXTS` entry with its own family. `tests/match-commentary.test.ts` checks that every variant has copy. Keys the other 1.0 steps are expected to add: 5.3 `attempt-woodwork` (a `missedShot` outcome with its own pitch visual); 5.4 `stoppage` (the board, `{added}` minutes), `injury` and `injury-off` (an AI player forced off), `shootout-kick.scored|saved|missed` per kick, `bench-on` (the player coming off the bench), `touchline-refused` (the half-time role refused); 5.2 commentary families for new choices (three variants by default) and `card` contexts for a last-man foul.
+
+**The feed** (`src/screens/match/feed.ts`, `lines.ts`; presentation, both engines). Consecutive routine passes by the player, with no other event between them, are one summary row at the spell's last pass ("Doyle and Okafor keep it ticking over: 6 passes"), from four pools by size and passes lost, cycled per match like the engine's lines. A shot outside the player's moments that goes in shows as its goal only. Lines name the team, the opposition, the keeper and the score (`{team}`, `{opponent}`, `{keeper}`, `{scoreline}`, `{leader}`, `{trailer}`), and a match's goals cycle through each goal pool (5.1). The screen reader announces the latest event that is not a routine pass. The words and the narration copy load with the match (`lines.ts`, about 13 KB gzip), not the screen's first render.
+
+**Repetition** (`npm run profile:commentary`, 230 matches: 46 for each of ST, RW, CM, CB and GK; a sentence is a template, whatever the names):
+
+| Measure                                    | Before 5.5 | match-22 |
+| ------------------------------------------ | ---------- | -------- |
+| Feed rows a match                          | 110.1      | 92.4     |
+| Distinct sentences a match                 | 49.8       | 92.2     |
+| Most repeated sentence a match (mean, max) | 13.1, 21   | 1.17, 2  |
+| Most common sentence in a 46-match season  | 518–530    | 27–35    |
+
+Before, the most common sentences were the three routine-pass lines (about 9 a match each) and the three attempt lines (about 6 each). `--check` fails above three repetitions in a match or 40 in a season.
+
+**Reactions** (`reactionStory`, `reactionKey` in `src/screens/match/reportData.ts`; presentation). The report quotes the match story when there is one, in this order: a late winner, a comeback win, a late equaliser, a late defeat (the last goal, from the 85th minute, changed the result), a defeat or a win by three or more, and a clean sheet kept by a keeper or full-back or centre-back who stayed on. The manager's line keeps the rating's tone (`good` for a solid or star match, `poor` below); the fans react to the story alone; a sending-off keeps its own lines. Four lines each, picked from the seed.
+
 ## 1.0 targets (release plan step 2.3)
 
 The match profile (`scripts/match-profile.ts`) reports four 1.0 targets after its gates; phase 5 (engine `match-22`) meets them and sets each `asserted: true` in `TARGETS`. Until then they print as `MISS` without failing the check; `npm run profile:match -- --check --assert-targets` previews them as gates. The asserted gates above are unchanged. The bands are in `TARGET_BANDS`; [BALANCING.md](BALANCING.md#10-targets-release-plan-step-23) lists every 1.0 target with its baseline.
