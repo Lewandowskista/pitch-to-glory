@@ -61,7 +61,10 @@ export function OccasionPanels({
       {s.roleRequest && s.match.status === 'live' && s.match.minute <= 52 && (
         <RoleResult session={session} />
       )}
-      {simulationOnly && s.penaltyShootout && <ShootoutBoard session={session} placement="panel" />}
+      {/* Beside the decision (the pitch steps aside for its camera) or without the pitch. */}
+      {s.penaltyShootout && (simulationOnly || s.currentMoment) && (
+        <ShootoutBoard session={session} placement="panel" />
+      )}
     </>
   );
 }
@@ -85,7 +88,9 @@ export function PitchOccasions({ session }: { session: MatchSession }) {
           </span>
         </div>
       )}
-      {s.penaltyShootout && <ShootoutBoard session={session} placement="pitch" />}
+      {s.penaltyShootout && !s.currentMoment && (
+        <ShootoutBoard session={session} placement="pitch" />
+      )}
     </>
   );
 }
