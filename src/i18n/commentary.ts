@@ -80,7 +80,7 @@ const commentaryEn: Record<string, readonly string[]> = {
     '{player} shoots, but it cannons off a defender.',
     'Blocked! {opponent} throw bodies in front of the effort from {player}.',
     'The shot from {player} is charged down.',
-    '{player} lets fly, and a {opponent} defender gets in the way.',
+    '{player} lets fly, and {opponent} get a body in the way.',
     'Brave defending from {opponent}: the shot from {player} is blocked.',
     '{player} cannot find a way through the bodies, and the effort is blocked.',
     'A deflection takes the sting out of the shot from {player}.',
@@ -733,7 +733,7 @@ const spellEn = {
   /** Several passes ({count}, two or more), every one completed. */
   several: [
     '{player} and {receiver} keep it ticking over: {count} passes.',
-    '{team} keep the ball, with {player} at the heart of it: {count} passes, all on target.',
+    '{team} keep the ball, with {player} at the heart of it: {count} passes, all finding a teammate.',
     '{player} is seeing plenty of the ball: {count} passes, every one found a teammate.',
     'Patient stuff from {team}. {player} has {count} passes in this spell, most of them to {receiver}.',
     '{player} keeps things moving, linking with {receiver}: {count} passes without losing it.',
