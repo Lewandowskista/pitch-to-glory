@@ -307,11 +307,13 @@ describe('match-22 statistics', () => {
           woodwork++;
           expect(family).toBe('attempt-woodwork');
         }
-        // A background shot (`attempt`) either went in or was missed in a named way.
+        // A background shot (`attempt`) either went in or was missed in a named way; a shot the
+        // player's own last-ditch choice faces (a goal-line block, step 5.2) is their decision.
+        const after = events[position + 1];
         if (family === 'attempt' && !shot.outcome)
-          expect(
-            events[position + 1]?.kind === 'goal' || events[position + 1]?.kind === 'save',
-          ).toBe(true);
+          expect(after?.kind === 'goal' || after?.kind === 'save' || Boolean(after?.outcome)).toBe(
+            true,
+          );
         if (family.startsWith('attempt-')) expect(shot.shotResult, family).toBeDefined();
       }
       const counted = current!.state.stats.woodwork!;

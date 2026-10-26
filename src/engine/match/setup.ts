@@ -14,7 +14,6 @@ import {
   MATCH_ENGINE_VERSION,
   PREVIOUS_MATCH_ENGINE,
   setupEngine,
-  rules22,
   type MatchSetup,
   type MatchSession,
   type MatchState,
