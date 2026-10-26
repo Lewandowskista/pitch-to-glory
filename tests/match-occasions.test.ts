@@ -479,7 +479,9 @@ describe('touchline decisions (match-22)', () => {
   });
   it('makes accepting a substitution earn trust and rallying lift momentum', () => {
     for (let index = 0; index < 30; index++) {
-      const setup = setupFor('ST', `touchline-sub-${index}`);
+      // A tired player, so the manager takes them off.
+      const setup = setupFor('ST', `touchline-sub-${index}`, { injury: { factor: 0 } });
+      setup.players[setup.selectedPlayerId]!.fatigue = 95;
       const session = playUntil(
         createMatchSession(setup, tacticsFor(setup)),
         (s) => s.state.substitutionDecisionPending,

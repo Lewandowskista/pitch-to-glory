@@ -137,10 +137,11 @@ export function commitCareerMatch(
     const result: Record<string, number> = {};
     for (const id of initial)
       if (members.has(id)) result[id] = Math.min(90, sentOff.get(id) ?? off.get(id) ?? 90);
-    const appeared =
-      benchOn !== undefined && members.has(playerId) && !starterIds.includes(playerId)
-        ? [...starterIds, playerId]
-        : starterIds;
+    // Match-22: everyone who came on appeared, also one who went off again (injured, or for
+    // a keeper sent off), the career player off the bench among them.
+    const appeared = r22
+      ? [...new Set([...starterIds, ...[...on.keys()].filter((id) => members.has(id))])]
+      : starterIds;
     for (const id of appeared)
       if (!kickoff.has(id)) {
         const from = on.get(id) ?? state.selectedPlayerMinutes;

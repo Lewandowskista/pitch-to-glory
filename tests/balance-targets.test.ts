@@ -194,7 +194,9 @@ describe('match targets', () => {
     expect(judge('match-statistics', 0).met).toBe(true);
     expect(judge('match-statistics', 0).value).toContain('0.80 off the woodwork a match');
     expect(judge('added-time-goals', 0).met).toBe(false);
-    expect(judge('added-time-goals', 3).met).toBe(true);
+    // A share of all goals (step 5.4): 3 of 270 is too few, 20 (7.4%) is in the band.
+    expect(judge('added-time-goals', 3).met).toBe(false);
+    expect(judge('added-time-goals', 20).met).toBe(true);
     const flat = profile({
       statistics: { ...statistics(3).statistics!, possession: new Array<number>(100).fill(50) },
     });

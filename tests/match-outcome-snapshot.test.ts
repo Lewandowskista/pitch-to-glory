@@ -78,14 +78,14 @@ const PREVIOUS_SESSIONS = '3f20bccd556199d645310c63';
  * time, the bench, in-match injuries, keepers' cards, the shootout and the touchline.
  */
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '5c0c21480e77a803ec7fd7c3', goals: 56, moments: 214 },
-  CB: { hash: '87608d225f7b28e93a563abb', goals: 59, moments: 232 },
-  LB: { hash: '2d50668cd90baa2743e2ca9f', goals: 46, moments: 226 },
-  DM: { hash: 'ddfe77cc5f61953c925905ef', goals: 54, moments: 208 },
-  CM: { hash: 'a898b751bf4dab9980729972', goals: 68, moments: 251 },
-  AM: { hash: '47d02e694d0dc1a263e92ef4', goals: 76, moments: 266 },
-  RW: { hash: '3ae1aaa6e198138e4d79cfed', goals: 57, moments: 316 },
-  ST: { hash: 'ef77d57714182079f10c9406', goals: 71, moments: 311 },
+  GK: { hash: 'e11e5fd202eb9511df20b997', goals: 57, moments: 219 },
+  CB: { hash: '30a2177960846b8325349f10', goals: 61, moments: 224 },
+  LB: { hash: '5ee7f5298eacd42cc7ece3d4', goals: 47, moments: 225 },
+  DM: { hash: 'd515f573198d6e5380db5724', goals: 53, moments: 203 },
+  CM: { hash: '897f7e2a699a7b03b39db406', goals: 65, moments: 252 },
+  AM: { hash: '445988bbba8115107a947028', goals: 71, moments: 263 },
+  RW: { hash: '8ae602ac379b97028d15f179', goals: 54, moments: 315 },
+  ST: { hash: '0a95e8aa1c4e1d8ff9f4fcd3', goals: 72, moments: 313 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });
