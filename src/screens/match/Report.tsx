@@ -24,6 +24,12 @@ import { selectedSide } from './cam';
 import { LevelUpMoment } from './LevelUpMoment';
 import { MomentsSection, StorySection } from './ReportStory';
 import { matchStory, momentRecap, pickVariant, reactionKey, xpBreakdown } from './reportData';
+// The occasions' engine lines (match-22: a shootout kick's moment in the recap).
+import '../../i18n/occasions';
+/** The shootout kick by kick (match-22), with the occasions' copy. */
+const ReportShootout = lazy(() =>
+  import('./Occasions').then((module) => ({ default: module.ShootoutBoard })),
+);
 
 const u = m.ui;
 /** The maps draw only when the player opens them. */
@@ -153,6 +159,8 @@ export function Report({
       : []),
   ];
   const quote = (key: string) => pickVariant(setup.seed, key, reactionVariants(key));
+  // An unused substitute (match-22) has no rating, XP or fame from the match.
+  const unused = report.bench?.cameOn === null;
   const points = careerState?.attributePoints ?? 0;
   const skillPoints = careerState?.skillPoints ?? 0;
   const [mapsOpen, setMapsOpen] = useState(false);
@@ -237,12 +245,20 @@ export function Report({
                     {matchFormat(u.reportCards, { yellow: report.cards.yellow })}
                   </span>
                 ) : null}
+                {/* The bench (match-22): an unused substitute, or the minute they came on. */}
+                {report.bench && (
+                  <span className="match-report-cards" data-testid="report-bench">
+                    {report.bench.cameOn === null
+                      ? r.unusedTitle
+                      : matchFormat(r.cameOn, { minute: report.bench.cameOn })}
+                  </span>
+                )}
               </p>
             </div>
           </div>
           <div className="match-rewards">
             <div className="is-rating">
-              <strong>{rating.toFixed(1)}</strong>
+              <strong>{unused ? '—' : rating.toFixed(1)}</strong>
               <span>{m.rating}</span>
             </div>
             <div
@@ -385,6 +401,16 @@ export function Report({
             </div>
           </section>
           <StorySection session={session} story={story} />
+          {unused && (
+            <p className="notice match-notice" data-testid="report-unused">
+              {r.unusedBody}
+            </p>
+          )}
+          {state.penaltyShootout && (
+            <Suspense fallback={null}>
+              <ReportShootout session={session} placement="panel" />
+            </Suspense>
+          )}
         </div>
         <div className="match-report-column">
           <MomentsSection recap={recap} />

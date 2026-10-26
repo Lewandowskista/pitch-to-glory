@@ -102,6 +102,8 @@ export function momentRecap(session: MatchSession): MomentRecap {
 export interface StoryGoal {
   id: string;
   minute: number;
+  /** In added time (match-22): the added minute. */
+  addedTime?: number;
   playerId: string | null;
   /** The player whose key-moment choice made the goal, when the engine names one. */
   assistId: string | null;
@@ -109,6 +111,8 @@ export interface StoryGoal {
 export interface StoryCard {
   id: string;
   minute: number;
+  /** In added time (match-22): the added minute. */
+  addedTime?: number;
   playerId: string;
   card: CardKind;
 }
@@ -134,6 +138,7 @@ export function matchStory(session: MatchSession): MatchStory {
       goals[sideOf(event)].push({
         id: event.id,
         minute: event.minute,
+        ...(event.addedTime ? { addedTime: event.addedTime } : {}),
         playerId: event.playerId,
         assistId: event.assistId ?? null,
       });
@@ -141,6 +146,7 @@ export function matchStory(session: MatchSession): MatchStory {
       cards[sideOf(event)].push({
         id: event.id,
         minute: event.minute,
+        ...(event.addedTime ? { addedTime: event.addedTime } : {}),
         playerId: event.playerId,
         card: event.card,
       });
@@ -270,7 +276,9 @@ export function reactionStory(session: MatchSession): ReactionStory | undefined 
 export function reactionKey(session: MatchSession, who: 'manager' | 'fans'): string {
   const state = session.state;
   const engine = who === 'manager' ? state.managerReactionKey : state.fanReactionKey;
-  const story = state.sentOff ? undefined : reactionStory(session);
+  // A dismissal, or a match spent unused on the bench (match-22), is what they react to.
+  const unused = state.bench !== undefined && state.bench.on === undefined;
+  const story = state.sentOff || unused ? undefined : reactionStory(session);
   if (!story) return engine;
   return who === 'fans'
     ? `match.reaction.fans.story.${story}`

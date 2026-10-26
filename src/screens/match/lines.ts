@@ -111,6 +111,7 @@ export function narrationLines(session: Pick<MatchSession, 'setup' | 'state'>): 
   return narrationFeed(session).map((entry) => ({
     id: String(entry.index),
     minute: entry.minute,
+    ...(entry.addedTime ? { addedTime: entry.addedTime } : {}),
     text: entry.text,
     template: session.state.narration[entry.index]!.key,
     ...(entry.eventId ? { eventId: entry.eventId } : {}),

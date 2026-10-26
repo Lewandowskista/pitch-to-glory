@@ -146,6 +146,22 @@ const headlinesEn: Record<string, [string, string, string]> = {
     '{player} sees red as {club} finish {score}',
     'Early bath for {player} in {club}’s {score} with {opponent}',
   ],
+  // Release 1.0 step 5.4: the bench and the shootout.
+  'impact-sub': [
+    'Super sub {player} changes the game for {club}',
+    'Off the bench, {player} makes the difference against {opponent}',
+    '{player} comes on and turns it for {club}',
+  ],
+  'unused-sub': [
+    '{club} {score} {opponent}: {player} kept waiting on the bench',
+    'No minutes for {player} as {club} meet {opponent}',
+    '{player} watches from the bench as {club} finish {score}',
+  ],
+  'shootout-hero': [
+    'Nerves of steel: {player} wins the shootout for {club}',
+    '{player} the hero as {club} edge {opponent} on penalties',
+    'Shootout glory for {player} and {club}',
+  ],
 };
 const headlines = ({ en: headlinesEn } satisfies Translations<typeof headlinesEn>)[LOCALE];
 const headlineText: Record<string, string> = Object.fromEntries(
@@ -427,6 +443,43 @@ const reactionTextEn: Record<string, Variants> = {
     'Nothing getting past us. Brilliant defending.',
     'A clean sheet and a proper defensive shift.',
   ],
+  // An unused substitute (release 1.0 step 5.4): the reaction is to the result.
+  'match.reaction.manager.unused.win': [
+    'We won without you today. Keep training like that and your chance will come.',
+    'The lads got it done. Stay ready: I will need you.',
+    'A good win. Your minutes will come; make sure you are sharp when they do.',
+    'Nothing to say about you today. Keep your head down and push for a place.',
+  ],
+  'match.reaction.manager.unused.draw': [
+    'A point. I kept my changes; you will get your chance.',
+    'It was not the game for a change. Be ready next time.',
+    'We stayed as we were. Keep pushing me in training.',
+    'No minutes today. Show me something this week.',
+  ],
+  'match.reaction.manager.unused.loss': [
+    'A bad day. Some of you on the bench will get a chance next week.',
+    'I should have changed it earlier. Be ready.',
+    'Beaten. Everyone fights for their place this week, you included.',
+    'We lost, and you watched. Make sure that does not happen again.',
+  ],
+  'match.reaction.fans.unused.win': [
+    'Three points, and nobody needed the bench.',
+    'Great win! Would still like to see some of the subs get a run out.',
+    'A win is a win. Shame there was no room for a cameo.',
+    'Job done without changes. Fair enough.',
+  ],
+  'match.reaction.fans.unused.draw': [
+    'Why no changes? A fresh pair of legs could have won that.',
+    'Bring someone on! We were crying out for it.',
+    'A point, and a bench that never got off it.',
+    'The manager sat on his hands. Frustrating.',
+  ],
+  'match.reaction.fans.unused.loss': [
+    'Losing and not using the bench. Baffling.',
+    'We needed someone to change it. The subs never moved.',
+    'Beaten, and the players who could have helped watched it happen.',
+    'No changes, no ideas, no points.',
+  ],
 };
 const reactionText = ({ en: reactionTextEn } satisfies Translations<typeof reactionTextEn>)[LOCALE];
 
@@ -491,6 +544,15 @@ const reportCopyEn = {
   chance: '{percent}% {meaning}',
   cameOff: 'Came off',
   didNotComeOff: 'Did not come off',
+  // Release 1.0 step 5.4: the bench and the shootout on the report.
+  unusedTitle: 'Unused substitute',
+  unusedBody:
+    'You started on the bench and the manager did not bring you on. No appearance, rating or XP: the matchday counts as dropped.',
+  cameOn: 'Came off the bench at {minute}′',
+  shootout: 'Shootout',
+  shootoutKick: '{player}: {result}',
+  shootoutScored: 'scored',
+  shootoutMissed: 'missed',
   bestValue: 'Best value',
   better: '{choice} would have been {percent}% {meaning} and worth more (+{gap} expected goals).',
   why: 'Why it went this way',

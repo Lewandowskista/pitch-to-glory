@@ -31,25 +31,28 @@ function SideEvents({
   align: 'start' | 'end';
 }) {
   const name = (id: string | null) => (id ? (session.setup.players[id]?.name ?? '') : '');
+  // In added time (match-22) the minute reads "90+2".
+  const clock = (entry: { minute: number; addedTime?: number }) =>
+    entry.addedTime ? `${entry.minute}+${entry.addedTime}` : entry.minute;
   const rows = [
     ...goals.map((goal) => ({
       id: goal.id,
-      minute: goal.minute,
+      minute: goal.minute + (goal.addedTime ?? 0) / 100,
       kind: 'goal' as const,
       text: goal.playerId
         ? matchFormat(goal.assistId ? r.goalAssist : r.goal, {
-            minute: goal.minute,
+            minute: clock(goal),
             player: name(goal.playerId),
             assist: name(goal.assistId),
           })
-        : matchFormat(r.goal, { minute: goal.minute, player: r.unknownScorer }),
+        : matchFormat(r.goal, { minute: clock(goal), player: r.unknownScorer }),
     })),
     ...cards.map((card) => ({
       id: card.id,
-      minute: card.minute,
+      minute: card.minute + (card.addedTime ?? 0) / 100,
       kind: card.card,
       text: matchFormat(r.card, {
-        minute: card.minute,
+        minute: clock(card),
         player: name(card.playerId),
         card: r.cardKinds[card.card],
       }),

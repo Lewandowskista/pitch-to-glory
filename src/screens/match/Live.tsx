@@ -18,6 +18,10 @@ import type * as Lines from './lines';
 const u = m.ui;
 export type LiveStatus = 'preview' | 'live' | 'decision' | 'halftime' | 'finished';
 
+/** The clock: "34′", or in added time (match-22) "90+3′". */
+export function clockText(minute: number, added?: number): string {
+  return added ? matchFormat(u.addedMinute, { minute, added }) : matchFormat(m.minute, { minute });
+}
 /** A club's three-letter mark for the phone scoreboard and a side too narrow for its name. */
 const mark = (name: string) =>
   name
@@ -71,17 +75,21 @@ export function Scoreboard({
   const momentum = state.match.momentum;
   const live = status === 'live' && playing;
   const state_ = statusLabel(status, playing);
+  const added =
+    status !== 'finished'
+      ? state.stoppage?.find((board) => board.at === state.match.minute && board.minutes > 0)
+      : undefined;
   // At full time each side lists its scorers ("Vale 34′, 88′") under its name.
   const scorers = (clubId: string) => {
-    const goals = new Map<string, number[]>();
+    const goals = new Map<string, string[]>();
     for (const event of state.match.events)
       if (event.kind === 'goal' && event.teamId === clubId && event.playerId)
-        goals.set(event.playerId, [...(goals.get(event.playerId) ?? []), event.minute]);
+        goals.set(event.playerId, [
+          ...(goals.get(event.playerId) ?? []),
+          clockText(event.minute, event.addedTime),
+        ]);
     return [...goals]
-      .map(
-        ([id, minutes]) =>
-          `${surname(setup.players[id]?.name ?? '')} ${minutes.map((minute) => `${minute}′`).join(', ')}`,
-      )
+      .map(([id, minutes]) => `${surname(setup.players[id]?.name ?? '')} ${minutes.join(', ')}`)
       .join(' · ');
   };
   const team = (index: 0 | 1) => {
@@ -183,9 +191,13 @@ export function Scoreboard({
             )}
             aria-hidden="true"
           />
-          <span className="match-clock-minute">
-            {matchFormat(m.minute, { minute: state.match.minute })}
-          </span>
+          <span className="match-clock-minute">{clockText(state.match.minute, state.added)}</span>
+          {/* The added-time board (match-22): +N beside the clock while it is up or played. */}
+          {added && (
+            <span className="match-clock-added">
+              <span className="sr-only">{u.addedLabel} </span>+{added.minutes}
+            </span>
+          )}
         </div>
         {/* Its own grid area under the clock, so it never runs into the away side. */}
         <span className="match-clock-state">
@@ -663,7 +675,7 @@ export function CommentaryCard({
               row.event?.card && row.event.card !== 'yellow' && 'is-red',
             )}
           >
-            <time>{matchFormat(m.minute, { minute: row.minute })}</time>
+            <time>{clockText(row.minute, row.addedTime)}</time>
             <span className="match-feed-icon" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 24 24">
                 <path

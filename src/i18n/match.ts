@@ -372,6 +372,9 @@ const matchTextEn = {
     halftimeMeta: '{home} {homeScore}–{awayScore} {away}',
     halftimeNote:
       'Your answer shapes the second half. Look for “Half-time talk” in your decision factors.',
+    /** The clock in added time (match-22), and the added-time chip's label. */
+    addedMinute: '{minute}+{added}′',
+    addedLabel: 'Added time',
     captainMeta: 'Captain · {minute}′ · {score}',
     captainNote: 'Play and “Next key moment” resume after your call.',
     substitutionMeta: '{minute}′ · {name} off',
@@ -701,12 +704,20 @@ const engineTextEn: Record<string, string> = {
   'match.instructions.keeper': 'Command your area and keep your distribution composed.',
 };
 const engineText = ({ en: engineTextEn } satisfies Translations<typeof engineTextEn>)[LOCALE];
+/**
+ * Engine copy loaded with a lazy part of the match screen (release 1.0 step 5.4: the occasions,
+ * `i18n/occasions.ts`), registered when that module loads so this module stays small.
+ */
+const registered: Record<string, string> = {};
+export function registerMatchText(entries: Record<string, string>): void {
+  Object.assign(registered, entries);
+}
 /** True when a key has its own copy (tests use it to catch untranslated engine keys). */
 export function hasMatchLabel(key: string): boolean {
-  return key in engineText;
+  return key in engineText || key in registered;
 }
 export function matchLabel(key: string): string {
-  return engineText[key] ?? key;
+  return engineText[key] ?? registered[key] ?? key;
 }
 export function matchFormat(template: string, values: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (token, key: string) => String(values[key] ?? token));
