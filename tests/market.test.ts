@@ -4,6 +4,7 @@ import { CONFIG } from '../src/engine/config';
 import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { advanceCareerWeek } from '../src/engine/career/season';
+import { autoPlayCareerFixture, careerMatchSetup } from '../src/engine/career/matches';
 import { playerAbility } from '../src/engine/strength';
 import {
   applyMarketAction,
@@ -107,7 +108,7 @@ describe('selection', () => {
     world.career!.market.registeredFrom = { ...world.date, week: world.date.week + 1 };
     expect(careerSelection(world, fixture).selected).toBe(false);
   });
-  it('leaves an unpicked player out of the background XI and counts the matchday', () => {
+  it('starts an unpicked player on the bench and counts the matchday', () => {
     let world = clone(career);
     // An out-of-form, tired backup is rarely picked.
     world.contracts[player(world).contractId!]!.role = 'backup';
@@ -118,13 +119,38 @@ describe('selection', () => {
     }
     const benched = benchedCareerFixtures(world);
     expect(benched.length).toBeGreaterThan(0);
-    expect(pendingCareerFixture(world)?.id).not.toBe(benched[0]!.id);
+    // Left out of the eleven, the player is still in the matchday squad (release 1.0, M7).
+    expect(pendingCareerFixture(world)?.id).toBe(benched[0]!.id);
+    const setup = careerMatchSetup(world, benched[0]!);
+    expect(setup.bench?.role).toBe('backup');
+    const apps = player(world).stats.appearances;
+    const matches = world.career!.matches.length;
+    const dropped = world.career!.market.selection.dropped;
+    const { record } = autoPlayCareerFixture(world, benched[0]!);
+    expect(world.results[benched[0]!.id]).toBeDefined();
+    expect(world.career!.market.selection.dropped).toBe(dropped + 1);
+    // An unused substitute makes no appearance; one who comes on makes one, from the bench.
+    if (record.minutes === 0) {
+      expect(player(world).stats.appearances).toBe(apps);
+      expect(world.career!.matches).toHaveLength(matches);
+    } else {
+      expect(player(world).stats.appearances).toBe(apps + 1);
+      expect(world.career!.matches.at(-1)!.cameOn).toBeGreaterThan(0);
+    }
+    valid(world);
+  }, 60000);
+  it('leaves an unregistered player out of the background XI and counts nothing', () => {
+    const world = clone(career);
+    world.career!.market.registeredFrom = { season: world.date.season + 1, week: 1, day: 1 };
+    const benched = benchedCareerFixtures(world);
+    expect(benched.length).toBeGreaterThan(0);
+    expect(pendingCareerFixture(world)).toBeNull();
     const apps = player(world).stats.appearances;
     const dropped = world.career!.market.selection.dropped;
-    world = simulateWeek(world, { inPlace: true });
+    simulateWeek(world, { inPlace: true });
     expect(world.results[benched[0]!.id]).toBeDefined();
     expect(player(world).stats.appearances).toBe(apps);
-    expect(world.career!.market.selection.dropped).toBe(dropped + benched.length);
+    expect(world.career!.market.selection.dropped).toBe(dropped);
     valid(world);
   }, 60000);
 });

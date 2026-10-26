@@ -84,11 +84,16 @@ describe('playing time under development rules 2', () => {
 
     // Dropped for a run of fixtures: the old appearances no longer hold the bonus up.
     world = fixtures(world, A.fixtures, drop);
+    // Left out, the player starts on the bench (release 1.0): unused, or a short cameo.
     const benched = entries(world).slice(-A.fixtures);
-    expect(benched.filter((e) => e.status === 'benched').length).toBeGreaterThanOrEqual(6);
+    expect(
+      benched.filter((e) => e.status === 'benched' || e.minutes < 45).length,
+    ).toBeGreaterThanOrEqual(6);
     expect(playingShare(world)).toBeLessThan(0.3);
-    // The original rules would still count the same last eight appearances.
-    expect(world.career!.matches.length - appearances).toBeLessThanOrEqual(2);
+    // The original rules would still count the same last eight starts.
+    const starts = (from: number) =>
+      world.career!.matches.slice(from).filter((m) => m.cameOn === undefined).length;
+    expect(starts(appearances)).toBeLessThanOrEqual(2);
 
     // Back in the side, it recovers.
     careerContract(world).role = 'key';
