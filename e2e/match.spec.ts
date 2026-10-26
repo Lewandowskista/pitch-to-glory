@@ -110,6 +110,9 @@ async function finish(page: Page) {
       await page.getByRole('button', { name: /Accept the change/ }).click();
     else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
       await page.getByRole('button', { name: /Keep the team composed/ }).click();
+    // A knock (match-22): play on.
+    else if (await page.getByRole('button', { name: /^Play on/ }).isVisible())
+      await page.getByRole('button', { name: /^Play on/ }).click();
     else {
       await pause(page);
       await page.getByRole('button', { name: 'Next key moment', exact: true }).click();

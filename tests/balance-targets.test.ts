@@ -49,13 +49,14 @@ describe('1.0 targets', () => {
 
   it('keeps every harness target reported until its phase', () => {
     // Met by phase 3 (retention, step 3.6) and asserted since; ratings and match statistics by
-    // step 5.3 (engine match-22).
+    // step 5.3 (engine match-22), added-time goals by step 5.4.
     const met = new Set([
       'save-growth',
       'save-34-seasons',
       'validator-caps',
       'ratings',
       'match-statistics',
+      'added-time-goals',
     ]);
     for (const entry of [...DRIFT, ...MATCH, ...CAREER])
       expect(entry.asserted, entry.id).toBe(met.has(entry.id));

@@ -74,7 +74,8 @@ const PREVIOUS_SESSIONS = '3f20bccd556199d645310c63';
  * The current engine (match-22). Step 5.3: ratings measured against each moment's par, with a
  * soft limit; XP and fame on the compressed scale; possession from style, home advantage, the
  * game plan and the score; more background shots, and every missed shot a result (the woodwork
- * among them), with real shares on target; on top of step 5.5's commentary.
+ * among them), with real shares on target; on top of step 5.5's commentary. Step 5.4: added
+ * time, the bench, in-match injuries, keepers' cards, the shootout and the touchline.
  */
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
   GK: { hash: '5c0c21480e77a803ec7fd7c3', goals: 56, moments: 214 },

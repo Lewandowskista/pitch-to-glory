@@ -22,6 +22,8 @@ import {
 } from '../src/engine/match';
 import { hasMatchLabel } from '../src/i18n/match';
 import '../src/i18n/occasions';
+import { hasCommentaryLabel } from '../src/i18n/commentary';
+import { commentaryVariants } from '../src/engine/match/commentary';
 import type { Position } from '../src/model/domain';
 import { onEngine, playOnEngines } from './support/engines';
 
@@ -98,13 +100,15 @@ describe('stoppage time (match-22)', () => {
       expect(second.minutes).toBeLessThanOrEqual(O.stoppage.long.upTo);
       // The half-time whistle comes after the first half's added minutes.
       const events = session.state.match.events;
-      const whistle = events.findIndex((e) => e.commentaryKey === 'match.commentary.halftime');
+      const whistle = events.findIndex(
+        (e) => e.kind === 'halftime' && e.commentaryKey.includes('.halftime-'),
+      );
       const board = events.findIndex((e) =>
-        e.commentaryKey.startsWith('match.commentary.added-time'),
+        e.commentaryKey.startsWith('match.commentary.stoppage.'),
       );
       expect(board).toBeGreaterThanOrEqual(0);
       expect(board).toBeLessThan(whistle);
-      expect(events[board]!.commentaryParams?.minutes).toBe(String(first.minutes));
+      expect(events[board]!.commentaryParams?.added).toBe(String(first.minutes));
       // One rating sample a minute played, added minutes included.
       expect(session.state.ratingByMinute.length).toBe(90 + first.minutes + second.minutes);
       // Minutes played count regulation time only.
@@ -134,20 +138,24 @@ describe('stoppage time (match-22)', () => {
     expect(previous!.state.ratingByMinute.length).toBe(90);
   });
   it('has copy for every engine key it writes', () => {
-    for (let variant = 0; variant < CONFIG.match.commentaryVariants; variant++)
-      for (const key of [
-        'added-time',
-        'bench-on',
-        'injury-change',
-        'knock',
-        'knock-serious',
-        'knock-off',
-        'knock-aggravated',
-        'shootout-start',
-        'shootout-kick.scored',
-        'shootout-kick.missed',
-      ])
-        expect(hasMatchLabel(`match.commentary.${key}.${variant}`)).toBe(true);
+    for (const family of [
+      'stoppage',
+      'bench-on',
+      'injury',
+      'injury-serious',
+      'injury-off',
+      'injury-precaution',
+      'injury-aggravated',
+      'shootout-start',
+      'shootout-kick.scored',
+      'shootout-kick.saved',
+      'shootout-kick.missed',
+    ])
+      for (let variant = 0; variant < commentaryVariants(family); variant++)
+        expect(hasCommentaryLabel(`match.commentary.${family}.${variant}`)).toBe(true);
+    for (const key of ['shootout-kick', 'shootout-kick-keeper'])
+      for (let variant = 0; variant < CONFIG.match.drama.situationVariants; variant++)
+        expect(hasMatchLabel(`match.situation.${key}.${variant}`)).toBe(true);
   });
 });
 
