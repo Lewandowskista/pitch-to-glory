@@ -69,6 +69,23 @@ describe('the last match report, kept beside the save', () => {
     expect(restoreReport(text, later)).toBeNull();
   });
 
+  it('replays a record from the previous engine (match-21) on its own rules', () => {
+    const record = JSON.parse(text) as {
+      session: { engine: string; setup: { rules22?: true } };
+    };
+    expect(record.session.engine).toBe('match-22');
+    const previous = structuredClone(record);
+    previous.session.engine = 'match-21';
+    delete previous.session.setup.rules22;
+    const restored = restoreReport(JSON.stringify(previous), committed);
+    expect(restored).not.toBeNull();
+    expect(restored!.session.engine).toBe('match-21');
+    // An engine that is not its setup's is a damaged record.
+    const mismatched = structuredClone(record);
+    mismatched.session.engine = 'match-21';
+    expect(restoreReport(JSON.stringify(mismatched), committed)).toBeNull();
+  });
+
   it('ignores a damaged or outdated record', () => {
     expect(restoreReport(null, committed)).toBeNull();
     expect(restoreReport('{', committed)).toBeNull();

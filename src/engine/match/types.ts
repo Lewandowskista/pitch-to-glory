@@ -29,15 +29,22 @@ export type { Tactics } from '../../model/domain';
  * defensive midfielder's, and a keeper's saves lean harder on their attributes.
  *
  * The 1.0 compatibility cut (docs/RELEASE-1.0-PLAN.md step 2.4) removed every engine before
- * match-21; their sessions restart from kick-off.
+ * match-21; their sessions restart from kick-off. `match-22` (release 1.0, Phase 5) gathers the
+ * 1.0 match rules behind one setup flag, `rules22`; match-21 is kept as the previous engine, so
+ * a session saved by 0.9.x or 0.10.0 finishes under the rules it started with.
  */
-export const MATCH_ENGINE_VERSION = 'match-21';
+export const MATCH_ENGINE_VERSION = 'match-22';
 /**
- * The setup flags of the current engine, in the order setups store them. Each one switched on
- * a step of the engine history above; a session saved by match-21 carries them all, and a
- * setup without any of them is from an engine this build no longer plays.
+ * The engine before this one, kept for one minor release (docs/COMPATIBILITY.md): a setup with
+ * every one of its flags (`PREVIOUS_SETUP_FLAGS`) but not `rules22` replays on it.
  */
-export const CURRENT_SETUP_FLAGS = {
+export const PREVIOUS_MATCH_ENGINE = 'match-21';
+/**
+ * The setup flags of the previous engine (match-21), in the order setups store them. Each one
+ * switched on a step of the engine history above; a setup without any of them is from an
+ * engine this build no longer plays.
+ */
+export const PREVIOUS_SETUP_FLAGS = {
   slotMoments: true,
   dramaMoments: true,
   occasions: true,
@@ -48,12 +55,38 @@ export const CURRENT_SETUP_FLAGS = {
   defending: true,
   screening: true,
 } as const;
+/** The setup flags of the current engine: the previous engine's and `rules22` (match-22). */
+export const CURRENT_SETUP_FLAGS = { ...PREVIOUS_SETUP_FLAGS, rules22: true } as const;
+const hasFlags = (setup: Partial<MatchSetup>, flags: object): boolean =>
+  Array.isArray(setup.formations) &&
+  (Object.keys(flags) as (keyof MatchSetup)[]).every((flag) => setup[flag] === true);
 /** Whether a setup is the current engine's: formations and every current flag. */
 export const isCurrentSetup = (setup: Partial<MatchSetup>): boolean =>
-  Array.isArray(setup.formations) &&
-  (Object.keys(CURRENT_SETUP_FLAGS) as (keyof typeof CURRENT_SETUP_FLAGS)[]).every(
-    (flag) => setup[flag] === true,
-  );
+  hasFlags(setup, CURRENT_SETUP_FLAGS);
+/**
+ * The engine a setup plays on: the current one when it has every current flag, the previous
+ * one when it has every previous flag but not `rules22`, and undefined for a setup from an
+ * engine this build no longer plays.
+ */
+export function setupEngine(setup: Partial<MatchSetup>): string | undefined {
+  if (isCurrentSetup(setup)) return MATCH_ENGINE_VERSION;
+  return setup.rules22 === undefined && hasFlags(setup, PREVIOUS_SETUP_FLAGS)
+    ? PREVIOUS_MATCH_ENGINE
+    : undefined;
+}
+/**
+ * Whether the 1.0 match rules (`match-22`) apply. Every rule change of release 1.0 Phase 5
+ * (steps 5.2 to 5.5) is gated on it, so a match-21 session saved before the update replays and
+ * finishes exactly as it would have (docs/COMPATIBILITY.md, "How to change match rules in
+ * match-22"):
+ *
+ *   const odds = rules22(session.setup) ? newOdds(context) : odds21(context);
+ *
+ * Keep the match-21 branch byte-for-byte as it was: same draws, same streams, same order, same
+ * rounding. New random draws go on new streams. `tests/match-outcome-snapshot.test.ts` pins the
+ * match-21 table, and the golden 0.9.1 session must still replay.
+ */
+export const rules22 = (setup: Pick<MatchSetup, 'rules22'>): boolean => setup.rules22 === true;
 
 export interface MatchSetup {
   version: 1;
@@ -122,6 +155,11 @@ export interface MatchSetup {
    * goals, and a keeper's saves lean harder on their attributes.
    */
   screening?: true;
+  /**
+   * The 1.0 match rules (`match-22`, release 1.0 Phase 5): every rule change since match-21 is
+   * gated on it (`rules22`). Absent in sessions saved before, which replay on match-21.
+   */
+  rules22?: true;
   /**
    * The late-winner and late-equaliser headlines (0.9.1) ask that the player's late goal
    * decided the result, not only that they scored late. Narrative only, so the engine is
@@ -318,7 +356,10 @@ export interface MatchState {
 }
 export interface MatchSession {
   version: 1;
-  /** Engine that produced this session; must equal MATCH_ENGINE_VERSION to replay. */
+  /**
+   * Engine that produced this session: `MATCH_ENGINE_VERSION`, or `PREVIOUS_MATCH_ENGINE` for a
+   * setup without `rules22`. It must be the engine its setup plays on (`setupEngine`) to replay.
+   */
   engine: string;
   setup: MatchSetup;
   initialTactics: Tactics;

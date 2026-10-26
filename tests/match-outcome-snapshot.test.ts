@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { generateWorld } from '../src/engine/world/generate';
 import { autoPlayCommand } from '../src/engine/career/matches';
 import {
@@ -9,12 +9,14 @@ import {
   rolePosition,
   rolesForPosition,
   MATCH_ENGINE_VERSION,
+  PREVIOUS_MATCH_ENGINE,
   type MatchCommand,
   type MatchSession,
   type MatchSetup,
   type Tactics,
 } from '../src/engine/match';
 import type { Position } from '../src/model/domain';
+import { onEngine, type Engine } from './support/engines';
 
 /**
  * Outcome snapshot (redesign step M0). Plays 200 seeded matches across eight positions, with
@@ -37,13 +39,38 @@ import type { Position } from '../src/model/domain';
  * match-21 and their tables (match-15 to match-20). Two of every five samples played the
  * pre-formation and slot-only paths; they now play the current engine, so the table was
  * re-recorded on the code before the cut, and the cut left it byte-identical.
+ *
+ * Release 1.0 Phase 5 plays the same samples on both engines: `EXPECTED` on match-22 (setups
+ * with `rules22`) and `PREVIOUS` on match-21 (the same setups without it). Each 1.0 rule change
+ * re-records `EXPECTED` deliberately and must leave `PREVIOUS` byte-identical: that is the
+ * proof that sessions saved before the update still replay. Until the first rule lands the two
+ * engines play identically, which the third test asserts; the first rule change replaces it
+ * with the check that the tables differ where intended.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
 /**
- * The current engine (match-21): a defensive midfielder's moments carry more of the
- * opposition's goals, and a keeper's saves lean harder on their attributes.
+ * The previous engine (match-21): a defensive midfielder's moments carry more of the
+ * opposition's goals, and a keeper's saves lean harder on their attributes. Never re-recorded
+ * while match-21 is kept: a change here means a 1.0 rule leaked into saved sessions.
  */
+const PREVIOUS: Record<string, { hash: string; goals: number; moments: number }> = {
+  GK: { hash: '061b7390d0cefae6128dc1bb', goals: 63, moments: 214 },
+  CB: { hash: 'cec58987ce402aefd11309b9', goals: 61, moments: 231 },
+  LB: { hash: 'fd856c40a8b80b27659e4dd2', goals: 49, moments: 228 },
+  DM: { hash: '1ec5c6846207d7f6927d4fd6', goals: 60, moments: 207 },
+  CM: { hash: 'cae6cb90f9f2329cd6f41c2b', goals: 66, moments: 250 },
+  AM: { hash: 'f15966d4279057bbb603c8ce', goals: 72, moments: 268 },
+  RW: { hash: 'bfa8dd4c0ca82fe35af84bd0', goals: 54, moments: 312 },
+  ST: { hash: '4b53ae123c0f69d798d2944a', goals: 68, moments: 311 },
+};
+/**
+ * Every match-21 sample's whole session (its state, keyframes and narration included, not only
+ * the outcomes above) hashed together: a saved match-21 session replays only if all of it is
+ * unchanged, so this must never move while match-21 is kept.
+ */
+const PREVIOUS_SESSIONS = '3f20bccd556199d645310c63';
+/** The current engine (match-22): no 1.0 rule has landed yet, so it plays as match-21. */
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
   GK: { hash: '061b7390d0cefae6128dc1bb', goals: 63, moments: 214 },
   CB: { hash: 'cec58987ce402aefd11309b9', goals: 61, moments: 231 },
@@ -144,8 +171,9 @@ function outcomes(session: MatchSession): unknown {
     m = s.match;
   const report = s.report!;
   return {
-    // The current engine's version string is not an outcome.
-    engine: session.engine === MATCH_ENGINE_VERSION ? 'current' : session.engine,
+    // The engine's version string is not an outcome (each table checks its engine itself); the
+    // constant keeps the recorded hashes comparable across engines.
+    engine: 'current',
     score: m.score,
     momentum: m.momentum,
     weather: m.weather,
@@ -199,28 +227,45 @@ function outcomes(session: MatchSession): unknown {
   };
 }
 
-function snapshot() {
+function snapshot(engine: Engine) {
   const found: Record<string, { hash: string; goals: number; moments: number }> = {};
+  // Everything a saved session replays, but the engine's name and the flag that selects it.
+  const sessions = createHash('sha256');
   for (const position of POSITIONS) {
     const hash = createHash('sha256');
     let goals = 0,
       moments = 0;
     for (let index = 0; index < PER_POSITION; index++) {
-      const setup = setupFor(position, index);
+      const setup = onEngine(setupFor(position, index), engine);
       const session = play(setup, tacticsFor(setup, index), index);
-      expect(session.engine).toBe(MATCH_ENGINE_VERSION);
+      expect(session.engine).toBe(engine);
       hash.update(JSON.stringify(outcomes(session)));
+      sessions.update(JSON.stringify([session.initialTactics, session.commands, session.state]));
       goals += session.state.match.score[0] + session.state.match.score[1];
       moments += session.state.match.keyMoments.length;
     }
     found[position] = { hash: hash.digest('hex').slice(0, 24), goals, moments };
   }
-  if (process.env.SNAPSHOT_PRINT) console.log(JSON.stringify(found, null, 2));
-  return found;
+  const whole = sessions.digest('hex').slice(0, 24);
+  if (process.env.SNAPSHOT_PRINT) console.log(engine, whole, JSON.stringify(found, null, 2));
+  return { outcomes: found, sessions: whole };
 }
 
 describe('match outcome snapshot', { timeout: 300000 }, () => {
+  const found = new Map<Engine, ReturnType<typeof snapshot>>();
+  beforeAll(() => {
+    for (const engine of [MATCH_ENGINE_VERSION, PREVIOUS_MATCH_ENGINE] as const)
+      found.set(engine, snapshot(engine));
+  });
   it('keeps every outcome byte-identical per seed', () => {
-    expect(snapshot()).toEqual(EXPECTED);
+    expect(found.get(MATCH_ENGINE_VERSION)!.outcomes).toEqual(EXPECTED);
+  });
+  it('keeps the previous engine (match-21) byte-identical, so saved sessions replay', () => {
+    expect(found.get(PREVIOUS_MATCH_ENGINE)!.outcomes).toEqual(PREVIOUS);
+    expect(found.get(PREVIOUS_MATCH_ENGINE)!.sessions).toBe(PREVIOUS_SESSIONS);
+  });
+  it('plays match-22 exactly as match-21 until a 1.0 rule lands', () => {
+    expect(EXPECTED).toEqual(PREVIOUS);
+    expect(found.get(MATCH_ENGINE_VERSION)).toEqual(found.get(PREVIOUS_MATCH_ENGINE));
   });
 });

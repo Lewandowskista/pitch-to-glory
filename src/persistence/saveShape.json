@@ -1,6 +1,6 @@
 {
   "schemaVersion": 23,
-  "hash": "3de3ddcf8a3884b4acd24067ca7a956cd45ea401dc5377e6f9b4054b2bb7b787",
+  "hash": "ccc1f4c8abce5592c280db35f3fedf362d45c56a7ec936cb7eeafb6e073e00a7",
   "types": {
     "Agent": "ece91d39b502347b",
     "Ambition": "1549fb5b560d305f",
@@ -101,7 +101,7 @@
     "MatchMotion": "daf5576ed38e1967",
     "MatchReport": "19e8e300df428f2e",
     "MatchSession": "ee7962ed3f3867dc",
-    "MatchSetup": "0204d139550ca954",
+    "MatchSetup": "af8f83ebd7e9ae4d",
     "MatchState": "ab16fca1e00c6372",
     "MediaChoice": "9aaa0f17b338d859",
     "MediaEffects": "5439f89812dce685",

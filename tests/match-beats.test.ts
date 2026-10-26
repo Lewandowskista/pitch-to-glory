@@ -321,9 +321,10 @@ describe('match bookkeeping stats', { timeout: 120000 }, () => {
   it('treats sessions saved before the annotations as outdated', () => {
     const { session } = matches[0]!;
     expect(session.engine).toBe(MATCH_ENGINE_VERSION);
-    expect(MATCH_ENGINE_VERSION).toBe('match-21');
+    expect(MATCH_ENGINE_VERSION).toBe('match-22');
     // A session saved by an earlier engine is outdated and restarts from its seed
-    // (docs/COMPATIBILITY.md).
+    // (docs/COMPATIBILITY.md). A match-21 session replays only from a setup without `rules22`,
+    // so a match-22 session claiming match-21 is outdated too.
     for (const engine of [
       'match-14',
       'match-15',
@@ -332,6 +333,7 @@ describe('match bookkeeping stats', { timeout: 120000 }, () => {
       'match-18',
       'match-19',
       'match-20',
+      'match-21',
     ]) {
       const previous = JSON.parse(JSON.stringify(session));
       previous.engine = engine;
