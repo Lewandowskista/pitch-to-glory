@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { applyMatchCommand, createMatchSession } from '../../engine/match';
-import { MATCH_ENGINE_VERSION, type MatchSession } from '../../engine/match/types';
+import { setupEngine, type MatchSession } from '../../engine/match/types';
 import type { CareerMatchOutcome } from '../../engine/career/matches';
 import type { SlotId, World } from '../../model/domain';
 import { compactSession, type StoredMatchSession } from '../../persistence/matchRecord';
@@ -39,7 +39,8 @@ export function reportRecord(state: Pick<AppStore, 'careerResult' | 'world'>): R
 
 /**
  * A slot's last match report from its device record, replayed to the full session: only for
- * this world and career, on the current engine, finished, and still the career's latest match.
+ * this world and career, on the engine its setup plays on (the current or the previous one),
+ * finished, and still the career's latest match.
  * Anything else is null (a stale or damaged record is simply not shown).
  */
 export function restoreReport(text: string | null, world: World): CareerResult | null {
@@ -52,7 +53,9 @@ export function restoreReport(text: string | null, world: World): CareerResult |
       record.seed !== world.seed ||
       record.playerId !== world.career.playerId ||
       !stored ||
-      stored.engine !== MATCH_ENGINE_VERSION ||
+      !stored.setup ||
+      !setupEngine(stored.setup) ||
+      stored.engine !== setupEngine(stored.setup) ||
       !Array.isArray(stored.commands) ||
       !record.outcome?.record
     )

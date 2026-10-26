@@ -7,7 +7,8 @@
 > [review plan](REVIEW-PLAN-2026-10-20.md) has been carried out through Phase 6, with measurements in
 > [REVIEW-PROGRESS-2026-10-20.md](REVIEW-PROGRESS-2026-10-20.md) and rules in [BALANCING.md](BALANCING.md).
 > Live versions ([COMPATIBILITY.md](COMPATIBILITY.md)): save schema **23**; match engine
-> **match-21** only (sessions from earlier engines restart from kick-off); career development
+> **match-22**, with **match-21** kept as the previous engine (sessions from earlier engines
+> restart from kick-off); career development
 > rules **3**; world flags `developmentVersion` 2, `selectionVersion` 1, `achievements` 1 and
 > `economyVersion` 1, adopted once by older saves when they load (`engine/world/rules.ts`).
 > Legacy compact worlds keep their frozen sporting rules in `engine/world/legacy.ts`.

@@ -4,6 +4,10 @@
 > below as kept for replay (`match-10-lines` to `match-20`, the 4-3-3 line-up, cosmetic cards, the
 > combined weather factor) were removed; their sessions restart from kick-off. The history is
 > kept here for the reasoning behind each rule. See [COMPATIBILITY.md](COMPATIBILITY.md).
+>
+> **match-22.** Release 1.0 Phase 5 plays new matches on `match-22`, with `match-21` kept as the
+> previous engine: each 1.0 rule is gated on `rules22(setup)` (COMPATIBILITY.md, "How to change
+> match rules in match-22"), and the rules below are match-21's until a step says otherwise.
 
 Engine `match-8` (`MATCH_ENGINE_VERSION`); sessions saved by `match-7` replay with their original 4-3-3. The engine plays the 90 minutes of friendlies and career fixtures; extra time is simulated when a fixture is finalized (see Phase 1.2 in BALANCING.md). Scalar tunables live in `CONFIG.match` (`src/engine/config.ts`; `engine/match/tuning.ts` is an alias). The key-moment catalogue — situations, their choices, governing attributes, base probabilities and weights — is data in `src/engine/match/situations.ts`; personal roles and their effects are in `src/engine/match/roles.ts`. Pitch geometry, formation slots and regulation minutes are structural values.
 

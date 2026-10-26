@@ -17,7 +17,7 @@ import { generateKits } from '../../assets/kit';
 import { generatePlayer } from '../../world/generate';
 import { STYLES } from '../../world/catalog';
 import { FORMATIONS, type Formation } from '../../selection/formations';
-import type { MatchSession, MatchSetup } from '../../match/types';
+import { CURRENT_SETUP_FLAGS, type MatchSession, type MatchSetup } from '../../match/types';
 import { sessionPenalties, validateMatchSession } from '../../match';
 import { performanceXp } from '../../match/rewards';
 import { matchDecisions, recordDecisions } from '../coaching';
@@ -240,15 +240,8 @@ function nationMatchSetup(
       ...(options.knockout ? { shootoutLead: 0, extraTimeLead: 0 } : {}),
     },
     formations: [nationFormation(world, home), nationFormation(world, away)],
-    slotMoments: true,
-    dramaMoments: true,
-    occasions: true,
-    discipline: true,
-    roleSlot: true,
-    extraTimePlay: true,
-    identity: true,
-    defending: true,
-    screening: true,
+    // The current engine's flags, as `createMatchSetup` sets them.
+    ...CURRENT_SETUP_FLAGS,
     decidingHeadline: true,
     strengthBonus: [0, 0],
   };

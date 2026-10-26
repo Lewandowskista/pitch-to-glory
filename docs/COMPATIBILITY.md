@@ -12,8 +12,8 @@ with the code.
 | Item                      | Value      | Where                                                       |
 | ------------------------- | ---------- | ----------------------------------------------------------- |
 | Save schema               | `23`       | `CONFIG.saves.schemaVersion` (`src/engine/config.ts`)       |
-| Match engine              | `match-21` | `MATCH_ENGINE_VERSION` (`src/engine/match/types.ts`)        |
-| Previous match engine     | `none`     | `PREVIOUS_MATCH_ENGINE` (absent while none is kept)         |
+| Match engine              | `match-22` | `MATCH_ENGINE_VERSION` (`src/engine/match/types.ts`)        |
+| Previous match engine     | `match-21` | `PREVIOUS_MATCH_ENGINE` (absent while none is kept)         |
 | World development version | `2`        | `World.developmentVersion`, `RULE_FLAGS` (`world/rules.ts`) |
 | World selection version   | `1`        | `World.selectionVersion`, `CONFIG.selection.version`        |
 | World economy version     | `1`        | `World.economyVersion`                                      |
@@ -49,10 +49,21 @@ every earlier upgrade; release plan step 4.1 coordinates updates across open tab
 
 A match in progress is saved as its setup, its initial tactics and its command log
 (`MatchSession`), and is checked on load by replaying it in full. Replay is only exact on the
-engine that made it, so `session.engine` must equal `MATCH_ENGINE_VERSION` and the setup must
-carry the current engine's flags (`isCurrentSetup`: `formations` and every flag in
-`CURRENT_SETUP_FLAGS`). A session that fails either check is discarded on load with the
-`match-discarded` notice; the world is kept and the fixture plays again from kick-off.
+engine that made it, so a setup names its engine by its flags (`setupEngine`) and
+`session.engine` must be that engine:
+
+- **`match-22`, the current engine** (release 1.0, Phase 5): `formations` and every flag in
+  `CURRENT_SETUP_FLAGS`, which adds `rules22` to match-21's. Every new setup is created on it
+  (`createMatchSetup`, and the national match setup through the same flags).
+- **`match-21`, the previous engine**, kept so a match saved by 0.9.x or 0.10.0 finishes under
+  the rules it started with: every flag in `PREVIOUS_SETUP_FLAGS` and no `rules22`. It plays the
+  same code as match-22, with each 1.0 rule switched off (`rules22(setup)` is false). 1.1
+  deletes it (policy 2).
+
+A session that fails the check (an earlier engine, a missing flag, or an engine that is not its
+setup's) is discarded on load with the `match-discarded` notice; the world is kept and the
+fixture plays again from kick-off. A finished match's report kept on the device
+(`restoreReport`) is replayed on its setup's engine in the same way.
 
 `decidingHeadline` is a narrative-only setup flag (0.9.1): match-21 sessions saved by 0.9.0 lack
 it and keep the late-goal headline rule they started with. It does not change the engine.
@@ -136,7 +147,7 @@ cover them.
 | Release        | Schema | Engine                   | Resumes sessions from         | Rule flags adopted                  |
 | -------------- | ------ | ------------------------ | ----------------------------- | ----------------------------------- |
 | 0.3.0 to 0.9.1 | 22     | `match-16` to `match-21` | every engine since `match-10` | at the next season start            |
-| 1.0.0          | 23     | `match-21`               | `match-21`                    | on load, once (schema 23 migration) |
+| 1.0.0          | 23     | `match-22`               | `match-21`, `match-22`        | on load, once (schema 23 migration) |
 
 Golden save behaviour on this build:
 
@@ -145,7 +156,7 @@ Golden save behaviour on this build:
 | `v0.3.0-legacy-match.json.br` | `match-16`    | Restarts from kick-off; rules adopted |
 | `v0.3.0-match.json.br`        | `match-16`    | Restarts from kick-off; rules adopted |
 | `v0.8.0-match.json.br`        | `match-20`    | Restarts from kick-off                |
-| `v0.9.1-match.json.br`        | `match-21`    | Resumes                               |
+| `v0.9.1-match.json.br`        | `match-21`    | Resumes, on the previous engine       |
 | `v0.9.1-season.json.br`       | none          | Loads                                 |
 
 ## Policy
@@ -173,6 +184,30 @@ keep the previous engine's table in `tests/match-outcome-snapshot.test.ts`. Re-r
 table and the match profile gates. Update the table above, the golden saves `SESSIONS` table and
 the patch notes ("a match in progress restarts after the update" when no previous engine is
 kept).
+
+**How to change match rules in match-22.** Release 1.0 Phase 5 (steps 5.2 to 5.5) changes
+the match under one engine id, `match-22`, so every rule change, however small, is gated on
+the one helper `rules22(setup)` (`src/engine/match/types.ts`):
+
+1. Keep the match-21 path byte-for-byte: `rules22(session.setup) ? new : old`, with the old
+   branch's draws, streams, order and rounding exactly as they were. A new random draw goes on
+   a new stream (``createRng(`${seed}:<new>:…`)``), never on an existing one, unless it is
+   inside the match-22 branch alone. A new constant goes in `CONFIG.match` beside the old one.
+2. A new field in the session's state or a key moment is optional and written only under
+   `rules22`, so a match-21 session's JSON is unchanged (replay compares the whole session).
+   Re-record the save shape with `npm run check:save-shape -- --update --same-version`.
+3. Re-record `EXPECTED` in `tests/match-outcome-snapshot.test.ts` (`SNAPSHOT_PRINT=1`) and the
+   match profile gates, and leave `PREVIOUS` untouched: if a match-21 hash moves, the change
+   leaked. The first rule change also drops the test that the two engines still play alike.
+4. Check both engines with `tests/support/engines.ts` (`playOnEngines` plays one setup on both;
+   `onEngine` moves a setup to either; `expectReplays` checks a session survives a save). The
+   0.9.1 golden session (`goldenSession`) must still replay and finish on match-21.
+
+Replay compares the whole session, so anything the engine writes into it is gated like a rule,
+even when it only reads differently: events and their commentary keys (and the number of
+variants they draw from), narration lines, headlines and reactions, keyframes and statistics.
+Only what the session never stores needs no gate: the copy behind a key (`src/i18n`), the
+screens and how the pitch draws the keyframes.
 
 **A new rule flag.** Add the optional field to the domain type with a schema bump, set it in
 `generateWorld` or `createCareer`, adopt it in `startNextSeason` for older saves, and add it to

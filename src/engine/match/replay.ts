@@ -3,7 +3,7 @@
  * setup, tactics and command log must reproduce it exactly. The shape validators are in
  * validation.ts.
  */
-import { MATCH_ENGINE_VERSION, isCurrentSetup, type MatchSession } from './types';
+import { setupEngine, type MatchSession } from './types';
 import { validateSetup, validateJson } from './validation';
 import { createMatchSession, OutdatedMatchSessionError } from './setup';
 import { applyMatchCommand } from './commands';
@@ -21,13 +21,15 @@ export function validateMatchSession(value: unknown): MatchSession {
   validateJson(value);
   if (!value || typeof value !== 'object') throw new Error('Invalid match session');
   const session = value as MatchSession;
-  // Sessions from another engine cannot replay; callers discard them and keep the world. One
-  // without the bookkeeping (match-14) or the narration is from before them, whatever it claims.
+  // Sessions from another engine cannot replay; callers discard them and keep the world. A
+  // session replays on the engine its setup plays on (the current one, or the previous one
+  // without `rules22`), and must say so. One without the bookkeeping (match-14) or the
+  // narration is from before them, whatever it claims.
   if (
     !session.setup ||
     typeof session.setup !== 'object' ||
-    session.engine !== MATCH_ENGINE_VERSION ||
-    !isCurrentSetup(session.setup) ||
+    !setupEngine(session.setup) ||
+    session.engine !== setupEngine(session.setup) ||
     !Array.isArray(session.state?.stats?.xg) ||
     !Array.isArray(session.state?.narration)
   )

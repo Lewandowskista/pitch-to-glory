@@ -47,7 +47,8 @@ const REQUIRED = [
  * `restart` means this build no longer supports that engine, so loading discards the session
  * with the `match-discarded` notice and the fixture is played again from kick-off. The 1.0
  * compatibility cut (step 2.4, decision D3) moved sessions from before match-21 to `restart`
- * (docs/COMPATIBILITY.md).
+ * (docs/COMPATIBILITY.md). Since match-22 (release 1.0, Phase 5), a match-21 session resumes on
+ * the previous engine, which 1.1 removes.
  */
 const SESSIONS: Record<string, 'resume' | 'restart'> = {
   'match-16': 'restart',

@@ -11,7 +11,8 @@ import { clubFormation } from '../selection/world';
 import {
   CURRENT_SETUP_FLAGS,
   MATCH_ENGINE_VERSION,
-  isCurrentSetup,
+  PREVIOUS_MATCH_ENGINE,
+  setupEngine,
   type MatchSetup,
   type MatchSession,
   type MatchState,
@@ -34,7 +35,7 @@ import { ATTACKERS, copy, rolePosition, selectedSide } from './shared';
 export class OutdatedMatchSessionError extends Error {
   constructor(found: unknown) {
     super(
-      `Match session engine ${typeof found === 'string' ? found : 'unknown'} is not ${MATCH_ENGINE_VERSION}`,
+      `Match session engine ${typeof found === 'string' ? found : 'unknown'} is not ${MATCH_ENGINE_VERSION} or ${PREVIOUS_MATCH_ENGINE}`,
     );
     this.name = 'OutdatedMatchSessionError';
   }
@@ -105,8 +106,10 @@ export function createMatchSetup(
   });
 }
 export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSession {
-  // Only the current engine plays: a setup from an earlier one cannot start or replay.
-  if (!isCurrentSetup(setup)) throw new OutdatedMatchSessionError(undefined);
+  // The current engine plays, and the previous one for a setup without its flag (a session
+  // saved before the update); a setup from an earlier engine cannot start or replay.
+  const engine = setupEngine(setup);
+  if (!engine) throw new OutdatedMatchSessionError(undefined);
   validateSetup(setup);
   const selected = setup.players[setup.selectedPlayerId]!;
   // The job they are given (match-17).
@@ -211,7 +214,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
   )[0];
   const session: MatchSession = {
     version: 1,
-    engine: MATCH_ENGINE_VERSION,
+    engine,
     setup: copy(setup),
     initialTactics: copy(tactics),
     commands: [],
