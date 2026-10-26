@@ -37,17 +37,19 @@ function step(session: MatchSession, policy: Policy = 0): MatchSession {
         ? { type: 'halftime', response: 'motivate' }
         : s.substitutionDecisionPending
           ? { type: 'substitution', response: 'accept' }
-          : s.captainDecisionPending
-            ? { type: 'captain', instruction: 'calm' }
-            : moment
-              ? {
-                  type: 'choose',
-                  choiceId:
-                    typeof policy === 'number'
-                      ? moment.choices[Math.min(policy, moment.choices.length - 1)]!.id
-                      : policy(moment.choices),
-                }
-              : { type: 'advance' },
+          : s.injuryDecisionPending
+            ? { type: 'injury', response: 'play-on' }
+            : s.captainDecisionPending
+              ? { type: 'captain', instruction: 'calm' }
+              : moment
+                ? {
+                    type: 'choose',
+                    choiceId:
+                      typeof policy === 'number'
+                        ? moment.choices[Math.min(policy, moment.choices.length - 1)]!.id
+                        : policy(moment.choices),
+                  }
+                : { type: 'advance' },
   );
 }
 function finish(session: MatchSession, policy: Policy = 0) {
