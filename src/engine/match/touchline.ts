@@ -108,10 +108,14 @@ export function halftimeTalk(
       s.talkOdds = 1;
       s.shares = {
         ...s.shares,
-        attack: round6(
-          Math.min(C.decision.talk.demand.maximum, s.shares.attack * C.decision.talk.demand.share),
-        ),
+        attack: round6(Math.min(C.decision.talk.demand.maximum, s.shares.attack * T.demand.share)),
       };
+      // More of the second half goes through the player: extra moments (`${seed}:demand`).
+      const rng = createRng(`${setup.seed}:demand`);
+      const extra: number[] = [];
+      for (let index = 0; index < T.demand.moments; index++)
+        extra.push(rng.int(T.demand.from + index * 15, T.demand.from + index * 15 + 12));
+      s.momentMinutes = [...new Set([...s.momentMinutes, ...extra])].sort((a, b) => a - b);
     }
   } else {
     if (benched) throw new Error('No role to ask for on the bench');
@@ -178,12 +182,9 @@ export function substitutionResponse(next: MatchSession, response: 'accept' | 'e
     m = s.match;
   if (response === 'accept') s.managerTrustDelta += T.substitution.acceptTrust;
   else {
-    const lift = T.substitution.momentum;
-    m.momentum = clamp(
-      m.momentum + (selectedSide(next.setup) === 0 ? lift : -lift),
-      C.momentum.minimum,
-      C.momentum.maximum,
-    );
+    // The side digs in for the rest of the match: its odds, not the manager's trust.
+    s.rally = true;
+    s.expectedGoals = currentRates(next, m.tactics);
   }
 }
 

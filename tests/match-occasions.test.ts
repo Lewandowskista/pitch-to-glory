@@ -476,6 +476,9 @@ describe('touchline decisions (match-22)', () => {
         .managerTrustDelta;
     };
     expect(demand(7.5)).toBeGreaterThan(demand(5.5));
+    // It also puts more of the second half through the player: extra key moments.
+    const more = applyMatchCommand(session, { type: 'halftime', response: 'complain' });
+    expect(more.state.momentMinutes.length).toBeGreaterThan(session.state.momentMinutes.length);
   });
   it('makes accepting a substitution earn trust and rallying lift momentum', () => {
     for (let index = 0; index < 30; index++) {
@@ -493,7 +496,14 @@ describe('touchline decisions (match-22)', () => {
         session.state.managerTrustDelta + O.touchline.substitution.acceptTrust,
       );
       expect(rally.state.managerTrustDelta).toBe(session.state.managerTrustDelta);
-      expect(rally.state.match.momentum).not.toBe(accept.state.match.momentum);
+      // Rallying lifts the side's odds for the rest of the match, and dents the opposition's.
+      const own =
+        session.setup.players[session.setup.selectedPlayerId]!.clubId === session.setup.home.id
+          ? 0
+          : 1;
+      expect(rally.state.rally).toBe(true);
+      expect(rally.state.expectedGoals[own]).toBeGreaterThan(accept.state.expectedGoals[own]!);
+      expect(rally.state.expectedGoals[1 - own]).toBeLessThan(accept.state.expectedGoals[1 - own]!);
       return;
     }
     throw new Error('No substitution in 30 matches');

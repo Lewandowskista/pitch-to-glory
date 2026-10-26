@@ -441,6 +441,8 @@ export interface MatchState {
    * after conceding and late on, a few at most.
    */
   captainCalls?: number[];
+  /** Substituted, the career player rallied the side (match-22): its odds for the rest. */
+  rally?: true;
   /** The half-time role request (match-22): what was asked, and the refusal roll. */
   roleRequest?: { role: string; refusal: number; roll: number; granted: boolean };
   /**

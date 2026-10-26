@@ -74,7 +74,7 @@ const occasionsEn = {
   substitution: {
     acceptBody: 'Shake the manager’s hand and sit down. Trust +{trust}.',
     rallyBody:
-      'Rally the side as you go off: momentum +{momentum} for what is left. No trust gained.',
+      'Rally the side as you go off: its goal chances ×{own} and theirs ×{against} for what is left. No trust gained.',
     note: 'Accepting pays when the game is settled; rallying when it is still in the balance.',
   },
   injury: {

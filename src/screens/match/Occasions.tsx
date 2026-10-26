@@ -392,7 +392,12 @@ function SubstitutionTalk({
               onClick={() => onCommand({ type: 'substitution', response: 'encourage' })}
             >
               <strong>{m.encourageSubstitution}</strong>
-              <span>{matchFormat(o.substitution.rallyBody, { momentum: T.momentum })}</span>
+              <span>
+                {matchFormat(o.substitution.rallyBody, {
+                  own: T.rally.own,
+                  against: T.rally.against,
+                })}
+              </span>
             </button>
           </div>
           <p className="match-card-note">{o.substitution.note}</p>

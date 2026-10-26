@@ -88,6 +88,8 @@ export interface SeasonProfile {
   fame: number;
   fameLevel: number;
   apps: number;
+  /** Appearances off the bench (release 1.0 step 5.4); absent in profiles from before it. */
+  subApps?: number;
   starts: number;
   minutes: number;
   goals: number;
@@ -423,6 +425,7 @@ export function runProfile(
       fame: Math.round(career.fame),
       fameLevel: fameLevel(career.fame),
       apps: matches.length,
+      subApps: matches.filter((m) => m.cameOn !== undefined).length,
       starts: matches.filter((m) => m.minutes >= 60).length,
       minutes: matches.reduce((sum, m) => sum + m.minutes, 0),
       goals: matches.reduce((sum, m) => sum + m.goals, 0),
@@ -477,7 +480,7 @@ export function runProfile(
     };
     profile.seasons.push(season);
     log(
-      `${season.season} age ${age} level ${season.level} ability ${season.ability} (${season.worldPercentile}%, ${season.squadRank}/${season.squadSize}) T${season.tier} ${season.club} ${season.role} ${season.wage} · ${season.apps} apps ${season.goals} g ${season.assists} a ${season.rating} · fame ${season.fame} · rival ${season.rivalAbility} T${season.rivalTier} · caps ${season.caps}`,
+      `${season.season} age ${age} level ${season.level} ability ${season.ability} (${season.worldPercentile}%, ${season.squadRank}/${season.squadSize}) T${season.tier} ${season.club} ${season.role} ${season.wage} · ${season.apps} apps (${season.subApps ?? 0} off the bench) ${season.goals} g ${season.assists} a ${season.rating} · fame ${season.fame} · rival ${season.rivalAbility} T${season.rivalTier} · caps ${season.caps}`,
     );
     const rule = retirementState(world);
     if (rule === 'forced' || (rule === 'available' && age >= RETIRE_AGE)) {

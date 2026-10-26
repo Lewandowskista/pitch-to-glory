@@ -52,13 +52,26 @@ export function rates(
  */
 export function currentRates(session: MatchSession, tactics: Tactics): [number, number] {
   const s = session.state;
-  const base = rates(session.setup, s.strength, tactics);
+  const base = rallied(session, rates(session.setup, s.strength, tactics));
   const [home, away] = menDown(s.match);
   if (!home && !away) return base;
   const M = F.menDown;
   const scale = (own: number, other: number) =>
     Math.max(M.attackFloor, 1 - own * M.attack) * (1 + other * M.concede);
   return [round6(base[0] * scale(home, away)), round6(base[1] * scale(away, home))];
+}
+/**
+ * A side the substituted career player rallied as they went off (match-22, step 5.4): its
+ * expected goals × `rally.own`, the opposition's × `rally.against`, for the rest of the match.
+ */
+function rallied(session: MatchSession, base: [number, number]): [number, number] {
+  if (!session.state.rally) return base;
+  const R = C.occasions.touchline.substitution.rally;
+  const own = selectedSide(session.setup);
+  const scaled: [number, number] = [base[0], base[1]];
+  scaled[own] = round6(base[own]! * R.own);
+  scaled[1 - own] = round6(base[1 - own]! * R.against);
+  return scaled;
 }
 export function shares(position: Position, role: string): MatchState['shares'] {
   const [attack, base] = C.shares[position];

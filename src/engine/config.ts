@@ -531,8 +531,10 @@ export const CONFIG = {
        * `demand.rating`, `demand.poor` below `demand.poorRating`. The captain calls the tone at
        * the second half's start, after conceding and at `captain.lateMinute` in a close game, at
        * most `captain.maximum` times, `captain.gap` minutes apart. Accepting a substitution
-       * earns `substitution.acceptTrust`; rallying the side as you go off lifts momentum by
-       * `substitution.momentum` instead.
+       * earns `substitution.acceptTrust`; rallying the side as you go off scales its expected
+       * goals by `substitution.rally.own` and the opposition's by `rally.against` for the rest
+       * of the match instead. Demanding the ball raises the attacking share × `demand.share`
+       * and adds `demand.moments` key moments, one in each 15 minutes from `demand.from`.
        */
       touchline: {
         motivate: {
@@ -553,10 +555,19 @@ export const CONFIG = {
           refusedTrust: -1,
           refusedOdds: 0.98,
         },
-        demand: { trust: -3, earned: -1, rating: 7, poor: -5, poorRating: 6.2 },
+        demand: {
+          trust: -2,
+          earned: 0,
+          rating: 7,
+          poor: -4,
+          poorRating: 6.2,
+          share: 1.35,
+          moments: 2,
+          from: 50,
+        },
         bench: { momentum: 0.5 },
         captain: { lateMinute: 80, maximum: 3, gap: 10, lastMinute: 88 },
-        substitution: { acceptTrust: 1, momentum: 6 },
+        substitution: { acceptTrust: 1, rally: { own: 1.3, against: 0.85 } },
       },
     },
     xp: {
