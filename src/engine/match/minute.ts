@@ -3,7 +3,8 @@
  * momentum and possession after it, and what the end of a half or of the match brings.
  */
 import { createRng } from '../rng';
-import type { MatchSession } from './types';
+import { rules22, type MatchSession } from './types';
+import { halftimeLine } from './commentary';
 import { MATCH_CONFIG as C } from './tuning';
 import { SITUATION_BY_ID } from './situations';
 import { clamp, round6 } from './decisions';
@@ -26,8 +27,19 @@ export function simulateMinuteGoals(session: MatchSession): void {
     const rate = clamp((s.expectedGoals[side]! * (1 - replaced)) / 90, 0, 0.2);
     if (rng.next() < rate / C.shotConversion) {
       const id = finisher(session, side, rng, side === own && !off ? selected.id : undefined);
-      recordShot(session, side, id, 'match.commentary.attempt', C.shotConversion);
-      if (rng.next() < C.shotConversion) goal(session, side, id);
+      // Rolled before the shot is logged (the log draws nothing from `rng`), so the line can
+      // say how a miss was missed (match-22).
+      const scored = rng.next() < C.shotConversion;
+      recordShot(
+        session,
+        side,
+        id,
+        'match.commentary.attempt',
+        C.shotConversion,
+        undefined,
+        scored,
+      );
+      if (scored) goal(session, side, id);
     }
   }
   // Ordinary passes are real logged actions and contribute to the pass map.
@@ -90,7 +102,7 @@ export function afterMinute(session: MatchSession) {
       'halftime',
       session.setup.players[session.setup.selectedPlayerId]!.clubId!,
       null,
-      'match.commentary.halftime',
+      rules22(session.setup) ? halftimeLine(session) : 'match.commentary.halftime',
     );
   } else if (s.match.minute === 90 && extraTimeDue(session)) {
     startExtraTime(session);

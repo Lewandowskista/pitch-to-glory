@@ -300,6 +300,12 @@ export const CONFIG = {
     possession: { strengthSlope: 0.45, mentality: 3, momentum: 0.08, minimum: 30, maximum: 70 },
     commentaryVariants: 3,
     /**
+     * How a shot outside the player's own choices that does not go in is missed (match-22,
+     * release 1.0 step 5.5): the commentary names it and the pitch draws it. Relative weights;
+     * on target (held, parried) about 57%, as match-21's lines and pitch drew them.
+     */
+    missedShot: { held: 0.42, parried: 0.15, wide: 0.2, over: 0.13, blocked: 0.1 },
+    /**
      * Moments that follow the game (engine match-12). The last moment is placed at
      * `lateDecisionMinute`: within `closeMargin` it comes in the closing minutes, otherwise
      * at `routineLateMinute`. From `tiltFromMinute` a side chasing the game sees attacking

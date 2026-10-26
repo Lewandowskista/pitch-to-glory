@@ -4,13 +4,20 @@
  */
 import type { DecisionOutcome, MatchEvent } from '../../model/domain';
 import { createRng, type Rng } from '../rng';
-import type { MatchSession } from './types';
+import { rules22, type MatchSession } from './types';
 import { MATCH_CONFIG as C } from './tuning';
+import { commentaryLine, missedShot } from './commentary';
 import { clamp, round6 } from './decisions';
 import { addRating } from './report';
 import { ATTACKERS, attacksRight, onPitch, sideTeam } from './shared';
 
-export function line(session: MatchSession, base: string): string {
+/**
+ * A commentary key for the next event: `base` (`match.commentary.<family>`) and a variant. Under
+ * match-22 the line follows the acting `side`'s situation and cycles through the family's
+ * variants without repeats (commentary.ts); match-21 draws one of three, as it always did.
+ */
+export function line(session: MatchSession, base: string, side?: 0 | 1): string {
+  if (rules22(session.setup)) return commentaryLine(session, base, side);
   const salt = `${session.state.match.id}:${session.state.match.events.length}`;
   return `${base}.${createRng(`${session.setup.seed}:commentary:${salt}`).int(0, C.commentaryVariants - 1)}`;
 }
@@ -76,6 +83,10 @@ export function addXg(session: MatchSession, side: number, shot: MatchEvent, xg:
       ? [round6(stats.xg[0] + shot.xg), stats.xg[1]]
       : [stats.xg[0], round6(stats.xg[1] + shot.xg)];
 }
+/**
+ * A shot recorded with its commentary. `scored` (known before the line under match-22) turns a
+ * missed `attempt` into a line that says how it was missed, which the pitch then draws.
+ */
 export function recordShot(
   session: MatchSession,
   side: number,
@@ -83,16 +94,21 @@ export function recordShot(
   key: string,
   xg: number,
   target?: number,
+  scored?: boolean,
 ) {
   if (side === 0) session.state.stats.homeShots++;
   else session.state.stats.awayShots++;
   if (id === session.setup.selectedPlayerId) session.state.stats.shots++;
+  const family =
+    rules22(session.setup) && scored === false && key === 'match.commentary.attempt'
+      ? `${key}-${missedShot(session)}`
+      : key;
   const shot = event(
     session,
     'shot',
     sideTeam(session, side),
     id,
-    line(session, key),
+    line(session, family, side as 0 | 1),
     null,
     target,
   );
@@ -110,7 +126,15 @@ export function goal(session: MatchSession, side: number, playerId: string, targ
         ? 'match.commentary.late-equaliser'
         : 'match.commentary.late-winner'
       : 'match.commentary.goal';
-  event(session, 'goal', sideTeam(session, side), playerId, line(session, key), null, target);
+  event(
+    session,
+    'goal',
+    sideTeam(session, side),
+    playerId,
+    line(session, key, side as 0 | 1),
+    null,
+    target,
+  );
   if (playerId === session.setup.selectedPlayerId) {
     session.state.stats.goals++;
     addRating(session, 'goals', C.rating.goal);
@@ -142,9 +166,12 @@ export function chance(
   if (probability <= 0) return false;
   const shot = Math.min(1, probability / C.chanceConversion);
   if (rng.next() >= shot) return false;
-  // The shot's own chance: the goal probability given that the chance became a shot.
-  recordShot(session, side, scorer, key, probability / shot);
-  if (rng.next() >= probability / shot) return false;
+  // The shot's own chance: the goal probability given that the chance became a shot. Rolled
+  // before the shot is logged (the log draws nothing from `rng`), so its line can say how it
+  // was missed.
+  const scored = rng.next() < probability / shot;
+  recordShot(session, side, scorer, key, probability / shot, undefined, scored);
+  if (!scored) return false;
   goal(session, side, scorer);
   return true;
 }

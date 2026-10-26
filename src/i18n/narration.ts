@@ -11,7 +11,8 @@ import { LOCALE, type Translations } from './locale';
  * `{player}` plays the ball and `{receiver}` gets it, except in the `…cut` families, where
  * `{receiver}` is the opponent who cut it out.
  */
-type Variants = readonly [string, string, string, string];
+/** Four lines a family in match-21; match-22 uses more for some (`narrationVariants`). */
+type Variants = readonly string[];
 const linesEn: Record<string, Variants> = {
   'cross.header.near': [
     '{player} whips it in from the {flank}… {receiver} rises at the near post!',
@@ -24,18 +25,34 @@ const linesEn: Record<string, Variants> = {
     '{player} picks out the far post from the {flank}, and {receiver} is there to meet it!',
     'A deep cross from {player} on the {flank}… {receiver} rises above everyone at the back stick!',
     '{player} floats it to the far post… {receiver} has peeled away from the marker and heads!',
+    'An inviting ball from {player} on the {flank} drifts to the far post, where {receiver} is waiting!',
+    '{player} clips it beyond the last defender… {receiver} attacks it at the far post!',
+    'Over everyone from {player} on the {flank}, and {receiver} meets it at the far stick!',
+    'The delivery from {player} is aimed at the far post, and {receiver} gets above the full-back!',
   ],
   'cross.shot': [
     '{player} drills it low across from the {flank}… {receiver} meets it first time!',
     '{player} fizzes a ball across the six-yard box from the {flank}, and {receiver} is sliding in!',
     'Low cross from {player} on the {flank}… {receiver} gets on the end of it!',
     '{player} whips it across the face from the {flank}… {receiver} strikes on the run!',
+    'A driven ball from {player} on the {flank} skids across the box… {receiver} is on it!',
+    '{player} gets to the line on the {flank} and fires it in low; {receiver} connects!',
+    '{receiver} has peeled off the marker, and the low ball from {player} on the {flank} finds the run!',
+    'Hard and low from {player} down the {flank}… {receiver} throws a boot at it!',
+    '{player} cuts a low cross back from the {flank}, and {receiver} meets it on the half-volley!',
+    'Pace on the ball from {player} on the {flank}; {receiver} only has to get a touch!',
   ],
   'cross.found': [
     '{player} picks out {receiver} with a cross from the {flank}.',
     'Good ball in from {player} on the {flank}; {receiver} brings it down in the box.',
     '{player} finds {receiver} from the {flank}, but there’s no clear sight of goal.',
     'Cross from {player} on the {flank}, and {receiver} gathers it in the area.',
+    '{player} picks out {receiver} in the area, though the defenders close quickly.',
+    'From the {flank}, {player} clips it to {receiver}, who cushions it down.',
+    'Measured from {player} out on the {flank}: {receiver} takes it on the chest in the box.',
+    '{receiver} is the target, and {player} finds the run from the {flank}. Bodies everywhere.',
+    '{player} plays a clever ball in from the {flank}, and {receiver} keeps it.',
+    '{receiver} finds a pocket of space, and {player} spots it from the {flank}.',
   ],
   'cross.cut': [
     '{player} swings it in from the {flank}, but {receiver} heads it clear.',
@@ -48,12 +65,20 @@ const linesEn: Record<string, Variants> = {
     '{player} goes all the way to the byline on the {flank} and pulls it back for {receiver}!',
     'Brilliant from {player}: to the byline, a low ball back… and {receiver} arrives on the penalty spot!',
     '{player} skips past the full-back on the {flank} and cuts it back to {receiver}!',
+    '{player} beats the defender to the byline on the {flank} and squares it… {receiver} meets it!',
+    'Byline, pull-back, strike: {player} tees up {receiver}!',
+    '{player} drags it back from the edge of the six-yard box, and {receiver} arrives to hit it!',
+    'All the way to the line from {player}, and the pull-back is perfect for {receiver}!',
+    '{player} gets round the back on the {flank}, and the ball across finds {receiver}!',
+    'A low pull-back from {player}, and {receiver} is first to it!',
   ],
   cutback: [
     '{player} pulls it back from the byline for {receiver}.',
     '{player} reaches the byline on the {flank} and finds {receiver} with the cut-back.',
     'Cut-back from {player}, and {receiver} takes it in the area.',
     '{player} digs it out from the byline and rolls it back to {receiver}.',
+    'Patience from {player} at the byline, and the ball back finds {receiver}.',
+    '{player} pulls it back along the ground, and {receiver} gathers it on the edge of the area.',
   ],
   'cutback.cut': [
     '{player} gets to the byline, but {receiver} cuts out the pull-back.',
@@ -78,6 +103,12 @@ const linesEn: Record<string, Variants> = {
     '{player} sprays it wide to {receiver} on the {flank}. Lovely change of play.',
     '{player} switches the play, and {receiver} has acres on the {flank}.',
     'Big diagonal from {player}, and {receiver} controls it out on the {flank}.',
+    '{player} lifts it across the pitch, and {receiver} brings it down on the {flank}.',
+    'From one wing to the other: {player} finds {receiver} on the {flank}.',
+    'Wonderful vision from {player}, picking out {receiver} wide on the {flank}.',
+    '{player} changes the angle with one pass, and {receiver} is free on the {flank}.',
+    'The ball is moved quickly: {player} to {receiver}, out on the {flank}.',
+    '{player} spots {receiver} unmarked on the {flank} and finds them with a long pass.',
   ],
   overlap: [
     '{receiver} bombs on outside {player} down the {flank}.',
@@ -90,12 +121,20 @@ const linesEn: Record<string, Variants> = {
     'Straight down the middle from {player}; {receiver} wins the header and knocks it down.',
     '{player} launches it forward, and {receiver} holds it up well.',
     'Route one from {player}, and {receiver} gets a head on it.',
+    '{player} skips midfield altogether, and {receiver} battles for it.',
+    'A long ball from {player}, and {receiver} wins the first contact.',
+    '{player} looks for {receiver} early, and the knock-down drops kindly.',
+    'Straight up to {receiver} from {player}, and the ball is laid off.',
   ],
   'counter.release': [
     'They break! {player} releases {receiver} at pace.',
     'Quick as you like, {player} sends {receiver} away on the counter.',
     '{player} spots the run, and {receiver} is away on the break!',
     'This is on! {player} plays it early for {receiver}.',
+    'In a flash, {player} has {receiver} running at the defence.',
+    '{player} looks up and sends {receiver} clear on the break!',
+    'Two passes and they are away: {player} finds {receiver} in space.',
+    '{player} launches the counter with a ball for {receiver}.',
   ],
   'counter.win': [
     '{player} wins it, and they’re away on the break!',
@@ -114,6 +153,18 @@ const linesEn: Record<string, Variants> = {
     '{player} recycles it to {receiver}. No need to force it.',
     'Back and across from {player} to {receiver}, keeping hold of it.',
     '{player} turns it back to {receiver}, and they probe for an opening.',
+    '{player} sees nothing on and plays it back to {receiver}.',
+    'No way through yet, so {player} rolls it back to {receiver}.',
+    '{player} and {receiver} pass it between them, waiting for a gap.',
+    'Composed from {player}: a short ball back to {receiver}, and they reset.',
+    'They keep possession: {player} to {receiver}, nothing hurried.',
+    '{player} shields it and lays it back for {receiver}.',
+    'Around the back it goes, {player} finding {receiver}.',
+    'The press is waiting, so {player} goes the safe way, back to {receiver}.',
+    'Nothing on further forward, so {player} returns it to {receiver}.',
+    '{player} turns back towards their own goal and finds {receiver}.',
+    'A sideways ball from {player} to {receiver} as they look for the opening.',
+    'The tempo drops: {player} gives it back to {receiver}.',
   ],
 };
 const lines = ({ en: linesEn } satisfies Translations<typeof linesEn>)[LOCALE];

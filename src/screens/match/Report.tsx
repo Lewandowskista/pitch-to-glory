@@ -23,7 +23,7 @@ import { competitionName } from '../career/selectors';
 import { selectedSide } from './cam';
 import { LevelUpMoment } from './LevelUpMoment';
 import { MomentsSection, StorySection } from './ReportStory';
-import { matchStory, momentRecap, pickVariant, xpBreakdown } from './reportData';
+import { matchStory, momentRecap, pickVariant, reactionKey, xpBreakdown } from './reportData';
 
 const u = m.ui;
 /** The maps draw only when the player opens them. */
@@ -542,7 +542,7 @@ export function Report({
                   {m.manager}
                   {manager ? ` · ${manager.name}` : ''}
                 </figcaption>
-                <blockquote>“{quote(state.managerReactionKey)}”</blockquote>
+                <blockquote>“{quote(reactionKey(session, 'manager'))}”</blockquote>
               </div>
             </figure>
             <figure className="match-quote" data-testid="fan-reaction">
@@ -551,7 +551,7 @@ export function Report({
               </span>
               <div>
                 <figcaption>{m.fans}</figcaption>
-                <blockquote>“{quote(state.fanReactionKey)}”</blockquote>
+                <blockquote>“{quote(reactionKey(session, 'fans'))}”</blockquote>
               </div>
             </figure>
           </section>

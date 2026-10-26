@@ -207,7 +207,9 @@ Replay compares the whole session, so anything the engine writes into it is gate
 even when it only reads differently: events and their commentary keys (and the number of
 variants they draw from), narration lines, headlines and reactions, keyframes and statistics.
 Only what the session never stores needs no gate: the copy behind a key (`src/i18n`), the
-screens and how the pitch draws the keyframes.
+screens and how the pitch draws the keyframes. Commentary lines are picked in
+`src/engine/match/commentary.ts` (step 5.5): a new event kind or context is a new family of keys
+there and in `src/i18n/commentary.ts`, already on match-22's selection.
 
 **A new rule flag.** Add the optional field to the domain type with a schema bump, set it in
 `generateWorld` or `createCareer`, adopt it in `startNextSeason` for older saves, and add it to

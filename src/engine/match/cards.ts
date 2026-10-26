@@ -69,7 +69,7 @@ export function showCard(
     'card',
     sideTeam(session, side),
     playerId,
-    line(session, CARD_COMMENTARY[kind]),
+    line(session, CARD_COMMENTARY[kind], side),
   );
   shown.card = kind;
   if (playerId === session.setup.selectedPlayerId)

@@ -13,25 +13,11 @@ import { ClubBadge, Factors, strongest, verdictOf } from './Shared';
 import { edgeStyle, kitAppearance } from './pitchKit';
 import { buildFeed, type FeedRow, type NarrationLine } from './feed';
 import { selectedSide, surname } from './cam';
-import { goalLine, goalStory } from './goals';
+import type * as Lines from './lines';
 
 const u = m.ui;
 export type LiveStatus = 'preview' | 'live' | 'decision' | 'halftime' | 'finished';
 
-/** The engine's commentary line for an event. */
-export function commentaryText(event: MatchEvent): string {
-  return matchFormat(matchLabel(event.commentaryKey), event.commentaryParams ?? {});
-}
-/** The live line for an event: goals name the team and the new score (step 5.1). */
-export function liveText(
-  setup: MatchSession['setup'],
-  events: readonly MatchEvent[],
-  event: MatchEvent,
-): string {
-  return event.kind === 'goal'
-    ? goalLine(setup, goalStory(setup, events, event))
-    : commentaryText(event);
-}
 /** A club's three-letter mark for the phone scoreboard and a side too narrow for its name. */
 const mark = (name: string) =>
   name
@@ -609,6 +595,7 @@ export function CommentaryCard({
   narration,
   celebration,
   hidden,
+  lines,
 }: {
   session: MatchSession;
   narration?: readonly NarrationLine[];
@@ -616,25 +603,29 @@ export function CommentaryCard({
   hidden?: string;
   /** Your equipped celebration's name, shown under your goals. */
   celebration?: string;
+  /** The commentary's words (lines.ts), loaded once the match is under way. */
+  lines?: typeof Lines;
 }) {
   const { setup, state } = session;
   const [open, setOpen] = useState(false);
   const id = useId();
-  const rows = useMemo(
-    () =>
-      buildFeed(
-        hidden ? state.match.events.filter((event) => event.id !== hidden) : state.match.events,
-        (event) => liveText(setup, state.match.events, event),
-        (event) =>
-          event.playerId
-            ? setup.players[event.playerId]?.name
-            : event.teamId === setup.home.id
-              ? setup.home.name
-              : setup.away.name,
-        hidden ? narration?.filter((line) => line.eventId !== hidden) : narration,
-      ),
-    [state.match.events, setup, narration, hidden],
-  );
+  const rows = useMemo(() => {
+    if (!lines) return [];
+    const words = lines.feedLines({ setup, state });
+    return buildFeed(
+      hidden ? state.match.events.filter((event) => event.id !== hidden) : state.match.events,
+      words.text,
+      (event) =>
+        event.playerId
+          ? setup.players[event.playerId]?.name
+          : event.teamId === setup.home.id
+            ? setup.home.name
+            : setup.away.name,
+      hidden ? narration?.filter((line) => line.eventId !== hidden) : narration,
+      { spell: words.spell },
+    );
+    // The lines read the lineups and the events; both change with `state`.
+  }, [lines, state, setup, narration, hidden]);
   return (
     <section
       className={cx('match-panel match-commentary', open && 'is-open')}
@@ -657,7 +648,11 @@ export function CommentaryCard({
           <Icon name="chevron" className="h-4 w-4" />
         </button>
       </div>
-      {!rows.length && <p className="match-card-note">{m.opening}</p>}
+      {!rows.length && (
+        <p className="match-card-note">
+          {lines || !state.match.events.length ? m.opening : u.commentaryLoading}
+        </p>
+      )}
       {/* Scrolls within its bounded height, so the keyboard can reach and scroll it too. */}
       <ol id={`${id}-list`} tabIndex={0} aria-labelledby={`${id}-feed`}>
         {rows.map((row) => (

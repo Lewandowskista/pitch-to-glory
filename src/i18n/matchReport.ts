@@ -299,6 +299,134 @@ const reactionTextEn: Record<string, Variants> = {
     'Ten men and no chance. Thanks for nothing.',
     'Lost the head, lost the game.',
   ],
+  // The match story (release 1.0, step 5.5; `reactionStory`): the manager by the player's tone
+  // (good for a solid or star match, poor otherwise), the fans by the story alone.
+  'match.reaction.manager.story.late-winner.good': [
+    'That is what late goals are made of. We kept believing, and you were part of it.',
+    'Never stop. You kept going until the end, and we got our reward.',
+    'Winning it at the death says everything about this group. Great shift from you.',
+    'Nerves of steel at the end. Enjoy that one, then we reset.',
+  ],
+  'match.reaction.manager.story.late-winner.poor': [
+    'We nicked it late, but do not let the result hide your own performance.',
+    'The late goal saved us. You need to be better before it comes to that.',
+    'Three points from nowhere. I need more from you in the eighty-odd minutes before it.',
+    'We will take a late winner, but your game was not where it should be.',
+  ],
+  'match.reaction.manager.story.comeback.good': [
+    'We went behind and came back. That is character, and you showed plenty of it.',
+    'To turn that round shows what this team is about. You led the way.',
+    'We went a goal down, nobody panicked, and you kept doing the right things.',
+    'Comebacks like that are won in the head. You were strong today.',
+  ],
+  'match.reaction.manager.story.comeback.poor': [
+    'We turned it round, but the others dragged us back. I want you in that group.',
+    'A great comeback from the team. Yours was a quiet game, and I noticed.',
+    'The lads showed character. I need to see the same from you.',
+    'We came from behind without much from you. That has to change.',
+  ],
+  'match.reaction.manager.story.late-equaliser.good': [
+    'We found a way back right at the end. Keep that spirit.',
+    'A point that feels like a win. You never stopped running.',
+    'The late leveller shows we do not give up. Good work from you.',
+    'We were nearly beaten and we fought for it. Proud of that.',
+  ],
+  'match.reaction.manager.story.late-equaliser.poor': [
+    'A late point papers over the cracks, yours included.',
+    'We rescued it at the end, but you need to look at your own game.',
+    'The equaliser bailed us out. I expect more from you before it comes to that.',
+    'Lucky to take something. Not good enough from you.',
+  ],
+  'match.reaction.manager.story.late-defeat.good': [
+    'Losing it that late hurts. You did not deserve that.',
+    'Cruel. You played well, and we threw it away at the end.',
+    'Concentration for ninety minutes, not eighty-five. That is not aimed at you; you were good.',
+    'A sore one. Your performance is something to hold on to.',
+  ],
+  'match.reaction.manager.story.late-defeat.poor': [
+    'We switched off at the end and paid for it. You were part of that.',
+    'A late goal against us, and your game had faded long before it.',
+    'Concede that late and you deserve nothing. Look at your part in it.',
+    'We lost our heads late on. I need you sharper when it matters.',
+  ],
+  'match.reaction.manager.story.heavy-defeat.good': [
+    'A heavy defeat, and you were one of the few who stood up to it.',
+    'Embarrassing as a team. You at least kept fighting.',
+    'Nobody comes out of that well, but you came closest.',
+    'We were well beaten. Keep your standards, whatever the scoreboard says.',
+  ],
+  'match.reaction.manager.story.heavy-defeat.poor': [
+    'A hiding, and you were part of it. I expect a reaction this week.',
+    'That was unacceptable from everyone, you included.',
+    'We were taken apart. Look at what you did and did not do.',
+    'Nobody hides from that one. We start again on Monday, and I want more from you.',
+  ],
+  'match.reaction.manager.story.thrashing.good': [
+    'Ruthless. That is how you finish a team off.',
+    'A big win, and you were right at the heart of it.',
+    'When we play like that, nobody lives with us. Excellent.',
+    'Goals, control, intensity. That is the standard now.',
+  ],
+  'match.reaction.manager.story.thrashing.poor': [
+    'A big win for the team. Enjoy it, but you know you can play better.',
+    'Everyone else was flying. You were off the pace, even in a win like that.',
+    'Lovely scoreline. Your own game was not part of the story.',
+    'The team did the damage today. Make sure you are part of it next time.',
+  ],
+  'match.reaction.manager.story.clean-sheet.good': [
+    'A clean sheet. That starts with you and the lads at the back.',
+    'Nothing given away. Organised, brave, concentrated. Well done.',
+    'They barely had a sniff. That is the defending I want.',
+    'Keep clean sheets and we will win plenty. Great work today.',
+  ],
+  'match.reaction.manager.story.clean-sheet.poor': [
+    'We kept a clean sheet, but some of that was luck. Tidy up your own game.',
+    'Nil conceded, but I saw mistakes from you that better sides will punish.',
+    'The clean sheet is a team effort. Yours wobbled at times.',
+    'Nothing went in, but you were not convincing. Sharpen up.',
+  ],
+  'match.reaction.fans.story.late-winner': [
+    'Scenes! Absolute scenes at the end!',
+    'Never in doubt. (It was very much in doubt.)',
+    'Last-minute winners never get old. What a feeling!',
+    'Left it late, but who cares? Get in!',
+  ],
+  'match.reaction.fans.story.comeback': [
+    'Behind and came back to win. Love this team!',
+    'Thought we were beaten. What a turnaround!',
+    'That is how you respond to going behind. Brilliant.',
+    'Character! Pure character from the lads.',
+  ],
+  'match.reaction.fans.story.late-equaliser': [
+    'Saved it at the death! Feels like a win.',
+    'Never give up. Never!',
+    'Was heading for the exits. Glad I stayed!',
+    'A point snatched from the fire. We will take that.',
+  ],
+  'match.reaction.fans.story.late-defeat': [
+    'Gutted. To lose it that late is cruel.',
+    'Ninety minutes of effort, thrown away at the end.',
+    'Who switched off? Painful.',
+    'Sick. Just sick. A point was there for us.',
+  ],
+  'match.reaction.fans.story.heavy-defeat': [
+    'Humiliating. A long way home after that.',
+    'Thrashed. Somebody explain that.',
+    'That was a hiding. Not good enough by a distance.',
+    'Embarrassing. The players owe us after that.',
+  ],
+  'match.reaction.fans.story.thrashing': [
+    'Goals galore! What a day to be here!',
+    'Ruthless! More of that, please.',
+    'Could have been more, honestly. Brilliant.',
+    'Party in the stands. Superb from start to finish.',
+  ],
+  'match.reaction.fans.story.clean-sheet': [
+    'Not a sniff for them. Love a clean sheet.',
+    'Solid as a rock at the back today.',
+    'Nothing getting past us. Brilliant defending.',
+    'A clean sheet and a proper defensive shift.',
+  ],
 };
 const reactionText = ({ en: reactionTextEn } satisfies Translations<typeof reactionTextEn>)[LOCALE];
 

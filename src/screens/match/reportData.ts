@@ -13,6 +13,7 @@ import type {
 } from '../../model/domain';
 import type { MatchSession } from '../../engine/match/types';
 import { expectedImpact } from '../../engine/match/decisions';
+import { rolePosition } from '../../engine/match/shared';
 import { CONFIG } from '../../engine/config';
 import { createRng } from '../../engine/rng';
 import { chanceMeaning, type ChanceMeaning } from './choices';
@@ -212,4 +213,62 @@ export function xpBreakdown(
 export function pickVariant<T>(seed: string, key: string, variants: readonly T[]): T {
   if (variants.length === 0) throw new Error(`No variants for ${key}`);
   return createRng(`${seed}:report:${key}`).pick(variants);
+}
+
+/**
+ * What the touchline reacts to beyond the result (release 1.0, step 5.5), read from the goals
+ * from the player's side: a late winner, equaliser or defeat (the last goal, from the 85th
+ * minute, changed the result), a comeback win, a beating by three or more either way, or a
+ * clean sheet kept by a keeper or a defender. Undefined when the match told none of these.
+ */
+export type ReactionStory =
+  | 'late-winner'
+  | 'comeback'
+  | 'late-equaliser'
+  | 'late-defeat'
+  | 'heavy-defeat'
+  | 'thrashing'
+  | 'clean-sheet';
+const LATE_GOAL_MINUTE = 85;
+export function reactionStory(session: MatchSession): ReactionStory | undefined {
+  const { setup, state } = session;
+  const player = setup.players[setup.selectedPlayerId]!;
+  const own = player.clubId === setup.home.id ? 0 : 1;
+  const other = own === 0 ? 1 : 0;
+  const score: [number, number] = [0, 0];
+  let trailed = false;
+  let last: { side: number; minute: number; before: number } | undefined;
+  for (const event of state.match.events) {
+    if (event.kind !== 'goal') continue;
+    const side = event.teamId === setup.home.id ? 0 : 1;
+    const before = score[own] - score[other];
+    score[side]++;
+    last = { side: side === own ? 0 : 1, minute: event.minute, before };
+    if (score[own] < score[other]) trailed = true;
+  }
+  const margin = score[own] - score[other];
+  const late = last !== undefined && last.minute >= LATE_GOAL_MINUTE;
+  if (late && margin > 0 && last!.side === 0 && last!.before === 0) return 'late-winner';
+  if (margin > 0 && trailed) return 'comeback';
+  if (late && margin === 0 && last!.side === 0) return 'late-equaliser';
+  if (late && margin < 0 && last!.side === 1 && last!.before === 0) return 'late-defeat';
+  if (margin <= -3) return 'heavy-defeat';
+  if (margin >= 3) return 'thrashing';
+  const defends = ['GK', 'CB', 'LB', 'RB'].includes(rolePosition(setup));
+  if (margin >= 0 && score[other] === 0 && defends && !state.substituted) return 'clean-sheet';
+  return undefined;
+}
+/**
+ * The reaction key the report quotes: the engine's (by result and rating band, or a sending
+ * off), or the match story's when it told one. The manager's story lines keep the rating's
+ * tone: praise for a solid or star match, a word of warning for a poor one.
+ */
+export function reactionKey(session: MatchSession, who: 'manager' | 'fans'): string {
+  const state = session.state;
+  const engine = who === 'manager' ? state.managerReactionKey : state.fanReactionKey;
+  const story = state.sentOff ? undefined : reactionStory(session);
+  if (!story) return engine;
+  return who === 'fans'
+    ? `match.reaction.fans.story.${story}`
+    : `match.reaction.manager.story.${story}.${engine.endsWith('.poor') ? 'poor' : 'good'}`;
 }

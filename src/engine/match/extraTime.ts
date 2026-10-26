@@ -4,7 +4,7 @@
  */
 import { createRng } from '../rng';
 import { CONFIG } from '../config';
-import type { MatchSession } from './types';
+import { rules22, type MatchSession } from './types';
 import { MATCH_CONFIG as C } from './tuning';
 import { event, line } from './events';
 import { offPitch, selectedSide } from './shared';
@@ -38,7 +38,9 @@ export function startExtraTime(session: MatchSession): void {
     'halftime',
     session.setup.players[session.setup.selectedPlayerId]!.clubId!,
     null,
-    'match.commentary.extra-time',
+    rules22(session.setup)
+      ? line(session, 'match.commentary.extra-time')
+      : 'match.commentary.extra-time',
   );
 }
 /**

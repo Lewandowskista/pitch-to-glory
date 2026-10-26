@@ -92,7 +92,9 @@ describe('managers’ substitutions (match-15)', () => {
         expect(sub.minute).toBeLessThanOrEqual(CONFIG.match.aiSubstitutions.to);
         expect(session.setup.players[sub.playerId!]!.primaryPosition).not.toBe('GK');
         expect(sub.receiverId).toBeDefined();
-        expect(sub.commentaryKey).toMatch(/^match\.commentary\.change\.\d$/);
+        expect(sub.commentaryKey).toMatch(
+          /^match\.commentary\.change(-chasing|-protecting)?\.\d+$/,
+        );
         expect(sub.commentaryParams?.receiver).toBe(session.setup.players[sub.receiverId!]!.name);
         const team = sub.teamId === m.home.teamId ? m.home : m.away;
         expect(team.starterIds).toContain(sub.receiverId);
@@ -177,7 +179,7 @@ describe('full discipline (match-16)', () => {
       for (const card of session.state.match.events.filter((e) => e.kind === 'card')) {
         expect(card.commentaryKey).toMatch(
           card.card === 'yellow'
-            ? /^match\.commentary\.card\.\d$/
+            ? /^match\.commentary\.card(-early|-late)?\.\d+$/
             : new RegExp(`^match\\.commentary\\.${card.card}\\.\\d$`),
         );
         expect(session.setup.players[card.playerId!]!.primaryPosition).not.toBe('GK');

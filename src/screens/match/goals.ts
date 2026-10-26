@@ -1,6 +1,7 @@
 import type { MatchEvent } from '../../model/domain';
 import type { MatchSetup } from '../../engine/match';
 import { hashSeed } from '../../engine/rng';
+import { cycledVariant } from '../../engine/match/commentary';
 import { goalCopy } from '../../i18n/goals';
 import { matchFormat } from '../../i18n/match';
 
@@ -49,40 +50,68 @@ export function goalStory(
   };
 }
 
-/**
- * The commentary line for a goal, naming the team and the new score. The variant is drawn from
- * the event id, so a goal reads the same on every render and after a reload.
- */
-export function goalLine(
-  setup: Pick<MatchSetup, 'home' | 'away' | 'players' | 'neutral'>,
-  story: GoalStory,
-): string {
-  const lines = goalCopy.lines;
-  const pool = story.own
-    ? lines.ownGoal
+type GoalPool = keyof typeof goalCopy.lines;
+/** Which lines a goal draws from: own goals, late and score-changing goals, then by ground. */
+function goalPool(setup: Pick<MatchSetup, 'neutral'>, story: GoalStory): GoalPool {
+  return story.own
+    ? 'ownGoal'
     : story.late && story.context === 'equaliser'
-      ? lines.lateEqualiser
+      ? 'lateEqualiser'
       : story.late && story.context === 'goAhead'
-        ? lines.lateGoAhead
+        ? 'lateGoAhead'
         : story.context === 'equaliser'
-          ? lines.equaliser
+          ? 'equaliser'
           : story.context === 'goAhead'
-            ? lines.goAhead
+            ? 'goAhead'
             : setup.neutral
-              ? lines.neutral
+              ? 'neutral'
               : story.side === 0
-                ? lines.home
-                : lines.away;
+                ? 'home'
+                : 'away';
+}
+type GoalSetup = Pick<MatchSetup, 'home' | 'away' | 'players' | 'neutral'> & { seed?: string };
+/**
+ * A goal's line and its template id (`goal:<pool>.<n>`). Given the match's events (step 5.5),
+ * a match's goals go through each pool's lines in a shuffled order before any repeats; without
+ * them the variant comes from the event id. Either way a goal reads the same on every render
+ * and after a reload.
+ */
+export function goalText(
+  setup: GoalSetup,
+  story: GoalStory,
+  events?: readonly MatchEvent[],
+): { text: string; template: string } {
+  const pool = goalPool(setup, story);
+  const lines = goalCopy.lines[pool];
+  let index = hashSeed(story.event.id) % lines.length;
+  if (events) {
+    let uses = 0;
+    for (const entry of events) {
+      if (entry.id === story.event.id) break;
+      if (entry.kind === 'goal' && goalPool(setup, goalStory(setup, events, entry)) === pool)
+        uses++;
+    }
+    index = cycledVariant(`${setup.seed ?? ''}:goal-lines:${pool}`, lines.length, uses);
+  }
   const team = story.side === 0 ? setup.home : setup.away;
   const opponent = story.side === 0 ? setup.away : setup.home;
-  return matchFormat(pool[hashSeed(story.event.id) % pool.length]!, {
-    scorer: (story.event.playerId && setup.players[story.event.playerId]?.name) || team.name,
-    team: team.name,
-    opponent: opponent.name,
-    minute: story.event.minute,
-    scoreline: scoreline(setup, story.score),
-  });
+  return {
+    text: matchFormat(lines[index]!, {
+      scorer: (story.event.playerId && setup.players[story.event.playerId]?.name) || team.name,
+      team: team.name,
+      opponent: opponent.name,
+      minute: story.event.minute,
+      scoreline: scoreline(setup, story.score),
+    }),
+    template: `goal:${pool}.${index}`,
+  };
 }
+/** The commentary line for a goal, naming the team and the new score (see `goalText`). */
+export const goalLine = (
+  setup: GoalSetup,
+  story: GoalStory,
+  events?: readonly MatchEvent[],
+): string => goalText(setup, story, events).text;
 
 /** "Vale 2–1 Ashby". */
 export const scoreline = (setup: Pick<MatchSetup, 'home' | 'away'>, score: [number, number]) =>

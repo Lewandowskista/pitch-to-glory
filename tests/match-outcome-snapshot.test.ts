@@ -43,9 +43,10 @@ import { onEngine, type Engine } from './support/engines';
  * Release 1.0 Phase 5 plays the same samples on both engines: `EXPECTED` on match-22 (setups
  * with `rules22`) and `PREVIOUS` on match-21 (the same setups without it). Each 1.0 rule change
  * re-records `EXPECTED` deliberately and must leave `PREVIOUS` byte-identical: that is the
- * proof that sessions saved before the update still replay. Until the first rule lands the two
- * engines play identically, which the third test asserts; the first rule change replaces it
- * with the check that the tables differ where intended.
+ * proof that sessions saved before the update still replay. Until the first rule landed the two
+ * engines played identically; step 5.5 (commentary) was the first change, so the third test now
+ * checks that the sessions differ while the results stay the same. A step that changes results
+ * replaces that with the check that the tables differ where intended.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
@@ -70,16 +71,19 @@ const PREVIOUS: Record<string, { hash: string; goals: number; moments: number }>
  * unchanged, so this must never move while match-21 is kept.
  */
 const PREVIOUS_SESSIONS = '3f20bccd556199d645310c63';
-/** The current engine (match-22): no 1.0 rule has landed yet, so it plays as match-21. */
+/**
+ * The current engine (match-22). Step 5.5 (commentary) changed which lines the engine logs and
+ * how a missed shot is drawn, not a result: goals and moments still equal match-21's.
+ */
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '061b7390d0cefae6128dc1bb', goals: 63, moments: 214 },
-  CB: { hash: 'cec58987ce402aefd11309b9', goals: 61, moments: 231 },
-  LB: { hash: 'fd856c40a8b80b27659e4dd2', goals: 49, moments: 228 },
-  DM: { hash: '1ec5c6846207d7f6927d4fd6', goals: 60, moments: 207 },
-  CM: { hash: 'cae6cb90f9f2329cd6f41c2b', goals: 66, moments: 250 },
-  AM: { hash: 'f15966d4279057bbb603c8ce', goals: 72, moments: 268 },
-  RW: { hash: 'bfa8dd4c0ca82fe35af84bd0', goals: 54, moments: 312 },
-  ST: { hash: '4b53ae123c0f69d798d2944a', goals: 68, moments: 311 },
+  GK: { hash: 'f18d59d6239706662b0c272f', goals: 63, moments: 214 },
+  CB: { hash: 'aaf0283b5f2f05eea937c15e', goals: 61, moments: 231 },
+  LB: { hash: '5730e8e7fce6aaa30f15d861', goals: 49, moments: 228 },
+  DM: { hash: 'b873a49284059a45dd7b3cbd', goals: 60, moments: 207 },
+  CM: { hash: 'ddc8a0403e9e3c985bebcb09', goals: 66, moments: 250 },
+  AM: { hash: 'a27a5b6107ceecf1a8776a60', goals: 72, moments: 268 },
+  RW: { hash: 'be6ae6a5257181780eb53371', goals: 54, moments: 312 },
+  ST: { hash: 'ec7ea487e440ed7eafb9606c', goals: 68, moments: 311 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });
@@ -264,8 +268,15 @@ describe('match outcome snapshot', { timeout: 300000 }, () => {
     expect(found.get(PREVIOUS_MATCH_ENGINE)!.outcomes).toEqual(PREVIOUS);
     expect(found.get(PREVIOUS_MATCH_ENGINE)!.sessions).toBe(PREVIOUS_SESSIONS);
   });
-  it('plays match-22 exactly as match-21 until a 1.0 rule lands', () => {
-    expect(EXPECTED).toEqual(PREVIOUS);
-    expect(found.get(MATCH_ENGINE_VERSION)).toEqual(found.get(PREVIOUS_MATCH_ENGINE));
+  it('logs match-22 lines of its own while its results stay those of match-21 (step 5.5)', () => {
+    const results = (table: typeof EXPECTED) =>
+      Object.fromEntries(
+        Object.entries(table).map(([position, { goals, moments }]) => [
+          position,
+          { goals, moments },
+        ]),
+      );
+    expect(results(EXPECTED)).toEqual(results(PREVIOUS));
+    expect(found.get(MATCH_ENGINE_VERSION)!.sessions).not.toBe(PREVIOUS_SESSIONS);
   });
 });
