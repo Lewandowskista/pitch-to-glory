@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import {
   expect,
   nationalCareer,
@@ -59,8 +59,34 @@ async function playMatch(page: Page) {
 /** Advance to the next matchday once the hub allows it: it waits while a save or match is in flight. */
 async function continueWeek(page: Page): Promise<void> {
   const action = page.getByRole('button', { name: 'Continue to next matchday', exact: true });
+  // A knock in the last match asks for a recovery plan before the week can move on: take the
+  // quicker return, as a player keen to get back would.
+  const rush = page.getByRole('button', { name: /^Rush back/ });
+  await expect(action.or(rush).first()).toBeVisible({ timeout: 60000 });
+  if (await rush.isVisible()) await rush.click();
   await expect(action).toBeEnabled({ timeout: 60000 });
   await action.click();
+}
+/** Continue week by week (an injury can keep the player out for a few) until `ready` shows. */
+async function untilMatchday(page: Page, ready: Locator): Promise<void> {
+  const action = page.getByRole('button', { name: 'Continue to next matchday', exact: true });
+  for (let week = 0; week < 8 && !(await ready.isVisible()); week++) {
+    await continueWeek(page);
+    // The week runs with Continue disabled; it is over when the next matchday is ready, or
+    // when Continue is offered again (the player is still out).
+    await expect(action)
+      .toBeDisabled({ timeout: 5000 })
+      .catch(() => undefined);
+    await expect
+      .poll(
+        async () => (await ready.isVisible()) || (await action.isEnabled().catch(() => false)),
+        {
+          timeout: 120000,
+        },
+      )
+      .toBe(true);
+  }
+  await expect(ready).toBeVisible();
 }
 
 test('creates a career, plays matchdays, develops the player and restores the hub', async ({
@@ -141,7 +167,11 @@ test('creates a career, plays matchdays, develops the player and restores the hu
     // A second fixture the same week (a cup tie) comes first; otherwise the week moves on.
     const next = page.getByRole('button', { name: 'Your next fixture', exact: true });
     if (await next.isVisible()) await next.click();
-    else await continueWeek(page);
+    else
+      await untilMatchday(
+        page,
+        page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }),
+      );
     await expect(
       page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }),
     ).toBeVisible({ timeout: 120000 });
@@ -196,8 +226,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
     page.locator('[data-tour="player-card"]').getByRole('link', { name: /attribute points?/ }),
   ).toContainText(String(before - 1));
   // The player may already have a second fixture this week.
-  if (!(await play.isVisible())) await continueWeek(page);
-  await expect(play).toBeVisible({ timeout: 120000 });
+  await untilMatchday(page, play);
 
   // The career autosaved to slot 1 throughout; the save card shows it, and a refresh of the
   // hub restores it.
