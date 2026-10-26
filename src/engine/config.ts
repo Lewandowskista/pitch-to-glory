@@ -469,7 +469,7 @@ export const CONFIG = {
         to: 80,
         extraTo: 105,
         peak: 68,
-        base: { key: 0.11, rotation: 0.075, backup: 0.05, youth: 0.035 } as Record<string, number>,
+        base: { key: 0.09, rotation: 0.05, backup: 0.03, youth: 0.02 } as Record<string, number>,
         ramp: [0.5, 1.4, 0.9] as const,
         chasing: { attack: 1.6, defence: 0.6 },
         leading: { attack: 0.8, defence: 1.4 },
