@@ -21,7 +21,7 @@ import { managerSubstitutions } from './substitutions';
 import { openMoment, placeLateMoment } from './moments';
 import { resolveChoice } from './resolve';
 import { resolveShootout, settleShootout } from './extraTime';
-import { finish } from './report';
+import { finish, poorRating } from './report';
 import { currentRates, shares, updatePossession } from './rates';
 import { afterMinute, simulateMinuteGoals } from './minute';
 import { copy, offPitch, rolePosition, selectedSide } from './shared';
@@ -83,7 +83,8 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
       const tactical =
         player.primaryPosition !== 'GK' &&
         (T.minutes as readonly number[]).includes(m.minute) &&
-        (state.stats.rating < T.ratingBelow || m.score[own]! - m.score[1 - own]! >= T.leadingBy) &&
+        (state.stats.rating < poorRating(next) ||
+          m.score[own]! - m.score[1 - own]! >= T.leadingBy) &&
         createRng(`${setup.seed}:substitution:${m.minute}`).next() < T.chance;
       if (inWindow && (tired || tactical)) {
         const team = own === 0 ? 'home' : 'away';

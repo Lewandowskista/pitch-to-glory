@@ -225,6 +225,8 @@ export interface LiveStats {
   xg: [number, number];
   /** Shots that ended in the net or in the keeper's hands [home, away], as choreographed. */
   shotsOnTarget: [number, number];
+  /** Shots that hit the post or the bar [home, away] (engine match-22; absent before). */
+  woodwork?: [number, number];
   /** The selected player's completed decision passes that led to a teammate's shot. */
   keyPasses: number;
   /** The selected player's tackling decisions, won or lost (`tackles` counts those won). */
@@ -237,9 +239,12 @@ export interface LiveStats {
 /** The heat grid: columns along the pitch and rows across it (cells of about 5 m × 5 m). */
 export const HEAT_COLUMNS = 20;
 export const HEAT_ROWS = 13;
-/** `discipline` (cards) counts from match-16. */
+/**
+ * `discipline` (cards) counts from match-16; `par` (what the reference player was expected to
+ * earn from the player's moments, subtracted) from match-22.
+ */
 export type RatingPart =
-  RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team' | 'discipline';
+  RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team' | 'discipline' | 'par';
 /** How play restarts at the start of the next passage (see motion.ts). */
 export type Restart = 'kickoff' | 'goal' | 'second-half' | 'goal-kick' | 'corner';
 /** Who has the ball between passages. */
@@ -324,7 +329,11 @@ export interface MatchState {
    */
   heat: number[];
   /** Rating contributions above the base, by decision family and outcome bonus. */
-  ratingParts: Record<Exclude<RatingPart, 'discipline'>, number> & { discipline?: number };
+  ratingParts: Record<Exclude<RatingPart, 'discipline' | 'par'>, number> & {
+    discipline?: number;
+    /** Engine match-22 only: written at the first key moment. */
+    par?: number;
+  };
   report: MatchReport | null;
   momentMinutes: number[];
   /** Second-half odds multiplier from the half-time talk. */

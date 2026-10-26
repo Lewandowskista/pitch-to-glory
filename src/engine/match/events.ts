@@ -8,7 +8,8 @@ import { rules22, type MatchSession } from './types';
 import { MATCH_CONFIG as C } from './tuning';
 import { commentaryLine, missedShot } from './commentary';
 import { clamp, round6 } from './decisions';
-import { addRating } from './report';
+import { addRating, goalCredit } from './report';
+import { settleMiss } from './shots';
 import { ATTACKERS, attacksRight, onPitch, sideTeam } from './shared';
 
 /**
@@ -99,10 +100,11 @@ export function recordShot(
   if (side === 0) session.state.stats.homeShots++;
   else session.state.stats.awayShots++;
   if (id === session.setup.selectedPlayerId) session.state.stats.shots++;
-  const family =
+  const missed =
     rules22(session.setup) && scored === false && key === 'match.commentary.attempt'
-      ? `${key}-${missedShot(session)}`
-      : key;
+      ? missedShot(session)
+      : undefined;
+  const family = missed ? `${key}-${missed}` : key;
   const shot = event(
     session,
     'shot',
@@ -113,6 +115,8 @@ export function recordShot(
     target,
   );
   addXg(session, side, shot, xg);
+  // How it was missed, as a result and (the woodwork) a statistic (match-22, step 5.3).
+  if (missed) settleMiss(session, shot, missed);
   return shot;
 }
 export function goal(session: MatchSession, side: number, playerId: string, target?: number): void {
@@ -137,7 +141,7 @@ export function goal(session: MatchSession, side: number, playerId: string, targ
   );
   if (playerId === session.setup.selectedPlayerId) {
     session.state.stats.goals++;
-    addRating(session, 'goals', C.rating.goal);
+    addRating(session, 'goals', goalCredit(session));
   }
 }
 /** Picks a likely finisher: forwards most often, never the goalkeeper. */

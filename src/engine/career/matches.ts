@@ -21,7 +21,7 @@ import {
   type MatchSession,
 } from '../match';
 import { expectedImpact } from '../match/decisions';
-import { performanceFame, performanceXp } from '../match/rewards';
+import { performanceFame, performanceXp, rewardScale } from '../match/rewards';
 import { commitPlayedFixture, type PlayedFixture } from '../world/simulate';
 import { recordEvent } from '../world/events';
 import { matchExposure } from '../world/finalize';
@@ -218,20 +218,28 @@ export function commitCareerMatch(
           : objective.progress,
   }));
   const minutesPlayed = me.minutes + me.extraTimeMinutes;
-  const performance = performanceXp({
-    minutes: minutesPlayed,
-    rating: me.rating,
-    goals: me.goals,
-    assists: me.assists,
-    objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
-  });
+  const performance = performanceXp(
+    {
+      minutes: minutesPlayed,
+      rating: me.rating,
+      goals: me.goals,
+      assists: me.assists,
+      objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
+    },
+    rewardScale(session),
+  );
   // The same terms as the report's fame, from the finalized contributions.
   const backLine = ['GK', 'CB', 'LB', 'RB'].includes(rolePosition(session.setup));
   // A dismissal (match-16) costs fame and the clean sheet's, as the report shows.
   const dismissed = state.sentOff;
   const fame =
-    performanceFame(me.rating, me.goals, me.assists, backLine && conceded === 0 && !dismissed) -
-    (dismissed ? CONFIG.match.cards.fame : 0);
+    performanceFame(
+      me.rating,
+      me.goals,
+      me.assists,
+      backLine && conceded === 0 && !dismissed,
+      rewardScale(session),
+    ) - (dismissed ? CONFIG.match.cards.fame : 0);
   const opponentId = ownHome ? fixture.awayId : fixture.homeId;
   const outcome =
     result.winnerId === player.clubId ? 'win' : result.winnerId === opponentId ? 'loss' : 'draw';
@@ -298,7 +306,7 @@ export function commitCareerMatch(
     );
   learnSlot(session, player, minutesPlayed);
   accrueMatchBonuses(world, record.goals, record.cleanSheet);
-  socialMatch(world, record, fixture);
+  socialMatch(world, record, fixture, rewardScale(session));
   const signature = celebrationFame(world, record.goals, importance);
   honoursMatch(world, session, record, importance);
   careerNews(world, player, record);

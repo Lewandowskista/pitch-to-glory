@@ -77,7 +77,8 @@ interface Actor {
   /** A stable personal offset from the shape, so teammates do not move in lockstep. */
   style: Spot;
 }
-type ShotVisual = 'goal' | 'catch' | 'parry' | 'block' | 'wide' | 'over' | 'smother' | 'punch';
+type ShotVisual =
+  'goal' | 'catch' | 'parry' | 'block' | 'wide' | 'over' | 'smother' | 'punch' | 'woodwork';
 type PassStyle = 'short' | 'through' | 'cross' | 'long';
 interface Want {
   side: Side;
@@ -161,6 +162,8 @@ const MISSED_SHOTS: Record<string, ShotVisual> = {
   'attempt-wide-late': 'wide',
   'attempt-over': 'over',
   'attempt-blocked': 'block',
+  // Off the post or bar (release 1.0, step 5.3), the player's own shots included.
+  'attempt-woodwork': 'woodwork',
 };
 const KEEPER_SAVES: Record<string, ShotVisual> = {
   hold: 'catch',
@@ -1383,6 +1386,25 @@ class Director {
         carrier: null,
         side: defending,
         beat: { kind: 'block', actor: blocker, eventId: ids.block },
+      });
+      return this.ball;
+    }
+    if (visual === 'woodwork') {
+      // Off the post (engine match-22): the ball comes back into play and the defence clears.
+      const post = toward(100, aim < 50 ? 44.6 : 55.4);
+      strike(post, 'shot', { dead: false });
+      const rebound = toward(
+        90 + this.rng.next() * 5,
+        aim < 50 ? 38 + this.rng.next() * 8 : 54 + this.rng.next() * 8,
+      );
+      // The nearest outfielder of the defence gathers the rebound.
+      const collector = this.nearest(defending, rebound).find((actor) => !actor.keeper)!;
+      this.emit({
+        dt: 700,
+        ball: rebound,
+        motion: 'loose',
+        carrier: collector.id,
+        beat: { kind: 'intercept', actor: collector, won: true },
       });
       return this.ball;
     }

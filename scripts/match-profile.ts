@@ -11,8 +11,9 @@
  *   npm run profile:match -- --check --assert-targets   also fail on the 1.0 targets (step 2.3)
  *
  * The check also reports the 1.0 targets (docs/RELEASE-1.0-PLAN.md step 2.3; `TARGETS` below):
- * choices that matter, no dominant choice, believable ratings and match statistics. They are
- * reported, not asserted, until phase 5 meets them and flips their `asserted` flags.
+ * choices that matter, no dominant choice, believable ratings, match statistics and goals in
+ * added time. Each is reported, not asserted, until the phase 5 step that meets it flips its
+ * `asserted` flag: ratings and match statistics are asserted from step 5.3.
  *
  * Not modelled: a player starting on the bench. The match engine's selected player always
  * starts; benching is a career matter, gated by the career profile's playing time.
@@ -130,6 +131,8 @@ export interface PositionProfile {
     matches: number;
     shots: number;
     onTarget: number;
+    /** Shots off the post or bar (engine match-22; absent before). */
+    woodwork?: number;
     goals: number;
     addedTimeGoals: number;
     possession: number[];
@@ -281,6 +284,7 @@ export function profilePosition(
     matches: 0,
     shots: 0,
     onTarget: 0,
+    woodwork: 0,
     goals: 0,
     addedTimeGoals: 0,
     possession: [],
@@ -329,6 +333,8 @@ export function profilePosition(
     statistics.matches++;
     statistics.shots += best.state.stats.homeShots + best.state.stats.awayShots;
     statistics.onTarget += best.state.stats.shotsOnTarget[0] + best.state.stats.shotsOnTarget[1];
+    const woodwork = best.state.stats.woodwork ?? [0, 0];
+    statistics.woodwork! += woodwork[0] + woodwork[1];
     statistics.possession.push(best.state.stats.homePossession);
     for (const event of best.state.match.events)
       if (event.kind === 'goal') {
@@ -820,7 +826,8 @@ export const TARGETS: Target<PositionProfile[]>[] = [
     id: 'ratings',
     name: 'ratings: per-position mean 6.5–6.9, standard deviation 0.7–1.0, ≤ 3% at 9.0+ and ≤ 3% at 5.0 or less',
     phase: 5,
-    asserted: false,
+    // Met by step 5.3 (engine match-22) on both seeds.
+    asserted: true,
     evaluate: (profiles) => {
       const measured = profiles.filter((p) => p.rating.sd !== undefined);
       if (!measured.length) return { met: null, value: 'no rating spread data' };
@@ -844,9 +851,10 @@ export const TARGETS: Target<PositionProfile[]>[] = [
   },
   {
     id: 'match-statistics',
-    name: 'match statistics: shots on target 30–40%; 11–14 shots a team; possession p10–p90 at least 40–60%; some goals in added time',
+    name: 'match statistics: shots on target 30–40%; 11–14 shots a team; possession p10–p90 at least 40–60%',
     phase: 5,
-    asserted: false,
+    // Met by step 5.3 (engine match-22) on both seeds.
+    asserted: true,
     evaluate: (profiles) => {
       const measured = profiles.filter((p) => p.statistics);
       if (!measured.length) return { met: null, value: 'no statistics data' };
@@ -866,18 +874,36 @@ export const TARGETS: Target<PositionProfile[]>[] = [
         const possession = list.flatMap((p) => p.statistics!.possession);
         const p10 = quantile(possession, 0.1);
         const p90 = quantile(possession, 0.9);
-        const added = sum((s) => s.addedTimeGoals);
-        const goals = sum((s) => s.goals);
+        const woodwork = sum((s) => s.woodwork ?? 0) / Math.max(1, matches);
         const ok =
           within(onTarget, TARGET_BANDS.onTargetShare[0], TARGET_BANDS.onTargetShare[1]) &&
           within(shots, TARGET_BANDS.shotsPerTeam[0], TARGET_BANDS.shotsPerTeam[1]) &&
           p10 <= TARGET_BANDS.possession[0] &&
-          p90 >= TARGET_BANDS.possession[1] &&
-          added > 0;
+          p90 >= TARGET_BANDS.possession[1];
         met &&= ok;
         parts.push(
-          `${seed}: on target ${(onTarget * 100).toFixed(1)}%, ${shots.toFixed(1)} shots a team, possession p10–p90 ${p10}–${p90}%, ${added} of ${goals} goals in added time, ${matches} matches`,
+          `${seed}: on target ${(onTarget * 100).toFixed(1)}%, ${shots.toFixed(1)} shots a team, possession p10–p90 ${p10}–${p90}%, ${woodwork.toFixed(2)} off the woodwork a match, ${matches} matches`,
         );
+      }
+      return { met, value: parts.join(' | ') };
+    },
+  },
+  {
+    // Split from the match statistics (step 5.3): stoppage time is step 5.4's.
+    id: 'added-time-goals',
+    name: 'match statistics: some goals in added time',
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      const measured = profiles.filter((p) => p.statistics);
+      if (!measured.length) return { met: null, value: 'no statistics data' };
+      const parts: string[] = [];
+      let met = true;
+      for (const [seed, list] of bySeed(measured)) {
+        const added = list.reduce((total, p) => total + p.statistics!.addedTimeGoals, 0);
+        const goals = list.reduce((total, p) => total + p.statistics!.goals, 0);
+        met &&= added > 0;
+        parts.push(`${seed}: ${added} of ${goals} goals in added time`);
       }
       return { met, value: parts.join(' | ') };
     },

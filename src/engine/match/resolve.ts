@@ -10,7 +10,8 @@ import { SITUATION_BY_ID, type ChoiceTemplate } from './situations';
 import type { Card } from './discipline';
 import { round6 } from './decisions';
 import { addXg, chance, event, finisher, goal, line, recordShot } from './events';
-import { addRating } from './report';
+import { addRating, assistCredit, creditDecision, errorCredit, stopCredit } from './report';
+import { ownMiss } from './shots';
 import { showCard } from './cards';
 import { menDown, playedSlot, selectedSide } from './shared';
 
@@ -23,6 +24,7 @@ export function resolveChoice(next: MatchSession, choiceId: string): void {
     m = s.match,
     setup = next.setup;
   const moment = s.currentMoment!;
+  const { goals: scored, assists: assisted } = s.stats;
   const choice = moment.choices.find((c) => c.id === choiceId);
   const template: ChoiceTemplate | undefined = SITUATION_BY_ID[moment.situationId]?.choices.find(
     (c) => c.id === choiceId,
@@ -52,7 +54,7 @@ export function resolveChoice(next: MatchSession, choiceId: string): void {
     if (!success) {
       goal(next, 1 - side, shooter);
       s.stats.errors++;
-      addRating(next, 'errors', C.rating.error);
+      addRating(next, 'errors', errorCredit(next));
     }
   } else if (template.event === 'shot') {
     if (side === 0) s.stats.homeShots++;
@@ -61,6 +63,7 @@ export function resolveChoice(next: MatchSession, choiceId: string): void {
     const shot = event(next, 'shot', p.clubId!, p.id, line(next, key), outcome, template.target);
     addXg(next, side, shot, choice.probability);
     if (success) goal(next, side, p.id, template.target);
+    else ownMiss(next, shot);
   } else event(next, template.event, p.clubId!, p.id, line(next, key), outcome);
   // A failed defending choice can be a foul worth a card (match-16): its own stream, so the
   // decision's rolls never move. A side already down `maxDismissals` men gets no more reds.
@@ -93,27 +96,28 @@ export function resolveChoice(next: MatchSession, choiceId: string): void {
     if (success) s.stats.tackles++;
   }
   if (template.stat === 'saves' && success) s.stats.saves++;
-  if (success && (template.family === 'goalkeeping' || template.family === 'defending')) {
-    // A stop earns credit in proportion to the danger it removed and its difficulty, so its
-    // expected value (stop × danger) is the same for every defensive choice.
-    const danger =
-      template.fixed ??
+  // A stop earns credit in proportion to the danger it removed and its difficulty, so its
+  // expected value (stop × danger) is the same for every defensive choice.
+  const stopping = template.family === 'goalkeeping' || template.family === 'defending';
+  const danger = stopping
+    ? (template.fixed ??
       template.againstShare *
         moment.budget.against *
-        (template.opponent === 'attacker' ? C.decision.defensiveEdge : 1);
-    // Divided by the reference player's odds (match-13), an average player earns what they
-    // did, and a better one more: their stops are worth their quality.
-    addRating(next, 'saves', (C.rating.stop * danger) / referenceOdds(choice));
-  }
+        (template.opponent === 'attacker' ? C.decision.defensiveEdge : 1))
+    : 0;
+  // Divided by the reference player's odds (match-13), an average player earns what they
+  // did, and a better one more: their stops are worth their quality.
+  if (success && stopping)
+    addRating(next, 'saves', stopCredit(next, danger, referenceOdds(choice)));
   // A beaten defender (match-13): an attacker's successful dribble leads into the shot itself,
   // carrying the chance it made, instead of a hidden roll.
-  const chains =
-    success &&
+  const chainable =
     template.event === 'dribble' &&
     template.scorer === 'self' &&
     !moment.follows &&
     CHAINING.includes(playedSlot(next).position) &&
     stakes.successGoal > 0;
+  const chains = success && chainable;
   if (chains) s.chain = { goal: stakes.successGoal };
   // Follow-up chances: created for the selected team, or conceded to the opposition.
   const goalProbability = chains
@@ -154,7 +158,7 @@ export function resolveChoice(next: MatchSession, choiceId: string): void {
       const scoredGoal = m.events.findLast((e) => e.kind === 'goal');
       if (scoredGoal) scoredGoal.assistId = p.id;
       s.stats.assists++;
-      addRating(next, 'assists', C.rating.assist);
+      addRating(next, 'assists', assistCredit(next));
     }
   }
   const concedeProbability = success
@@ -173,15 +177,32 @@ export function resolveChoice(next: MatchSession, choiceId: string): void {
     );
     if (conceded) {
       s.stats.errors++;
-      addRating(next, 'errors', C.rating.error);
+      addRating(next, 'errors', errorCredit(next));
     }
   }
   // Decision credit: harder successes earn more, safe failures cost more. Measured against the
   // reference player's odds (match-13) it averages what the player's quality adds:
-  // weight × (odds − reference).
-  const weight = C.rating.decisionWeight;
+  // weight × (odds − reference). Match-22 also subtracts the moment's par: what the reference
+  // player would earn from it in goals, assists, stops and goals conceded (report.ts).
   const baseline = referenceOdds(choice);
-  addRating(next, template.family, success ? weight * (1 - baseline) : -weight * baseline);
+  creditDecision(next, template.family, success, baseline, {
+    scored,
+    assisted,
+    goals:
+      template.direct === 'for'
+        ? baseline
+        : template.scorer === 'self' && !chainable
+          ? baseline * stakes.successGoal
+          : 0,
+    assists:
+      template.scorer === 'teammate' && template.assist && template.direct !== 'for'
+        ? baseline * stakes.successGoal
+        : 0,
+    danger,
+    conceded:
+      baseline * stakes.successConcede +
+      (1 - baseline) * (template.direct === 'against' ? 1 : stakes.failureConcede),
+  });
 }
 /** A choice's odds for the reference player, before attributes, form and conditions. */
 function referenceOdds(choice: DecisionChoice): number {

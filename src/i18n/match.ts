@@ -671,6 +671,7 @@ const engineTextEn: Record<string, string> = {
   'match.rating.errors': 'Goals conceded from your moments',
   'match.rating.team': 'Result and clean sheet',
   'match.rating.discipline': 'Cards',
+  'match.rating.par': 'Expected from your moments',
   'match.rating.limit': 'Rating limit and rounding',
   'match.booking.base': 'Foul chance of this challenge',
   'match.booking.aggression': 'Aggression',
