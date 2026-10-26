@@ -15,6 +15,7 @@ import {
 } from '../src/engine/match';
 import { HEADLINE_KINDS, HEADLINE_VARIANTS, headlineKind } from '../src/engine/match/headlines';
 import { hasMatchLabel, matchFormat, situationText } from '../src/i18n/match';
+import { hasCommentaryLabel } from '../src/i18n/commentary';
 import { hasReportLabel, reportLabel } from '../src/i18n/matchReport';
 import type { MatchEvent, Position } from '../src/model/domain';
 
@@ -185,7 +186,7 @@ describe('key moments that follow the game', () => {
       expect(hasMatchLabel(`match.pressure.${kind}`)).toBe(true);
     for (const kind of ['late-equaliser', 'late-winner'])
       for (let variant = 0; variant < CONFIG.match.commentaryVariants; variant++)
-        expect(hasMatchLabel(`match.commentary.${kind}.${variant}`)).toBe(true);
+        expect(hasCommentaryLabel(`match.commentary.${kind}.${variant}`)).toBe(true);
   });
 
   it('write a headline and reactions that match the result', () => {
@@ -309,9 +310,10 @@ describe('key moments that follow the game', () => {
       extra++;
       expect(s.regulation[0]).toBe(s.regulation[1]);
       expect(s.match.minute).toBe(120);
-      expect(s.match.events.some((e) => e.commentaryKey === 'match.commentary.extra-time')).toBe(
-        true,
-      );
+      // match-21 logs the single line, match-22 one of its variants (step 5.5).
+      expect(
+        s.match.events.some((e) => e.commentaryKey.startsWith('match.commentary.extra-time')),
+      ).toBe(true);
       if (!s.substituted && !s.sentOff)
         expect(s.match.keyMoments.some((m) => m.minute > 90 && !m.follows)).toBe(true);
       const level = s.match.score[0] === s.match.score[1];

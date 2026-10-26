@@ -58,7 +58,7 @@ export function managerSubstitutions(session: MatchSession): void {
         'substitution',
         team.teamId,
         off,
-        line(session, 'match.commentary.change'),
+        line(session, 'match.commentary.change', side),
       );
       sub.receiverId = on;
       sub.commentaryParams = { ...sub.commentaryParams, receiver: setup.players[on]!.name };

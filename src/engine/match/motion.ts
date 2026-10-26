@@ -13,7 +13,7 @@ import { createRng, hashSeed, type Rng } from '../rng';
 import { clamp } from './decisions';
 import { OFF_ANIMATION, PARKED } from './parked';
 import { SITUATION_BY_ID, type Situation } from './situations';
-import { HEAT_COLUMNS, HEAT_ROWS, type MatchSession, type PlayState } from './types';
+import { HEAT_COLUMNS, HEAT_ROWS, rules22, type MatchSession, type PlayState } from './types';
 import {
   FORMATION_SLOTS,
   formationOf,
@@ -137,15 +137,30 @@ const LINE_DEPTH = {
   midfield: [10, 84, 8, 66],
   attack: [28, 95, 22, 80],
 } as const;
-/** Failed shots look like their commentary line (variant index → visual; null = seeded). */
+/**
+ * Failed shots look like their commentary line (variant index → visual; null = seeded). Variants
+ * from the fourth on exist only in match-22 (release 1.0, step 5.5).
+ */
 const FAILED_SHOTS: Record<string, readonly (ShotVisual | null)[]> = {
-  shot: ['catch', 'block', 'wide'],
-  placed: ['wide', 'parry', 'wide'],
+  shot: ['catch', 'block', 'wide', 'parry', 'catch', 'wide', 'block', 'over'],
+  placed: ['wide', 'parry', 'wide', 'catch', 'wide', 'parry', 'over', 'catch'],
   long: ['over', 'catch', 'block'],
   header: ['over', 'catch', 'wide'],
   attempt: [null, 'catch', null],
   penalty: ['parry', 'wide', 'over'],
   'free-kick': ['over', 'catch', 'wide'],
+};
+/** The depth a shot is struck from at least (attack frame), once a move has brought the ball. */
+const SHOOTING_DEPTH = 62;
+/** A missed shot's line in match-22 names how it was missed (`missedShot`): drawn so. */
+const MISSED_SHOTS: Record<string, ShotVisual> = {
+  'attempt-held': 'catch',
+  'attempt-held-late': 'catch',
+  'attempt-parried': 'parry',
+  'attempt-wide': 'wide',
+  'attempt-wide-late': 'wide',
+  'attempt-over': 'over',
+  'attempt-blocked': 'block',
 };
 const KEEPER_SAVES: Record<string, ShotVisual> = {
   hold: 'catch',
@@ -885,11 +900,17 @@ class Director {
         if (this.carrier()?.id === want.target.id) {
           // Received from the move's final ball (a cross met first time stays where it is
           // met), or earlier in the move: then on to the spot.
+          // Match-22 also carries a shot on from a move that ends short of shooting range (a
+          // long ball out of defence after a corner, say), so no shot is struck from midfield.
+          const short =
+            move.purpose === 'shot' &&
+            rules22(this.session.setup) &&
+            this.toSpot(want.side, this.ball).d < SHOOTING_DEPTH;
           const end =
             spot ??
             (plan.finish
               ? this.toPitch(want.side, plan.finish)
-              : ended === 'early' && move.purpose === 'shot'
+              : (ended === 'early' || short) && move.purpose === 'shot'
                 ? this.shootingSpot(want.target)
                 : null);
           if (end && span(this.ball, end) > 2) this.carry(want.target, end);
@@ -1473,7 +1494,7 @@ class Director {
     else {
       const parts = event.commentaryKey.split('.');
       const options = FAILED_SHOTS[parts[2] ?? ''];
-      const listed = options?.[Number(parts[parts.length - 1])];
+      const listed = options?.[Number(parts[parts.length - 1])] ?? MISSED_SHOTS[parts[2] ?? ''];
       const r = this.rng.next();
       visual = listed ?? (r < 0.35 ? 'catch' : r < 0.65 ? 'wide' : r < 0.8 ? 'block' : 'over');
     }

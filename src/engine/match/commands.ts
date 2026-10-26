@@ -6,14 +6,14 @@
  * response to being substituted, the captain's call).
  */
 import { createRng } from '../rng';
-import type { MatchCommand, MatchSession, MatchState } from './types';
+import { rules22, type MatchCommand, type MatchSession, type MatchState } from './types';
 import { MATCH_CONFIG as C } from './tuning';
 import { validateCommand } from './validation';
 import { SITUATION_BY_ID } from './situations';
 import { halftimeRole, shiftMentality } from './roles';
 import { minutePassage, outcomePassage } from './motion';
 import { clamp, round6 } from './decisions';
-import { event } from './events';
+import { event, line } from './events';
 import { applyPassage } from './passage';
 import { showCards } from './cards';
 import { replacement } from './lineup';
@@ -102,7 +102,9 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
             'substitution',
             player.clubId!,
             player.id,
-            'match.commentary.substitution',
+            rules22(next.setup)
+              ? line(next, 'match.commentary.substitution', selectedSide(next.setup))
+              : 'match.commentary.substitution',
           );
           // Who comes on (match-15), for the substitution board and minutes.
           sub.receiverId = incoming;

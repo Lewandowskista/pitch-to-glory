@@ -217,13 +217,35 @@ describe('the previous match engine (match-21)', () => {
     const tactics = { role: 'balanced', risk: 'balanced', mentality: 'balanced' } as const;
     const session = createMatchSession(setup, tactics);
     expect(session.engine).toBe(MATCH_ENGINE_VERSION);
-    // The same setup without the flag plays the previous engine, and (until a 1.0 rule lands)
-    // the same match.
+    // The same setup without the flag plays the previous engine. Step 5.5 changed the lines the
+    // events log (and how the pitch draws a missed shot), not what happens.
     const [current, previous] = playOnEngines(setup, tactics);
     expect(current!.engine).toBe(MATCH_ENGINE_VERSION);
     expect(previous!.engine).toBe(PREVIOUS_MATCH_ENGINE);
-    expect(previous!.state.match.events).toEqual(current!.state.match.events);
-    expect(previous!.state.report).toEqual(current!.state.report);
+    const happened = (session: typeof current) =>
+      session!.state.match.events.map(({ id, kind, minute, teamId, playerId, outcome }) => ({
+        id,
+        kind,
+        minute,
+        teamId,
+        playerId,
+        outcome,
+      }));
+    expect(happened(previous)).toEqual(happened(current));
+    expect(previous!.state.match.events.map((e) => e.commentaryKey)).not.toEqual(
+      current!.state.match.events.map((e) => e.commentaryKey),
+    );
+    // The report's maps follow the pitch; its figures do not move.
+    const figures = (session: typeof current) => {
+      const { passes, shots, ...rest } = session!.state.report!;
+      return {
+        ...rest,
+        heatmap: rest.heatmap.length,
+        passes: passes.map((pass) => pass.success),
+        shots: shots.map((shot) => shot.goal),
+      };
+    };
+    expect(figures(previous)).toEqual(figures(current));
   }, 120000);
 
   it('replays a session only on the engine its setup plays', () => {

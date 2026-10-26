@@ -21,6 +21,8 @@ import {
 } from '../src/engine/match';
 import { NARRATION_FAMILIES, NARRATION_VARIANTS, SITUATIONS } from '../src/engine/match';
 import { hasMatchLabel } from '../src/i18n/match';
+import { hasCommentaryLabel } from '../src/i18n/commentary';
+import { commentaryVariants, narrationVariants } from '../src/engine/match/commentary';
 import { hasNarrationLabel } from '../src/i18n/narration';
 import type { KeeperAttributes, Player, Position } from '../src/model/domain';
 import { ownKeeperAttributes } from '../src/engine/keeping';
@@ -593,9 +595,12 @@ describe('match edge cases', () => {
       keys.add(`match.situation.${situation.id}`);
       for (const choice of situation.choices) {
         keys.add(`match.choice.${choice.id}`);
-        for (const result of ['success', 'failure'])
-          for (let variant = 0; variant < CONFIG.match.commentaryVariants; variant++)
-            keys.add(`match.commentary.${choice.commentary}.${result}.${variant}`);
+        for (const result of ['success', 'failure']) {
+          const family = `${choice.commentary}.${result}`;
+          const count = Math.max(CONFIG.match.commentaryVariants, commentaryVariants(family));
+          for (let variant = 0; variant < count; variant++)
+            keys.add(`match.commentary.${family}.${variant}`);
+        }
       }
     }
     for (const position of ['ST', 'LW', 'CM', 'CB', 'GK'] as const)
@@ -610,10 +615,15 @@ describe('match edge cases', () => {
         for (const f of s.report!.ratingFactors) keys.add(f.labelKey);
         for (const line of s.narration) narration.add(line.key);
       }
-    expect([...keys].filter((key) => !hasMatchLabel(key))).toEqual([]);
+    // Commentary lines (step 5.5) live in their own module, loaded with the match screen.
+    expect(
+      [...keys].filter((key) =>
+        key.startsWith('match.commentary.') ? !hasCommentaryLabel(key) : !hasMatchLabel(key),
+      ),
+    ).toEqual([]);
     // Narration copy (match-14) lives in its own module, loaded with the match screen.
     for (const family of NARRATION_FAMILIES)
-      for (let variant = 0; variant < NARRATION_VARIANTS; variant++)
+      for (let variant = 0; variant < narrationVariants(family); variant++)
         narration.add(`match.narration.${family}.${variant}`);
     expect(narration.size).toBeGreaterThan(NARRATION_FAMILIES.length * NARRATION_VARIANTS - 1);
     expect([...narration].filter((key) => !hasNarrationLabel(key))).toEqual([]);

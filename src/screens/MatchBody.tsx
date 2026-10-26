@@ -8,7 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { lazyPage } from '../ui/lazyPage';
+import { lazyPage, loadWithRetry } from '../ui/lazyPage';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore, worldBusy } from '../store';
 import {
@@ -53,7 +53,6 @@ import {
   CaptainPanel,
   CommentaryCard,
   HalfTimePanel,
-  liveText,
   MatchControls,
   OutcomePanel,
   PitchOverlay,
@@ -65,8 +64,7 @@ import {
   SubstitutionPanel,
   Timeline,
 } from './match/Live';
-import type { NarrationLine } from './match/feed';
-import { narrationFeed } from '../i18n/narration';
+import { isRoutine, type NarrationLine } from './match/feed';
 import { pendingCareerFixture } from '../engine/career/fixtures';
 import { careerMatchSetup, defaultTactics } from '../engine/career/matchSetup';
 import { startWorldJob } from '../workers/client';
@@ -106,6 +104,12 @@ const GoalBanner = lazyPage(loadGoalBanner);
 const Selection = lazyPage(() =>
   import('./match/Selection').then((module) => ({ default: module.Selection })),
 );
+/**
+ * The commentary's words and the narration copy (step 5.5): fetched once a match is under way,
+ * with the report and the goal banner, so they stay off the screen's first render.
+ */
+const loadLines = () => import('./match/lines');
+type LinesModule = Awaited<ReturnType<typeof loadLines>>;
 /** The report is needed only at the final whistle: loaded then, or fetched ahead during play. */
 const loadReport = () => import('./match/Report');
 const LazyReport = lazyPage(() => loadReport().then((module) => ({ default: module.Report })));
@@ -144,10 +148,19 @@ export default function MatchBody() {
   const session = useAppStore((store) => store.matchSession);
   // Fetch the report's code while the match is played, so the final whistle never waits.
   const hasSession = Boolean(session);
+  const [lines, setLines] = useState<LinesModule>();
   useEffect(() => {
     if (!hasSession) return;
+    let current = true;
     void loadReport().catch(() => undefined);
     void loadGoalBanner().catch(() => undefined);
+    // A failed fetch leaves the feed's loading note; the match itself plays on.
+    void loadWithRetry(loadLines)
+      .then((module) => current && setLines(module))
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
   }, [hasSession]);
   const active = useAppStore((store) => store.activeSave);
   const settings = useAppStore((store) => store.settings);
@@ -185,16 +198,8 @@ export default function MatchBody() {
   useMatchAudio(session, playing);
   // Beat-based narration (engine M3) joins the commentary through the feed adapter.
   const narration = useMemo<NarrationLine[] | undefined>(
-    () =>
-      session?.state.narration
-        ? narrationFeed(session).map((entry) => ({
-            id: String(entry.index),
-            minute: entry.minute,
-            text: entry.text,
-            ...(entry.eventId ? { eventId: entry.eventId } : {}),
-          }))
-        : undefined,
-    [session],
+    () => (session?.state.narration && lines ? lines.narrationLines(session) : undefined),
+    [session, lines],
   );
   const reduced = settings.reducedMotion || systemReduced;
   const momentId = state?.currentMoment?.id;
@@ -418,9 +423,11 @@ export default function MatchBody() {
           : [state.match.score[0], state.match.score[1] - 1]
         : state.match.score
       : undefined;
-  const latestEvent = state?.match.events.findLast((event) => event.id !== heldGoal?.id);
-  const latestText =
-    latestEvent && session ? liveText(session.setup, session.state.match.events, latestEvent) : '';
+  // Routine passes fold into the feed's summary rows; they are not read out one by one.
+  const latestEvent = state?.match.events.findLast(
+    (event) => event.id !== heldGoal?.id && !isRoutine(event),
+  );
+  const latestText = latestEvent && session && lines ? lines.liveText(session, latestEvent) : '';
   const scoreText =
     session && shownScore
       ? matchFormat(m.announceScore, {
@@ -1000,7 +1007,7 @@ export default function MatchBody() {
                     <GoalBanner
                       setup={session.setup}
                       story={story}
-                      line={goalLine(session.setup, story)}
+                      line={goalLine(session.setup, story, session.state.match.events)}
                       colour={teamColour(story.side)}
                       placement="strip"
                     />
@@ -1031,7 +1038,7 @@ export default function MatchBody() {
                           <GoalBanner
                             setup={session.setup}
                             story={story}
-                            line={goalLine(session.setup, story)}
+                            line={goalLine(session.setup, story, session.state.match.events)}
                             colour={teamColour(story.side)}
                             placement="strip"
                           />
@@ -1080,7 +1087,7 @@ export default function MatchBody() {
                                 <GoalBanner
                                   setup={session.setup}
                                   story={story}
-                                  line={goalLine(session.setup, story)}
+                                  line={goalLine(session.setup, story, session.state.match.events)}
                                   colour={teamColour(story.side)}
                                   placement="pitch"
                                   replaying={replayActive}
@@ -1132,6 +1139,7 @@ export default function MatchBody() {
                   session={session}
                   hidden={heldGoal?.id}
                   narration={narration}
+                  lines={lines}
                   celebration={celebrationItem ? celebrationNames[celebrationItem.id] : undefined}
                 />
               </aside>
