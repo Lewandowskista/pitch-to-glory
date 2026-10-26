@@ -1,6 +1,6 @@
 # Experience redesign for 1.0 — 26 October 2026
 
-Status: **proposal, awaiting the owner's approval.** It follows the owner's playtest on a phone
+Status: **approved by the owner on 26 October 2026**, as written, with a vertical pitch in portrait, the drought director stated openly, and the express path (D15–D17 in the plan). It follows the owner's playtest on a phone
 and the interview decisions D11–D14 in [RELEASE-1.0-PLAN.md](RELEASE-1.0-PLAN.md). It draws on a
 game-design research brief (sources are cited in the conversation record and summarised here) and a
 phone audit of `release/1.0` at 390 × 844 with a 4× slower CPU (evidence in the git-ignored
@@ -136,6 +136,59 @@ the top — winner on the line`), progress pips (● ○ ○), and per option: a
   the same reel in about 60 s without decisions (also the simulation-only accessibility mode). The
   best chain of each match is saved to Moments.
 - **Big matches** (finals, derbies, deciders): one extra chain, a walk-out sting, a louder crowd.
+
+### 1.7 The chain interface (engine ↔ screen)
+
+The engine (X1a) and the match screen (X1b) are built in parallel against this contract. Names
+may be refined, but the shape and meaning may not change without updating this section.
+
+```ts
+// src/engine/match/types.ts — match-22 only (a match-21 session has none of these).
+interface ChainState {
+  id: string; // stable within the session, e.g. `${minute}-${index}`
+  kind: 'attack' | 'defence' | 'set-piece' | 'keeper' | 'shootout';
+  minute: number;
+  addedTime?: number; // minutes into added time, when it falls there
+  side: 0 | 1; // the side in possession when it starts
+  steps: 2 | 3; // planned length
+  step: number; // 0-based index of the current step
+  stakes: { key: string; params: Record<string, string | number> }; // i18n header line
+  prize?: number; // starting xG (attack) or danger (defence) for the stakes header
+  climax?: boolean; // the close-game climax
+  hero?: boolean; // the hero beat
+  results: ChainStepResult[];
+}
+interface ChainStepResult {
+  step: number;
+  choiceId: string;
+  probability: number; // as displayed
+  success: boolean;
+  cause: { key: string; params: Record<string, string | number> }; // the one-line reason
+}
+interface ChainSummary {
+  id: string;
+  kind: ChainState['kind'];
+  minute: number;
+  addedTime?: number;
+  outcome: 'goal' | 'assist' | 'chance' | 'stop' | 'won' | 'lost' | 'conceded' | 'foul' | 'card';
+  positive: boolean; // counts toward "a positive chain"
+  results: ChainStepResult[];
+}
+interface ChainCast {
+  you: Id;
+  opponent?: Id; // the direct opponent, named on step 1
+  teammates: Id[]; // 0–2
+  defenders: Id[]; // 0–2
+  keeper?: Id;
+  ghosts: Id[]; // 0–4 context players, drawn faint
+}
+// MatchState gains:  chain: ChainState | null;  chains: ChainSummary[];
+// KeyMoment (one step) gains:  chainId: string; step: number; steps: 2 | 3; cast: ChainCast;
+// MatchEvent kinds gain 'chain-start' and 'chain-end' (with chainId; chain-end carries the outcome).
+// Commands are unchanged: `choose` answers the current step; `advance` moves time.
+// Each step's resolution emits its passage (keyframes) through the existing applyPassage, so the
+// clip renderer draws a step from the same frames the replay uses, filtered to the cast.
+```
 
 ### 1.6 The storyboard (striker, about 2:50, 12 taps)
 

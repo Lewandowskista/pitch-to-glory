@@ -48,7 +48,7 @@ same persistent world, optionally as the child of their previous player.
   (multi-column hub, match view side by side with commentary and stats, persistent sidebar).
   The narrow/mobile browser layout must be equally complete, not a squeezed desktop.
 - Input: full mouse and keyboard support. Keyboard shortcuts for common actions (Space:
-  play/pause match, 1–4: pick key-moment choice, arrow keys: navigate tabs/lists, Esc:
+  skip to the next key moment, 1–3: pick key-moment choice, arrow keys: navigate tabs/lists, Esc:
   back/close dialogs, ?: show shortcut list). Hover states and tooltips on desktop;
   equivalent tap/long-press interactions on touch screens.
 - Routing: browser back/forward works on every screen; refreshing the page restores the
@@ -139,15 +139,19 @@ Progression:
   passes").
 - Personal tactical choices before kickoff: role within your position (e.g. Winger: "Hug the
   touchline" / "Cut inside" / "Track back"), risk level, mentality.
-- Live match: 2D top-down pitch rendered with PixiJS, players as flat circular tokens in kit
-  colors, ball movement and animated highlights. Speed controls (1x, 2x, 4x, skip to next key
-  moment). Live commentary feed, scoreline, clock, momentum bar, live player rating. On wide
-  screens, pitch, commentary, and live stats are visible together.
-- Key moments (6–15 per match depending on role, minutes, and form): the sim pauses and
-  presents a situation drawn on the pitch with 2–4 choices (e.g. shoot near post / far post /
-  square pass / take on defender), selectable by click, tap, or number key. Each choice shows a
-  quality hint based on attributes and traits. Outcomes are resolved by the engine with
-  transparent probabilities, then animated.
+- Live match (owner decision, 26 October 2026; see docs/EXPERIENCE-REDESIGN-1.0.md): a
+  highlights reel lasting about 2–3 minutes. Between moments a fast ticker shows the scoreline,
+  clock, added time, a momentum wave and event chips; only the player's moments and every goal
+  play, as short slowed clips on a 2D top-down PixiJS pitch (players as flat circular tokens in
+  kit colors, vertical in portrait on phones) showing only the players involved. One control:
+  skip to the next key moment. The full commentary is a Match log; a live player rating stays
+  visible. On wide screens, the clip, the ticker and live stats are visible together.
+- Key moments (4–6 per match depending on role, minutes, and form): each is a decision chain of
+  2–3 linked decisions in one phase of play (e.g. receive → beat your man → finish), with the
+  stakes shown before the first decision and 2–3 choices per step drawn on the pitch, selectable
+  by click, tap, or number key. Each choice shows its chance of its named outcome and a quality
+  hint based on attributes and traits. Outcomes are resolved by the engine with transparent
+  probabilities, then animated, with a one-line cause.
 - Mid-match: talk to the manager at half-time (ask to change role, complain, motivate team),
   respond to substitutions, make captain decisions if captain.
 - Post-match: rating breakdown, heatmap, pass map, shot map, XP earned with animated level-up,
