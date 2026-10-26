@@ -1,7 +1,7 @@
 import type { DecisionChoice } from '../../model/domain';
 import type { ChoiceEvent } from '../../engine/match/situations';
 import { templateOf } from '../../engine/match/situations22';
-import { expectedImpact } from '../../engine/match/decisions';
+import { expectedImpact } from '../../engine/match/value';
 import { CONFIG } from '../../engine/config';
 import type { matchText } from '../../i18n/match';
 

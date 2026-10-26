@@ -730,7 +730,14 @@ export function situationText(moment: {
   situationKey: string;
   situationParams?: Record<string, string>;
 }): string {
-  return matchFormat(matchLabel(moment.situationKey), moment.situationParams ?? {});
+  // A match-22 framing loads with the match (momentsCopy.ts); until then, the plain sentence.
+  const key = moment.situationKey;
+  const text = engineText[key] ?? engineText[key.replace(/\.\d+$/, '')] ?? key;
+  return matchFormat(text, moment.situationParams ?? {});
+}
+/** Copy that loads with the match (step 5.2: match-22's framings and reads, momentsCopy.ts). */
+export function addMatchLabels(labels: Readonly<Record<string, string>>): void {
+  Object.assign(engineText, labels);
 }
 /** What a late moment in a close game means, or an empty string. */
 export function pressureText(moment: {

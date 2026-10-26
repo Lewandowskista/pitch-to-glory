@@ -22,7 +22,7 @@ import {
   type MatchCommand,
   type MatchSession,
 } from '../match';
-import { expectedImpact } from '../match/decisions';
+import { expectedImpact } from '../match/value';
 import { performanceFame, performanceXp, rewardScale } from '../match/rewards';
 import { commitPlayedFixture, type PlayedFixture } from '../world/simulate';
 import { recordEvent } from '../world/events';

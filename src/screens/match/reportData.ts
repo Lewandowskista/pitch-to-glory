@@ -12,7 +12,7 @@ import type {
   ProbabilityFactor,
 } from '../../model/domain';
 import type { MatchSession } from '../../engine/match/types';
-import { expectedImpact } from '../../engine/match/decisions';
+import { expectedImpact } from '../../engine/match/value';
 import { rolePosition } from '../../engine/match/shared';
 import { CONFIG } from '../../engine/config';
 import { createRng } from '../../engine/rng';

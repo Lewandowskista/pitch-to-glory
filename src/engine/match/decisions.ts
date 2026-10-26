@@ -27,6 +27,7 @@ import {
   type Situation,
 } from './situations';
 import { ALL_SITUATIONS, COUNTER_22, POSITIONS_22, UNLOCKS_22 } from './situations22';
+import { expectedImpact } from './value';
 
 const C = CONFIG.match;
 const D = C.decision;
@@ -565,20 +566,7 @@ export function buildChoices(context: DecisionContext): DecisionChoice[] {
   return choices;
 }
 
-/** Expected goals for and against the selected team if this choice is made. */
-export function expectedImpact(choice: DecisionChoice): {
-  for: number;
-  against: number;
-  net: number;
-} {
-  const p = choice.probability,
-    s = choice.stakes;
-  const goalsFor = p * s.successGoal + (1 - p) * s.failureGoal;
-  // A card's cost (match-22): a dismissal's share of a man down for the rest of the match.
-  const goalsAgainst =
-    p * s.successConcede + (1 - p) * s.failureConcede + (choice.booking?.cost ?? 0);
-  return { for: goalsFor, against: goalsAgainst, net: goalsFor - goalsAgainst };
-}
+export { expectedImpact } from './value';
 
 /** How the game stands for the selected side when a moment opens (engine match-12). */
 export interface GameState {

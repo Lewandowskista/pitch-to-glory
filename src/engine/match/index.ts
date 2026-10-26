@@ -5,11 +5,7 @@
 export * from './types';
 export { SITUATIONS } from './situations';
 // Both catalogues: match-21's situations and match-22's (a match-21 session names only the first).
-export {
-  SITUATION_22_BY_ID as SITUATION_BY_ID,
-  situationOf,
-  templateOf,
-} from './situations22';
+export { SITUATION_22_BY_ID as SITUATION_BY_ID, situationOf, templateOf } from './situations22';
 export { rolesForPosition, positionFamily } from './roles';
 export { span, attacksRightAt } from './motion';
 export { NARRATION_FAMILIES, NARRATION_VARIANTS, CUT_FAMILIES } from './narration';

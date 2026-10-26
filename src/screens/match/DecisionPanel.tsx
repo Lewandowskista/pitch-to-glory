@@ -5,6 +5,7 @@ import type { MatchSession } from '../../engine/match';
 import { t } from '../../i18n';
 import {
   matchText as m,
+  hasMatchLabel,
   matchLabel,
   matchFormat,
   pressureText,
@@ -227,6 +228,11 @@ export function DecisionPanel({
   const traits = session.setup.players[session.setup.selectedPlayerId]!.traits;
   const situation = situationText(moment);
   const pressure = pressureText(moment);
+  // What the pitch shows (match-22), once its copy has loaded with the match.
+  const reads = (moment.reads ?? [])
+    .map((read) => `match.read.${read.id}.${read.state}`)
+    .filter(hasMatchLabel)
+    .map(matchLabel);
   const cam = useMemo(
     () => momentCamera(session.setup, moment, compact ? COMPACT_ASPECT : undefined),
     [session.setup, moment, compact],
@@ -265,12 +271,9 @@ export function DecisionPanel({
             </span>
             {pressure && <p className="match-pressure">{pressure}</p>}
             <h2 id="decision-heading">{situation}</h2>
-            {moment.reads && moment.reads.length > 0 && (
+            {reads.length > 0 && (
               <p className="mt-1 text-[0.8125rem] text-muted">
-                <span className="font-semibold">{readsLabel}:</span>{' '}
-                {moment.reads
-                  .map((read) => matchLabel(`match.read.${read.id}.${read.state}`))
-                  .join(' · ')}
+                <span className="font-semibold">{readsLabel}:</span> {reads.join(' · ')}
               </p>
             )}
           </div>

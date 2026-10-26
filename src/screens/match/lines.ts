@@ -2,7 +2,8 @@ import type { MatchEvent } from '../../model/domain';
 import type { MatchSession } from '../../engine/match';
 import { cycledVariant } from '../../engine/match/commentary';
 import { commentaryLabel, spellCopy } from '../../i18n/commentary';
-import { matchFormat } from '../../i18n/match';
+import { addMatchLabels, matchFormat } from '../../i18n/match';
+import { momentCopy } from '../../i18n/momentsCopy';
 import { narrationFeed, narrationName } from '../../i18n/narration';
 import type { FeedText, NarrationLine, RoutineSpell } from './feed';
 import { goalStory, goalText, scoreline } from './goals';
@@ -16,6 +17,9 @@ import { goalStory, goalText, scoreline } from './goals';
  * The match screen loads this module, with the commentary and narration copy, once a match is
  * under way (MatchBody), so the copy stays off the route's first render.
  */
+// Match-22's framings and reads of the play load with the commentary (step 5.2).
+addMatchLabels(momentCopy);
+
 export interface FeedLines {
   text(event: MatchEvent): FeedText;
   spell(spell: RoutineSpell, earlier: readonly RoutineSpell[]): FeedText;
