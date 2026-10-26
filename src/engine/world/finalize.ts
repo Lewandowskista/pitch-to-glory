@@ -54,6 +54,12 @@ export interface PlayedFixture {
   };
   /** The shootout's result, home first, settled in the session (engine match-18). */
   penalties?: [number, number];
+  /**
+   * The players forced off injured in the session (engine match-22) and the injury type: they
+   * are this fixture's injuries, instead of the draw after the match. The career player's own
+   * are the career's (career/matches.ts).
+   */
+  injuries?: { playerId: Id; kind: string }[];
 }
 export interface FixtureGoal {
   playerId: Id;
@@ -94,6 +100,8 @@ export interface FinalizedFixture {
   participants: FixtureParticipant[];
   /** An interactive fixture's cards; absent for a background fixture, drawn when applied. */
   cards?: FixtureCard[];
+  /** A match-22 session's injuries; absent otherwise, drawn when applied. */
+  injuries?: { playerId: Id; kind: string }[];
 }
 
 function poisson(rng: Rng, mean: number): number {
@@ -444,6 +452,7 @@ export function finalizeFixture(
     participants,
     // An interactive fixture's cards are its session's (none before match-16).
     ...(played ? { cards: played.cards ?? [] } : {}),
+    ...(played?.injuries ? { injuries: played.injuries.map((injury) => ({ ...injury })) } : {}),
   };
 }
 /**
@@ -558,6 +567,19 @@ function injureParticipants(world: World, final: FinalizedFixture): void {
   const A = BACKGROUND.aiInjuries;
   const rng = createRng(`${world.seed}:injuries:${final.fixtureId}`);
   const careerId = world.career?.playerId;
+  // A match-22 session played its injuries: those players are hurt for the weeks their type
+  // brings, and nobody else from this fixture.
+  if (final.injuries) {
+    for (const injury of final.injuries) {
+      const player = world.players[injury.playerId];
+      if (!player || player.id === careerId || player.injuryId || lastKeeper(world, player))
+        continue;
+      const type = I.types.find((candidate) => candidate.kind === injury.kind) ?? I.types[0]!;
+      player.injuryId = `injury:${final.fixtureId}:${player.id}`;
+      player.injuryWeeks = rng.int(type.weeks[0], type.weeks[1]);
+    }
+    return;
+  }
   for (const participant of final.participants) {
     const player = world.players[participant.playerId];
     if (!player || player.id === careerId || player.injuryId || participant.minutes <= 0) continue;
@@ -568,16 +590,7 @@ function injureParticipants(world: World, final: FinalizedFixture): void {
       (1 + player.fatigue / A.fatigueWeight);
     if (rng.next() >= chance) continue;
     // A club always keeps one fit keeper.
-    if (player.primaryPosition === 'GK') {
-      const club = player.clubId ? world.clubs[player.clubId] : undefined;
-      const fitKeepers = club
-        ? club.playerIds.filter((id) => {
-            const other = world.players[id]!;
-            return other.primaryPosition === 'GK' && !other.injuryId && !other.retired;
-          }).length
-        : 0;
-      if (fitKeepers <= 1) continue;
-    }
+    if (lastKeeper(world, player)) continue;
     let pick = rng.next() * I.types.reduce((sum, type) => sum + type.weight, 0);
     let type = I.types[I.types.length - 1]!;
     for (const candidate of I.types) {
@@ -590,5 +603,17 @@ function injureParticipants(world: World, final: FinalizedFixture): void {
     player.injuryId = `injury:${final.fixtureId}:${player.id}`;
     player.injuryWeeks = rng.int(type.weeks[0], type.weeks[1]);
   }
+}
+/** A keeper who is their club's last fit one, never injured (a club always keeps one). */
+function lastKeeper(world: World, player: Player): boolean {
+  if (player.primaryPosition !== 'GK') return false;
+  const club = player.clubId ? world.clubs[player.clubId] : undefined;
+  const fitKeepers = club
+    ? club.playerIds.filter((id) => {
+        const other = world.players[id]!;
+        return other.primaryPosition === 'GK' && !other.injuryId && !other.retired;
+      }).length
+    : 0;
+  return fitKeepers <= 1;
 }
 const clampPercent = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));

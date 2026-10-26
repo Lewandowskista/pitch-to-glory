@@ -349,25 +349,34 @@ function agentWork(world: World, ctx: Context): void {
   }
 }
 
+/**
+ * A matchday the player was left out of the eleven: counted, and noted in the inbox once when
+ * they fall out of the side. Benched in the week's simulation, or, since release 1.0, when a
+ * match they started on the bench is recorded (career/matches.ts).
+ */
+export function noteDropped(world: World, fixture: Fixture): void {
+  const selection = world.career!.market.selection;
+  const player = world.players[world.career!.playerId]!;
+  const club = world.clubs[player.clubId!]!;
+  selection.dropped++;
+  // One note when the player falls out of the side, not one per matchday.
+  const recent = world.inbox.some(
+    (message) =>
+      message.subjectKey === 'dropped' &&
+      compareDates(addWeeks(world, message.date, 4), world.date) > 0,
+  );
+  if (recent) return;
+  const opponent = world.clubs[fixture.homeId === club.id ? fixture.awayId : fixture.homeId]!;
+  postMessage(world, 'dropped', { club: club.name, opponent: opponent.name });
+}
 /** Matchdays missed through selection; a broken role promise is flagged once a season. */
 function reviewSelection(world: World, benched: readonly Fixture[]): void {
   const market = world.career!.market;
   const selection = market.selection;
   const player = world.players[world.career!.playerId]!;
   const club = world.clubs[player.clubId!]!;
-  for (const fixture of benched) {
-    if (!careerSelection(world, fixture).registered) continue;
-    selection.dropped++;
-    // One note when the player falls out of the side, not one per matchday.
-    const recent = world.inbox.some(
-      (message) =>
-        message.subjectKey === 'dropped' &&
-        compareDates(addWeeks(world, message.date, 4), world.date) > 0,
-    );
-    if (recent) continue;
-    const opponent = world.clubs[fixture.homeId === club.id ? fixture.awayId : fixture.homeId]!;
-    postMessage(world, 'dropped', { club: club.name, opponent: opponent.name });
-  }
+  for (const fixture of benched)
+    if (careerSelection(world, fixture).registered) noteDropped(world, fixture);
   const role = currentRole(world);
   const matchdays = selection.selected + selection.dropped;
   if (

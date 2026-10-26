@@ -32,9 +32,13 @@ const COMMANDS: Record<MatchCommand['type'], (command: Record<string, unknown>) 
   kickoff: () => true,
   advance: () => true,
   choose: (command) => typeof command.choiceId === 'string' && command.choiceId.length <= 200,
-  halftime: (command) => ['motivate', 'role', 'complain'].includes(command.response as string),
+  halftime: (command) =>
+    ['motivate', 'role', 'complain'].includes(command.response as string) &&
+    (command.role === undefined || (typeof command.role === 'string' && command.role.length <= 80)),
   substitution: (command) => ['accept', 'encourage'].includes(command.response as string),
   captain: (command) => ['push', 'calm'].includes(command.instruction as string),
+  // A knock (match-22): play on, or come off.
+  injury: (command) => ['play-on', 'off'].includes(command.response as string),
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -62,7 +66,7 @@ export function storedSession(value: unknown): StoredMatchSession {
     !Number.isSafeInteger(setup.season) ||
     !isRecord(session.initialTactics) ||
     !Array.isArray(session.commands) ||
-    session.commands.length > 240 ||
+    session.commands.length > 400 ||
     !isRecord(session.progress)
   )
     throw invalid();
