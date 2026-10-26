@@ -50,18 +50,13 @@ import {
   pendingWindowFixture,
 } from '../engine/career/honours/international';
 import {
-  CaptainPanel,
   CommentaryCard,
-  HalfTimePanel,
   MatchControls,
-  OutcomePanel,
   PitchOverlay,
   RatingCard,
   Scoreboard,
-  SentOffPanel,
   SimulationCard,
   StatsCard,
-  SubstitutionPanel,
   Timeline,
 } from './match/Live';
 import { isRoutine, type NarrationLine } from './match/feed';
@@ -106,6 +101,23 @@ const GoalBanner = lazyPage(loadGoalBanner);
  * session (their copy registers the engine's lines), apart from the live screen's first load.
  */
 const loadOccasions = () => import('./match/Occasions');
+/** The panels that interrupt play (half-time, captain, substitution, dismissal, outcome). */
+const loadInterrupts = () => import('./match/Interrupts');
+const HalfTimePanel = lazyPage(() =>
+  loadInterrupts().then((module) => ({ default: module.HalfTimePanel })),
+);
+const CaptainPanel = lazyPage(() =>
+  loadInterrupts().then((module) => ({ default: module.CaptainPanel })),
+);
+const SubstitutionPanel = lazyPage(() =>
+  loadInterrupts().then((module) => ({ default: module.SubstitutionPanel })),
+);
+const SentOffPanel = lazyPage(() =>
+  loadInterrupts().then((module) => ({ default: module.SentOffPanel })),
+);
+const OutcomePanel = lazyPage(() =>
+  loadInterrupts().then((module) => ({ default: module.OutcomePanel })),
+);
 const OccasionPanels = lazyPage(() =>
   loadOccasions().then((module) => ({ default: module.OccasionPanels })),
 );
@@ -172,6 +184,7 @@ export default function MatchBody() {
     let current = true;
     void loadReport().catch(() => undefined);
     void loadGoalBanner().catch(() => undefined);
+    void loadInterrupts().catch(() => undefined);
     // A failed fetch leaves the feed's loading note; the match itself plays on.
     void loadWithRetry(loadLines)
       .then((module) => current && setLines(module))
@@ -996,29 +1009,31 @@ export default function MatchBody() {
                     />
                   </Suspense>
                 )}
-                {status === 'halftime' && !occasions && (
-                  <HalfTimePanel
-                    session={session}
-                    world={world}
-                    onTalk={(response) => {
-                      setOutcomeId(null);
-                      command({ type: 'halftime', response });
-                    }}
-                  />
-                )}
-                {state!.captainDecisionPending && (
-                  <CaptainPanel
-                    session={session}
-                    onCall={(instruction) => command({ type: 'captain', instruction })}
-                  />
-                )}
-                {state!.substituted && !occasions && (
-                  <SubstitutionPanel
-                    session={session}
-                    onResponse={(response) => command({ type: 'substitution', response })}
-                  />
-                )}
-                {state!.sentOff && <SentOffPanel session={session} />}
+                <Suspense fallback={null}>
+                  {status === 'halftime' && !occasions && (
+                    <HalfTimePanel
+                      session={session}
+                      world={world}
+                      onTalk={(response) => {
+                        setOutcomeId(null);
+                        command({ type: 'halftime', response });
+                      }}
+                    />
+                  )}
+                  {state!.captainDecisionPending && (
+                    <CaptainPanel
+                      session={session}
+                      onCall={(instruction) => command({ type: 'captain', instruction })}
+                    />
+                  )}
+                  {state!.substituted && !occasions && (
+                    <SubstitutionPanel
+                      session={session}
+                      onResponse={(response) => command({ type: 'substitution', response })}
+                    />
+                  )}
+                  {state!.sentOff && <SentOffPanel session={session} />}
+                </Suspense>
                 {replaying && outcomeMoment && (
                   <DecisionReplay
                     session={session}
@@ -1039,18 +1054,20 @@ export default function MatchBody() {
                   </Suspense>
                 )}
                 {outcome && outcomeMoment && (
-                  <OutcomePanel
-                    outcome={outcome}
-                    minute={outcomeMoment.minute}
-                    choice={matchLabel(
-                      outcomeMoment.choices.find((choice) => choice.id === outcome.input.choiceId)
-                        ?.labelKey ?? '',
-                    )}
-                    onContinue={() => {
-                      setOutcomeId(null);
-                      if (canPlay) setPlaying(true);
-                    }}
-                  />
+                  <Suspense fallback={null}>
+                    <OutcomePanel
+                      outcome={outcome}
+                      minute={outcomeMoment.minute}
+                      choice={matchLabel(
+                        outcomeMoment.choices.find((choice) => choice.id === outcome.input.choiceId)
+                          ?.labelKey ?? '',
+                      )}
+                      onContinue={() => {
+                        setOutcomeId(null);
+                        if (canPlay) setPlaying(true);
+                      }}
+                    />
+                  </Suspense>
                 )}
                 <section
                   className={`match-panel match-stage${pitchAway ? ' is-away' : ' match-pitch-panel'}`}
