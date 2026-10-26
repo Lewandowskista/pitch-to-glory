@@ -86,6 +86,15 @@ const commentaryEn: Record<string, readonly string[]> = {
     'A deflection takes the sting out of the shot from {player}.',
     '{player} winds up, and the block comes in.',
   ],
+  // Off the post or bar (step 5.3): the player's own shots use these too.
+  'attempt-woodwork': [
+    '{player} rattles the post!',
+    'Off the woodwork! {player} is denied by the frame of the goal.',
+    '{player} beats {keeper}, but not the crossbar.',
+    'So close! The shot from {player} smacks against the upright.',
+    '{player} strikes the post, and it bounces back into play.',
+    'The woodwork saves {opponent}: {player} hits the bar.',
+  ],
   // Late on, for a side level or behind.
   'attempt-held-late': [
     'Time is running out for {team}, and {keeper} gathers the effort from {player}.',

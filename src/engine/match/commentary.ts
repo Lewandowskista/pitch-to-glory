@@ -35,6 +35,8 @@ export const COMMENTARY_VARIANTS: Readonly<Record<string, number>> = {
   'attempt-wide': 8,
   'attempt-over': 8,
   'attempt-blocked': 8,
+  // Off the post or bar (step 5.3), the player's own shots included.
+  'attempt-woodwork': 6,
   'attempt-held-late': 4,
   'attempt-wide-late': 4,
   // A chance the player's choice created, and a break the player's mistake allowed.
@@ -196,7 +198,7 @@ export function commentaryLine(session: MatchSession, base: string, side?: 0 | 1
 }
 
 /** How a shot that does not go in is missed (match-22), drawn on its own stream. */
-export type MissedShot = 'held' | 'parried' | 'wide' | 'over' | 'blocked';
+export type MissedShot = 'held' | 'parried' | 'wide' | 'over' | 'blocked' | 'woodwork';
 export function missedShot(session: MatchSession): MissedShot {
   const weights = C.missedShot;
   const roll = createRng(

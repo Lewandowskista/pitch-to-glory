@@ -19,7 +19,7 @@ import { STYLES } from '../../world/catalog';
 import { FORMATIONS, type Formation } from '../../selection/formations';
 import { CURRENT_SETUP_FLAGS, type MatchSession, type MatchSetup } from '../../match/types';
 import { sessionPenalties, validateMatchSession } from '../../match';
-import { performanceXp } from '../../match/rewards';
+import { performanceXp, rewardScale } from '../../match/rewards';
 import { matchDecisions, recordDecisions } from '../coaching';
 import { assetEffects } from '../lifestyle/catalogue';
 import { chronicle } from './chronicle';
@@ -338,13 +338,16 @@ function commitNationMatch(
   const rating = state.report.rating;
   const objectives = state.report.objectives;
   const minutes = state.selectedPlayerMinutes;
-  const performance = performanceXp({
-    minutes,
-    rating,
-    goals: scored.length,
-    assists: assisted.length,
-    objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
-  });
+  const performance = performanceXp(
+    {
+      minutes,
+      rating,
+      goals: scored.length,
+      assists: assisted.length,
+      objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
+    },
+    rewardScale(session),
+  );
   const decisions = matchDecisions(session, world.date);
   const analyst = assetEffects(career.style?.assets ?? []).decisionXp;
   const decisionXp = decisions.reduce(

@@ -13,6 +13,7 @@ import { openMoment } from './moments';
 import { extraTimeDue, shootoutDue, startExtraTime } from './extraTime';
 import { finish } from './report';
 import { updatePossession } from './rates';
+import { backgroundConversion } from './shots';
 import { fullTime, offPitch, selectedSide } from './shared';
 
 export function simulateMinuteGoals(session: MatchSession): void {
@@ -25,20 +26,14 @@ export function simulateMinuteGoals(session: MatchSession): void {
     // Personal key moments replace part of each side's expected goals while the player is on.
     const replaced = off ? 0 : side === own ? s.shares.attack : s.shares.defence;
     const rate = clamp((s.expectedGoals[side]! * (1 - replaced)) / 90, 0, 0.2);
-    if (rng.next() < rate / C.shotConversion) {
+    // Match-22 shoots more and converts less, for the same goals.
+    const conversion = backgroundConversion(session);
+    if (rng.next() < rate / conversion) {
       const id = finisher(session, side, rng, side === own && !off ? selected.id : undefined);
       // Rolled before the shot is logged (the log draws nothing from `rng`), so the line can
       // say how a miss was missed (match-22).
-      const scored = rng.next() < C.shotConversion;
-      recordShot(
-        session,
-        side,
-        id,
-        'match.commentary.attempt',
-        C.shotConversion,
-        undefined,
-        scored,
-      );
+      const scored = rng.next() < conversion;
+      recordShot(session, side, id, 'match.commentary.attempt', conversion, undefined, scored);
       if (scored) goal(session, side, id);
     }
   }

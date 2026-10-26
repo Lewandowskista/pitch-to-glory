@@ -166,6 +166,13 @@ export const CONFIG = {
     /** Background shot → goal conversion, and created-chance goal probability per recorded shot. */
     shotConversion: 0.12,
     chanceConversion: 0.3,
+    /**
+     * Shots (engine match-22, release 1.0 step 5.3). The background converts `conversion` of its
+     * shots, so it shoots more for the same goals. The player's own missed shot keeps the ending
+     * its commentary line names, but hits the woodwork with `woodwork` (others' misses: see
+     * `missedShot`).
+     */
+    shots22: { conversion: 0.095, woodwork: 0.04 },
     passPerMinute: 0.48,
     routinePass: { base: 0.68, passing: 0.002, fatigue: 0.0008, minimum: 0.4, maximum: 0.96 },
     /**
@@ -296,15 +303,95 @@ export const CONFIG = {
       minimum: 3,
       maximum: 10,
     },
+    /**
+     * The rating from engine match-22 (release 1.0 step 5.3; docs/MATCH-BALANCING.md "Rating
+     * (match-22)"). Every key moment is measured against what the reference player was expected
+     * to make of it, so a rating centres on `base` in every position whatever the mix of
+     * moments:
+     *
+     * - decision: `decision[family] × (success − reference odds)`, to the choice's family
+     *   (defending and keeping weigh more: their value is mostly in the decision itself);
+     * - as they happen: goals and assists (each further one in a match × `repeat` of the one
+     *   before; a hat-trick's third goal adds `hatTrick`), saves and stops (`stop × danger ÷
+     *   reference odds`, the odds at least `stopFloor`, the credit at most `stopCap`) and
+     *   errors (`error` a goal conceded from the moment);
+     * - par: at each moment, minus what the reference player would earn there on average:
+     *   goal × expected own goals + assist × expected assists (both × `repeat` as above) +
+     *   reference odds × a stop's credit + error × expected goals conceded. The hat-trick bonus
+     *   is left out (rare, and a striker on two goals is not marked down for every chance).
+     *
+     * Each of these is × √(`moments` ÷ the match's planned moments), at least `fewest`, so a
+     * busy match is not a wider one. The team's result is ± `result`; a clean sheet adds
+     * `cleanSheet` for keepers, defenders and (match-22) defensive midfielders. The sum's
+     * distance below `base` counts × `lean[0]` and above it × `lean[1]`, so a poor match is
+     * rarely a disaster and a great one stands out; beyond the `knees` the rating moves at
+     * `beyond` of the rate (a soft limit at each end), then is bounded to minimum–maximum.
+     */
+    rating22: {
+      base: 6.63,
+      moments: 10,
+      fewest: 6,
+      decision: {
+        shooting: 0.25,
+        passing: 0.25,
+        dribbling: 0.25,
+        defending: 0.35,
+        goalkeeping: 0.4,
+      },
+      goal: 0.9,
+      assist: 0.7,
+      repeat: 0.55,
+      hatTrick: 1.2,
+      stop: 0.9,
+      stopFloor: 0.3,
+      stopCap: 0.85,
+      error: -0.4,
+      result: 0.2,
+      cleanSheet: 0.25,
+      lean: [0.8, 1.15] as const,
+      knees: [5.6, 9.2] as const,
+      beyond: [0.5, 0.6] as const,
+      /** A manager's tactical substitution looks at a rating below this (match-21: 6). */
+      substituteBelow: 6.3,
+      minimum: 3,
+      maximum: 10,
+    },
     momentum: { decay: 0.85, shot: 4, goal: 12, success: 3, failure: 2, minimum: 5, maximum: 95 },
     possession: { strengthSlope: 0.45, mentality: 3, momentum: 0.08, minimum: 30, maximum: 70 },
+    /**
+     * Possession from engine match-22 (step 5.3): the match-21 terms, plus the home side's
+     * `home` points (not at a neutral venue), each side's playing style (`styles`, the home
+     * side's less the away side's), the game plan of the day (± `spread`, a triangular draw on
+     * its own stream) and the score: a side ahead sits deeper, `lead` points a goal, at most
+     * `leadCap` goals.
+     */
+    possession22: {
+      home: 2.5,
+      styles: { possession: 6, press: 2, balanced: 0, direct: -3, counter: -5 } as Record<
+        string,
+        number
+      >,
+      spread: 18,
+      lead: 2,
+      leadCap: 3,
+      minimum: 25,
+      maximum: 75,
+    },
     commentaryVariants: 3,
     /**
      * How a shot outside the player's own choices that does not go in is missed (match-22,
-     * release 1.0 step 5.5): the commentary names it and the pitch draws it. Relative weights;
-     * on target (held, parried) about 57%, as match-21's lines and pitch drew them.
+     * release 1.0 step 5.5): the commentary names it and the pitch draws it. Relative weights.
+     * Step 5.3 moved them to real bands, about a quarter of misses on target (held, parried)
+     * and so 30–40% of all shots, and added the woodwork (`stats.woodwork`).
      */
-    missedShot: { held: 0.42, parried: 0.15, wide: 0.2, over: 0.13, blocked: 0.1 },
+    missedShot: {
+      held: 0.17,
+      parried: 0.09,
+      wide: 0.24,
+      over: 0.16,
+      blocked: 0.3,
+      woodwork: 0.04,
+    },
     /**
      * Moments that follow the game (engine match-12). The last moment is placed at
      * `lateDecisionMinute`: within `closeMargin` it comes in the closing minutes, otherwise
@@ -340,6 +427,30 @@ export const CONFIG = {
       perObjective: 15,
     },
     fame: { ratingThreshold: 6.3, perRating: 3, perGoal: 1.5, perAssist: 1, perCleanSheet: 1.5 },
+    /**
+     * XP and fame from a match-22 rating (release 1.0 step 5.3); minutes, goals, assists,
+     * objectives and clean sheets pay as in `xp` and `fame`. The compressed scale moves the
+     * rating term: per rating point above `ratingThreshold`, `perRating` × the weight of the
+     * position played (`position`). The weights keep each position's XP a match (median and
+     * mean over the match profile) within 5% of match-21's, where keepers' and defenders'
+     * ratings ran high, and fame within 8%; over all positions both stay where they were.
+     */
+    rewards22: {
+      xp: { ratingThreshold: 5.2, perRating: 45 },
+      fame: { ratingThreshold: 6.2, perRating: 3.75 },
+      position: {
+        GK: 1.2,
+        CB: 1.1,
+        LB: 1,
+        RB: 1,
+        DM: 0.9,
+        CM: 0.8,
+        AM: 0.85,
+        LW: 0.9,
+        RW: 0.9,
+        ST: 0.85,
+      } as Record<string, number>,
+    },
     /** Personal objectives: a rating target and one drawn for the position each match. */
     objectives: {
       rating: 7,
@@ -925,6 +1036,8 @@ export const CONFIG = {
         moodPull: 0.3,
         goodRating: 7.5,
         poorRating: 5.5,
+        /** The same bands on engine match-22's ratings (release 1.0 step 5.3). */
+        ratings22: { goodRating: 7.25, poorRating: 6.05 },
         performance: 1.5,
         transferRequest: -8,
         seniorsTransferRequest: -4,
@@ -950,6 +1063,11 @@ export const CONFIG = {
         greatRating: 7.5,
         goodRating: 6.8,
         poorRating: 5.5,
+        /**
+         * The bands on engine match-22's compressed ratings (release 1.0 step 5.3), keeping
+         * the shares of the match profile's matches: 27% great, 45% good or better, 21% poor.
+         */
+        ratings22: { greatRating: 7.25, goodRating: 6.65, poorRating: 6.05 },
         trust: { great: 2, good: 1, poor: -2 },
         fans: { great: 2, good: 1, poor: -1.5, goal: 1 },
       },

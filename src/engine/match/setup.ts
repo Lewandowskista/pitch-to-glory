@@ -12,6 +12,7 @@ import {
   CURRENT_SETUP_FLAGS,
   MATCH_ENGINE_VERSION,
   PREVIOUS_MATCH_ENGINE,
+  rules22,
   setupEngine,
   type MatchSetup,
   type MatchSession,
@@ -28,7 +29,7 @@ import { intensityFor, pitchStateFor } from './conditions';
 import { clamp, round6 } from './decisions';
 import { formationLineup } from './lineup';
 import { rates, shares, updatePossession } from './rates';
-import { RATING_PARTS } from './report';
+import { INITIAL_RATING_PARTS } from './report';
 import { ATTACKERS, copy, rolePosition, selectedSide } from './shared';
 
 /** Thrown before replay when a saved session was produced by a different match engine. */
@@ -246,7 +247,7 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
         assists: 0,
         shots: 0,
         errors: 0,
-        rating: C.rating.base,
+        rating: rules22(setup) ? C.rating22.base : C.rating.base,
         fatigue: selected.fatigue,
         xg: [0, 0],
         shotsOnTarget: [0, 0],
@@ -254,12 +255,14 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
         tacklesAttempted: 0,
         distanceM: 0,
         touches: 0,
+        // Engine match-22 counts shots off the woodwork.
+        ...(rules22(setup) ? { woodwork: [0, 0] as [number, number] } : {}),
       },
       ratingByMinute: [],
       narration: [],
       heat: new Array<number>(HEAT_COLUMNS * HEAT_ROWS).fill(0),
       ratingParts: Object.fromEntries(
-        RATING_PARTS.map((part) => [part, 0]),
+        INITIAL_RATING_PARTS.map((part) => [part, 0]),
       ) as MatchState['ratingParts'],
       report: null,
       momentMinutes: minutes,

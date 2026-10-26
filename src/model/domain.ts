@@ -1633,12 +1633,19 @@ export interface MatchEvent {
   /** On shots: the chance of a goal from this shot (engine match-14). */
   xg?: number;
   /**
+   * On a shot that did not go in (engine match-22): how it ended. Absent on earlier engines,
+   * and where the commentary line already says (the player's own shots, except the woodwork).
+   */
+  shotResult?: ShotResult;
+  /**
    * On cards: what was shown. Engine match-15 books cosmetic yellows only; match-16 adds a
    * second yellow (a yellow, then red: off) and a straight red.
    */
   card?: CardKind;
 }
 export type CardKind = 'yellow' | 'second-yellow' | 'red';
+/** Where a shot that did not go in ended (engine match-22). */
+export type ShotResult = 'saved' | 'blocked' | 'off-target' | 'woodwork';
 /** A dismissal (engine match-16): the minute and why. */
 export interface SentOff {
   minute: number;

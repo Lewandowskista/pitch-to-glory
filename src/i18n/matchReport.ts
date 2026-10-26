@@ -473,6 +473,7 @@ const reportCopyEn = {
   stats: {
     shots: 'Shots',
     onTarget: 'On target',
+    woodwork: 'Hit the woodwork',
     possession: 'Possession',
     xg: 'Expected goals (xG)',
   },

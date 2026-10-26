@@ -4,7 +4,14 @@
  */
 import type { Position } from '../../model/domain';
 import { expectedGoals } from '../strength';
-import type { MatchSetup, MatchSession, MatchState, Tactics } from './types';
+import {
+  rules22,
+  type MatchSetup,
+  type MatchSession,
+  type MatchState,
+  type Tactics,
+} from './types';
+import { createRng } from '../rng';
 import { MATCH_CONFIG as C } from './tuning';
 import { roleEffect } from './roles';
 import { clamp, round6, situationWeights } from './decisions';
@@ -80,18 +87,36 @@ function possessionBase(setup: MatchSetup, state: Pick<MatchState, 'strength'>, 
     (selectedSide(setup) === 0 ? 1 : -1);
   return 50 + (state.strength[0] - state.strength[1]) * C.possession.strengthSlope + mentality;
 }
+/**
+ * Match-22's further possession terms (step 5.3): home advantage, both sides' playing styles,
+ * the game plan of the day (a triangular draw on its own stream, the same every minute) and
+ * the score, a side ahead sitting deeper.
+ */
+function possession22(session: MatchSession): number {
+  const P = C.possession22,
+    setup = session.setup;
+  const style = (club: { playingStyle: string }) => P.styles[club.playingStyle] ?? 0;
+  const draw = createRng(`${setup.seed}:possession`);
+  const plan = (draw.next() + draw.next() - 1) * P.spread;
+  const [home, away] = session.state.match.score;
+  const lead = clamp(home! - away!, -P.leadCap, P.leadCap) * P.lead;
+  return (setup.neutral ? 0 : P.home) + style(setup.home) - style(setup.away) + plan - lead;
+}
 export function updatePossession(session: MatchSession): void {
   const s = session.state;
   // A side down to ten men (match-16) sees less of the ball.
   const [home, away] = menDown(s.match);
   const short = home || away ? (away - home) * F.menDown.possession : 0;
+  const latest = rules22(session.setup);
+  const bounds = latest ? C.possession22 : C.possession;
   s.stats.homePossession = Math.round(
     clamp(
       possessionBase(session.setup, s, s.match.tactics) +
         short +
-        (s.match.momentum - 50) * C.possession.momentum,
-      C.possession.minimum,
-      C.possession.maximum,
+        (s.match.momentum - 50) * C.possession.momentum +
+        (latest ? possession22(session) : 0),
+      bounds.minimum,
+      bounds.maximum,
     ),
   );
 }

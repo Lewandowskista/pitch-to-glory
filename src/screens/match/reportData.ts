@@ -113,7 +113,7 @@ export interface StoryCard {
   card: CardKind;
 }
 export interface TeamStat {
-  key: 'shots' | 'onTarget' | 'possession' | 'xg';
+  key: 'shots' | 'onTarget' | 'woodwork' | 'possession' | 'xg';
   home: number;
   away: number;
 }
@@ -149,6 +149,10 @@ export function matchStory(session: MatchSession): MatchStory {
   const stats: TeamStat[] = [
     { key: 'shots', home: s.homeShots, away: s.awayShots },
     { key: 'onTarget', home: s.shotsOnTarget[0], away: s.shotsOnTarget[1] },
+    // Engine match-22 counts the woodwork; shown when a shot hit it.
+    ...(s.woodwork && s.woodwork[0] + s.woodwork[1] > 0
+      ? [{ key: 'woodwork' as const, home: s.woodwork[0], away: s.woodwork[1] }]
+      : []),
     { key: 'possession', home: s.homePossession, away: 100 - s.homePossession },
     {
       key: 'xg',
