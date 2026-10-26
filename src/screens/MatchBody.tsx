@@ -12,10 +12,10 @@ import { lazyPage, loadWithRetry } from '../ui/lazyPage';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore, worldBusy } from '../store';
 import {
-  fullTime,
   applyMatchCommand,
   createMatchSession,
   createMatchSetup,
+  rules22,
   type MatchCommand,
   type MatchMotion,
   type MatchSession,
@@ -50,18 +50,13 @@ import {
   pendingWindowFixture,
 } from '../engine/career/honours/international';
 import {
-  CaptainPanel,
   CommentaryCard,
-  HalfTimePanel,
   MatchControls,
-  OutcomePanel,
   PitchOverlay,
   RatingCard,
   Scoreboard,
-  SentOffPanel,
   SimulationCard,
   StatsCard,
-  SubstitutionPanel,
   Timeline,
 } from './match/Live';
 import { isRoutine, type NarrationLine } from './match/feed';
@@ -100,6 +95,40 @@ import { useRestoredReport } from './match/restoreReport';
 /** The GOAL banner: fetched once a match is under way, shown when a goal goes in. */
 const loadGoalBanner = () => import('./match/GoalBanner');
 const GoalBanner = lazyPage(loadGoalBanner);
+/**
+ * The occasions of a match-22 session (release 1.0 step 5.4): the half-time talk, the bench,
+ * knocks, the substitution answer, the added-time board and the shootout. Fetched with the
+ * session (their copy registers the engine's lines), apart from the live screen's first load.
+ */
+const loadOccasions = () => import('./match/Occasions');
+/** The panels that interrupt play (half-time, captain, substitution, dismissal, outcome). */
+const loadInterrupts = () => import('./match/Interrupts');
+const HalfTimePanel = lazyPage(() =>
+  loadInterrupts().then((module) => ({ default: module.HalfTimePanel })),
+);
+const CaptainPanel = lazyPage(() =>
+  loadInterrupts().then((module) => ({ default: module.CaptainPanel })),
+);
+const SubstitutionPanel = lazyPage(() =>
+  loadInterrupts().then((module) => ({ default: module.SubstitutionPanel })),
+);
+const SentOffPanel = lazyPage(() =>
+  loadInterrupts().then((module) => ({ default: module.SentOffPanel })),
+);
+const OutcomePanel = lazyPage(() =>
+  loadInterrupts().then((module) => ({ default: module.OutcomePanel })),
+);
+const OccasionPanels = lazyPage(() =>
+  loadOccasions().then((module) => ({ default: module.OccasionPanels })),
+);
+const PitchOccasions = lazyPage(() =>
+  loadOccasions().then((module) => ({ default: module.PitchOccasions })),
+);
+/** A decision the match waits on before it can go on. */
+const awaiting = (state: MatchSession['state']) =>
+  state.captainDecisionPending ||
+  state.substitutionDecisionPending ||
+  Boolean(state.injuryDecisionPending);
 /** A friendly between any two clubs, for a world without a career: loaded only there. */
 const Selection = lazyPage(() =>
   import('./match/Selection').then((module) => ({ default: module.Selection })),
@@ -149,11 +178,13 @@ export default function MatchBody() {
   // Fetch the report's code while the match is played, so the final whistle never waits.
   const hasSession = Boolean(session);
   const [lines, setLines] = useState<LinesModule>();
+  const occasions = Boolean(session && rules22(session.setup));
   useEffect(() => {
     if (!hasSession) return;
     let current = true;
     void loadReport().catch(() => undefined);
     void loadGoalBanner().catch(() => undefined);
+    void loadInterrupts().catch(() => undefined);
     // A failed fetch leaves the feed's loading note; the match itself plays on.
     void loadWithRetry(loadLines)
       .then((module) => current && setLines(module))
@@ -162,6 +193,9 @@ export default function MatchBody() {
       current = false;
     };
   }, [hasSession]);
+  useEffect(() => {
+    if (occasions) void loadOccasions().catch(() => undefined);
+  }, [occasions]);
   const active = useAppStore((store) => store.activeSave);
   const settings = useAppStore((store) => store.settings);
   const systemReduced = useMediaQuery('(prefers-reduced-motion: reduce)');
@@ -255,12 +289,7 @@ export default function MatchBody() {
         );
         setPlaying(false);
       }
-      if (
-        next.state.match.status !== 'live' ||
-        next.state.captainDecisionPending ||
-        next.state.substitutionDecisionPending
-      )
-        setPlaying(false);
+      if (next.state.match.status !== 'live' || awaiting(next.state)) setPlaying(false);
     } catch {
       setError(m.error);
       setPlaying(false);
@@ -269,21 +298,20 @@ export default function MatchBody() {
 
   const nextMoment = useCallback(() => {
     let current = useAppStore.getState().matchSession;
-    if (
-      !current ||
-      useAppStore.getState().worldJob ||
-      current.state.captainDecisionPending ||
-      current.state.substitutionDecisionPending
-    )
-      return;
+    if (!current || useAppStore.getState().worldJob || awaiting(current.state)) return;
     setPlaying(false);
     setOutcomeId(null);
     try {
-      while (
+      // On to the next moment or decision, or the end; a shootout starts as its own stop, and
+      // then plays on to the player's kick or its end (match-22).
+      const shootout = Boolean(current.state.penaltyShootout);
+      for (
+        let step = 0;
+        step < 400 &&
         current.state.match.status === 'live' &&
-        !current.state.captainDecisionPending &&
-        !current.state.substitutionDecisionPending &&
-        current.state.match.minute < fullTime(current)
+        !awaiting(current.state) &&
+        (shootout || !current.state.penaltyShootout);
+        step++
       )
         current = applyMatchCommand(current, { type: 'advance' });
       useAppStore.getState().setMatchSession(current);
@@ -300,12 +328,12 @@ export default function MatchBody() {
   const jump = useCallback(() => {
     let current = useAppStore.getState().matchSession;
     if (!current || useAppStore.getState().worldJob) return;
-    const waiting = (s: MatchSession['state']) =>
-      s.match.status !== 'live' || s.captainDecisionPending || s.substitutionDecisionPending;
+    const waiting = (s: MatchSession['state']) => s.match.status !== 'live' || awaiting(s);
     try {
-      for (let step = 0; step < 240 && !waiting(current.state); step++) {
+      for (let step = 0; step < 400 && !waiting(current.state); step++) {
         current = applyMatchCommand(current, { type: 'advance' });
-        if (passageGoal(current.state.motion.frames)) break;
+        // A goal stops the jump for its banner; a shootout goes kick by kick (match-22).
+        if (passageGoal(current.state.motion.frames) || current.state.penaltyShootout) break;
       }
       useAppStore.getState().setMatchSession(current);
       setError('');
@@ -345,6 +373,7 @@ export default function MatchBody() {
       status !== 'live' ||
       state?.captainDecisionPending ||
       state?.substitutionDecisionPending ||
+      state?.injuryDecisionPending ||
       job ||
       replayActive ||
       !motion
@@ -373,6 +402,7 @@ export default function MatchBody() {
     status,
     state?.captainDecisionPending,
     state?.substitutionDecisionPending,
+    state?.injuryDecisionPending,
     motion,
     passage,
     goal,
@@ -490,8 +520,7 @@ export default function MatchBody() {
       if (
         event.code === 'Space' &&
         current.state.match.status === 'live' &&
-        !current.state.captainDecisionPending &&
-        !current.state.substitutionDecisionPending
+        !awaiting(current.state)
       ) {
         event.preventDefault();
         setOutcomeId(null);
@@ -640,11 +669,7 @@ export default function MatchBody() {
     lastEvent.playerId === session?.setup.selectedPlayerId
       ? { key: lastEvent.id, motion: celebrationItem.motion }
       : null;
-  const canPlay =
-    status === 'live' &&
-    !state?.captainDecisionPending &&
-    !state?.substitutionDecisionPending &&
-    !job;
+  const canPlay = status === 'live' && Boolean(state) && !awaiting(state!) && !job;
   const deciding = Boolean(state?.currentMoment);
   const camera = !settings.simulationOnly;
   const replaying = Boolean(outcome && outcomeMoment && camera && motion?.kind === 'outcome');
@@ -971,29 +996,44 @@ export default function MatchBody() {
                   />
                 )}
                 {/* What the match is waiting on comes first. */}
-                {status === 'halftime' && (
-                  <HalfTimePanel
-                    session={session}
-                    world={world}
-                    onTalk={(response) => {
-                      setOutcomeId(null);
-                      command({ type: 'halftime', response });
-                    }}
-                  />
+                {occasions && (
+                  <Suspense fallback={null}>
+                    <OccasionPanels
+                      session={session}
+                      world={world}
+                      simulationOnly={simulationOnly}
+                      onCommand={(input) => {
+                        setOutcomeId(null);
+                        command(input);
+                      }}
+                    />
+                  </Suspense>
                 )}
-                {state!.captainDecisionPending && (
-                  <CaptainPanel
-                    session={session}
-                    onCall={(instruction) => command({ type: 'captain', instruction })}
-                  />
-                )}
-                {state!.substituted && (
-                  <SubstitutionPanel
-                    session={session}
-                    onResponse={(response) => command({ type: 'substitution', response })}
-                  />
-                )}
-                {state!.sentOff && <SentOffPanel session={session} />}
+                <Suspense fallback={null}>
+                  {status === 'halftime' && !occasions && (
+                    <HalfTimePanel
+                      session={session}
+                      world={world}
+                      onTalk={(response) => {
+                        setOutcomeId(null);
+                        command({ type: 'halftime', response });
+                      }}
+                    />
+                  )}
+                  {state!.captainDecisionPending && (
+                    <CaptainPanel
+                      session={session}
+                      onCall={(instruction) => command({ type: 'captain', instruction })}
+                    />
+                  )}
+                  {state!.substituted && !occasions && (
+                    <SubstitutionPanel
+                      session={session}
+                      onResponse={(response) => command({ type: 'substitution', response })}
+                    />
+                  )}
+                  {state!.sentOff && <SentOffPanel session={session} />}
+                </Suspense>
                 {replaying && outcomeMoment && (
                   <DecisionReplay
                     session={session}
@@ -1014,18 +1054,20 @@ export default function MatchBody() {
                   </Suspense>
                 )}
                 {outcome && outcomeMoment && (
-                  <OutcomePanel
-                    outcome={outcome}
-                    minute={outcomeMoment.minute}
-                    choice={matchLabel(
-                      outcomeMoment.choices.find((choice) => choice.id === outcome.input.choiceId)
-                        ?.labelKey ?? '',
-                    )}
-                    onContinue={() => {
-                      setOutcomeId(null);
-                      if (canPlay) setPlaying(true);
-                    }}
-                  />
+                  <Suspense fallback={null}>
+                    <OutcomePanel
+                      outcome={outcome}
+                      minute={outcomeMoment.minute}
+                      choice={matchLabel(
+                        outcomeMoment.choices.find((choice) => choice.id === outcome.input.choiceId)
+                          ?.labelKey ?? '',
+                      )}
+                      onContinue={() => {
+                        setOutcomeId(null);
+                        if (canPlay) setPlaying(true);
+                      }}
+                    />
+                  </Suspense>
                 )}
                 <section
                   className={`match-panel match-stage${pitchAway ? ' is-away' : ' match-pitch-panel'}`}
@@ -1082,6 +1124,11 @@ export default function MatchBody() {
                         header={<PitchOverlay session={session} />}
                         overlay={
                           <>
+                            {occasions && (
+                              <Suspense fallback={null}>
+                                <PitchOccasions session={session} />
+                              </Suspense>
+                            )}
                             {story && bannerOnPitch && (
                               <Suspense fallback={null}>
                                 <GoalBanner

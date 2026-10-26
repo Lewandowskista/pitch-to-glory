@@ -307,7 +307,9 @@ describe('match bookkeeping stats', { timeout: 120000 }, () => {
   it('records the rating at the end of every minute', () => {
     for (const { session } of matches) {
       const line = session.state.ratingByMinute;
-      expect(line).toHaveLength(90);
+      // Added minutes are played minutes too (match-22).
+      const added = (session.state.stoppage ?? []).reduce((sum, board) => sum + board.minutes, 0);
+      expect(line).toHaveLength(90 + added);
       expect(line.every((value) => value >= 3 && value <= 10)).toBe(true);
     }
   });

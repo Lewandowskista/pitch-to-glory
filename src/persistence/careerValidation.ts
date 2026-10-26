@@ -220,9 +220,11 @@ export function validateCareer(w: Record<string, unknown>): void {
     if (match.yellowCards !== undefined) number(match.yellowCards, 1, 2, true);
     if (match.sentOff !== undefined) {
       const sentOff = object(match.sentOff);
-      number(sentOff.minute, 1, 90, true);
+      number(sentOff.minute, 1, 120, true);
       options(sentOff.reason, ['second-yellow', 'straight-red']);
     }
+    // Came on from the bench (release 1.0 step 5.4).
+    if (match.cameOn !== undefined) number(match.cameOn, 1, 120, true);
   }
   if (career.coaching !== undefined) validateCoaching(career.coaching, current);
   if (career.ambitions !== undefined) validateAmbitions(career.ambitions, current, object(w.clubs));
@@ -445,4 +447,5 @@ export const CAREER_MATCH_FIELDS = covers<CareerMatchRecord>('career.matches.*',
   tackles: true,
   yellowCards: true,
   sentOff: true,
+  cameOn: true,
 });

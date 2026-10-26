@@ -21,9 +21,14 @@ import {
 import { applyPassage } from './passage';
 import { bookedPlayers } from './cards';
 import { choiceTarget, pickReceivers, spotWidth, zoneAt } from './targets';
+import { rules22 } from './types';
+import { momentCount } from './bench';
 import {
+  addedStamp,
   attacksRight,
+  clockKey,
   menDown,
+  onBench,
   onPitch,
   opposingStyle,
   playedSlot,
@@ -71,7 +76,8 @@ function contextFor(
       weights,
       s.shares,
       { own: s.expectedGoals[side]!, opposition: s.expectedGoals[1 - side]! },
-      s.momentMinutes.length,
+      // A player who came off the bench (match-22): their moments carry only their time.
+      momentCount(session),
     ),
     matchLevel: s.matchLevel,
     importance: setup.fixture?.importance ?? 1,
@@ -128,7 +134,7 @@ function framing(
   const setup = session.setup,
     m = session.state.match,
     side = selectedSide(setup);
-  const rng = createRng(`${setup.seed}:framing:${m.minute}`);
+  const rng = createRng(`${setup.seed}:framing:${clockKey(session.state)}`);
   const variant = rng.int(0, C.drama.situationVariants - 1);
   const name = (id: string | undefined) => (id ? setup.players[id]?.name : undefined);
   const own = side === 0 ? m.home : m.away;
@@ -170,9 +176,33 @@ export function placeLateMoment(session: MatchSession): void {
     m = s.match,
     D = C.drama;
   const side = selectedSide(session.setup);
+  // Match-22: a player still on the bench has no moments to place.
+  if (rules22(session.setup) && (onBench(s) || !s.momentMinutes.length)) return;
   if (Math.abs(m.score[side]! - m.score[1 - side]!) > D.closeMargin) return;
   const rng = createRng(`${session.setup.seed}:late`);
-  s.momentMinutes = [...s.momentMinutes.slice(0, -1), rng.int(D.lateMinutes[0], D.lateMinutes[1])];
+  const minute = rng.int(D.lateMinutes[0], D.lateMinutes[1]);
+  // Match-22: the late moment can land in second-half added time (`${seed}:late:added`).
+  if (rules22(session.setup)) {
+    const S = C.occasions.stoppage;
+    const added = createRng(`${session.setup.seed}:late:added`);
+    if (added.next() < S.lateAddedChance) {
+      s.lateAdded = added.int(1, S.lateAddedMinutes);
+      s.momentMinutes = [...s.momentMinutes.slice(0, -1), 90];
+      return;
+    }
+  }
+  s.momentMinutes = [...s.momentMinutes.slice(0, -1), minute];
+}
+/**
+ * Whether a key moment is due in the minute being played: one of the moment minutes, or on
+ * match-22 in added time the late moment's added minute (the 90th then waits for it).
+ */
+export function momentDue(session: MatchSession): boolean {
+  const s = session.state,
+    m = s.match;
+  if (!rules22(session.setup)) return s.momentMinutes.includes(m.minute);
+  if (s.added) return m.minute === 90 && s.lateAdded === s.added && s.momentMinutes.includes(90);
+  return s.momentMinutes.includes(m.minute) && !(m.minute === 90 && s.lateAdded !== undefined);
 }
 /**
  * A moment that follows from another (engine match-13): the shootout kick at full time, or the
@@ -189,10 +219,11 @@ export function openMoment(next: MatchSession, forced?: ForcedMoment): void {
     m = s.match,
     setup = next.setup;
   const player = setup.players[setup.selectedPlayerId]!;
+  const clock = clockKey(s);
   const rng = createRng(
     forced
-      ? `${setup.seed}:${forced.kind}:${m.minute}:${m.keyMoments.length}`
-      : `${setup.seed}:situation:${m.minute}`,
+      ? `${setup.seed}:${forced.kind}:${clock}:${m.keyMoments.length}`
+      : `${setup.seed}:situation:${clock}`,
   );
   const side = selectedSide(setup);
   const margin = m.score[side]! - m.score[1 - side]!;
@@ -241,9 +272,10 @@ export function openMoment(next: MatchSession, forced?: ForcedMoment): void {
   const choices = buildChoices(context);
   const moment: KeyMoment = {
     id: forced
-      ? `${m.id}:moment:${m.minute}:${forced.kind}:${m.keyMoments.length}`
-      : `${m.id}:moment:${m.minute}`,
+      ? `${m.id}:moment:${clock}:${forced.kind}:${m.keyMoments.length}`
+      : `${m.id}:moment:${clock}`,
     minute: m.minute,
+    ...addedStamp(s),
     situationId: situation.id,
     situationKey: `match.situation.${situation.id}`,
     frame: momentFrame,
@@ -270,9 +302,10 @@ export function openMoment(next: MatchSession, forced?: ForcedMoment): void {
   Object.assign(moment, framing(next, situation, opponents, margin));
   if (forced) moment.follows = forced.kind;
   if (forced?.kind === 'shootout')
-    moment.situationKey = `match.situation.shootout${situation.id === 'penalty-save' ? '-keeper' : ''}.${
-      moment.situationKey.split('.').pop() ?? '0'
-    }`;
+    moment.situationKey = `match.situation.${
+      // A kick of the match-22 shootout itself, not the promise of one.
+      rules22(setup) ? 'shootout-kick' : 'shootout'
+    }${situation.id === 'penalty-save' ? '-keeper' : ''}.${moment.situationKey.split('.').pop() ?? '0'}`;
   s.currentMoment = moment;
   m.keyMoments.push(moment);
   m.status = 'decision';

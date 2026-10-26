@@ -62,6 +62,8 @@ export function drawCard(
   booked: ReadonlySet<string>,
   /** A player whose weight is scaled (the selected player, whose moments carry their own risk). */
   scaled?: { id: string; factor: number },
+  /** A further weight per player (match-22: keepers rarely). */
+  extra?: (id: string) => number,
 ): { playerId: string; card: Card['card'] } | null {
   const happens = rng.next(),
     who = rng.next(),
@@ -72,7 +74,8 @@ export function drawCard(
     (candidate) =>
       cardWeight(players[candidate]!) *
       (booked.has(candidate) ? F.bookedCaution : 1) *
-      (candidate === scaled?.id ? scaled.factor : 1),
+      (candidate === scaled?.id ? scaled.factor : 1) *
+      (extra ? extra(candidate) : 1),
     who,
   )!;
   const card =
@@ -87,11 +90,14 @@ export function drawCard(
  */
 export function cardsOfMinute(
   seed: string,
-  minute: number,
+  /** The minute, or on match-22 the clock's key (`90+2` in added time). */
+  minute: number | string,
   lineups: readonly [Lineup, Lineup],
   players: Readonly<Record<string, Player>>,
   booked: ReadonlySet<string>,
   scaled?: { id: string; factor: number },
+  /** Match-22: keepers are in the pool too, their weight × this. */
+  keepers?: number,
 ): Card[] {
   const rng = createRng(`${seed}:cards:${minute}`);
   const cards: Card[] = [];
@@ -99,9 +105,23 @@ export function cardsOfMinute(
     const team = lineups[side];
     const off = new Set(team.sentOffIds ?? []);
     const pool = team.starterIds.filter(
-      (id) => !off.has(id) && players[id] && players[id].primaryPosition !== 'GK',
+      (id) =>
+        !off.has(id) &&
+        players[id] &&
+        (keepers !== undefined || players[id].primaryPosition !== 'GK'),
     );
-    const drawn = drawCard(rng, F.perTeamPerMinute, pool, players, booked, scaled);
+    const drawn = drawCard(
+      rng,
+      F.perTeamPerMinute,
+      pool,
+      players,
+      booked,
+      scaled,
+      // A keeper is booked too, but rarely.
+      keepers === undefined
+        ? undefined
+        : (id) => (players[id]!.primaryPosition === 'GK' ? keepers : 1),
+    );
     if (!drawn) continue;
     if (drawn.card !== 'yellow' && off.size >= F.maxDismissals) continue;
     cards.push({ side, ...drawn });

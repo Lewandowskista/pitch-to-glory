@@ -418,6 +418,158 @@ export const CONFIG = {
      * each other shows every choice as even.
      */
     valueHint: { tie: 0.002, costly: 0.01 },
+    /**
+     * The occasions (release 1.0 step 5.4, engine match-22 only; docs/MATCH-BALANCING.md "The
+     * occasions"). Every value here is read under `rules22` alone, so match-21 sessions replay.
+     */
+    occasions: {
+      /**
+       * Stoppage time. At the end of each period the board shows N = base + goals × `goal` +
+       * substitutions × `substitution` + cards × `card` + injuries × `injury` + a uniform
+       * draw below `jitter` (`${seed}:added:${minute}`), rounded and kept within the period's
+       * band; the second half's band stretches to `long.upTo` with `long.chance`. The minute's
+       * background goal rate is expected goals ÷ `matchMinutes` (90 plus the mean added time),
+       * so goals per match hold while added minutes are played.
+       */
+      stoppage: {
+        periods: {
+          45: { base: 0.7, band: [1, 4] },
+          90: { base: 2.6, band: [3, 7] },
+          105: { base: 0, band: [0, 2] },
+          120: { base: 0.6, band: [1, 3] },
+        } as Record<number, { base: number; band: readonly [number, number] }>,
+        goal: 0.45,
+        substitution: 0.2,
+        card: 0.2,
+        injury: 0.9,
+        jitter: 1.6,
+        long: { chance: 0.04, upTo: 10 },
+        matchMinutes: 98.3,
+        /**
+         * The last key moment of a close game (placed at minute 80) lands in second-half added
+         * time with this chance, in one of its first `lateAddedMinutes` minutes.
+         */
+        lateAddedChance: 0.3,
+        lateAddedMinutes: 3,
+      },
+      /**
+       * Coming off the bench (review M7). A career player left out of the eleven starts on the
+       * bench; from `from` to `to` (and again in extra time, to `extraTo`) the manager brings
+       * them on each minute with hazard base[role] × ramp(minute) × score × form × fatigue ×
+       * asked. Ramp rises linearly from `ramp[0]` at `from` to `ramp[1]` at `peak`, then eases
+       * to `ramp[2]` at `to`. Score: chasing the game, an attacker × `chasing.attack` and a
+       * defender × `chasing.defence`; protecting a lead, an attacker × `leading.attack` and a
+       * defender × `leading.defence`. Form × (1 + (form − 50) × `form`); fatigue ×
+       * (1 − fatigue × `fatigue`); asking at half-time × `asked`. A keeper on the bench comes
+       * on only when the starting keeper is injured. Once on, `moments` key moments between
+       * two minutes after coming on and the 89th.
+       */
+      bench: {
+        from: 55,
+        to: 80,
+        extraTo: 105,
+        peak: 68,
+        base: { key: 0.09, rotation: 0.05, backup: 0.03, youth: 0.02 } as Record<string, number>,
+        ramp: [0.5, 1.4, 0.9] as const,
+        chasing: { attack: 1.6, defence: 0.6 },
+        leading: { attack: 0.8, defence: 1.4 },
+        form: 0.012,
+        fatigue: 0.008,
+        asked: 1.5,
+        /** Asking to come on at half-time costs this much trust. */
+        askTrust: -2,
+        moments: [2, 4] as const,
+        /** "Warming up" shows from this minute while on the bench (presentation). */
+        warmFrom: 50,
+      },
+      /**
+       * In-match injuries (review M12). Each side's players on the pitch are forced off with a
+       * per-minute hazard of `aiPerNinety` ÷ 90 × (0.5 + injury proneness / 100) × (1 + fatigue
+       * ÷ `fatigueWeight`) each, drawn per side per minute (`${seed}:injury:…`), replaced from the
+       * bench while changes remain. The career player takes a knock with `knock` ÷ 90 a minute ×
+       * their injury factor (and a rushed return's risk ÷ 90); a share `serious` of knocks is an
+       * injury that ends their match, the rest ask "play on or come off". Playing on adds
+       * `playOn.fatigue` fatigue and an aggravation hazard of `playOn.aggravate` a minute, which
+       * turns the knock into an injury and ends their match; coming off ends it at once, unhurt.
+       */
+      injuries: {
+        aiPerNinety: 0.012,
+        fatigueWeight: 50,
+        knock: 0.035,
+        serious: 0.25,
+        playOn: { fatigue: 20, aggravate: 0.01 },
+        /** Keepers are booked too: their card weight × `keeperCard`. */
+        keeperCard: 0.3,
+      },
+      /** One more change for each side in extra time (modern rules), at `extraSub.from`–`to`. */
+      extraSub: { chance: 0.75, from: 91, to: 110 },
+      /**
+       * The shootout: five kicks a side, then sudden death. A kick goes in with base + (taker
+       * − 60) × `taker` − (keeper − 60) × `keeper`, less `pressure` for a kick that can lose
+       * the shootout, within the bounds. Taker: mean of finishing, composure and set pieces;
+       * keeper: mean of reflexes, diving and one-on-ones. The career player, on the pitch, takes
+       * one of the first five kicks (their rank among the takers, at most fifth) or, in goal,
+       * faces every kick.
+       */
+      shootout: {
+        rounds: 5,
+        base: 0.76,
+        taker: 0.004,
+        keeper: 0.003,
+        pressure: 0.04,
+        minimum: 0.55,
+        maximum: 0.92,
+      },
+      /**
+       * Touchline decisions (review M13). Half-time: motivating lifts momentum by
+       * `motivate.momentum` × the score's factor and the second half's odds by `motivate.odds`
+       * (`oddsAhead` when ahead), with `motivate.trust`. Asking for a role is refused with
+       * `role.base` − (trust − 50) × `role.trust` + `role.against` when the request runs
+       * against the score (more attack when ahead, more caution when behind), within the
+       * bounds; refused, it costs `role.refusedTrust` and odds × `role.refusedOdds`. Demanding
+       * the ball costs `demand.trust`, `demand.earned` with a first-half rating of at least
+       * `demand.rating`, `demand.poor` below `demand.poorRating`. The captain calls the tone at
+       * the second half's start, after conceding and at `captain.lateMinute` in a close game, at
+       * most `captain.maximum` times, `captain.gap` minutes apart. Accepting a substitution
+       * earns `substitution.acceptTrust`; rallying the side as you go off scales its expected
+       * goals by `substitution.rally.own` and the opposition's by `rally.against` for the rest
+       * of the match instead. Demanding the ball raises the attacking share × `demand.share`
+       * and adds `demand.moments` key moments, one in each 15 minutes from `demand.from`.
+       */
+      touchline: {
+        motivate: {
+          momentum: 8,
+          behind: 1.25,
+          level: 1,
+          ahead: 0.4,
+          odds: 1.03,
+          oddsAhead: 1.005,
+          trust: 1,
+        },
+        role: {
+          base: 0.3,
+          trust: 0.008,
+          against: 0.25,
+          minimum: 0.05,
+          maximum: 0.85,
+          refusedTrust: -1,
+          refusedOdds: 0.98,
+        },
+        demand: {
+          trust: -2,
+          earned: 0,
+          rating: 7,
+          poor: -4,
+          poorRating: 6.2,
+          share: 1.35,
+          moments: 2,
+          from: 50,
+        },
+        bench: { momentum: 0.5 },
+        captain: { lateMinute: 80, maximum: 3, gap: 10, lastMinute: 88 },
+        substitution: { acceptTrust: 1, rally: { own: 1.3, against: 0.85 } },
+      },
+    },
     xp: {
       perMinute: 0.5,
       ratingThreshold: 5.5,

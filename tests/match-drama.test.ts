@@ -18,6 +18,7 @@ import { hasMatchLabel, matchFormat, situationText } from '../src/i18n/match';
 import { hasCommentaryLabel } from '../src/i18n/commentary';
 import { hasReportLabel, reportLabel } from '../src/i18n/matchReport';
 import type { MatchEvent, Position } from '../src/model/domain';
+import { onEngine } from './support/engines';
 
 /**
  * Key moments that follow the game (engine match-12): late moments in close games, set pieces
@@ -251,15 +252,21 @@ describe('key moments that follow the game', () => {
         const choice = before.choices.find((c) => c.id === outcome.input.choiceId)!;
         expect(moment.budget.for).toBe(choice.stakes.successGoal);
       });
-      expect(drama.state.frames).toHaveLength(91);
+      // One frame a played minute, added time included (match-22), and the kick-off.
+      const added = (drama.state.stoppage ?? []).reduce((sum, board) => sum + board.minutes, 0);
+      expect(drama.state.frames).toHaveLength(91 + added);
     }
     expect(chains).toBeGreaterThan(5);
   });
 
+  // Match-21's single kick (match-13); match-22 plays a whole shootout (match-occasions.test.ts).
   it('ask a level knockout for the shootout kick, without touching the score', () => {
     let shootouts = 0;
     for (let index = 0; index < 80 && shootouts < 3; index++) {
-      const setup = setupFor(index % 2 ? 'GK' : 'ST', `shootout:${index}`, index);
+      const setup = onEngine(
+        setupFor(index % 2 ? 'GK' : 'ST', `shootout:${index}`, index),
+        'match-21',
+      );
       setup.fixture = {
         id: `cup:${index}`,
         competitionId: 'cup',
@@ -290,8 +297,10 @@ describe('key moments that follow the game', () => {
     let extra = 0;
     let shootouts = 0;
     for (let index = 0; index < 120 && (extra < 4 || shootouts < 1); index++) {
-      const setup = setupFor(index % 2 ? 'GK' : 'ST', `extra:${index}`, index);
-      expect(isCurrentSetup(setup)).toBe(true);
+      const current = setupFor(index % 2 ? 'GK' : 'ST', `extra:${index}`, index);
+      expect(isCurrentSetup(current)).toBe(true);
+      // Match-21's extra time and single kick; match-22's in match-occasions.test.ts.
+      const setup = onEngine(current, 'match-21');
       setup.fixture = {
         id: `tie:${index}`,
         competitionId: 'cup',
@@ -338,7 +347,7 @@ describe('key moments that follow the game', () => {
       const margin = s.match.score[own]! - s.match.score[1 - own]!;
       const kind = s.headlineKey.split('.')[2]!;
       if (margin > 0) expect(['final-won', 'late-winner', 'hat-trick']).toContain(kind);
-      if (margin < 0) expect(kind).toBe('final-lost');
+      if (margin < 0) expect(['final-lost', 'sent-off']).toContain(kind);
       expect(hasReportLabel(s.headlineKey)).toBe(true);
     }
   });

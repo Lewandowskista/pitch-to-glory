@@ -134,7 +134,7 @@ describe('career match accounting', () => {
       if (fixture.homeId !== trial.id && fixture.awayId !== trial.id) continue;
       const world = clone(career);
       let session: MatchSession = createMatchSession(
-        careerMatchSetup(world, fixture),
+        careerMatchSetup(world, fixture, { start: true }),
         defaultTactics(world),
       );
       while (session.state.match.status !== 'finished')
@@ -345,7 +345,7 @@ describe('career match accounting', () => {
     for (let index = 0; index < 150 && !(checked >= 3 && scoredInExtraTime); index++) {
       const world = clone(career);
       const fixture = playoff(world, trial.id, opponent, `career-${index}`);
-      const setup = careerMatchSetup(world, fixture);
+      const setup = careerMatchSetup(world, fixture, { start: true });
       let session: MatchSession = createMatchSession(setup, defaultTactics(world, setup));
       while (session.state.match.status !== 'finished')
         session = applyMatchCommand(session, autoPlayCommand(session));
@@ -426,7 +426,7 @@ describe('career match accounting', () => {
         const world = clone(career);
         const fixture = playoff(world, trial.id, opponent, `fame-${position}-${index}`);
         let session: MatchSession = createMatchSession(
-          careerMatchSetup(world, fixture),
+          careerMatchSetup(world, fixture, { start: true }),
           defaultTactics(world),
         );
         while (session.state.match.status !== 'finished')

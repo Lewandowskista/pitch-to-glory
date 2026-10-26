@@ -95,6 +95,28 @@ async function prepare(page: Page, keeper = false, tired = false, backup?: strin
   await page.getByRole('button', { name: 'Prepare match', exact: true }).click();
   await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'preview');
 }
+/**
+ * "Next key moment", answering on the way what match-22 stops the skip for: a knock (play on)
+ * and the captain's call after conceding (keep the team composed).
+ */
+async function nextMoment(page: Page) {
+  const state = page.getByTestId('match-state');
+  const knock = page.getByRole('button', { name: /^Play on/ });
+  const captain = page.getByRole('button', { name: /Keep the team composed/ });
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
+    await expect
+      .poll(async () =>
+        (await knock.isVisible()) || (await captain.isVisible())
+          ? 'asked'
+          : await state.getAttribute('data-status'),
+      )
+      .toMatch(/decision|halftime|finished|asked/);
+    if (await knock.isVisible()) await knock.click();
+    else if (await captain.isVisible()) await captain.click();
+    else return;
+  }
+}
 async function pause(page: Page) {
   const control = page.getByRole('button', { name: 'Pause', exact: true });
   if (await control.isVisible()) await control.click();
@@ -105,11 +127,14 @@ async function finish(page: Page) {
     if (status === 'finished') return;
     if (status === 'decision') await page.locator('.match-choices button').first().click();
     else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team/ }).click();
+      await page.getByRole('button', { name: /Motivate the team|Lift the side/ }).click();
     else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible())
       await page.getByRole('button', { name: /Accept the change/ }).click();
     else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
       await page.getByRole('button', { name: /Keep the team composed/ }).click();
+    // A knock (match-22): play on.
+    else if (await page.getByRole('button', { name: /^Play on/ }).isVisible())
+      await page.getByRole('button', { name: /^Play on/ }).click();
     else {
       await pause(page);
       await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
@@ -125,7 +150,7 @@ test('plays a saved match through keyboard decisions, refresh, half-time and the
   await prepare(page);
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
   await pause(page);
-  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
+  await nextMoment(page);
   await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
   // A new key moment is announced politely and focus moves to its first choice.
   await expect(page.getByTestId('live-updates')).toContainText('Key moment');
@@ -225,7 +250,7 @@ test('the scoreboard keeps long club names whole beside the clock at 1440 × 900
   await prepare(page, false, false, longNamesBackupPath);
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
   await pause(page);
-  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
+  await nextMoment(page);
   await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
   // Each chance says what it is a chance of ("79% to score").
   await expect(page.locator('.match-choice-chance').first()).toHaveText(
@@ -312,7 +337,7 @@ test('playback pauses when hidden and the pitch survives resize and context loss
       page.getByText('Using the accessible pitch view.', { exact: false }),
     ).toBeVisible();
   }
-  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
+  await nextMoment(page);
   await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
 });
 test('pausing freezes pitch movement and resuming continues the action', async ({
@@ -390,7 +415,7 @@ test('captain and substitution responses stop skip before completing the match',
     if (status === 'finished') break;
     if (status === 'decision') await page.locator('.match-choices button').first().click();
     else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team/ }).click();
+      await page.getByRole('button', { name: /Motivate the team|Lift the side/ }).click();
     else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible()) {
       captain = true;
       await expect(
@@ -439,6 +464,8 @@ test('the pitch keeps moving through each minute at 1× (review M2)', async ({ p
   const shots: Buffer[] = [];
   for (let sample = 0; sample < 20; sample++) {
     if ((await state.getAttribute('data-status')) !== 'live') break;
+    // Play stops for a decision the player owes (match-22: a knock, the captain's call).
+    if (await page.locator('.match-play').isDisabled()) break;
     shots.push(await stage.screenshot({ animations: 'allow' }));
     await page.waitForTimeout(150);
   }
@@ -515,11 +542,29 @@ test('simulation-only mode jumps from moment to moment (review M15)', async ({ p
   const state = page.getByTestId('match-state');
   // Two moments in a row: each arrives within moments, not at 2.2 s a simulated minute.
   for (let moment = 0; moment < 2; moment++) {
-    const start = Date.now();
+    let start = Date.now();
     await page.getByRole('button', { name: 'Play', exact: true }).click();
+    const asked = async () =>
+      (await page.getByTestId('injury-decision').isVisible()) ||
+      (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible());
     await expect
-      .poll(async () => state.getAttribute('data-status'), { timeout: 10000 })
-      .toMatch(/decision|halftime|finished/);
+      .poll(async () => ((await asked()) ? 'asked' : state.getAttribute('data-status')), {
+        timeout: 10000,
+      })
+      .toMatch(/decision|halftime|finished|asked/);
+    // A knock or a captain's call (match-22) stops the jump too: answer, and jump on.
+    for (let answer = 0; answer < 3 && (await asked()); answer++) {
+      if (await page.getByTestId('injury-decision').isVisible())
+        await page.getByRole('button', { name: /^Play on/ }).click();
+      else await page.getByRole('button', { name: /Keep the team composed/ }).click();
+      start = Date.now();
+      await page.getByRole('button', { name: 'Play', exact: true }).click();
+      await expect
+        .poll(async () => ((await asked()) ? 'asked' : state.getAttribute('data-status')), {
+          timeout: 10000,
+        })
+        .toMatch(/decision|halftime|finished|asked/);
+    }
     expect(Date.now() - start).toBeLessThan(7000);
     if ((await state.getAttribute('data-status')) !== 'decision') break;
     await page.locator('.match-choices button').first().click();

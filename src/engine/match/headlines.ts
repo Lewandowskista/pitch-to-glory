@@ -31,7 +31,11 @@ export type HeadlineKind =
   | 'draw'
   | 'strong-loss'
   | 'loss'
-  | 'sent-off';
+  | 'sent-off'
+  // Match-22 (release 1.0 step 5.4): the bench and the shootout.
+  | 'impact-sub'
+  | 'unused-sub'
+  | 'shootout-hero';
 export const HEADLINE_KINDS: readonly HeadlineKind[] = [
   'late-winner',
   'late-equaliser',
@@ -56,6 +60,9 @@ export const HEADLINE_KINDS: readonly HeadlineKind[] = [
   'strong-loss',
   'loss',
   'sent-off',
+  'impact-sub',
+  'unused-sub',
+  'shootout-hero',
 ];
 export const HEADLINE_VARIANTS = 3;
 export type ResultKind = 'win' | 'draw' | 'loss';
@@ -86,9 +93,15 @@ export function headlineKind(session: MatchSession, rating: number): HeadlineKin
   );
   // A dismissal (match-16) is the story of the player's match.
   if (s.sentOff) return 'sent-off';
+  // Match-22: an unused substitute's morning is about the team; a shootout won by the player's
+  // kick or saves is theirs.
+  if (s.bench && s.bench.on === undefined) return 'unused-sub';
+  if (shootoutHero(session, own)) return 'shootout-hero';
   if (lateGoal && margin === 1) return 'late-winner';
   if (lateGoal && margin === 0) return 'late-equaliser';
   if (goals >= 3) return 'hat-trick';
+  // A substitute who changed the game (match-22).
+  if (s.bench?.on !== undefined && margin >= 0 && goals + s.stats.assists > 0) return 'impact-sub';
   // Big occasions (match-13): a final or a derby is the story, unless it is level.
   if (margin !== 0) {
     if ((setup.fixture?.importance ?? 1) >= FINAL_IMPORTANCE)
@@ -133,6 +146,21 @@ function decidingGoalIsLate(session: MatchSession, own: number, margin: number):
   );
 }
 
+/**
+ * The player won a match-22 shootout: their side won it, and they scored their kick or, in
+ * goal, saved at least two.
+ */
+function shootoutHero(session: MatchSession, own: number): boolean {
+  const shootout = session.state.penaltyShootout;
+  const penalties = session.state.penalties;
+  if (!shootout || !penalties || penalties[own]! <= penalties[1 - own]!) return false;
+  const mine = shootout.kicks.filter((kick) => kick.choiceId);
+  const keeping = mine.filter((kick) => kick.side !== own);
+  return keeping.length
+    ? keeping.filter((kick) => !kick.scored).length >= 2
+    : mine.some((kick) => kick.scored);
+}
+
 export function resultKind(session: MatchSession): ResultKind {
   const setup = session.setup,
     score = session.state.match.score;
@@ -160,6 +188,7 @@ export function reportCopy(
   const own = setup.players[id]!.clubId === setup.home.id ? 0 : 1;
   const rng = createRng(`${setup.seed}:headline`);
   const kind = headlineKind(session, rating);
+  const unused = session.state.bench !== undefined && session.state.bench.on === undefined;
   const result = resultKind(session);
   const performance = performanceKind(rating);
   return {
@@ -172,12 +201,17 @@ export function reportCopy(
       goals: String(session.state.stats.goals),
       assists: String(session.state.stats.assists),
     },
-    // A dismissal (match-16) is what the manager and the fans react to.
+    // A dismissal (match-16) is what the manager and the fans react to; an unused substitute's
+    // match (match-22) has only the result to react to.
     managerReactionKey: session.state.sentOff
       ? `match.reaction.manager.sent-off.${session.state.sentOff.reason}`
-      : `match.reaction.manager.${result}.${performance}`,
+      : unused
+        ? `match.reaction.manager.unused.${result}`
+        : `match.reaction.manager.${result}.${performance}`,
     fanReactionKey: session.state.sentOff
       ? `match.reaction.fans.sent-off.${result}`
-      : `match.reaction.fans.${result}.${performance}`,
+      : unused
+        ? `match.reaction.fans.unused.${result}`
+        : `match.reaction.fans.${result}.${performance}`,
   };
 }

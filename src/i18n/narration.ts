@@ -204,6 +204,8 @@ export interface NarrationEntry {
   /** Position in `state.narration`: a stable React key. */
   index: number;
   minute: number;
+  /** In added time (match-22): the added minute. */
+  addedTime?: number;
   /** The keyframe it describes in the passage it came from. */
   frame: number;
   text: string;
@@ -241,6 +243,8 @@ export function narrationFeed(
       frame: line.frame,
       text: narrationText(line, nameOf),
       ...(line.eventId ? { eventId: line.eventId } : {}),
+      // In added time (match-22): the added minute.
+      ...(line.addedTime ? { addedTime: line.addedTime } : {}),
       side: home.has(owner) ? 0 : 1,
       current,
     });

@@ -23,6 +23,9 @@ import { NARRATION_FAMILIES, NARRATION_VARIANTS, SITUATIONS } from '../src/engin
 import { hasMatchLabel } from '../src/i18n/match';
 import { hasCommentaryLabel } from '../src/i18n/commentary';
 import { commentaryVariants, narrationVariants } from '../src/engine/match/commentary';
+// The occasions' engine lines (match-22) register with the match copy when their module loads.
+import '../src/i18n/occasions';
+import { onEngine } from './support/engines';
 import { hasNarrationLabel } from '../src/i18n/narration';
 import type { KeeperAttributes, Player, Position } from '../src/model/domain';
 import { ownKeeperAttributes } from '../src/engine/keeping';
@@ -51,17 +54,19 @@ function step(session: MatchSession, policy: Policy = 0): MatchSession {
         ? { type: 'halftime', response: 'motivate' }
         : s.substitutionDecisionPending
           ? { type: 'substitution', response: 'accept' }
-          : s.captainDecisionPending
-            ? { type: 'captain', instruction: 'calm' }
-            : moment
-              ? {
-                  type: 'choose',
-                  choiceId:
-                    typeof policy === 'number'
-                      ? moment.choices[Math.min(policy, moment.choices.length - 1)]!.id
-                      : policy(moment.choices),
-                }
-              : { type: 'advance' },
+          : s.injuryDecisionPending
+            ? { type: 'injury', response: 'play-on' }
+            : s.captainDecisionPending
+              ? { type: 'captain', instruction: 'calm' }
+              : moment
+                ? {
+                    type: 'choose',
+                    choiceId:
+                      typeof policy === 'number'
+                        ? moment.choices[Math.min(policy, moment.choices.length - 1)]!.id
+                        : policy(moment.choices),
+                  }
+                : { type: 'advance' },
   );
 }
 function finish(session: MatchSession, policy: Policy = 0) {
@@ -179,6 +184,8 @@ describe('match engine', () => {
   it('removes substituted player from pitch, later actions and scoring', () => {
     const chosen = structuredClone(setup);
     chosen.players[chosen.selectedPlayerId]!.fatigue = 95;
+    // No knocks (match-22): this is about tiredness.
+    chosen.injury = { factor: 0 };
     const s = finish(createMatchSession(chosen, tactics)).state;
     // Managers also make their own changes (match-15): find the selected player's.
     const substitution = s.match.events.find(
@@ -445,12 +452,23 @@ describe('match edge cases', () => {
     expect(new Set(rolls).size).toBe(rolls.length);
   });
   it('never triggers a substitution at full time and rejects late substitution answers', () => {
-    let s = applyMatchCommand(createMatchSession(setup, tactics), { type: 'kickoff' });
+    // Match-21 ends at the 90th minute; match-22 plays its added time first, still without
+    // a change for the tired player.
+    let s = applyMatchCommand(createMatchSession(onEngine(setup, 'match-21'), tactics), {
+      type: 'kickoff',
+    });
     while (s.state.match.minute < 89 || s.state.match.status !== 'live') s = step(s);
     const tired = structuredClone(s);
     tired.state.stats.fatigue = 99;
     const final = applyMatchCommand(tired, { type: 'advance' });
     expect(final.state.match.status).toBe('finished');
+    let late = applyMatchCommand(createMatchSession({ ...setup, injury: { factor: 0 } }, tactics), {
+      type: 'kickoff',
+    });
+    while (late.state.match.minute < 89 || late.state.match.status !== 'live') late = step(late);
+    late.state.stats.fatigue = 99;
+    late = finish(late);
+    expect(late.state.substituted).toBe(false);
     expect(final.state.substituted).toBe(false);
     // Managers' own changes come between 60′ and 80′ (match-15); nobody goes off at 90′.
     expect(
@@ -467,6 +485,7 @@ describe('match edge cases', () => {
     const chosen = structuredClone(setup);
     chosen.players[chosen.selectedPlayerId]!.fitness = 49;
     chosen.players[chosen.selectedPlayerId]!.fatigue = 0;
+    chosen.injury = { factor: 0 };
     const s = finish(createMatchSession(chosen, tactics)).state;
     expect(s.substituted).toBe(false);
     expect(s.selectedPlayerMinutes).toBe(90);

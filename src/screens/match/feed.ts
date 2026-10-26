@@ -11,6 +11,8 @@ export interface NarrationLine {
   /** Stable key for the row (for example `${eventId}:${index}` or `${minute}:${index}`). */
   id: string;
   minute: number;
+  /** In added time (match-22): the added minute. */
+  addedTime?: number;
   text: string;
   /** The event this line builds up to; the line is shown just before that event's row. */
   eventId?: string;
@@ -35,6 +37,8 @@ export interface RoutineSpell {
 export interface FeedRow {
   id: string;
   minute: number;
+  /** In added time (match-22): the added minute. */
+  addedTime?: number;
   kind: FeedKind;
   text: string;
   template?: string;
@@ -97,6 +101,7 @@ export function buildFeed(
   const line = (entry: NarrationLine): FeedRow => ({
     id: `line:${entry.id}`,
     minute: entry.minute,
+    ...(entry.addedTime ? { addedTime: entry.addedTime } : {}),
     kind: 'line',
     text: entry.text,
     ...(entry.template ? { template: entry.template } : {}),
@@ -111,6 +116,7 @@ export function buildFeed(
     rows.push({
       id: `spell:${spell.id}`,
       minute: last.minute,
+      ...(last.addedTime ? { addedTime: last.addedTime } : {}),
       kind: 'play',
       ...words,
       subject: subject(last),
@@ -150,6 +156,7 @@ export function buildFeed(
     rows.push({
       id: event.id,
       minute: event.minute,
+      ...(event.addedTime ? { addedTime: event.addedTime } : {}),
       kind: kindOf(event),
       ...asText(text(event)),
       subject: subject(event),

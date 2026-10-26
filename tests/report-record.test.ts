@@ -10,6 +10,8 @@ import {
 import { applyMatchCommand, createMatchSession, type MatchSession } from '../src/engine/match';
 import { reportRecord, restoreReport } from '../src/screens/match/restoreReport';
 import { nationalCareer } from './support/world';
+import { onEngine } from './support/engines';
+import { compactSession } from '../src/persistence/matchRecord';
 
 /**
  * Release 1.0 step 4.8: the post-match report survives a refresh. The record kept on the device
@@ -74,9 +76,11 @@ describe('the last match report, kept beside the save', () => {
       session: { engine: string; setup: { rules22?: true } };
     };
     expect(record.session.engine).toBe('match-22');
-    const previous = structuredClone(record);
-    previous.session.engine = 'match-21';
-    delete previous.session.setup.rules22;
+    // The same match as 0.9.x and 0.10.0 played and recorded it, on match-21's rules.
+    let old = createMatchSession(onEngine(session.setup, 'match-21'), session.initialTactics);
+    while (old.state.match.status !== 'finished')
+      old = applyMatchCommand(old, autoPlayCommand(old));
+    const previous = { ...structuredClone(record), session: compactSession(old) };
     const restored = restoreReport(JSON.stringify(previous), committed);
     expect(restored).not.toBeNull();
     expect(restored!.session.engine).toBe('match-21');

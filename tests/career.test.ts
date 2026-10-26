@@ -392,7 +392,7 @@ describe('career fixtures', () => {
       }),
     ).toThrow();
   });
-  it('auto-plays a whole season, playing every fixture the player is picked for', async () => {
+  it('auto-plays a whole season, playing every fixture the player is in the squad for', async () => {
     const world = await nationalCareerSeason();
     const clubId = player(world).clubId!;
     const fixtures = Object.values(world.fixtures).filter(
@@ -401,11 +401,15 @@ describe('career fixtures', () => {
     expect(fixtures.every((f) => world.results[f.id])).toBe(true);
     const played = new Set(world.career!.matches.map((m) => m.fixtureId));
     expect(played.size).toBe(world.career!.matches.length);
-    // A rotation promise at the trial club: picked for most matches, left out of some.
+    // A rotation promise at the trial club: picked for most matches, left out of some. Since
+    // release 1.0 (match-22) a player left out starts on the bench and may come on.
     const selection = world.career!.market.selection;
-    expect(selection.selected).toBe(played.size);
-    expect(played.size + selection.dropped).toBeLessThanOrEqual(fixtures.length);
+    const starts = world.career!.matches.filter((m) => m.cameOn === undefined).length;
+    expect(selection.selected).toBe(starts);
+    expect(starts + selection.dropped).toBeLessThanOrEqual(fixtures.length);
     expect(played.size).toBeGreaterThan(fixtures.length * 0.4);
+    for (const match of world.career!.matches.filter((m) => m.cameOn !== undefined))
+      expect(match.minutes).toBeLessThan(90);
     expect(world.career!.matches.every((m) => m.auto)).toBe(true);
     expect(world.career!.level).toBeGreaterThan(1);
     expect(() => validateWorld(clone(world))).not.toThrow();

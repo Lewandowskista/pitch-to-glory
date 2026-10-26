@@ -209,12 +209,9 @@ const positionFactors = (session: MatchSession): number[] =>
 const mean = (values: number[]) =>
   values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
-/**
- * A goal in added time. The engine has no stoppage time yet (review M12): a goal after the 90th
- * minute of a match without extra time, or one marked as added time once phase 5 adds it.
- */
-const inAddedTime = (event: { kind: string; minute: number; addedTime?: unknown }) =>
-  event.kind === 'goal' && (event.minute > 90 || Boolean(event.addedTime));
+/** A goal in added time: match-22 marks it with its added minute (release 1.0 step 5.4). */
+const inAddedTime = (event: { kind: string; addedTime?: unknown }) =>
+  event.kind === 'goal' && Boolean(event.addedTime);
 
 /** Credit the choice with the highest expected value at each of a match's key moments. */
 function tallyBestChoices(
@@ -761,6 +758,8 @@ export const TARGET_BANDS = {
   shotsPerTeam: [11, 14],
   /** Home possession: the 10th percentile at most, the 90th at least. */
   possession: [40, 60],
+  /** Goals in added time, as a share of all goals (football data: about 7–9%). */
+  addedTimeShare: [0.06, 0.1],
 } as const;
 export const TARGETS: Target<PositionProfile[]>[] = [
   {
@@ -889,11 +888,11 @@ export const TARGETS: Target<PositionProfile[]>[] = [
     },
   },
   {
-    // Split from the match statistics (step 5.3): stoppage time is step 5.4's.
+    // Release 1.0 step 5.4 (review M12): stoppage time is played, and goals come in it.
     id: 'added-time-goals',
-    name: 'match statistics: some goals in added time',
+    name: `some goals in added time: ${TARGET_BANDS.addedTimeShare[0] * 100}–${TARGET_BANDS.addedTimeShare[1] * 100}% of all goals`,
     phase: 5,
-    asserted: false,
+    asserted: true,
     evaluate: (profiles) => {
       const measured = profiles.filter((p) => p.statistics);
       if (!measured.length) return { met: null, value: 'no statistics data' };
@@ -902,8 +901,9 @@ export const TARGETS: Target<PositionProfile[]>[] = [
       for (const [seed, list] of bySeed(measured)) {
         const added = list.reduce((total, p) => total + p.statistics!.addedTimeGoals, 0);
         const goals = list.reduce((total, p) => total + p.statistics!.goals, 0);
-        met &&= added > 0;
-        parts.push(`${seed}: ${added} of ${goals} goals in added time`);
+        const share = added / Math.max(1, goals);
+        met &&= within(share, TARGET_BANDS.addedTimeShare[0], TARGET_BANDS.addedTimeShare[1]);
+        parts.push(`${seed}: ${added} of ${goals} goals (${(share * 100).toFixed(1)}%)`);
       }
       return { met, value: parts.join(' | ') };
     },

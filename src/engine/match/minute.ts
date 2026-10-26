@@ -14,18 +14,24 @@ import { extraTimeDue, shootoutDue, startExtraTime } from './extraTime';
 import { finish } from './report';
 import { updatePossession } from './rates';
 import { backgroundConversion } from './shots';
-import { fullTime, offPitch, selectedSide } from './shared';
+import { clockKey, fullTime, offPitch, selectedSide } from './shared';
+import { boardAt, periodEnds, showBoard } from './stoppage';
+import { shootoutDue22, startShootout } from './shootout';
+import { captainAfterMinute } from './touchline';
 
 export function simulateMinuteGoals(session: MatchSession): void {
   const s = session.state,
-    rng = createRng(`${session.setup.seed}:minute:${s.match.minute}`);
+    // Match-22: an added minute has its own stream (`45+2`), never its period's last minute's.
+    rng = createRng(`${session.setup.seed}:minute:${clockKey(s)}`);
+  // Match-22 plays added minutes, so a minute carries expected goals ÷ the match's mean length.
+  const length = rules22(session.setup) ? C.occasions.stoppage.matchMinutes : 90;
   const selected = session.setup.players[session.setup.selectedPlayerId]!,
     own = selectedSide(session.setup);
   const off = offPitch(s);
   for (let side = 0; side < 2; side++) {
     // Personal key moments replace part of each side's expected goals while the player is on.
     const replaced = off ? 0 : side === own ? s.shares.attack : s.shares.defence;
-    const rate = clamp((s.expectedGoals[side]! * (1 - replaced)) / 90, 0, 0.2);
+    const rate = clamp((s.expectedGoals[side]! * (1 - replaced)) / length, 0, 0.2);
     // Match-22 shoots more and converts less, for the same goals.
     const conversion = backgroundConversion(session);
     if (rng.next() < rate / conversion) {
@@ -76,7 +82,8 @@ function updateMomentum(session: MatchSession): void {
     M = C.momentum;
   let impulse = 0;
   for (const e of m.events) {
-    if (e.minute !== m.minute) continue;
+    // In added time (match-22) only this added minute's events count.
+    if (e.minute !== m.minute || (e.addedTime ?? 0) !== (session.state.added ?? 0)) continue;
     const sign = e.teamId === session.setup.home.id ? 1 : -1;
     if (e.kind === 'shot') impulse += sign * M.shot;
     else if (e.kind === 'goal') impulse += sign * M.goal;
@@ -90,6 +97,10 @@ export function afterMinute(session: MatchSession) {
   const s = session.state;
   s.ratingByMinute = [...s.ratingByMinute, Math.round(s.stats.rating * 100) / 100];
   updateMomentum(session);
+  if (rules22(session.setup)) {
+    afterMinute22(session);
+    return;
+  }
   if (s.match.minute === 45) {
     s.match.status = 'halftime';
     event(
@@ -113,4 +124,36 @@ export function afterMinute(session: MatchSession) {
     }
     finish(session);
   }
+}
+
+/**
+ * The end of a minute on the match-22 engine: at a period's last minute the board goes up, and
+ * only once its added minutes are played does the period end (half time, extra time, the
+ * shootout or full time). Otherwise a goal conceded or the late minute of a close game may ask
+ * for the captain's call.
+ */
+function afterMinute22(session: MatchSession): void {
+  const s = session.state,
+    m = s.match;
+  if (periodEnds(s).includes(m.minute)) {
+    const board = boardAt(s, m.minute) ?? showBoard(session);
+    if ((s.added ?? 0) < board.minutes) return captainAfterMinute(session);
+    if (m.minute === 45) {
+      m.status = 'halftime';
+      event(
+        session,
+        'halftime',
+        session.setup.players[session.setup.selectedPlayerId]!.clubId!,
+        null,
+        halftimeLine(session),
+      );
+      return;
+    }
+    if (m.minute === 90 && extraTimeDue(session)) return startExtraTime(session);
+    if (m.minute === fullTime(session)) {
+      if (shootoutDue22(session)) return startShootout(session);
+      return finish(session);
+    }
+  }
+  captainAfterMinute(session);
 }

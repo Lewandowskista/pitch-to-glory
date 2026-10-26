@@ -21,4 +21,18 @@ export { OutdatedMatchSessionError, createMatchSetup, createMatchSession } from 
 export { rolePosition, fullTime } from './shared';
 export { sessionPenalties } from './extraTime';
 export { applyMatchCommand } from './commands';
+// The occasions (match-22): stoppage time, the bench, injuries, the shootout, the touchline.
+export { benchHazard } from './bench';
+export { canComeOff } from './injuries';
+export { shootoutTally, shootoutWinner } from './shootout';
+export {
+  demandTrust,
+  motivateLift,
+  ownMargin,
+  requestableRoles,
+  roleAgainstScore,
+  roleRefusal,
+  touchlinePolicy,
+} from './touchline';
+export { onBench } from './shared';
 export { validateMatchSession } from './replay';

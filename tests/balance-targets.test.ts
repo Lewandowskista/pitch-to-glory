@@ -49,13 +49,14 @@ describe('1.0 targets', () => {
 
   it('keeps every harness target reported until its phase', () => {
     // Met by phase 3 (retention, step 3.6) and asserted since; ratings and match statistics by
-    // step 5.3 (engine match-22).
+    // step 5.3 (engine match-22), added-time goals by step 5.4.
     const met = new Set([
       'save-growth',
       'save-34-seasons',
       'validator-caps',
       'ratings',
       'match-statistics',
+      'added-time-goals',
     ]);
     for (const entry of [...DRIFT, ...MATCH, ...CAREER])
       expect(entry.asserted, entry.id).toBe(met.has(entry.id));
@@ -193,7 +194,9 @@ describe('match targets', () => {
     expect(judge('match-statistics', 0).met).toBe(true);
     expect(judge('match-statistics', 0).value).toContain('0.80 off the woodwork a match');
     expect(judge('added-time-goals', 0).met).toBe(false);
-    expect(judge('added-time-goals', 3).met).toBe(true);
+    // A share of all goals (step 5.4): 3 of 270 is too few, 20 (7.4%) is in the band.
+    expect(judge('added-time-goals', 3).met).toBe(false);
+    expect(judge('added-time-goals', 20).met).toBe(true);
     const flat = profile({
       statistics: { ...statistics(3).statistics!, possession: new Array<number>(100).fill(50) },
     });

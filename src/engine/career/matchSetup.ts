@@ -7,14 +7,24 @@ import { chemistry } from './social/dressing';
 import { assetEffects } from './lifestyle/catalogue';
 import { fixtureImportance } from './fixtures';
 import { careerMatchSeed } from './objectives';
+import { careerSelection, currentRole, managerTrust } from './market/rules';
+import { CONFIG } from '../config';
 
 /*
  * The setup of a career match, kept apart from the commit path (matches.ts), so the match
  * screen builds a fixture's setup without bundling the world simulation it never runs.
  */
 
-/** Match setup for a scheduled fixture, seeded by the fixture so a replay is identical. */
-export function careerMatchSetup(world: World, fixture: Fixture): MatchSetup {
+/**
+ * Match setup for a scheduled fixture, seeded by the fixture so a replay is identical. The
+ * player starts when the manager picks them, else on the bench (match-22); `start` puts them in
+ * the eleven whatever the selection (tests, and matches outside the club's selection).
+ */
+export function careerMatchSetup(
+  world: World,
+  fixture: Fixture,
+  options: { start?: boolean } = {},
+): MatchSetup {
   return createMatchSetup(
     world,
     fixture.homeId,
@@ -40,8 +50,35 @@ export function careerMatchSetup(world: World, fixture: Fixture): MatchSetup {
       suspended: [fixture.homeId, fixture.awayId].flatMap((id) =>
         suspendedFor(world, world.clubs[id]!, fixture),
       ),
+      // Left out of the eleven, the player starts on the bench (match-22, step 5.4).
+      ...(options.start || careerSelection(world, fixture).selected
+        ? {}
+        : { bench: currentRole(world) }),
+      injury: careerInjury(world),
+      trust: managerTrust(world),
     },
   );
+}
+/**
+ * The career player's in-match injury factor (match-22): as the career's injury system has it
+ * (`injuryFactor` in training.ts: fatigue, injury proneness, Iron Man and a physio), and a
+ * rushed return's re-injury risk.
+ */
+export function careerInjury(world: World): NonNullable<MatchSetup['injury']> {
+  const career = world.career!;
+  const player = world.players[career.playerId]!;
+  const I = CONFIG.career.injuries;
+  const factor =
+    (1 + player.fatigue / I.fatigueWeight) *
+    (0.5 + player.hidden.injuryProneness / 100) *
+    (career.skills.includes('iron-man') ? I.ironManSkill : 1) *
+    assetEffects(career.style?.assets ?? []).injury;
+  return {
+    factor: Math.round(factor * 1e6) / 1e6,
+    ...(career.reinjury
+      ? { reinjury: { risk: career.reinjury.risk, kind: career.reinjury.kind } }
+      : {}),
+  };
 }
 /**
  * For a match that, level on aggregate at full time, goes to extra time and penalties: the

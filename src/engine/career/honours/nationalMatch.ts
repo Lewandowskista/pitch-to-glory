@@ -17,7 +17,14 @@ import { generateKits } from '../../assets/kit';
 import { generatePlayer } from '../../world/generate';
 import { STYLES } from '../../world/catalog';
 import { FORMATIONS, type Formation } from '../../selection/formations';
-import { CURRENT_SETUP_FLAGS, type MatchSession, type MatchSetup } from '../../match/types';
+import {
+  CURRENT_SETUP_FLAGS,
+  rules22,
+  type MatchSession,
+  type MatchSetup,
+} from '../../match/types';
+import { careerInjury } from '../matchSetup';
+import { injure } from '../training';
 import { sessionPenalties, validateMatchSession } from '../../match';
 import { performanceXp, rewardScale } from '../../match/rewards';
 import { matchDecisions, recordDecisions } from '../coaching';
@@ -244,6 +251,8 @@ function nationMatchSetup(
     ...CURRENT_SETUP_FLAGS,
     decidingHeadline: true,
     strengthBonus: [0, 0],
+    // The career's injury factor (match-22): knocks in the session, as in a club match.
+    injury: careerInjury(world),
   };
 }
 
@@ -406,6 +415,11 @@ function commitNationMatch(
   }
   const won = penalties ? penalties[0] > penalties[1] : score[0] > score[1];
   const lost = penalties ? penalties[0] < penalties[1] : score[0] < score[1];
+  const knock = rules22(session.setup) ? state.knock : undefined;
+  const injury =
+    knock && (knock.serious || knock.aggravated)
+      ? injure(world, 'match', createRng(`${world.seed}:career:intl:${fixture.id}`), knock.kind)
+      : undefined;
   const record: CareerMatchRecord = {
     fixtureId: fixture.id,
     season: world.date.season,
@@ -445,7 +459,8 @@ function commitNationMatch(
     },
     previousLevel,
     levelsGained: career.level - previousLevel,
-    injury: null,
+    // Match-22: a knock in the session that became an injury counts, as in a club match.
+    injury: injury ?? null,
     celebrationFame: 0,
     internationalMatchId: match.id,
   };

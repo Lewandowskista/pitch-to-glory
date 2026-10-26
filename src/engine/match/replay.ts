@@ -39,7 +39,7 @@ export function validateMatchSession(value: unknown): MatchSession {
     !session.setup ||
     session.setup.version !== 1 ||
     !Array.isArray(session.commands) ||
-    session.commands.length > 240 ||
+    session.commands.length > 400 ||
     !session.state ||
     typeof session.setup.seed !== 'string' ||
     !session.setup.seed ||

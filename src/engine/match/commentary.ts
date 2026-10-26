@@ -77,6 +77,14 @@ export const COMMENTARY_VARIANTS: Readonly<Record<string, number>> = {
   'block.failure': 8,
   'corner.success': 8,
   'corner.failure': 8,
+  // The occasions (release 1.0 step 5.4).
+  stoppage: 4,
+  'bench-on': 4,
+  injury: 4,
+  'injury-off': 4,
+  'shootout-kick.scored': 6,
+  'shootout-kick.saved': 5,
+  'shootout-kick.missed': 4,
 };
 /** Variants per narration family under match-22 (others: four, as in match-21). */
 export const NARRATION_VARIANTS_22: Readonly<Record<string, number>> = {

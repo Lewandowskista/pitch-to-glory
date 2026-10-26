@@ -210,11 +210,14 @@ async function playMatch(page: Page) {
       await page.locator('.match-choices button').first().click();
       await expect(state).not.toHaveAttribute('data-status', 'decision');
     } else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team/ }).click();
+      await page.getByRole('button', { name: /Motivate the team|Lift the side/ }).click();
     else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible())
       await page.getByRole('button', { name: /Accept the change/ }).click();
     else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
       await page.getByRole('button', { name: /Keep the team composed/ }).click();
+    // A knock (match-22): play on.
+    else if (await page.getByRole('button', { name: /^Play on/ }).isVisible())
+      await page.getByRole('button', { name: /^Play on/ }).click();
     else {
       const pause = page.getByRole('button', { name: 'Pause', exact: true });
       if (await pause.isVisible()) await pause.click();

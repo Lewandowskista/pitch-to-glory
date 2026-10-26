@@ -265,29 +265,34 @@ function report(session: MatchSession): MatchReport {
       source: 'attribute',
       contribution: limit,
     });
+  // Match-22: a player who started on the bench and never came on earns nothing from it.
+  const unused = s.bench !== undefined && s.bench.on === undefined;
   return {
     playerId: id,
     rating,
     ratingFactors,
-    xp: performanceXp(
-      {
-        minutes: s.selectedPlayerMinutes,
-        rating,
-        goals: s.stats.goals,
-        assists: s.stats.assists,
-        objectives: objectives.filter((o) => o.progress >= o.target).length,
-      },
-      rewardScale(session),
-    ),
+    xp: unused
+      ? 0
+      : performanceXp(
+          {
+            minutes: s.selectedPlayerMinutes,
+            rating,
+            goals: s.stats.goals,
+            assists: s.stats.assists,
+            objectives: objectives.filter((o) => o.progress >= o.target).length,
+          },
+          rewardScale(session),
+        ),
     // A dismissal costs fame (match-16).
-    fameDelta:
-      performanceFame(
-        rating,
-        s.stats.goals,
-        s.stats.assists,
-        backLine && cleanSheet && !s.sentOff,
-        rewardScale(session),
-      ) - (s.sentOff ? F.fame : 0),
+    fameDelta: unused
+      ? 0
+      : performanceFame(
+          rating,
+          s.stats.goals,
+          s.stats.assists,
+          backLine && cleanSheet && !s.sentOff,
+          rewardScale(session),
+        ) - (s.sentOff ? F.fame : 0),
     heatmap: s.frames.flatMap((f) => {
       const p = f.players.find((p) => p.id === id);
       return p && p.animation !== OFF_ANIMATION ? [p.point] : [];
@@ -306,5 +311,6 @@ function report(session: MatchSession): MatchReport {
       ).length,
       ...(s.sentOff ? { sentOff: { ...s.sentOff } } : {}),
     },
+    ...(s.bench ? { bench: { cameOn: s.bench.on ?? null } } : {}),
   };
 }
