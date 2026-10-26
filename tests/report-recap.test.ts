@@ -149,15 +149,18 @@ describe('the "Your moments" recap', () => {
 });
 
 describe('the match story', () => {
-  it('lists each side’s goals to the score, and the four team statistics', () => {
+  it('lists each side’s goals to the score, and the team statistics', () => {
     for (const seed of ['story-a', 'story-b', 'story-c', 'story-d']) {
       const session = played(seed);
       const story = matchStory(session);
       expect(story.goals[0].length).toBe(session.state.match.score[0]);
       expect(story.goals[1].length).toBe(session.state.match.score[1]);
+      // The woodwork (match-22) shows when a shot hit it.
+      const woodwork = session.state.stats.woodwork ?? [0, 0];
       expect(story.stats.map((stat) => stat.key)).toEqual([
         'shots',
         'onTarget',
+        ...(woodwork[0] + woodwork[1] > 0 ? ['woodwork'] : []),
         'possession',
         'xg',
       ]);

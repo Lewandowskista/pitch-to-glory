@@ -165,16 +165,25 @@ describe('picking a line (match-22)', () => {
         expect(Number(line.key.split('.').pop())).toBeLessThan(4);
     }
   });
-  it('plays the same results on both engines: only the words change', () => {
-    current.forEach((session, index) => {
-      const old = previous[index]!;
-      expect(session.state.match.score).toEqual(old.state.match.score);
-      expect(session.state.match.events.length).toBe(old.state.match.events.length);
-      expect(session.state.match.keyMoments.map((k) => k.situationId)).toEqual(
-        old.state.match.keyMoments.map((k) => k.situationId),
-      );
-      // The pitch draws each miss as its line says, so the play (and its narration) differs.
-    });
+  it('names each missed shot as its result has it (step 5.3 changed the results)', () => {
+    const results: Record<string, string> = {
+      held: 'saved',
+      'held-late': 'saved',
+      parried: 'saved',
+      wide: 'off-target',
+      'wide-late': 'off-target',
+      over: 'off-target',
+      blocked: 'blocked',
+      woodwork: 'woodwork',
+    };
+    for (const session of current)
+      for (const event of session.state.match.events) {
+        const family = event.commentaryKey.split('.')[2]!;
+        if (event.kind === 'shot' && family.startsWith('attempt-'))
+          expect(event.shotResult, family).toBe(results[family.slice('attempt-'.length)]);
+      }
+    for (const session of previous)
+      expect(session.state.match.events.some((event) => event.shotResult)).toBe(false);
   });
 });
 

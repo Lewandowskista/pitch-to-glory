@@ -48,8 +48,15 @@ describe('1.0 targets', () => {
   });
 
   it('keeps every harness target reported until its phase', () => {
-    // Met by phase 3 (retention, step 3.6) and asserted since.
-    const met = new Set(['save-growth', 'save-34-seasons', 'validator-caps']);
+    // Met by phase 3 (retention, step 3.6) and asserted since; ratings and match statistics by
+    // step 5.3 (engine match-22).
+    const met = new Set([
+      'save-growth',
+      'save-34-seasons',
+      'validator-caps',
+      'ratings',
+      'match-statistics',
+    ]);
     for (const entry of [...DRIFT, ...MATCH, ...CAREER])
       expect(entry.asserted, entry.id).toBe(met.has(entry.id));
   });
@@ -166,6 +173,33 @@ describe('match targets', () => {
     });
     expect(evaluateTargets(MATCH, [wide]).find((r) => r.id === 'ratings')!.met).toBe(false);
     expect(evaluateTargets(MATCH, [profile({})]).find((r) => r.id === 'ratings')!.met).toBe(true);
+  });
+
+  it('judges the match statistics apart from goals in added time (step 5.4)', () => {
+    const statistics = (addedTimeGoals: number) =>
+      profile({
+        statistics: {
+          matches: 100,
+          shots: 2500,
+          onTarget: 875,
+          woodwork: 80,
+          goals: 270,
+          addedTimeGoals,
+          possession: Array.from({ length: 100 }, (_, index) => 30 + (index * 40) / 99),
+        },
+      });
+    const judge = (id: string, added: number) =>
+      evaluateTargets(MATCH, [statistics(added)]).find((r) => r.id === id)!;
+    expect(judge('match-statistics', 0).met).toBe(true);
+    expect(judge('match-statistics', 0).value).toContain('0.80 off the woodwork a match');
+    expect(judge('added-time-goals', 0).met).toBe(false);
+    expect(judge('added-time-goals', 3).met).toBe(true);
+    const flat = profile({
+      statistics: { ...statistics(3).statistics!, possession: new Array<number>(100).fill(50) },
+    });
+    expect(evaluateTargets(MATCH, [flat]).find((r) => r.id === 'match-statistics')!.met).toBe(
+      false,
+    );
   });
 });
 

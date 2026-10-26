@@ -112,7 +112,7 @@ Each choice uses its own roll stream `${seed}:decision:${minute}:${momentId}:${c
 
 ## Rating
 
-Rating starts at 6.3. Decisions are expected-value-neutral: success adds `0.6 × (1 − p)`, failure subtracts `0.6 × p`, credited to the choice's family (shooting, passing, dribbling, defending, goalkeeping). Outcome bonuses: goal +0.6 and assist +0.6 (equal so finishing and creating choices with equal expected goals are rating-neutral), saves and defensive stops `1.5 × G / p` on success (expected value `1.5 × G` for every choice in the situation), and −0.45 for every goal conceded from the player's own moment. The live rating is bounded to 3–10; the report lists the base, each non-zero part and a limit-and-rounding factor that makes the factors sum exactly to the one-decimal report rating.
+Match-21's rating (match-22's is in [Believable ratings and statistics](#believable-ratings-and-statistics-engine-match-22-release-10-step-53)). Rating starts at 6.3. Decisions are expected-value-neutral: success adds `0.6 × (1 − p)`, failure subtracts `0.6 × p`, credited to the choice's family (shooting, passing, dribbling, defending, goalkeeping). Outcome bonuses: goal +0.6 and assist +0.6 (equal so finishing and creating choices with equal expected goals are rating-neutral), saves and defensive stops `1.5 × G / p` on success (expected value `1.5 × G` for every choice in the situation), and −0.45 for every goal conceded from the player's own moment. The live rating is bounded to 3–10; the report lists the base, each non-zero part and a limit-and-rounding factor that makes the factors sum exactly to the one-decimal report rating.
 
 Performance XP is `round(minutes × 1.2 + max(0, rating − 6) × 25 + goals × 30 + assists × 20 + completedObjectives × 15)`. Fame is `round(max(0, rating − 6.5) × 2 + goals × 2)`. Friendlies calculate these values without granting progression.
 
@@ -512,12 +512,13 @@ Before, the most common sentences were the three routine-pass lines (about 9 a m
 
 ## 1.0 targets (release plan step 2.3)
 
-The match profile (`scripts/match-profile.ts`) reports four 1.0 targets after its gates; phase 5 (engine `match-22`) meets them and sets each `asserted: true` in `TARGETS`. Until then they print as `MISS` without failing the check; `npm run profile:match -- --check --assert-targets` previews them as gates. The asserted gates above are unchanged. The bands are in `TARGET_BANDS`; [BALANCING.md](BALANCING.md#10-targets-release-plan-step-23) lists every 1.0 target with its baseline.
+The match profile (`scripts/match-profile.ts`) reports five 1.0 targets after its gates; phase 5 (engine `match-22`) meets them and sets each `asserted: true` in `TARGETS` (ratings and match statistics from step 5.3). Until then they print as `MISS` without failing the check; `npm run profile:match -- --check --assert-targets` previews them as gates. The asserted gates above are unchanged. The bands are in `TARGET_BANDS`; [BALANCING.md](BALANCING.md#10-targets-release-plan-step-23) lists every 1.0 target with its baseline.
 
 - **Choices matter.** For each position and seed, the selected side's goal difference with the best policy less that with the worst, both on the specialised setup the goals-prevented gate uses (`swing`, with its standard error). Target ≥ 0.30 goals a match for every position on two seeds; the weekly job runs `match-profile` and `match-profile-b`.
 - **No dominant choice.** At every key moment of the best-policy matches, the choice with the highest expected value (`expectedImpact(...).net`; ties share the credit) is tallied per situation (`dominance`). Pooled over positions per seed, no choice may be best in more than 60% of a situation's instances (situations with at least 30).
 - **Ratings.** Per position: mean 6.5–6.9, standard deviation 0.7–1.0 (`rating.sd`), at most 3% at 9.0 or more and at most 3% at 5.0 or less (`rating.fiveOrLess`).
-- **Match statistics.** From the best-policy matches, pooled per seed (`statistics`): shots on target 30–40% of shots, 11–14 shots a team, home possession with p10 ≤ 40% and p90 ≥ 60%, and some goals in added time (a goal after the 90th minute of a match without extra time, or one marked as added time once the engine has it). The 10,000-match test keeps the goal, home-advantage and upset bands.
+- **Match statistics.** From the best-policy matches, pooled per seed (`statistics`): shots on target 30–40% of shots, 11–14 shots a team, home possession with p10 ≤ 40% and p90 ≥ 60%. The 10,000-match test keeps the goal, home-advantage and upset bands.
+- **Goals in added time** (split from the match statistics in step 5.3, for step 5.4): some goals after the 90th minute of a match without extra time, or marked as added time once the engine has it.
 
 Baseline on 25 October 2026 (0.10.0, 300 matches a position, both seeds):
 
@@ -529,3 +530,80 @@ Baseline on 25 October 2026 (0.10.0, 300 matches a position, both seeds):
 | Shots on target, shots a team    | 60.8%, 10.2                                                                                                                                                                                                                           | 60.7%, 10.3                                                                                                                                         |
 | Possession p10–p90               | 48–52%                                                                                                                                                                                                                                | 47–52%                                                                                                                                              |
 | Goals in added time              | 0 of 6,485                                                                                                                                                                                                                            | 0 of 6,524                                                                                                                                          |
+
+Step 5.3 met the ratings and match statistics targets on both seeds and asserts them; goals in added time is now its own target, for step 5.4 (stoppage time). Measured values below, in "Believable ratings and statistics".
+
+## Believable ratings and statistics (engine `match-22`, release 1.0 step 5.3)
+
+Findings M6, M10 and M11 of the [25 October review](APP-REVIEW-2026-10-25.md). Every rule here is gated on `rules22(setup)`; a `match-21` session keeps the rules above byte for byte (the snapshot's `PREVIOUS` table and whole-session hash are unchanged). Constants: `CONFIG.match.rating22`, `rewards22`, `possession22` and `shots22`.
+
+### Rating
+
+Match-21 gave flat credits on 8–15 moments (±0.6 a decision, +0.6 a goal or assist, 2 × danger ÷ odds a stop, −0.45 a goal conceded), so ratings were wide (standard deviation 1.1–1.7), every position reached 10, and the centre depended on the position: keepers and defenders collected stop credit on average, strikers and wide players lost decision credit. Match-22 measures every key moment against what the **reference player** (the choice's base odds, before attributes, form and conditions) would have made of it, so its expected credit is zero for that player whatever the moment, and the rating centres on the same base in every position whatever the mix of moments (step 5.2 can change the mix without moving the centre):
+
+- **Decision**, to the choice's family: `decision[family] × (success − reference odds)`, with shooting, passing and dribbling 0.25 and defending and keeping 0.35 and 0.4 (their value is mostly in the decision itself).
+- **As it happens**: a goal `goal` 0.9 and an assist `assist` 0.7, each further one in the match × `repeat` 0.55 of the one before, and a hat-trick's third goal `hatTrick` +1.2; a save or stop `stop` 0.9 × danger ÷ reference odds (the odds at least `stopFloor` 0.3, the credit at most `stopCap` 0.85); a goal conceded from the moment `error` −0.4.
+- **Par** (the new part "Expected from your moments" in the report), subtracted at every moment: `goal` × the reference player's expected own goals + `assist` × expected assists (both × `repeat` as above) + reference odds × the stop credit + `error` × expected goals conceded. Expected goals and assists come from the choice's stakes: a direct shot's are its odds, a chance made for oneself or a teammate the odds × the chance's goal probability (none for a dribble that leads into a follow-up shot, whose own moment carries it); goals conceded are the odds × `successConcede` + (1 − odds) × `failureConcede` (1 for a direct save). The hat-trick bonus stays out of the par: it is rare enough not to move the centre, and a striker on two goals is not marked down for every chance that might have made it three.
+- **Involvement**: every credit above is × √(`moments` 10 ÷ the match's planned moments, at least `fewest` 6), so a busy match is not a wider one. The square root is Newton's method rounded to six decimals, so replay never depends on `Math.sqrt`.
+- **Team**: ± `result` 0.2 for a win or loss; a clean sheet `cleanSheet` 0.25 for keepers, defenders and (new) defensive midfielders still on the pitch.
+- **Scale**: rating = base 6.63 + the sum's distance from the base × `lean` (0.8 below, 1.15 above: a poor match is rarely a disaster, a great one stands out), then beyond the `knees` 5.6 and 9.2 at `beyond` 0.5 and 0.6 of the rate, bounded 3–10. The report lists the base, every part and a "Rating limit and rounding" factor that absorbs the scale, so the factors still sum to the shown rating.
+- A manager's tactical substitution looks at a live rating below `substituteBelow` 6.3 (match-21: 6), about the same share of poor matches on the narrower scale.
+
+Every hat-trick in the profile rates 9.1–10, a brace usually 8–9; five big saves and a clean-sheet win reach 9, and four goals conceded from a defender's own moments in a defeat go below 5 (`tests/match-ratings.test.ts`).
+
+| Position | Mean before → after (`match-profile` / `-b`) | Standard deviation        | 9.0+                     | 5.0 or less               |
+| -------- | -------------------------------------------- | ------------------------- | ------------------------ | ------------------------- |
+| GK       | 7.07 / 6.78 → 6.81 / 6.64                    | 1.45 / 1.36 → 0.88 / 0.79 | 10.0 / 6.7% → 0.7 / 0.3% | 8.3 / 8.0% → 0.7 / 0.0%   |
+| CB       | 6.88 / 6.83 → 6.74 / 6.76                    | 1.70 / 1.52 → 0.96 / 0.89 | 13.3 / 8.0% → 1.7 / 2.0% | 17.0 / 10.0% → 0.3 / 0.3% |
+| LB       | 6.89 / 6.60 → 6.84 / 6.65                    | 1.54 / 1.48 → 0.92 / 0.78 | 9.3 / 5.3% → 1.3 / 0.3%  | 12.0 / 15.0% → 1.0 / 0.0% |
+| DM       | 6.75 / 6.70 → 6.77 / 6.80                    | 1.57 / 1.40 → 0.89 / 0.88 | 8.7 / 4.7% → 1.3 / 0.3%  | 12.0 / 13.0% → 0.3 / 0.7% |
+| CM       | 6.30 / 6.41 → 6.56 / 6.67                    | 1.32 / 1.12 → 0.77 / 0.78 | 2.3 / 2.0% → 0.7 / 0.7%  | 18.3 / 8.3% → 0.0 / 0.3%  |
+| AM       | 6.53 / 6.29 → 6.69 / 6.59                    | 1.25 / 1.28 → 0.76 / 0.74 | 4.0 / 2.7% → 0.7 / 0.3%  | 12.7 / 18.0% → 0.0 / 0.0% |
+| RW       | 6.23 / 6.76 → 6.59 / 6.83                    | 1.14 / 1.30 → 0.76 / 0.88 | 1.7 / 5.7% → 0.7 / 2.0%  | 12.7 / 9.7% → 0.0 / 0.0%  |
+| ST       | 6.61 / 6.53 → 6.77 / 6.73                    | 1.21 / 1.17 → 0.92 / 0.79 | 4.3 / 2.3% → 2.7 / 1.0%  | 9.7 / 12.0% → 0.0 / 0.0%  |
+
+The remaining spread of the means (6.56–6.84) is the players': the profile rotates through each club's players of a position, and a better one beats the reference more often. The keeper's p90 is 7.9 / 7.7 (gate ≥ 7.6), and every position reaches 9.
+
+### XP and fame
+
+Performance XP (`performanceXp`) and fame (`performanceFame`) take the match's scale (`rewardScale(session)`: null for a match-21 report, else the position played), so a match-21 match pays exactly as before. On match-22 the rating term is `rewards22.xp.perRating` 45 × max(0, rating − 5.2) × the position's weight, and fame's `rewards22.fame.perRating` 3.75 × max(0, rating − 6.2) × the same weight; minutes, goals, assists, objectives and clean sheets pay as in `xp` and `fame`. The weights (GK 1.2, CB 1.1, LB and RB 1, DM 0.9, LW and RW 0.9, AM 0.85, ST 0.85, CM 0.8) keep each position's XP a match where match-21's ratings had it (inflated for keepers and defenders), so levelling stays on its curve.
+
+Report XP and fame a match over the match profile (both seeds, 600 matches a position, best policy):
+
+| Position | XP median before → after | XP mean before → after | Fame mean before → after |
+| -------- | ------------------------ | ---------------------- | ------------------------ |
+| GK       | 130 → 126 (−3.1%)        | 134.6 → 139.2 (+3.4%)  | 3.23 → 3.35 (+3.7%)      |
+| CB       | 120 → 124 (+3.3%)        | 136.5 → 135.4 (−0.8%)  | 3.47 → 3.31 (−4.7%)      |
+| LB       | 115 → 119 (+3.5%)        | 130.5 → 127.9 (−2.0%)  | 3.14 → 2.96 (−5.7%)      |
+| DM       | 110 → 114 (+3.6%)        | 130.2 → 125.0 (−4.0%)  | 2.58 → 2.42 (−6.3%)      |
+| CM       | 95 → 95 (0.0%)           | 116.7 → 115.9 (−0.8%)  | 2.00 → 2.02 (+1.1%)      |
+| AM       | 100 → 99 (−1.0%)         | 124.9 → 125.2 (+0.3%)  | 2.33 → 2.27 (−2.2%)      |
+| RW       | 103 → 102 (−1.0%)        | 129.4 → 134.0 (+3.6%)  | 2.50 → 2.69 (+7.3%)      |
+| ST       | 120 → 123 (+2.5%)        | 139.6 → 140.4 (+0.6%)  | 2.83 → 2.99 (+5.9%)      |
+| All      | 110 → 113 (+2.7%)        | 130.3 → 130.4 (+0.1%)  | 2.76 → 2.75 (−0.3%)      |
+
+### Possession
+
+`homePossession` adds, to match-21's strength, mentality, men-down and momentum terms: the home side's `home` 2.5 points (not at a neutral venue); each side's playing style (`styles`: possession +6, press +2, balanced 0, direct −3, counter −5; the home side's less the away side's); the day's game plan, a triangular draw of ± `spread` 18 on its own stream (`${seed}:possession`, the same every minute); and the score, a side ahead sitting `lead` 2 points deeper a goal (at most `leadCap` 3). Bounded 25–75.
+
+### Shots, the woodwork and shots on target
+
+The background converts `shots22.conversion` 0.095 of its shots (match-21: 0.12), so it shoots about a quarter more for the same goals. Every shot that does not go in is settled on its own stream (`${seed}:shot:${eventId}`, `src/engine/match/shots.ts`): off the woodwork with `woodwork` 0.035, else saved with `saved` 0.26, blocked with `blocked` 0.27, or off target. The result is the shot event's `shotResult` (`saved`, `blocked`, `off-target`, `woodwork`); the choreography shows it (a woodwork shot strikes the post and comes back into play), so shots on target (goals and saves) follow it. A woodwork shot's commentary is `match.commentary.woodwork.*`, and it counts in `stats.woodwork` [home, away], shown in the report's team statistics when a shot hit it. The player's own shots keep the ending their commentary line names, except that they too hit the woodwork with `woodwork`. The background's attempt line that says the keeper was tested (`attempt.1`) is kept for a shot that was saved.
+
+| Statistic (profile, both seeds) | Before        | After         |
+| ------------------------------- | ------------- | ------------- |
+| Shots a team                    | 10.2 / 10.3   | 12.5 / 12.5   |
+| Shots on target                 | 60.8 / 60.7%  | 35.3 / 35.6%  |
+| Off the woodwork, a match       | —             | 0.77 / 0.76   |
+| Home possession p10–p90         | 48–52 / 47–52 | 39–65 / 39–66 |
+
+### The 10,000-match gate
+
+`tests/match-calibration.slow.test.ts` (the striker's benchmark), both engines on the same seeds:
+
+| Engine     | Goals  | Home / away goals | Home win | Draw  | Close upset | Wide upset | Shots a team | On target | Woodwork |
+| ---------- | ------ | ----------------- | -------- | ----- | ----------- | ---------- | ------------ | --------- | -------- |
+| `match-21` | 2.6638 | 1.452 / 1.227     | 42.1%    | 26.8% | 23.1%       | 8.7%       | 10.5         | 57.1%     | —        |
+| `match-22` | 2.6564 | 1.454 / 1.220     | 42.4%    | 26.3% | 22.8%       | 8.4%       | 12.6         | 34.1%     | 0.79     |
+
+**After step 5.2.** Choices that succeed more or less often change the mix but not the centre (each moment is measured against its own par). Re-check the ratings target's means, the 9.0+ shares (ST and RW on `match-profile-b` and CB carry the largest, 2.0–2.7%), the keeper's p90 and that every position still reaches 9. If the means move, `rating22.base` moves them all; if a position's tail does, its family weight or `stopCap` is the knob. Re-fit the `rewards22` weights only if a position's XP a match leaves ±5% of the table above.

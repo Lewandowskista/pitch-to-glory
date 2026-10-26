@@ -44,9 +44,8 @@ import { onEngine, type Engine } from './support/engines';
  * with `rules22`) and `PREVIOUS` on match-21 (the same setups without it). Each 1.0 rule change
  * re-records `EXPECTED` deliberately and must leave `PREVIOUS` byte-identical: that is the
  * proof that sessions saved before the update still replay. Until the first rule landed the two
- * engines played identically; step 5.5 (commentary) was the first change, so the third test now
- * checks that the sessions differ while the results stay the same. A step that changes results
- * replaces that with the check that the tables differ where intended.
+ * engines played identically; step 5.5 (commentary) changed lines but not results, and step 5.3
+ * (ratings and statistics) the results: the third test checks that every table differs.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
@@ -72,18 +71,20 @@ const PREVIOUS: Record<string, { hash: string; goals: number; moments: number }>
  */
 const PREVIOUS_SESSIONS = '3f20bccd556199d645310c63';
 /**
- * The current engine (match-22). Step 5.5 (commentary) changed which lines the engine logs and
- * how a missed shot is drawn, not a result: goals and moments still equal match-21's.
+ * The current engine (match-22). Step 5.3: ratings measured against each moment's par, with a
+ * soft limit; XP and fame on the compressed scale; possession from style, home advantage, the
+ * game plan and the score; more background shots, and every missed shot a result (the woodwork
+ * among them), with real shares on target; on top of step 5.5's commentary.
  */
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: 'f18d59d6239706662b0c272f', goals: 63, moments: 214 },
-  CB: { hash: 'aaf0283b5f2f05eea937c15e', goals: 61, moments: 231 },
-  LB: { hash: '5730e8e7fce6aaa30f15d861', goals: 49, moments: 228 },
-  DM: { hash: 'b873a49284059a45dd7b3cbd', goals: 60, moments: 207 },
-  CM: { hash: 'ddc8a0403e9e3c985bebcb09', goals: 66, moments: 250 },
-  AM: { hash: 'a27a5b6107ceecf1a8776a60', goals: 72, moments: 268 },
-  RW: { hash: 'be6ae6a5257181780eb53371', goals: 54, moments: 312 },
-  ST: { hash: 'ec7ea487e440ed7eafb9606c', goals: 68, moments: 311 },
+  GK: { hash: '5c0c21480e77a803ec7fd7c3', goals: 56, moments: 214 },
+  CB: { hash: '87608d225f7b28e93a563abb', goals: 59, moments: 232 },
+  LB: { hash: '2d50668cd90baa2743e2ca9f', goals: 46, moments: 226 },
+  DM: { hash: 'ddfe77cc5f61953c925905ef', goals: 54, moments: 208 },
+  CM: { hash: 'a898b751bf4dab9980729972', goals: 68, moments: 251 },
+  AM: { hash: '47d02e694d0dc1a263e92ef4', goals: 76, moments: 266 },
+  RW: { hash: '3ae1aaa6e198138e4d79cfed', goals: 57, moments: 316 },
+  ST: { hash: 'ef77d57714182079f10c9406', goals: 71, moments: 311 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });
@@ -260,7 +261,7 @@ describe('match outcome snapshot', { timeout: 300000 }, () => {
   beforeAll(() => {
     for (const engine of [MATCH_ENGINE_VERSION, PREVIOUS_MATCH_ENGINE] as const)
       found.set(engine, snapshot(engine));
-  });
+  }, 300000);
   it('keeps every outcome byte-identical per seed', () => {
     expect(found.get(MATCH_ENGINE_VERSION)!.outcomes).toEqual(EXPECTED);
   });
@@ -268,15 +269,10 @@ describe('match outcome snapshot', { timeout: 300000 }, () => {
     expect(found.get(PREVIOUS_MATCH_ENGINE)!.outcomes).toEqual(PREVIOUS);
     expect(found.get(PREVIOUS_MATCH_ENGINE)!.sessions).toBe(PREVIOUS_SESSIONS);
   });
-  it('logs match-22 lines of its own while its results stay those of match-21 (step 5.5)', () => {
-    const results = (table: typeof EXPECTED) =>
-      Object.fromEntries(
-        Object.entries(table).map(([position, { goals, moments }]) => [
-          position,
-          { goals, moments },
-        ]),
-      );
-    expect(results(EXPECTED)).toEqual(results(PREVIOUS));
+  it('plays the 1.0 rules on match-22 only', () => {
+    // Every position's outcomes move under match-22 (its ratings at least), and the sessions do.
+    for (const position of POSITIONS)
+      expect(EXPECTED[position]!.hash, position).not.toBe(PREVIOUS[position]!.hash);
     expect(found.get(MATCH_ENGINE_VERSION)!.sessions).not.toBe(PREVIOUS_SESSIONS);
   });
 });
