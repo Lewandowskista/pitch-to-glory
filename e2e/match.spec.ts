@@ -127,7 +127,7 @@ async function finish(page: Page) {
     if (status === 'finished') return;
     if (status === 'decision') await page.locator('.match-choices button').first().click();
     else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team/ }).click();
+      await page.getByRole('button', { name: /Motivate the team|Lift the side/ }).click();
     else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible())
       await page.getByRole('button', { name: /Accept the change/ }).click();
     else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
@@ -415,7 +415,7 @@ test('captain and substitution responses stop skip before completing the match',
     if (status === 'finished') break;
     if (status === 'decision') await page.locator('.match-choices button').first().click();
     else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team/ }).click();
+      await page.getByRole('button', { name: /Motivate the team|Lift the side/ }).click();
     else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible()) {
       captain = true;
       await expect(
