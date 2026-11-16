@@ -19,6 +19,9 @@ export default defineConfig({
   // deploy, so it is seen and fixed without costing a whole pipeline run.
   retries: process.env.CI ? 1 : 0,
   workers: performance ? 1 : process.env.CI ? 2 : 3,
+  // The Windows CI runners import a national save and open the match many times slower than a
+  // laptop: assertions there get 15 seconds instead of 5.
+  expect: { timeout: process.env.CI ? 15000 : 5000 },
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: { baseURL: `http://127.0.0.1:${port}`, trace: 'retain-on-failure' },
   projects: performance

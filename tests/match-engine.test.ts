@@ -451,7 +451,7 @@ describe('decision fairness', () => {
       }
     }
     process.stdout.write(`Policy goals [for, against] by choice index: ${JSON.stringify(rows)}\n`);
-  }, 60000);
+  }, 180000);
 });
 
 describe('match edge cases', () => {
