@@ -26,8 +26,7 @@ import type {
  * moments are read as chains of their own here, so the reel plays either.
  */
 
-export type { ChainKind, ChainOutcome };
-export type Line = KeyedLine;
+export type { ChainKind };
 /** One resolved step of a chain; a match-21 step has no cause line. */
 export type ChainStep = Omit<ChainStepResult, 'cause'> & { cause?: KeyedLine };
 /** The chain being played, as the card reads it. */

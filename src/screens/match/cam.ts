@@ -58,7 +58,6 @@ const WINDOW_WIDTH = 72;
 const WINDOW_LEFT = -2;
 /** The third each zone frames, from the attacked goal (metres), with room for labels. */
 const ZONE_TOP: Record<CamZone, number> = { final: -4.2, middle: 31.8, defensive: 66.8 };
-const PASS_BEATS = new Set(['pass', 'cross', 'switch', 'through', 'long', 'cutback']);
 
 /** The selected team's side: 0 home, 1 away. */
 export const selectedSide = (setup: Pick<MatchSetup, 'home' | 'selectedPlayerId'>): 0 | 1 =>
@@ -257,8 +256,6 @@ export function focusFrames(motion: {
   return frames.slice(start, end + 1);
 }
 
-export const isPassBeat = (kind: string | undefined) => Boolean(kind && PASS_BEATS.has(kind));
-
 /**
  * The cast the engine named (match-15), in the camera's roles: you first, then the opponent
  * closing you down (or the attacker on the ball when you defend), the runner, the crosser,
@@ -377,5 +374,3 @@ export function momentCamera(
   const arrows = you ? (engine ?? choiceArrows(moment, you)) : [];
   return { attacksRight, window, cast, arrows };
 }
-/** The phones' camera crop: a little wider than the desktop frame, to save height. */
-export const COMPACT_ASPECT = 1.9;

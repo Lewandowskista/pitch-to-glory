@@ -50,27 +50,6 @@ export function preparePlayback(frames: ReplayFrame[], rate: number, maxMs: numb
   return { frames, times, duration };
 }
 
-/**
- * A passage at its pace (see pace.ts): one rate throughout, or a quicker part up to keyframe
- * `slow.from` followed by a slower run-in (a goal's build-up, shot and celebration).
- */
-export function preparePassage(
-  frames: ReplayFrame[],
-  pace: { rate: number; maxMs: number; slow?: { from: number; rate: number; maxMs: number } },
-): Playback {
-  const { slow } = pace;
-  if (!slow || slow.from >= frames.length - 1)
-    return preparePlayback(frames, pace.rate, pace.maxMs);
-  if (slow.from <= 0) return preparePlayback(frames, slow.rate, slow.maxMs);
-  const lead = preparePlayback(frames.slice(0, slow.from + 1), pace.rate, pace.maxMs);
-  const rest = preparePlayback(frames.slice(slow.from), slow.rate, slow.maxMs);
-  return {
-    frames,
-    times: [...lead.times, ...rest.times.slice(1).map((time) => time + lead.duration)],
-    duration: lead.duration + rest.duration,
-  };
-}
-
 const easeOut = (u: number) => 1 - (1 - u) * (1 - u);
 const mix = (a: Point, b: Point, u: number): Point => ({
   x: a.x + (b.x - a.x) * u,

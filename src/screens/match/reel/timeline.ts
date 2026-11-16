@@ -30,7 +30,6 @@ export const LEAD_RATE = 1.5;
 export const LEAD_MIN_MS = 2000;
 export const LEAD_MAX_MS = 2500;
 export const SLOW_MS = 600;
-export const SLOW_FACTOR = 0.38;
 export const HITSTOP_MS = 100;
 export const OUTCOME_MIN_MS = 1200;
 export const OUTCOME_MAX_MS = 1500;
@@ -47,11 +46,6 @@ export const CARD_GUARD_MS = 300;
 export const TRAIL_FRAMES = 11;
 /** Rest between beats so one never runs into the next. */
 export const GAP_MS = 120;
-
-/** Game minutes the ticker shows each second. */
-export const minutesPerSecond = (tick = TICK_MS) => 1000 / tick;
-/** Real time the ticker takes for `minutes` of dead play. */
-export const tickerMs = (minutes: number, tick = TICK_MS) => Math.max(0, minutes) * tick;
 
 /** A clip on screen: keyframes with their real times, when the result shows, and the strike. */
 export interface ClipTimeline extends Playback {
@@ -185,7 +179,3 @@ export function goalTimeline(frames: readonly ReplayFrame[]): ClipTimeline | nul
   }
   return build(out, spans, sum(spans.slice(0, strike)), strike);
 }
-
-/** Real time at which keyframe `index` of a timeline shows. */
-export const timeOf = (timeline: Pick<Playback, 'times'>, index: number) =>
-  timeline.times[Math.max(0, Math.min(timeline.times.length - 1, index))]!;

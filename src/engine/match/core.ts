@@ -38,7 +38,7 @@ export { pitchEffect, weatherEffect } from './conditions';
 export { PARKED, OFF_ANIMATION } from './parked';
 export { slotPosition } from '../selection/lineup';
 export { OutdatedMatchSessionError, createMatchSetup, createMatchSession } from './setup';
-export { rolePosition, fullTime } from './shared';
+export { rolePosition } from './shared';
 export { sessionPenalties } from './extraTime';
 export { applyMatchCommand } from './commands';
 // The occasions (match-22): stoppage time, the bench, injuries, the shootout, the touchline.

@@ -96,21 +96,3 @@ export function Factors({
     </ul>
   );
 }
-
-/** Steps that only state where the odds start or end, not what moved them. */
-const FIXED = new Set(['match.factor.base', 'match.factor.limit']);
-/** The factor that moved a chance most, in one direction. */
-export function strongest(factors: ProbabilityFactor[], direction: 1 | -1) {
-  return factors
-    .filter((factor) => !FIXED.has(factor.labelKey) && factor.contribution * direction >= 0.005)
-    .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))[0];
-}
-/** Against the odds or a rare miss, in words; null for an ordinary result. */
-export function verdictOf(probability: number, success: boolean): string | null {
-  const percent = Math.round(probability * 100);
-  return success && probability < 0.35
-    ? matchFormat(m.againstOdds, { probability: percent })
-    : !success && probability > 0.7
-      ? matchFormat(m.rareMiss, { probability: percent })
-      : null;
-}

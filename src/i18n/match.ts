@@ -739,12 +739,3 @@ export function situationText(moment: {
 export function addMatchLabels(labels: Readonly<Record<string, string>>): void {
   Object.assign(engineText, labels);
 }
-/** What a late moment in a close game means, or an empty string. */
-export function pressureText(moment: {
-  pressureKey?: string;
-  situationParams?: Record<string, string>;
-}): string {
-  return moment.pressureKey
-    ? matchFormat(matchLabel(moment.pressureKey), moment.situationParams ?? {})
-    : '';
-}

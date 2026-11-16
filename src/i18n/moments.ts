@@ -51,8 +51,6 @@ const momentsEn = {
   readsLabel: 'What you see',
 } as const;
 const moments = ({ en: momentsEn } satisfies Translations<typeof momentsEn>)[LOCALE];
-/** The decision panel's label for a moment's reads. */
-export const readsLabel = moments.readsLabel;
 
 /** The engine keys of match-22's choices and situations, merged into the match labels. */
 export const momentLabels: Record<string, string> = {
