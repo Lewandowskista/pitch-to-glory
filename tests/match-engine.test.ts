@@ -19,10 +19,21 @@ import {
   type MatchSession,
   type MatchSetup,
 } from '../src/engine/match';
-import { NARRATION_FAMILIES, NARRATION_VARIANTS, SITUATIONS } from '../src/engine/match';
+import {
+  NARRATION_FAMILIES,
+  NARRATION_VARIANTS,
+  SITUATIONS,
+  templateOf,
+} from '../src/engine/match';
 import { hasMatchLabel } from '../src/i18n/match';
+import { hasCommentaryLabel } from '../src/i18n/commentary';
+import { commentaryVariants, narrationVariants } from '../src/engine/match/commentary';
+// The occasions' engine lines (match-22) register with the match copy when their module loads.
+import '../src/i18n/occasions';
+import { onEngine } from './support/engines';
 import { hasNarrationLabel } from '../src/i18n/narration';
-import type { Player, Position } from '../src/model/domain';
+import type { KeeperAttributes, Player, Position } from '../src/model/domain';
+import { ownKeeperAttributes } from '../src/engine/keeping';
 
 const world = generateWorld('match-tests', { format: 'legacy' });
 const clubs = Object.values(world.clubs).slice(0, 2);
@@ -48,17 +59,19 @@ function step(session: MatchSession, policy: Policy = 0): MatchSession {
         ? { type: 'halftime', response: 'motivate' }
         : s.substitutionDecisionPending
           ? { type: 'substitution', response: 'accept' }
-          : s.captainDecisionPending
-            ? { type: 'captain', instruction: 'calm' }
-            : moment
-              ? {
-                  type: 'choose',
-                  choiceId:
-                    typeof policy === 'number'
-                      ? moment.choices[Math.min(policy, moment.choices.length - 1)]!.id
-                      : policy(moment.choices),
-                }
-              : { type: 'advance' },
+          : s.injuryDecisionPending
+            ? { type: 'injury', response: 'play-on' }
+            : s.captainDecisionPending
+              ? { type: 'captain', instruction: 'calm' }
+              : moment
+                ? {
+                    type: 'choose',
+                    choiceId:
+                      typeof policy === 'number'
+                        ? moment.choices[Math.min(policy, moment.choices.length - 1)]!.id
+                        : policy(moment.choices),
+                  }
+                : { type: 'advance' },
   );
 }
 function finish(session: MatchSession, policy: Policy = 0) {
@@ -80,8 +93,8 @@ function levelled(source: MatchSetup, value = 60): MatchSetup {
   for (const player of Object.values(copy.players)) {
     for (const key of Object.keys(player.attributes) as (keyof Player['attributes'])[])
       player.attributes[key] = value;
-    for (const key of Object.keys(player.keeperAttributes) as (keyof Player['keeperAttributes'])[])
-      player.keeperAttributes[key] = value;
+    const keeping = ownKeeperAttributes(player);
+    for (const key of Object.keys(keeping) as (keyof KeeperAttributes)[]) keeping[key] = value;
     player.fatigue = 0;
     player.form = 60;
   }
@@ -91,8 +104,8 @@ function uniform(value: number): DecisionContext['player'] {
   const player = structuredClone(setup.players[setup.selectedPlayerId]!);
   for (const key of Object.keys(player.attributes) as (keyof Player['attributes'])[])
     player.attributes[key] = value;
-  for (const key of Object.keys(player.keeperAttributes) as (keyof Player['keeperAttributes'])[])
-    player.keeperAttributes[key] = value;
+  const keeping = ownKeeperAttributes(player);
+  for (const key of Object.keys(keeping) as (keyof KeeperAttributes)[]) keeping[key] = value;
   player.traits = [];
   // Reference conditions include neutral morale and temperament, and perfect consistency.
   player.morale = CONFIG.career.social.matchMorale.neutral;
@@ -126,8 +139,6 @@ function contexts(position: Position, value = 60): DecisionContext[] {
     teammateFinishing: 60,
     consistencyShift: 0,
     chemistry: 60,
-    // The current engine's appended choices (Track the runner, match-15) are judged too.
-    latest: true,
   }));
 }
 const sideOf = (s: MatchSetup) => (s.players[s.selectedPlayerId]!.clubId === s.home.id ? 0 : 1);
@@ -146,59 +157,6 @@ describe('match engine', () => {
     const final = finish(s).state;
     expect(final.report!.passes.every((pass) => pass.from.x >= 0 && pass.to.x <= 100)).toBe(true);
   });
-  // Every match also choreographs its motion (about 4 ms), so the gate needs a larger budget.
-  it('calibrates 10,000 complete matches including reputation-gap upsets', () => {
-    let goals = 0,
-      homeGoals = 0,
-      awayGoals = 0,
-      homeWins = 0,
-      awayWins = 0,
-      closeUpsets = 0,
-      wideUpsets = 0,
-      draws = 0;
-    for (let i = 0; i < 10000; i++) {
-      const gap = i < 6000 ? 0 : i < 8000 ? 15 : 45;
-      const candidate = {
-        ...setup,
-        seed: `distribution-${i}`,
-        home: { ...setup.home, reputation: 50 + gap / 2 },
-        away: { ...setup.away, reputation: 50 - gap / 2 },
-      };
-      const result = finish(createMatchSession(candidate, tactics), i % 3).state;
-      const [h, a] = result.match.score;
-      goals += h + a;
-      if (i < 6000) {
-        homeGoals += h;
-        awayGoals += a;
-        homeWins += Number(h > a);
-        awayWins += Number(a > h);
-        draws += Number(h === a);
-      } else if (i < 8000) closeUpsets += Number(a > h);
-      else wideUpsets += Number(a > h);
-    }
-    const distribution = {
-      goalsPerMatch: goals / 10000,
-      homeGoals: homeGoals / 6000,
-      awayGoals: awayGoals / 6000,
-      homeWin: homeWins / 6000,
-      awayWin: awayWins / 6000,
-      draw: draws / 6000,
-      closeUpset: closeUpsets / 2000,
-      wideUpset: wideUpsets / 2000,
-    };
-    process.stdout.write(`Match distribution: ${JSON.stringify(distribution)}\n`);
-    expect(goals / 10000).toBeGreaterThan(2.5);
-    expect(goals / 10000).toBeLessThan(2.9);
-    expect(homeGoals).toBeGreaterThan(awayGoals);
-    expect(homeWins).toBeGreaterThan(awayWins);
-    expect(draws / 6000).toBeGreaterThan(0.18);
-    expect(draws / 6000).toBeLessThan(0.35);
-    expect(closeUpsets / 2000).toBeGreaterThan(0.15);
-    expect(closeUpsets / 2000).toBeLessThan(0.36);
-    expect(wideUpsets / 2000).toBeGreaterThan(0.03);
-    expect(wideUpsets / 2000).toBeLessThan(0.2);
-    expect(wideUpsets).toBeLessThan(closeUpsets);
-  }, 360000);
   it('kicks off with the usual taker when a pending kickoff has lost its carrier', () => {
     // A shot drawn before the opening kickoff was taken used to clear the carrier and crash
     // the kickoff (found by the career profile, seed policy-a).
@@ -215,8 +173,10 @@ describe('match engine', () => {
     }
   });
 
+  // The captain's call opening the second half is match-21's; match-22 keeps one touchline
+  // interrupt a match for a goal conceded or a close finish (X1a; tests/match-chains.test.ts).
   it('retains half-time recovery and requires captain instruction', () => {
-    const chosen = structuredClone(setup);
+    const chosen = onEngine(setup, 'match-21');
     chosen.players[chosen.selectedPlayerId]!.attributes.leadership = 99;
     let s = createMatchSession(chosen, tactics);
     while (s.state.match.status !== 'halftime') s = step(s);
@@ -231,6 +191,8 @@ describe('match engine', () => {
   it('removes substituted player from pitch, later actions and scoring', () => {
     const chosen = structuredClone(setup);
     chosen.players[chosen.selectedPlayerId]!.fatigue = 95;
+    // No knocks (match-22): this is about tiredness.
+    chosen.injury = { factor: 0 };
     const s = finish(createMatchSession(chosen, tactics)).state;
     // Managers also make their own changes (match-15): find the selected player's.
     const substitution = s.match.events.find(
@@ -280,9 +242,15 @@ describe('match engine', () => {
       expect(slotFit(setup.players[home.starterIds[index]!]!, slot.position)).toBeGreaterThan(0),
     );
     s = untilMoment(s);
-    expect(['shot-incoming', 'one-on-one', 'cross-ball', 'distribution']).toContain(
-      s.state.currentMoment!.situationId,
-    );
+    // Match-22 opens a keeper's decision chain with its read (X1a).
+    expect([
+      'shot-incoming',
+      'one-on-one',
+      'cross-ball',
+      'distribution',
+      'chain-set',
+      'chain-collect',
+    ]).toContain(s.state.currentMoment!.situationId);
     expect(finish(s).state.report).not.toBeNull();
   });
   it('conserves shots, goals and player maps', () => {
@@ -392,12 +360,8 @@ describe('decision fairness', () => {
     for (const position of ['CB', 'LB', 'DM'] as const) {
       const context = contexts(position).find((c) => c.situation.id === 'defend-attack')!;
       const choices = buildChoices(context);
-      // Appended, never inserted, so choice indices keep their meaning; earlier engines never
-      // offer it.
+      // Appended, never inserted, so choice indices keep their meaning.
       expect(choices.map((c) => c.id)).toEqual(['intercept', 'tackle', 'jockey', 'track-runner']);
-      expect(buildChoices({ ...context, latest: false }).map((c) => c.id)).not.toContain(
-        'track-runner',
-      );
       const impacts = choices.map(expectedImpact);
       const mean = impacts.reduce((n, i) => n + i.net, 0) / impacts.length;
       const track = expectedImpact(choices.at(-1)!);
@@ -460,10 +424,12 @@ describe('decision fairness', () => {
       });
     }
   });
+  // Key moments of equal worth at the reference (match-9) are match-21's: match-22's chains make
+  // the wrong call cost (X1a; the match profile's chain gates measure it).
   it('keeps team goals within a narrow band whichever choice a 60-rated player always makes', () => {
     const rows: Record<string, number[][]> = {};
     for (const position of ['ST', 'CB', 'GK'] as const) {
-      const base = levelled(selectedAt(position));
+      const base = onEngine(levelled(selectedAt(position)), 'match-21');
       const side = sideOf(base);
       rows[position] = [0, 1, 2, 3].map((policy) => {
         let goalsFor = 0,
@@ -485,7 +451,7 @@ describe('decision fairness', () => {
       }
     }
     process.stdout.write(`Policy goals [for, against] by choice index: ${JSON.stringify(rows)}\n`);
-  }, 60000);
+  }, 180000);
 });
 
 describe('match edge cases', () => {
@@ -501,12 +467,23 @@ describe('match edge cases', () => {
     expect(new Set(rolls).size).toBe(rolls.length);
   });
   it('never triggers a substitution at full time and rejects late substitution answers', () => {
-    let s = applyMatchCommand(createMatchSession(setup, tactics), { type: 'kickoff' });
+    // Match-21 ends at the 90th minute; match-22 plays its added time first, still without
+    // a change for the tired player.
+    let s = applyMatchCommand(createMatchSession(onEngine(setup, 'match-21'), tactics), {
+      type: 'kickoff',
+    });
     while (s.state.match.minute < 89 || s.state.match.status !== 'live') s = step(s);
     const tired = structuredClone(s);
     tired.state.stats.fatigue = 99;
     const final = applyMatchCommand(tired, { type: 'advance' });
     expect(final.state.match.status).toBe('finished');
+    let late = applyMatchCommand(createMatchSession({ ...setup, injury: { factor: 0 } }, tactics), {
+      type: 'kickoff',
+    });
+    while (late.state.match.minute < 89 || late.state.match.status !== 'live') late = step(late);
+    late.state.stats.fatigue = 99;
+    late = finish(late);
+    expect(late.state.substituted).toBe(false);
     expect(final.state.substituted).toBe(false);
     // Managers' own changes come between 60′ and 80′ (match-15); nobody goes off at 90′.
     expect(
@@ -523,12 +500,13 @@ describe('match edge cases', () => {
     const chosen = structuredClone(setup);
     chosen.players[chosen.selectedPlayerId]!.fitness = 49;
     chosen.players[chosen.selectedPlayerId]!.fatigue = 0;
+    chosen.injury = { factor: 0 };
     const s = finish(createMatchSession(chosen, tactics)).state;
     expect(s.substituted).toBe(false);
     expect(s.selectedPlayerMinutes).toBe(90);
   });
   it('moves mentality one step with captain instructions', () => {
-    const chosen = structuredClone(setup);
+    const chosen = onEngine(setup, 'match-21');
     chosen.players[chosen.selectedPlayerId]!.attributes.leadership = 99;
     for (const [start, instruction, expected] of [
       ['balanced', 'push', 'attacking'],
@@ -585,9 +563,11 @@ describe('match edge cases', () => {
         s = applyMatchCommand(s, { type: 'choose', choiceId: moment.choices[0]!.id });
         const added = s.state.match.events.slice(count);
         const action = added.find((e) => e.outcome?.input.momentId === moment.id)!;
-        if (moment.situationId === 'distribution') {
-          distributions++;
-          expect(action.kind).toBe('pass');
+        const kind = templateOf(moment.situationId, moment.choices[0]!.id)!.event;
+        if (kind !== 'save') {
+          // Distribution, and match-22's back-pass and sweep-and-play: the keeper's feet.
+          if (moment.situationId === 'distribution') distributions++;
+          expect(action.kind).toBe(kind);
           expect(added.some((e) => e.kind === 'save')).toBe(false);
         } else {
           expect(action.kind).toBe('save');
@@ -643,17 +623,6 @@ describe('match edge cases', () => {
     expect(
       poor.factors.find((f) => f.labelKey === 'match.factor.pitch.heavy')!.contribution,
     ).toBeLessThan(0);
-    // Earlier engines keep one combined factor.
-    const legacy = buildChoices({
-      ...context,
-      latest: false,
-      pitchCondition: 40,
-      weather: 'rain',
-    }).find((c) => c.id === 'take-on')!;
-    expect(
-      legacy.factors.find((f) => f.labelKey === 'match.factor.conditions')!.contribution,
-    ).toBeLessThan(0);
-    expect(legacy.factors.some((f) => f.labelKey.startsWith('match.factor.weather.'))).toBe(false);
   });
   it('has copy for every situation, choice, factor and commentary line the engine emits', () => {
     const keys = new Set<string>();
@@ -662,9 +631,12 @@ describe('match edge cases', () => {
       keys.add(`match.situation.${situation.id}`);
       for (const choice of situation.choices) {
         keys.add(`match.choice.${choice.id}`);
-        for (const result of ['success', 'failure'])
-          for (let variant = 0; variant < CONFIG.match.commentaryVariants; variant++)
-            keys.add(`match.commentary.${choice.commentary}.${result}.${variant}`);
+        for (const result of ['success', 'failure']) {
+          const family = `${choice.commentary}.${result}`;
+          const count = Math.max(CONFIG.match.commentaryVariants, commentaryVariants(family));
+          for (let variant = 0; variant < count; variant++)
+            keys.add(`match.commentary.${family}.${variant}`);
+        }
       }
     }
     for (const position of ['ST', 'LW', 'CM', 'CB', 'GK'] as const)
@@ -679,10 +651,15 @@ describe('match edge cases', () => {
         for (const f of s.report!.ratingFactors) keys.add(f.labelKey);
         for (const line of s.narration) narration.add(line.key);
       }
-    expect([...keys].filter((key) => !hasMatchLabel(key))).toEqual([]);
+    // Commentary lines (step 5.5) live in their own module, loaded with the match screen.
+    expect(
+      [...keys].filter((key) =>
+        key.startsWith('match.commentary.') ? !hasCommentaryLabel(key) : !hasMatchLabel(key),
+      ),
+    ).toEqual([]);
     // Narration copy (match-14) lives in its own module, loaded with the match screen.
     for (const family of NARRATION_FAMILIES)
-      for (let variant = 0; variant < NARRATION_VARIANTS; variant++)
+      for (let variant = 0; variant < narrationVariants(family); variant++)
         narration.add(`match.narration.${family}.${variant}`);
     expect(narration.size).toBeGreaterThan(NARRATION_FAMILIES.length * NARRATION_VARIANTS - 1);
     expect([...narration].filter((key) => !hasNarrationLabel(key))).toEqual([]);

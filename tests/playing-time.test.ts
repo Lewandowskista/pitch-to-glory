@@ -2,7 +2,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { CareerMatchRecord, Injury, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
 import { createRng } from '../src/engine/rng';
-import { generateWorld } from '../src/engine/world/generate';
 import { getSeasonWeeks } from '../src/engine/world/calendar';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -11,6 +10,7 @@ import { developCareer } from '../src/engine/career/training';
 import { playingShare } from '../src/engine/career/availability';
 import { adjustRelationship } from '../src/engine/career/market/records';
 import { disciplineState } from '../src/engine/world/discipline';
+import { nationalWorld } from './support/world';
 
 const A = CONFIG.career.development.availability;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
@@ -35,7 +35,7 @@ const draft: CareerDraft = {
 
 let career: World;
 beforeAll(() => {
-  const base = generateWorld('playing-time-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'playing-time-tests')[0]!;
   career = createCareer(base, draft, trial.id, 'playing-time-tests');
 }, 120000);
@@ -84,11 +84,16 @@ describe('playing time under development rules 2', () => {
 
     // Dropped for a run of fixtures: the old appearances no longer hold the bonus up.
     world = fixtures(world, A.fixtures, drop);
+    // Left out, the player starts on the bench (release 1.0): unused, or a short cameo.
     const benched = entries(world).slice(-A.fixtures);
-    expect(benched.filter((e) => e.status === 'benched').length).toBeGreaterThanOrEqual(6);
+    expect(
+      benched.filter((e) => e.status === 'benched' || e.minutes < 45).length,
+    ).toBeGreaterThanOrEqual(6);
     expect(playingShare(world)).toBeLessThan(0.3);
-    // The original rules would still count the same last eight appearances.
-    expect(world.career!.matches.length - appearances).toBeLessThanOrEqual(2);
+    // The original rules would still count the same last eight starts.
+    const starts = (from: number) =>
+      world.career!.matches.slice(from).filter((m) => m.cameOn === undefined).length;
+    expect(starts(appearances)).toBeLessThanOrEqual(2);
 
     // Back in the side, it recovers.
     careerContract(world).role = 'key';

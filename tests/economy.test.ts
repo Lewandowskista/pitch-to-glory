@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
 import { createRng } from '../src/engine/rng';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { wageFor } from '../src/engine/strength';
 import { marketRollover } from '../src/engine/career/market/week';
@@ -28,6 +27,7 @@ import { retirementState, awardWeight } from '../src/engine/career/honours/retir
 import { getSeasonWeeks } from '../src/engine/world/calendar';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { matchExposure } from '../src/engine/world/finalize';
+import { nationalWorld } from './support/world';
 
 /**
  * Balance pass D (docs/GAME-DESIGN-REVIEW.md): stakes in money and relationships, and
@@ -52,7 +52,7 @@ const draft: CareerDraft = {
   age: 17,
   archetype: 'finisher',
 };
-const base = generateWorld('economy-tests', { format: 'legacy' });
+const base = nationalWorld();
 const trial = trialOffers(base, 'country:0', 'economy-tests')[0]!;
 const career = createCareer(base, draft, trial.id, 'economy-tests');
 const player = (world: World) => world.players[world.career!.playerId]!;

@@ -4,8 +4,8 @@ const hook = vi.hoisted(() => ({
   onNeedReload: null as null | (() => void),
   setRefresh: vi.fn(),
 }));
-vi.mock('virtual:pwa-register/react', () => ({
-  useRegisterSW: (options: { onNeedReload: () => void }) => {
+vi.mock('../src/ui/serviceWorker', () => ({
+  useServiceWorker: (options: { onNeedReload: () => void }) => {
     hook.onNeedReload = options.onNeedReload;
     return {
       offlineReady: [false, vi.fn()],

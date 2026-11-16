@@ -1,5 +1,6 @@
+import { LOCALE, plurals, type Translations } from './locale';
 /** Career agenda: hub priorities, the Continue preview, the digest and the calendar (Phase 3.2). */
-export const agendaText = {
+const agendaTextEn = {
   priorities: {
     title: 'Needs you',
     empty: 'Nothing is waiting. You are clear to continue.',
@@ -20,15 +21,15 @@ export const agendaText = {
       promise: 'Answer {manager}’s challenge',
       story: 'Decide: {title}',
       sponsor: 'Consider a {category} sponsor',
-      attributes: 'Spend {count} attribute points',
-      attributes_one: 'Spend 1 attribute point',
-      skills: 'Spend {count} skill points',
-      skills_one: 'Spend 1 skill point',
+      attributes: plurals({
+        one: 'Spend 1 attribute point',
+        other: 'Spend {count} attribute points',
+      }),
+      skills: plurals({ one: 'Spend 1 skill point', other: 'Spend {count} skill points' }),
       preseason: 'Hear the preseason briefing',
     },
     details: {
-      recovery: '{injury} · {weeks} weeks out',
-      recovery_one: '{injury} · 1 week out',
+      recovery: plurals({ one: '{injury} · 1 week out', other: '{injury} · {weeks} weeks out' }),
       offer: '{offer} offer',
       contract: 'Your contract ends with this season',
       press: 'Press question',
@@ -47,11 +48,17 @@ export const agendaText = {
     },
   },
   preview: {
-    weekOne: 'Continue plays out week {from}',
-    weeks: 'Continue plays out weeks {from}–{through}',
-    stop: ', then stops in week {week} for {opponent} if you are picked. If not, it plays on to your next match.',
+    /** Continue covers one week (`Week`) or several (`Weeks`), then stops for a fixture. */
+    stopWeek:
+      'Continue plays out week {from}, then stops in week {week} for {opponent} if you are picked. If not, it plays on to your next match.',
+    stopWeeks:
+      'Continue plays out weeks {from}–{through}, then stops in week {week} for {opponent} if you are picked. If not, it plays on to your next match.',
     season: 'Your club has no fixture left: Continue plays out the season to week {through}.',
-    deadline: ', then stops on deadline day, week {week}, so you can {action} before it lapses.',
+    /** …or stops on a deadline; `{action}` is a priority's label, lower-cased. */
+    deadlineWeek:
+      'Continue plays out week {from}, then stops on deadline day, week {week}, so you can {action} before it lapses.',
+    deadlineWeeks:
+      'Continue plays out weeks {from}–{through}, then stops on deadline day, week {week}, so you can {action} before it lapses.',
     fit: 'You are expected back in week {week}.',
     recovery: 'Choose how to recover before the world moves on.',
     lapsing: 'Passes on the way unless you act first:',
@@ -67,14 +74,17 @@ export const agendaText = {
     result: '{home} {score} {away}',
     training: 'Training: {attributes} improved',
     trainingNone: 'Training: no whole-point changes',
-    injury: 'Injured: {injury}, {weeks} weeks out',
-    injury_one: 'Injured: {injury}, 1 week out',
+    injury: plurals({
+      one: 'Injured: {injury}, 1 week out',
+      other: 'Injured: {injury}, {weeks} weeks out',
+    }),
     newOffer: 'New {offer} offer from {club}',
     expiredOffer: 'The offer from {club} expired',
-    lapsedPress: 'Press questions went unanswered: {count}',
-    lapsedPress_one: 'A press question went unanswered',
-    messages: '{count} new messages, {unread} unread',
-    messages_one: '1 new message',
+    lapsedPress: plurals({
+      one: 'A press question went unanswered',
+      other: 'Press questions went unanswered: {count}',
+    }),
+    messages: plurals({ one: '1 new message', other: '{count} new messages, {unread} unread' }),
     chronicle: 'New in your Chronicle: {count}',
     nothing: 'A quiet spell: nothing else to report.',
     openInbox: 'Open the inbox',
@@ -131,3 +141,6 @@ export const agendaText = {
       'When the season is complete both views show every week, so the past results stay in reach.',
   },
 } as const;
+export const agendaText = ({ en: agendaTextEn } satisfies Translations<typeof agendaTextEn>)[
+  LOCALE
+];

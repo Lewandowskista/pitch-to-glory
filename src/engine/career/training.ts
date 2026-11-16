@@ -14,6 +14,7 @@ import { CONFIG } from '../config';
 import { createRng, type Rng } from '../rng';
 import { ageCategory, isKeeperKey, type AnyAttribute } from '../ageing';
 import { getSeasonWeeks } from '../world/calendar';
+import { ownKeeperAttributes } from '../keeping';
 import { attributeValue, trainableAttributes } from './progression';
 import { chronicle } from './honours/chronicle';
 import { recordEvent } from '../world/events';
@@ -146,7 +147,7 @@ function addProgress(
     const whole = Math.floor(progress);
     career.trainingProgress[key] = Math.round((progress - whole) * 1e6) / 1e6;
     if (whole > 0) {
-      if (isKeeperKey(key)) player.keeperAttributes[key] = Math.min(99, value + whole);
+      if (isKeeperKey(key)) ownKeeperAttributes(player)[key] = Math.min(99, value + whole);
       else player.attributes[key] = Math.min(99, value + whole);
       recordGrowth(career, world.date.season, 'training', Math.min(99, value + whole) - value);
       if (!report.improved.includes(key)) report.improved.push(key);
@@ -284,7 +285,7 @@ export function developCareer(
     if (gap <= 0 || value >= 99) continue;
     const weight = weights?.get(key) ?? 1;
     if (rng.next() < Math.min(0.9, (gap * rate * weight) / seasonWeeks)) {
-      if (isKeeperKey(key)) player.keeperAttributes[key] = value + 1;
+      if (isKeeperKey(key)) ownKeeperAttributes(player)[key] = value + 1;
       else player.attributes[key] = value + 1;
       recordGrowth(career, world.date.season, 'playing', 1);
       if (!report.improved.includes(key)) report.improved.push(key);
@@ -430,7 +431,7 @@ export function careerWeek(world: World): void {
     const value = attributeValue(player, key);
     const gap = value - careerSoftCap(world, player, key, age);
     if (gap > 0 && rng.next() < Math.min(0.9, (gap * decline) / seasonWeeks)) {
-      if (isKeeperKey(key)) player.keeperAttributes[key] = value - 1;
+      if (isKeeperKey(key)) ownKeeperAttributes(player)[key] = value - 1;
       else player.attributes[key] = value - 1;
       recordGrowth(career, world.date.season, 'decline', 1);
       report.declined.push(key);

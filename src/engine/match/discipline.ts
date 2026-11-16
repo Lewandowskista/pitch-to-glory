@@ -6,9 +6,8 @@ import { CONFIG } from '../config';
  * Discipline and the managers' substitutions (engine match-15, redesign step M7; full
  * discipline from match-16, the discipline phase).
  *
- * On match-15 yellow cards are cosmetic (decision 5): drawn on their own stream, they never move
- * an outcome roll and change nobody's strength, and nobody is booked twice. Match-16 draws its
- * cards on `${seed}:cards:${minute}` with second yellows and straight reds (`cardsOfMinute`),
+ * Cards are drawn on `${seed}:cards:${minute}` with second yellows and straight reds
+ * (`cardsOfMinute`),
  * the same draw the background world uses (`drawCard`), and gives defending choices a booking
  * risk (`bookingRisk`). AI substitutions follow a plan drawn once per match on
  * `${seed}:ai-subs`, and who comes off is drawn at the minute, so a replay makes the same changes.
@@ -27,44 +26,10 @@ function weighted(ids: readonly string[], weight: (id: string) => number, roll: 
   return ids[ids.length - 1];
 }
 
-/**
- * The yellow cards of a minute: each side is booked with probability `perTeamPerMinute`, and
- * the player is drawn among its outfielders on the pitch not yet booked, weighted by
- * aggression and tackling. Two draws a side every minute, so the stream never shifts.
- */
-export function bookings(
-  seed: string,
-  minute: number,
-  lineups: readonly [Lineup, Lineup],
-  players: Readonly<Record<string, Player>>,
-  booked: ReadonlySet<string>,
-): { side: 0 | 1; playerId: string }[] {
-  const rng = createRng(`${seed}:discipline:${minute}`);
-  const cards: { side: 0 | 1; playerId: string }[] = [];
-  for (const side of [0, 1] as const) {
-    const booking = rng.next(),
-      who = rng.next();
-    if (booking >= D.perTeamPerMinute) continue;
-    const pool = lineups[side].starterIds.filter(
-      (id) => !booked.has(id) && players[id] && players[id].primaryPosition !== 'GK',
-    );
-    const id = weighted(
-      pool,
-      (candidate) => {
-        const a = players[candidate]!.attributes;
-        return D.base + a.aggression * D.aggression + a.tackling * D.tackling;
-      },
-      who,
-    );
-    if (id) cards.push({ side, playerId: id });
-  }
-  return cards;
-}
-
 const F = CONFIG.match.cards;
 const B = CONFIG.match.booking;
 
-/** A player's weight for a card: the cosmetic cards' formula. */
+/** A player's weight for a card: aggression and tackling. */
 export function cardWeight(player: Pick<Player, 'attributes'>): number {
   return (
     D.base + player.attributes.aggression * D.aggression + player.attributes.tackling * D.tackling
@@ -97,6 +62,8 @@ export function drawCard(
   booked: ReadonlySet<string>,
   /** A player whose weight is scaled (the selected player, whose moments carry their own risk). */
   scaled?: { id: string; factor: number },
+  /** A further weight per player (match-22: keepers rarely). */
+  extra?: (id: string) => number,
 ): { playerId: string; card: Card['card'] } | null {
   const happens = rng.next(),
     who = rng.next(),
@@ -107,7 +74,8 @@ export function drawCard(
     (candidate) =>
       cardWeight(players[candidate]!) *
       (booked.has(candidate) ? F.bookedCaution : 1) *
-      (candidate === scaled?.id ? scaled.factor : 1),
+      (candidate === scaled?.id ? scaled.factor : 1) *
+      (extra ? extra(candidate) : 1),
     who,
   )!;
   const card =
@@ -122,11 +90,14 @@ export function drawCard(
  */
 export function cardsOfMinute(
   seed: string,
-  minute: number,
+  /** The minute, or on match-22 the clock's key (`90+2` in added time). */
+  minute: number | string,
   lineups: readonly [Lineup, Lineup],
   players: Readonly<Record<string, Player>>,
   booked: ReadonlySet<string>,
   scaled?: { id: string; factor: number },
+  /** Match-22: keepers are in the pool too, their weight × this. */
+  keepers?: number,
 ): Card[] {
   const rng = createRng(`${seed}:cards:${minute}`);
   const cards: Card[] = [];
@@ -134,9 +105,23 @@ export function cardsOfMinute(
     const team = lineups[side];
     const off = new Set(team.sentOffIds ?? []);
     const pool = team.starterIds.filter(
-      (id) => !off.has(id) && players[id] && players[id].primaryPosition !== 'GK',
+      (id) =>
+        !off.has(id) &&
+        players[id] &&
+        (keepers !== undefined || players[id].primaryPosition !== 'GK'),
     );
-    const drawn = drawCard(rng, F.perTeamPerMinute, pool, players, booked, scaled);
+    const drawn = drawCard(
+      rng,
+      F.perTeamPerMinute,
+      pool,
+      players,
+      booked,
+      scaled,
+      // A keeper is booked too, but rarely.
+      keepers === undefined
+        ? undefined
+        : (id) => (players[id]!.primaryPosition === 'GK' ? keepers : 1),
+    );
     if (!drawn) continue;
     if (drawn.card !== 'yellow' && off.size >= F.maxDismissals) continue;
     cards.push({ side, ...drawn });
@@ -154,9 +139,15 @@ export function bookingRisk(
   player: Pick<Player, 'attributes'>,
   probability: number,
   booked: boolean,
+  /**
+   * Engine match-22: a foul that is the choice itself (a professional foul) risks its card on
+   * success, with this straight-red share.
+   */
+  foul?: { onSuccess: true; straight: number },
 ): BookingRisk | null {
-  const entry = B.choices[choiceId];
-  if (!entry) return null;
+  const listed = B.choices[choiceId];
+  if (!listed) return null;
+  const entry = foul ? { ...listed, straight: foul.straight } : listed;
   const round = (n: number) => Math.round(n * 1e6) / 1e6;
   const a = player.attributes;
   const steps: [string, number][] = [
@@ -173,21 +164,23 @@ export function bookingRisk(
     factors.push({ labelKey, source: 'attribute', contribution: round(next - current) });
     current = next;
   }
-  const foul = round(Math.max(B.minimum, Math.min(B.maximum, current)));
-  if (foul !== current)
+  // A professional foul is a foul whenever it is made (match-22): no upper limit.
+  const chance = round(Math.max(B.minimum, Math.min(foul ? 1 : B.maximum, current)));
+  if (chance !== current)
     factors.push({
       labelKey: 'match.factor.limit',
       source: 'attribute',
-      contribution: round(foul - current),
+      contribution: round(chance - current),
     });
-  const fail = 1 - probability;
+  const fail = foul ? probability : 1 - probability;
   return {
-    foul,
+    foul: chance,
     straight: entry.straight,
-    yellow: booked ? 0 : round(fail * foul * (1 - entry.straight)),
-    red: round(fail * foul * (booked ? 1 : entry.straight)),
+    yellow: booked ? 0 : round(fail * chance * (1 - entry.straight)),
+    red: round(fail * chance * (booked ? 1 : entry.straight)),
     booked,
     factors,
+    ...(foul ? { onSuccess: true as const } : {}),
   };
 }
 

@@ -17,10 +17,18 @@ import { generateKits } from '../../assets/kit';
 import { generatePlayer } from '../../world/generate';
 import { STYLES } from '../../world/catalog';
 import { FORMATIONS, type Formation } from '../../selection/formations';
-import type { MatchSession, MatchSetup } from '../../match/types';
+import {
+  CURRENT_SETUP_FLAGS,
+  rules22,
+  type MatchSession,
+  type MatchSetup,
+} from '../../match/types';
+import { careerInjury } from '../matchSetup';
+import { injure } from '../training';
 import { sessionPenalties, validateMatchSession } from '../../match';
-import { performanceXp } from '../../match/rewards';
-import { matchDecisions, recordDecisions } from '../coaching';
+import { performanceXp, rewardScale } from '../../match/rewards';
+import { recordDecisions } from '../coaching';
+import { matchDecisions } from '../decisionSamples';
 import { assetEffects } from '../lifestyle/catalogue';
 import { chronicle } from './chronicle';
 import { captureMoments } from './moments';
@@ -240,17 +248,12 @@ function nationMatchSetup(
       ...(options.knockout ? { shootoutLead: 0, extraTimeLead: 0 } : {}),
     },
     formations: [nationFormation(world, home), nationFormation(world, away)],
-    slotMoments: true,
-    dramaMoments: true,
-    occasions: true,
-    discipline: true,
-    roleSlot: true,
-    extraTimePlay: true,
-    identity: true,
-    defending: true,
-    screening: true,
+    // The current engine's flags, as `createMatchSetup` sets them.
+    ...CURRENT_SETUP_FLAGS,
     decidingHeadline: true,
     strengthBonus: [0, 0],
+    // The career's injury factor (match-22): knocks in the session, as in a club match.
+    injury: careerInjury(world),
   };
 }
 
@@ -345,13 +348,16 @@ function commitNationMatch(
   const rating = state.report.rating;
   const objectives = state.report.objectives;
   const minutes = state.selectedPlayerMinutes;
-  const performance = performanceXp({
-    minutes,
-    rating,
-    goals: scored.length,
-    assists: assisted.length,
-    objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
-  });
+  const performance = performanceXp(
+    {
+      minutes,
+      rating,
+      goals: scored.length,
+      assists: assisted.length,
+      objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
+    },
+    rewardScale(session),
+  );
   const decisions = matchDecisions(session, world.date);
   const analyst = assetEffects(career.style?.assets ?? []).decisionXp;
   const decisionXp = decisions.reduce(
@@ -410,6 +416,11 @@ function commitNationMatch(
   }
   const won = penalties ? penalties[0] > penalties[1] : score[0] > score[1];
   const lost = penalties ? penalties[0] < penalties[1] : score[0] < score[1];
+  const knock = rules22(session.setup) ? state.knock : undefined;
+  const injury =
+    knock && (knock.serious || knock.aggravated)
+      ? injure(world, 'match', createRng(`${world.seed}:career:intl:${fixture.id}`), knock.kind)
+      : undefined;
   const record: CareerMatchRecord = {
     fixtureId: fixture.id,
     season: world.date.season,
@@ -449,7 +460,8 @@ function commitNationMatch(
     },
     previousLevel,
     levelsGained: career.level - previousLevel,
-    injury: null,
+    // Match-22: a knock in the session that became an injury counts, as in a club match.
+    injury: injury ?? null,
     celebrationFame: 0,
     internationalMatchId: match.id,
   };

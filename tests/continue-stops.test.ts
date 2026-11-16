@@ -1,14 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { continueStops, pendingDecisions } from '../src/engine/career/pending';
 import { applySocialAction } from '../src/engine/career/social';
 import { ROUTINE_PRESS } from '../src/engine/career/social/media';
 import { runWorldJob } from '../src/workers/run';
-import type { WorkerResponse } from '../src/workers/protocol';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 /**
  * Review phase 5, step 5.1: Continue stops for every decision that is due, or that arrives,
@@ -17,7 +16,7 @@ import { validateWorld } from '../src/persistence/worldSchema';
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 let career: World;
 beforeAll(() => {
-  const base = generateWorld('continue-stops', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'continue-stops')[0]!;
   career = createCareer(
     base,
@@ -49,15 +48,14 @@ beforeAll(() => {
 /** One press of Continue with the worker's own loop; the world it stops in. */
 async function pressContinue(world: World): Promise<World> {
   let last = world;
-  const events: WorkerResponse[] = [];
   await runWorldJob(
-    { requestId: 'continue', type: 'simulate-to-match', world },
+    { requestId: 'continue', type: 'simulate-to-match' },
+    world,
     {
-      emit: (event) => {
-        events.push(event);
-        if (event.type === 'checkpoint') last = event.world;
+      progress: () => {},
+      checkpoint: async (checkpointed) => {
+        last = checkpointed;
       },
-      checkpoint: async () => {},
       cancelled: () => false,
       yieldControl: async () => {},
     },

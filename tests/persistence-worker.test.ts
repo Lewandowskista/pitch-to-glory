@@ -3,7 +3,10 @@ import { SaveDatabase } from '../src/persistence/repository';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { executePersistenceRequest } from '../src/workers/persistence.worker';
 import type { PersistenceOperation, PersistenceRequest } from '../src/persistence/workerClient';
-import { generateWorld } from '../src/engine/world/generate';
+import { unpackBackup, type BackupFile } from '../src/persistence/backup';
+import { nationalWorld } from './support/world';
+
+const file = (json: string) => new Blob([json]);
 
 const databases: SaveDatabase[] = [];
 const setup = () => {
@@ -34,7 +37,7 @@ afterEach(async () => {
 describe('persistence worker service', () => {
   it('returns normalized write receipts without echoing the world and rejects corrupt writes', async () => {
     const { request } = setup();
-    const world = generateWorld('worker-receipt', { format: 'legacy' });
+    const world = nationalWorld();
     const payload = {
       kind: 'world' as const,
       world,
@@ -82,7 +85,9 @@ describe('persistence worker service', () => {
 
   it('validates files without writing and exports the committed save in the worker', async () => {
     const { request, save } = setup();
-    expect(await request({ operation: 'validate', json: JSON.stringify(save) })).toMatchObject({
+    expect(
+      await request({ operation: 'validate', file: file(JSON.stringify(save)) }),
+    ).toMatchObject({
       ok: true,
       value: undefined,
     });
@@ -90,7 +95,7 @@ describe('persistence worker service', () => {
       ok: true,
       value: undefined,
     });
-    expect(await request({ operation: 'validate', json: 'bad json' })).toMatchObject({
+    expect(await request({ operation: 'validate', file: file('bad json') })).toMatchObject({
       ok: false,
       code: 'invalid',
     });
@@ -100,11 +105,14 @@ describe('persistence worker service', () => {
       !response.ok ||
       !response.value ||
       Array.isArray(response.value) ||
-      !('json' in response.value)
+      !('file' in response.value)
     )
-      throw new Error('Expected JSON export');
-    expect(response.value.name).toBe(save.name);
-    expect(JSON.parse(response.value.json)).toEqual({ ...save, revision: 1 });
+      throw new Error('Expected a backup file');
+    const backup: BackupFile = response.value;
+    expect(backup).toMatchObject({ name: save.name, compressed: true, nearLimit: false });
+    const { json, bytes } = await unpackBackup(backup.file);
+    expect(bytes).toBe(backup.bytes);
+    expect(JSON.parse(json)).toEqual({ ...save, revision: 1 });
     expect(await request({ operation: 'export', slot: 3 })).toMatchObject({
       ok: false,
       code: 'invalid',
@@ -153,11 +161,34 @@ describe('persistence worker service', () => {
     expect(await request(operation, 'tab-a')).toMatchObject({ ok: true, value: { revision: 1 } });
   });
 
+  it('keeps each tab’s slot leases, so the main thread never opens IndexedDB', async () => {
+    const { request, save } = setup();
+    const acquire = (owner: string | undefined, native = false) =>
+      request({ operation: 'lease-acquire', slot: 1, native }, owner);
+    expect(await acquire(undefined)).toMatchObject({ ok: false, code: 'locked' });
+    expect(await acquire('tab-a')).toMatchObject({ ok: true, value: { acquired: true } });
+    // Another tab cannot take a live lease, unless it holds the slot's native Web Lock and the
+    // lease was taken under one (the earlier holder's page is gone).
+    expect(await acquire('tab-b')).toMatchObject({ ok: true, value: { acquired: false } });
+    const write = { operation: 'write' as const, value: save, expectedRevision: null };
+    expect(await request(write, 'tab-b')).toMatchObject({ ok: false, code: 'locked' });
+    expect(await request(write, 'tab-a')).toMatchObject({ ok: true, value: { revision: 1 } });
+    expect(await request({ operation: 'lease-release', slot: 1 }, 'tab-a')).toMatchObject({
+      ok: true,
+      value: undefined,
+    });
+    expect(await acquire('tab-b', true)).toMatchObject({ ok: true, value: { acquired: true } });
+    expect(await acquire('tab-a', true)).toMatchObject({ ok: true, value: { acquired: true } });
+    expect(
+      await request({ operation: 'lease-acquire', slot: 4 as 1, native: false }, 'tab-a'),
+    ).toMatchObject({ ok: false, code: 'invalid' });
+  });
+
   it('validates untrusted imports fully and preserves existing data on rejection', async () => {
     const { request, save } = setup();
     await request({ operation: 'write', value: save, expectedRevision: null });
     expect(
-      await request({ operation: 'import', json: '{broken', slot: 1, expectedRevision: 1 }),
+      await request({ operation: 'import', file: file('{broken'), slot: 1, expectedRevision: 1 }),
     ).toMatchObject({ ok: false, code: 'invalid' });
     const invalid = {
       ...save,
@@ -166,7 +197,7 @@ describe('persistence worker service', () => {
     expect(
       await request({
         operation: 'import',
-        json: JSON.stringify(invalid),
+        file: file(JSON.stringify(invalid)),
         slot: 1,
         expectedRevision: 1,
       }),
@@ -174,7 +205,7 @@ describe('persistence worker service', () => {
     expect(
       await request({
         operation: 'import',
-        json: JSON.stringify({ ...save, schemaVersion: 99 }),
+        file: file(JSON.stringify({ ...save, schemaVersion: 99 })),
         slot: 1,
         expectedRevision: 1,
       }),
@@ -186,7 +217,7 @@ describe('persistence worker service', () => {
     expect(
       await request({
         operation: 'import',
-        json: JSON.stringify(save),
+        file: file(JSON.stringify(save)),
         slot: 2,
         expectedRevision: null,
       }),

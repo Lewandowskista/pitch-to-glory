@@ -168,23 +168,6 @@
   flex-shrink: 0;
   border-radius: 999px;
 }
-.match-footballer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem;
-}
-.match-footballer h2 {
-  font-family: var(--font-display);
-  font-size: 2rem;
-  font-weight: 400;
-  line-height: 1;
-}
-.match-footballer p {
-  margin: 0.25rem 0 0;
-  color: var(--muted);
-  font-size: 0.8125rem;
-}
 .match-page details > summary {
   cursor: pointer;
 }
@@ -392,6 +375,27 @@
   font-family: var(--font-display);
   font-size: 2.125rem;
   line-height: 1;
+}
+/* The added-time board beside the clock (release 1.0 step 5.4). */
+.match-clock-added {
+  border-radius: var(--radius-chip);
+  background: var(--color-gold);
+  color: var(--color-on-gold);
+  padding: 0.0625rem 0.375rem;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  line-height: 1.2;
+}
+/* The fourth official's board rising over the pitch. */
+@keyframes match-board {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .match-clock-state {
   grid-area: state;
@@ -1705,7 +1709,6 @@
 }
 .match-preview-top,
 .match-lineups,
-.match-report-row,
 .match-fixture-layout {
   display: flex;
   flex-wrap: wrap;
@@ -2466,46 +2469,357 @@
   font-weight: 700;
 }
 
-/* The report */
+/*
+ * The report (release 1.0, step 5.1): one layout that never reflows when the result is
+ * recorded. The first screen is the dark result card (score, rating, XP, level, fame); the
+ * story, moments and details follow; the next action is a sticky bar.
+ */
 .match-report {
   display: grid;
   gap: var(--spacing-section);
 }
-.match-report-heading {
+.match-report-top {
+  --focus-ring: var(--color-hero-focus);
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--color-night-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-night);
+  color: var(--color-night-ink);
+  box-shadow: var(--shadow-panel);
+}
+.match-report-top-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.25rem 1rem;
 }
-.match-report-title {
+.match-page .match-report-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
   font-weight: 400;
-  line-height: 0.9;
+  line-height: 1;
+  color: var(--color-night-ink);
 }
-.match-recorded {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.875rem;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+.match-report-meta {
+  margin: 0;
+  color: var(--color-night-muted);
   font-size: 0.8125rem;
   font-weight: 700;
 }
-.match-report-hero {
+.match-report-score {
   display: grid;
-  flex: 2 1 36rem;
-  gap: 1.375rem;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
 }
-.match-report-side {
+.match-report-side-team {
   display: grid;
-  flex: 1 1 20rem;
+  container-type: inline-size;
+  justify-items: center;
+  gap: 0.375rem;
   min-width: 0;
+  text-align: center;
+}
+.match-report-crest {
+  width: 56px;
+  height: 63px;
+}
+/* Breaks only between words: two lines at most, then an ellipsis. */
+.match-report-team-name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.match-report-team-mark {
+  display: none;
+  font-size: 1rem;
+  font-weight: 800;
+}
+/* A side too narrow for its name shows the club's mark; the name stays for screen readers. */
+@container (max-width: 9rem) {
+  .match-report-team-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .match-report-team-mark {
+    display: block;
+  }
+}
+.match-report-you {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-gold);
+  color: var(--color-on-gold);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.match-report-score-middle {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+}
+.match-report-score-label {
+  color: var(--color-night-muted);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.match-report-score-value {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: var(--font-display);
+  font-size: clamp(3.25rem, 7vw, 4.5rem);
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+.match-report-score-value > span {
+  color: var(--color-gold);
+}
+.match-report-outcome {
+  padding: 0.15rem 0.75rem;
+  border-radius: 999px;
+  background: var(--color-night-raised);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+.match-report-outcome.is-win {
+  background: var(--color-mint);
+  color: var(--color-night);
+}
+.match-report-score-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-night-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-align: center;
+}
+.match-report-you-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.25rem;
+}
+.match-report-footballer {
+  display: flex;
+  flex: 1 1 15rem;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.match-report-avatar {
+  flex: none;
+  width: 64px;
+  height: 64px;
+}
+.match-report-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  line-height: 1;
+  overflow-wrap: normal;
+}
+.match-report-role {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  margin: 0.25rem 0 0;
+  color: var(--color-night-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.match-report-top .match-report-cards {
+  margin: 0;
+  color: var(--color-night-ink);
+}
+.match-report-top .match-report-cards.is-red {
+  color: #ffada5;
+}
+.match-rewards {
+  display: grid;
+  flex: 2 1 20rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+.match-rewards > div {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.75rem 0.875rem;
+  border-radius: var(--radius-control);
+  background: var(--color-night-soft);
+}
+.match-rewards strong {
+  font-family: var(--font-display);
+  font-size: 2.75rem;
+  font-weight: 400;
+  line-height: 0.9;
+}
+.match-rewards span {
+  color: var(--color-night-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.match-rewards .is-rating strong {
+  color: var(--color-mint);
+}
+.match-rewards .is-xp {
+  background: var(--color-gold);
+  box-shadow: var(--shadow-gold);
+}
+.match-rewards .is-xp strong,
+.match-rewards .is-xp span {
+  color: var(--color-on-gold);
+  font-weight: 800;
+}
+.match-rewards .is-xp.is-pending {
+  background: var(--color-night-raised);
+  box-shadow: inset 0 0 0 2px var(--color-gold);
+}
+.match-rewards .is-xp.is-pending strong,
+.match-rewards .is-xp.is-pending span {
+  color: var(--color-gold);
+}
+/*
+ * The level, its progress and the points to spend. The points slot keeps its width whether or
+ * not there are points, so recording a level-up never moves the bar or the text.
+ */
+.match-report-level {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9rem;
+  align-items: center;
+  gap: 0.375rem 0.75rem;
+}
+.match-report-level-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.75rem;
+  min-width: 0;
+}
+.match-report-level-text strong {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--color-gold);
+}
+.match-report-level-text span {
+  color: var(--color-night-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.match-report-level-track {
+  display: block;
+  grid-column: 1;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-night-raised);
+}
+.match-report-level-track > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-gold);
+  transition: width 600ms ease-out;
+}
+.match-report-points {
+  display: inline-flex;
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  justify-self: end;
+  align-items: center;
+  white-space: nowrap;
+  gap: 0.375rem;
+  min-height: 44px;
+  padding: 0 0.875rem;
+  border: 1px solid var(--color-gold);
+  border-radius: var(--radius-control);
+  color: var(--color-gold);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+.match-report-points:hover {
+  background: var(--color-night-raised);
+}
+.match-report-points.is-empty {
+  visibility: hidden;
+}
+.match-report-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 1rem;
+  min-height: 1.5rem;
+  color: var(--color-night-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.match-report-status > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.match-report-status .is-done {
+  color: var(--color-mint);
+}
+.match-report-status .is-gold {
+  color: var(--color-gold);
+}
+.match-report-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--spacing-section);
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .match-report-columns {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.match-report-column {
+  display: grid;
+  gap: var(--spacing-section);
+  min-width: 0;
+}
+.match-recap-minute {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-width: 2.75rem;
+  height: 2rem;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-chip);
+  background: var(--color-night);
+  color: var(--color-night-ink);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 .match-newspaper {
   padding: 0.5rem 0 0.875rem;
@@ -2533,26 +2847,10 @@
 .match-page .match-headline {
   margin: 0 0 0.625rem;
   font-family: var(--font-display);
-  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-size: clamp(2rem, 4vw, 3rem);
   font-weight: 400;
-  line-height: 0.92;
+  line-height: 0.95;
   text-wrap: balance;
-}
-.match-report-player {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1.25rem;
-}
-.match-report-footballer {
-  display: flex;
-  flex: 1 1 15rem;
-  align-items: center;
-  gap: 0.875rem;
-}
-.match-report-avatar {
-  width: 88px;
-  height: 88px;
 }
 .match-tile-label {
   margin: 0;
@@ -2562,93 +2860,15 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.match-report-name {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 2.25rem;
-  line-height: 1;
-}
-.match-rewards {
-  display: grid;
-  flex: 2 1 20rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.625rem;
-}
-.match-rewards > div {
-  display: grid;
-  gap: 0.125rem;
-  padding: 0.75rem 0.875rem;
-  border-radius: var(--radius-control);
-  background: var(--surface-soft);
-}
-.match-rewards strong {
-  font-family: var(--font-display);
-  font-size: 3rem;
-  font-weight: 400;
-  line-height: 0.9;
-}
-.match-rewards span {
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-.match-rewards .is-rating {
-  background: var(--accent-soft);
-}
-.match-rewards .is-rating strong,
-.match-rewards .is-rating span {
-  color: var(--accent);
-}
-.match-rewards .is-xp {
-  background: var(--color-gold);
-  box-shadow: var(--shadow-gold);
-}
-.match-rewards .is-xp strong,
-.match-rewards .is-xp span {
-  color: var(--color-on-gold);
-  font-weight: 800;
-}
-.match-report-result {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-.match-final {
-  flex: 0 1 13rem;
-  padding: 0.875rem 1rem;
-  border-radius: var(--radius-control);
-  background: var(--surface-soft);
-}
-.match-final p {
-  margin: 0;
-}
-.match-final-score {
-  font-family: var(--font-display);
-  font-size: 2.75rem;
-  line-height: 1;
-}
-.match-xp-breakdown {
-  display: grid;
-  flex: 1 1 18rem;
-  min-width: 0;
-  align-content: start;
-  gap: 0.25rem;
-}
-.match-xp-breakdown h4 {
-  margin: 0 0 0.25rem;
-  font-size: 0.875rem;
-  font-weight: 800;
-}
 .match-xp-breakdown dl {
-  margin: 0;
+  margin: 0 0 0.25rem;
 }
 .match-xp-breakdown dl > div {
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.25rem 0;
+  padding: 0.3rem 0;
   border-bottom: 1px solid var(--line);
-  font-size: 0.8125rem;
 }
 .match-xp-breakdown dt {
   color: var(--muted);
@@ -2670,18 +2890,6 @@
   color: var(--meter-gold);
   font-weight: 800;
 }
-.match-celebration-fame {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0.625rem 0.75rem;
-  border-radius: var(--radius-control);
-  background: var(--art-gold);
-  color: var(--gold-ink);
-  font-size: 0.8125rem;
-  font-weight: 700;
-}
 .match-injury {
   display: flex;
   align-items: flex-start;
@@ -2694,42 +2902,96 @@
 .match-injury p {
   margin: 0.25rem 0 0;
 }
-.match-record {
-  display: grid;
-  justify-items: start;
-  gap: 0.5rem;
-  padding: 1rem;
-  border-radius: var(--radius-control);
-  background: var(--surface-soft);
+.match-report-maps > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
 }
-.match-level-up {
+.match-report-maps > summary::-webkit-details-marker {
+  display: none;
+}
+.match-report-maps-chevron {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+  transition: transform 150ms ease-out;
+}
+.match-report-maps[open] .match-report-maps-chevron {
+  transform: rotate(90deg);
+}
+/* The level-up moment: a gold card over the report, in the top layer. */
+.match-level-up-dialog {
+  /* Not modal (X1b): it sits high over the report, leaving the sticky bar below it live. */
+  position: fixed;
+  inset: max(4.5rem, 8vh) 0 auto;
+  z-index: 40;
+  width: min(26rem, calc(100vw - 2rem));
+  max-width: none;
+  max-height: calc(100dvh - 12rem);
+  margin: 0 auto;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--color-on-gold);
+}
+.match-level-up-dialog::backdrop {
+  background: var(--scrim);
+}
+.match-level-up-card {
   position: relative;
   display: grid;
-  gap: 0.625rem;
+  justify-items: stretch;
+  gap: 0.875rem;
   overflow: hidden;
-  padding: 1.5rem;
+  padding: 1.75rem 1.5rem 1.5rem;
   border-radius: var(--radius-panel);
   background: var(--color-gold);
-  color: var(--color-on-gold);
-  box-shadow: 0 6px 0 var(--color-gold-pressed);
+  box-shadow:
+    0 6px 0 var(--color-gold-pressed),
+    var(--shadow-overlay);
 }
-.match-level-up p {
+.match-level-up-card p {
   margin: 0;
 }
-.match-level-up-star {
+.match-level-up-burst {
   position: absolute;
-  top: -30px;
-  right: -30px;
-  width: 170px;
-  height: 170px;
-  opacity: 0.25;
+  top: -70px;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  margin-left: -150px;
+  color: #ffffff;
+  opacity: 0.35;
+  pointer-events: none;
 }
-.match-page .match-level-up-title {
+.match-level-up-badge {
   position: relative;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  width: 96px;
+  height: 96px;
+  border: 5px solid #ffffff;
+  border-radius: 999px;
+  background: var(--color-on-gold);
+  color: var(--color-gold);
+  font-family: var(--font-display);
+  font-size: 3.5rem;
+  line-height: 1;
+}
+.match-page .match-level-up-heading {
+  position: relative;
+  margin: 0;
   font-family: var(--font-display);
   font-size: 3rem;
   font-weight: 400;
   line-height: 0.9;
+  text-align: center;
 }
 .match-level-up-track {
   display: block;
@@ -2751,8 +3013,15 @@
   padding: 0 1rem;
   border: 1px solid var(--color-on-gold);
   border-radius: var(--radius-control);
+  background: transparent;
   color: var(--color-on-gold);
+  font: inherit;
   font-weight: 700;
+  cursor: pointer;
+}
+.match-level-up-link:focus-visible {
+  outline: 3px solid var(--color-on-gold);
+  outline-offset: 2px;
 }
 .match-level-up-link.is-solid {
   background: var(--color-on-gold);
@@ -2941,14 +3210,21 @@
   gap: 0.375rem;
 }
 .match-whats-next {
+  --focus-ring: var(--color-hero-focus);
+  /* The next action stays in view: stuck to the bottom of the window (above the phone tab bar). */
+  position: sticky;
+  bottom: calc(var(--tabbar) + 0.75rem);
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
-  padding: 1.125rem 1.375rem;
+  padding: 0.875rem 1.125rem;
+  border: 1px solid var(--color-night-line);
   border-radius: var(--radius-panel);
   background: var(--color-night);
   color: var(--color-night-ink);
+  box-shadow: var(--shadow-overlay);
 }
 .match-page .match-night-button {
   border-color: var(--color-night-line);
@@ -3207,8 +3483,48 @@
   .match-briefing-name {
     font-size: 2.25rem;
   }
+  .match-rewards {
+    gap: 0.5rem;
+  }
+  .match-rewards > div {
+    padding: 0.625rem 0.75rem;
+  }
   .match-rewards strong {
-    font-size: 2.375rem;
+    font-size: 2.25rem;
+  }
+  /* Two lines kept for every label, so "Confirming XP…" giving way to "XP earned" moves nothing. */
+  .match-rewards span {
+    min-height: 2.4em;
+  }
+  .match-report-top {
+    gap: 0.875rem;
+    padding: 1rem;
+  }
+  .match-report-crest {
+    width: 44px;
+    height: 50px;
+  }
+  .match-report-team-name {
+    font-size: 0.875rem;
+  }
+  .match-report-avatar {
+    width: 48px;
+    height: 48px;
+  }
+  .match-report-name {
+    font-size: 1.375rem;
+  }
+  .match-report-level-text {
+    min-height: 2.75rem;
+    align-content: flex-start;
+  }
+  .match-whats-next {
+    padding: 0.625rem;
+  }
+  /* One row on phones: the main action takes the room and wraps its words if it must. */
+  .match-whats-next > .play {
+    flex: 1 1 0%;
+    min-width: 0;
   }
   .match-lineup-pitch {
     flex-basis: 9rem;
@@ -3217,5 +3533,328 @@
   .match-choice > button {
     scroll-margin-top: 1rem;
     scroll-margin-bottom: calc(var(--tabbar) + 1rem);
+  }
+}
+
+/*
+ * Release 1.0, step 5.1: how the match looks and flows.
+ */
+
+/* The chips sit above the pitch, on its grass, so they never cover a player or "You" (U22). */
+.match-pitch-chips {
+  position: static;
+  padding: 0.625rem 0.75rem 0;
+  background: #2f7a4f;
+}
+
+/* A choice's value beside its chance (M14): what it is worth, not just how likely it is. */
+.match-value-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.match-value-pill[data-value='best'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.match-value-pill[data-value='costly'] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.match-value-breakdown {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0.75rem 0.875rem 0;
+  font-size: 0.8125rem;
+}
+.match-value-breakdown p {
+  margin: 0;
+}
+
+/* The outcome's factors that moved nothing, folded away (U13). */
+.match-factors-more {
+  margin-top: 0.375rem;
+}
+.match-factors-more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.625rem;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.match-factors-more[open] > summary {
+  margin-bottom: 0.25rem;
+}
+
+/* The GOAL banner (M3): the scoring club's colour, the new score, the scorer and the line. */
+.match-goal {
+  --goal-colour: var(--color-gold);
+}
+.match-goal.is-pitch {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: end center;
+  padding: 0.75rem;
+  pointer-events: none;
+}
+.match-goal[hidden] {
+  display: none;
+}
+.match-goal-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'crest title meta replay'
+    'line line line line';
+  align-items: center;
+  gap: 0.375rem 0.875rem;
+  width: min(100%, 38rem);
+  overflow: hidden;
+  padding: 0.75rem 1rem 0.875rem 1.375rem;
+  border: 1px solid var(--color-night-line);
+  border-radius: var(--radius-panel);
+  background: rgb(20 37 30 / 0.94);
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-night-ink);
+  pointer-events: auto;
+}
+.match-goal.is-strip .match-goal-card {
+  width: 100%;
+  background: var(--color-night);
+  box-shadow: var(--shadow-panel);
+}
+.match-goal-band {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.5rem;
+  background: var(--goal-colour);
+  box-shadow: inset -1px 0 0 rgb(255 255 255 / 0.35);
+}
+.match-goal-crest {
+  grid-area: crest;
+  width: 40px;
+  height: 45px;
+}
+.match-goal-title {
+  grid-area: title;
+  margin: 0;
+  color: var(--color-gold);
+  font-family: var(--font-display);
+  font-size: 2.75rem;
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.match-goal-meta {
+  grid-area: meta;
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.match-goal-you {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-gold);
+  color: var(--color-on-gold);
+  font-size: 0.6875rem;
+  font-weight: 800;
+}
+.match-goal-score {
+  margin: 0;
+  color: var(--color-night-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.match-goal-score .is-scorer {
+  color: var(--color-night-ink);
+}
+.match-goal-score strong {
+  padding-inline: 0.125rem;
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1;
+  vertical-align: -0.12em;
+  font-variant-numeric: tabular-nums;
+}
+.match-goal-scorer {
+  margin: 0;
+  color: var(--color-mint);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+.match-goal-line {
+  grid-area: line;
+  margin: 0;
+  color: var(--color-night-ink);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.match-goal-replay {
+  grid-area: replay;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0 0.875rem;
+  border: 1px solid var(--color-night-line);
+  border-radius: var(--radius-control);
+  background: var(--color-night-raised);
+  color: var(--color-night-ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  cursor: pointer;
+  --focus-ring: var(--color-hero-focus);
+}
+.match-goal-replay:hover {
+  border-color: var(--color-gold);
+}
+.match-goal-replay kbd {
+  padding: 0 0.375rem;
+  border: 1px solid var(--color-night-line);
+  border-radius: var(--radius-chip);
+  color: var(--color-night-muted);
+  font-family: inherit;
+  font-size: 0.6875rem;
+}
+.match-goal-replaying {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: var(--color-gold);
+  color: var(--color-on-gold);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduced-motion='true']) .match-goal.is-pitch .match-goal-card {
+    animation: match-goal-in 480ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  }
+  :root:not([data-reduced-motion='true']) .match-goal-title {
+    animation: match-goal-title 900ms ease-out 120ms both;
+  }
+}
+@keyframes match-goal-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes match-goal-title {
+  0% {
+    letter-spacing: 0.3em;
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    letter-spacing: 0.02em;
+  }
+}
+
+/* Phones: the briefing's player stacks (U3); the score stays in view while scrolling (U4). */
+@media (max-width: 700px) {
+  .match-live .match-scoreboard {
+    position: sticky;
+    top: 0.5rem;
+    z-index: 6;
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+  }
+  /* While a key moment has the stage, its camera starts the view: the score is in its chip. */
+  .match-live:has(.match-live-layout.is-deciding) .match-scoreboard {
+    position: static;
+    box-shadow: none;
+  }
+  /* Elsewhere, whatever focus or a link scrolls to stays clear of the sticky score. */
+  :root:has(.match-live-layout:not(.is-deciding)) {
+    scroll-padding-top: 5rem;
+  }
+  /* A live match is a focused flow: the tab bar steps aside until full time (U16). */
+  :root:has(.match-page.is-live) {
+    --tabbar: env(safe-area-inset-bottom);
+  }
+  :root:has(.match-page.is-live) .bottom-nav {
+    display: none;
+  }
+  .match-goal.is-pitch {
+    padding: 0.5rem;
+  }
+  .match-goal-card {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'crest title replay'
+      'meta meta meta'
+      'line line line';
+    gap: 0.25rem 0.625rem;
+    padding: 0.625rem 0.75rem 0.625rem 1.125rem;
+  }
+  .match-goal-replay {
+    justify-self: end;
+  }
+  .match-goal-crest {
+    width: 32px;
+    height: 36px;
+  }
+  .match-goal-title {
+    font-size: 2.125rem;
+  }
+  .match-goal.is-pitch .match-goal-line {
+    display: none;
+  }
+  .match-goal-replay {
+    min-height: 40px;
+    padding: 0 0.625rem;
+  }
+  .match-goal-replay kbd {
+    display: none;
+  }
+}
+@media (max-width: 480px) {
+  .match-briefing-player {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.875rem 1rem;
+  }
+  .match-briefing-avatar {
+    width: 72px;
+    height: 72px;
+  }
+  .match-briefing-player .match-tiles {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .match-briefing-name {
+    font-size: 2rem;
   }
 }

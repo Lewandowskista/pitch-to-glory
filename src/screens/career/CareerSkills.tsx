@@ -21,14 +21,15 @@ import {
   SYSTEMIC_SKILLS,
 } from '../../engine/career/catalogue';
 import { skillState, unlockSkill, type SkillState } from '../../engine/career/progression';
-import { SITUATIONS } from '../../engine/match/situations';
+import { ALL_SITUATIONS, UNLOCKS_22 } from '../../engine/match/situations22';
 import { skillEffects } from '../../engine/match/decisions';
 import type { Career, Player, Skill, SkillBranch, World } from '../../model/domain';
 import { format, t } from '../../i18n';
 import { matchLabel } from '../../i18n/match';
 import { careerText as c } from '../../i18n/career';
+import { plural } from '../../i18n/locale';
 import { Button, EffectChip, Panel, cx } from '../../ui/kit';
-import { CareerPage, filterButton, plural, ui, useEditBlock } from './shared';
+import { CareerPage, filterButton, ui, useEditBlock } from './shared';
 import { useUrlDialog } from './useUrlDialog';
 import { SkillGlyph } from './skillGlyphs';
 import { audio } from '../../audio';
@@ -56,8 +57,12 @@ function useSideBySide(): boolean {
 /** Key-moment choices a skill unlocks (choices requiring it as a trait). */
 const UNLOCKED_CHOICES: Readonly<Record<string, string[]>> = (() => {
   const result: Record<string, string[]> = {};
-  for (const situation of SITUATIONS)
-    for (const choice of situation.choices)
+  // The match-22 catalogue: its situations and the skill mechanics (UNLOCKS_22).
+  for (const choices of [
+    ...ALL_SITUATIONS.map((situation) => situation.choices),
+    ...Object.values(UNLOCKS_22),
+  ])
+    for (const choice of choices)
       if (choice.requiredTraitId) (result[choice.requiredTraitId] ??= []).push(choice.id);
   return result;
 })();
@@ -172,8 +177,13 @@ function systemicText(id: string): string | null {
               ? longevityPoints(id)
               : kind === 'foot'
                 ? percent(1 - CONFIG.match.foot.weak)
-                : 0;
-  return format(c.skills.systemic[kind], { value });
+                : kind === 'clutch'
+                  ? percent(CONFIG.match.moments22.clutch.odds - 1)
+                  : 0;
+  return format(c.skills.systemic[kind], {
+    value,
+    minute: CONFIG.match.moments22.clutch.fromMinute,
+  });
 }
 
 const NODE: Record<SkillState, string> = {
@@ -515,11 +525,7 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
                               name: skillName(skill.id),
                               tier: skill.tier,
                               state: c.skills.states[state],
-                              cost: plural(
-                                skill.pointCost,
-                                c.common.skillPoint,
-                                c.common.skillPoints,
-                              ),
+                              cost: plural(skill.pointCost, c.common.skillPoints),
                             })}
                             onKeyDown={move}
                             onFocus={() => setFocusId(skill.id)}
@@ -591,14 +597,10 @@ function SkillTree({ world, career, player }: { world: World; career: Career; pl
       {unlocking && (
         <Dialog
           title={format(c.skills.unlockTitle, { name: skillName(unlocking.id) })}
-          body={
-            unlocking.pointCost === 1
-              ? format(c.skills.unlockBodyOne, { name: skillName(unlocking.id) })
-              : format(c.skills.unlockBody, {
-                  name: skillName(unlocking.id),
-                  cost: unlocking.pointCost,
-                })
-          }
+          body={plural(unlocking.pointCost, c.skills.unlockBody, {
+            name: skillName(unlocking.id),
+            cost: unlocking.pointCost,
+          })}
           confirmLabel={c.skills.unlock}
           onClose={dialog.close}
           onConfirm={confirmUnlock}
@@ -818,9 +820,7 @@ function SkillDetail({
       </dl>
       <p className="flex flex-wrap gap-x-5 gap-y-1 border-t border-line pt-3 text-sm">
         <span className="font-bold">
-          {skill.pointCost === 1
-            ? c.skills.costLongOne
-            : format(c.skills.costLong, { cost: skill.pointCost })}
+          {plural(skill.pointCost, c.skills.costLong, { cost: skill.pointCost })}
         </span>
         <span className="text-muted">
           {format(c.skills.minimumLevel, { level: skill.minimumLevel })}

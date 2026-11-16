@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Position, TournamentFixture, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { autoPlayCommand, defaultTactics } from '../src/engine/career/matches';
 import {
   applyMatchCommand,
   createMatchSession,
   sessionPenalties,
+  rules22,
+  PREVIOUS_MATCH_ENGINE,
   validateMatchSession,
   type MatchSession,
   type MatchSetup,
@@ -21,6 +22,8 @@ import {
   tournamentMatchSetup,
 } from '../src/engine/career/honours/nationalMatch';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
+import { ENGINES, onEngine, type Engine } from './support/engines';
 
 /**
  * 0.9.1 (M1): a level international knockout always has a winner, whether the career player
@@ -31,7 +34,7 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 /** A 2026 tournament with the career player's nation through its group, at `stage`. */
 function bracket(position: Position, stage: 'quarter' | 'final' = 'quarter') {
-  const base = generateWorld(`knockout-${position}`, { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'knockout')[0]!;
   const world = createCareer(
     base,
@@ -82,10 +85,12 @@ function bracket(position: Position, stage: 'quarter' | 'final' = 'quarter') {
  */
 function levelWithout(
   world: World,
-  setup: MatchSetup,
+  source: MatchSetup,
   tweak: (setup: MatchSetup) => void,
   off: (session: MatchSession) => boolean,
+  engine: Engine,
 ): MatchSession {
+  const setup = onEngine(source, engine);
   for (let index = 0; index < 400; index++) {
     const copy = clone(setup);
     copy.seed = `${setup.seed}:${index}`;
@@ -114,12 +119,17 @@ const sentOff = (session: MatchSession) => Boolean(session.state.sentOff);
 /** Commit the session and check the tie has a winner, recorded the same way everywhere. */
 function commitLevel(world: World, fixture: TournamentFixture, session: MatchSession) {
   const s = session.state;
-  // Extra time was played, but the player was not there for a shootout kick.
+  // Extra time was played, but the player was not there for a shootout kick: match-21 leaves the
+  // shootout to the commit, match-22 plays it in the session kick by kick, without them.
   expect(s.regulation).toBeDefined();
   expect(s.shootout).toBeUndefined();
-  expect(s.penalties).toBeUndefined();
+  if (rules22(session.setup)) {
+    expect(s.penaltyShootout!.kicks.every((kick) => !kick.choiceId)).toBe(true);
+    expect(s.penalties).toBeDefined();
+    expect(sessionPenalties(session)).toEqual(s.penalties);
+  } else expect(s.penalties).toBeUndefined();
   const owed = sessionPenalties(session)!;
-  expect(Math.abs(owed[0] - owed[1])).toBe(1);
+  expect(owed[0]).not.toBe(owed[1]);
   const outcome = commitTournamentMatch(world, session);
   expect(fixture.penalties).toEqual(owed);
   const match = world.international!.matches.find((m) => m.id === outcome.internationalMatchId)!;
@@ -127,6 +137,7 @@ function commitLevel(world: World, fixture: TournamentFixture, session: MatchSes
   const own = fixture.homeId === world.international!.live!.careerNationId ? 0 : 1;
   expect(outcome.final.penalties).toEqual([owed[own], owed[1 - own]]);
   expect(outcome.record.decided).toBe('penalties');
+  if (!rules22(session.setup)) expect(Math.abs(owed[0] - owed[1])).toBe(1);
   expect(outcome.record.result).toBe(owed[own]! > owed[1 - own]! ? 'win' : 'loss');
   // The session itself is untouched: it still replays to what was stored.
   expect(() => validateMatchSession(clone(session))).not.toThrow();
@@ -167,53 +178,69 @@ function expectNextRound(world: World, fixture: TournamentFixture, winnerId: str
 }
 
 describe('a level international knockout without the career player', () => {
-  it('settles the shootout for a tired striker taken off, and the bracket goes on', () => {
-    const { world, fixture } = bracket('ST');
-    const setup = tournamentMatchSetup(world, fixture);
-    const session = levelWithout(world, setup, tired, substituted);
-    const winner = commitLevel(world, fixture, session);
-    advanceTournament(world);
-    expectNextRound(world, fixture, winner);
-  }, 60000);
+  it.each(ENGINES)(
+    'settles the shootout for a tired striker taken off, and the bracket goes on (%s)',
+    (engine) => {
+      const { world, fixture } = bracket('ST');
+      const setup = tournamentMatchSetup(world, fixture);
+      const session = levelWithout(world, setup, tired, substituted, engine);
+      const winner = commitLevel(world, fixture, session);
+      advanceTournament(world);
+      expectNextRound(world, fixture, winner);
+    },
+    60000,
+  );
 
-  it('settles it for a struggling defender substituted', () => {
-    const { world, fixture } = bracket('CB');
-    const setup = tournamentMatchSetup(world, fixture);
-    const session = levelWithout(world, setup, hothead, substituted);
-    const winner = commitLevel(world, fixture, session);
-    advanceTournament(world);
-    expectNextRound(world, fixture, winner);
-  }, 60000);
+  it.each(ENGINES)(
+    'settles it for a struggling defender substituted (%s)',
+    (engine) => {
+      const { world, fixture } = bracket('CB');
+      const setup = tournamentMatchSetup(world, fixture);
+      const session = levelWithout(world, setup, hothead, substituted, engine);
+      const winner = commitLevel(world, fixture, session);
+      advanceTournament(world);
+      expectNextRound(world, fixture, winner);
+    },
+    60000,
+  );
 
-  it('settles it for a defender sent off', () => {
-    const { world, fixture } = bracket('CB');
-    const setup = tournamentMatchSetup(world, fixture);
-    const session = levelWithout(world, setup, hothead, sentOff);
-    const winner = commitLevel(world, fixture, session);
-    advanceTournament(world);
-    expectNextRound(world, fixture, winner);
-  }, 60000);
+  it.each(ENGINES)(
+    'settles it for a defender sent off (%s)',
+    (engine) => {
+      const { world, fixture } = bracket('CB');
+      const setup = tournamentMatchSetup(world, fixture);
+      const session = levelWithout(world, setup, hothead, sentOff, engine);
+      const winner = commitLevel(world, fixture, session);
+      advanceTournament(world);
+      expectNextRound(world, fixture, winner);
+    },
+    60000,
+  );
 
-  it('crowns a winner when the final is level and the player is off', () => {
-    const { world, fixture } = bracket('ST', 'final');
-    const setup = tournamentMatchSetup(world, fixture);
-    const session = levelWithout(world, setup, tired, substituted);
-    const winner = commitLevel(world, fixture, session);
-    const { tournament } = advanceTournament(world);
-    expect(tournament!.winnerId).toBe(winner);
-    expect([fixture.homeId, fixture.awayId]).toContain(tournament!.runnerUpId);
-    expect(tournament!.runnerUpId).not.toBe(winner);
-    expect(world.international!.live).toBeNull();
-    expect(tournament!.career!.stage).toBe(
-      winner === tournament!.career!.nationId ? 'winner' : 'final',
-    );
-    expect(() => validateWorld(clone(world))).not.toThrow();
-  }, 60000);
+  it.each(ENGINES)(
+    'crowns a winner when the final is level and the player is off (%s)',
+    (engine) => {
+      const { world, fixture } = bracket('ST', 'final');
+      const setup = tournamentMatchSetup(world, fixture);
+      const session = levelWithout(world, setup, tired, substituted, engine);
+      const winner = commitLevel(world, fixture, session);
+      const { tournament } = advanceTournament(world);
+      expect(tournament!.winnerId).toBe(winner);
+      expect([fixture.homeId, fixture.awayId]).toContain(tournament!.runnerUpId);
+      expect(tournament!.runnerUpId).not.toBe(winner);
+      expect(world.international!.live).toBeNull();
+      expect(tournament!.career!.stage).toBe(
+        winner === tournament!.career!.nationId ? 'winner' : 'final',
+      );
+      expect(() => validateWorld(clone(world))).not.toThrow();
+    },
+    60000,
+  );
 
   it('repairs a bracket saved by 0.9.0 with the knockout left level', () => {
     const { world, fixture } = bracket('ST');
     const setup = tournamentMatchSetup(world, fixture);
-    const session = levelWithout(world, setup, tired, substituted);
+    const session = levelWithout(world, setup, tired, substituted, PREVIOUS_MATCH_ENGINE);
     commitTournamentMatch(world, session);
     // What 0.9.0 stored: the level score and no shootout. It still loads.
     fixture.penalties = null;
@@ -257,21 +284,28 @@ describe('a level international knockout without the career player', () => {
     expect(fixture.matchId).toBeNull();
   });
 
-  it('keeps the shootout the player took part in', () => {
-    const { world, fixture } = bracket('ST');
-    const setup = tournamentMatchSetup(world, fixture);
-    for (let index = 0; index < 200; index++) {
-      const copy = clone(setup);
-      copy.seed = `${setup.seed}:kick:${index}`;
-      let session = createMatchSession(copy, defaultTactics(world, copy));
-      while (session.state.match.status !== 'finished')
-        session = applyMatchCommand(session, autoPlayCommand(session));
-      if (!session.state.shootout) continue;
-      expect(sessionPenalties(session)).toEqual(session.state.penalties);
-      commitTournamentMatch(world, session);
-      expect(fixture.penalties).toEqual(session.state.penalties);
-      return;
-    }
-    throw new Error('No shootout found');
-  }, 60000);
+  it.each(ENGINES)(
+    'keeps the shootout the player took part in (%s)',
+    (engine) => {
+      const { world, fixture } = bracket('ST');
+      const setup = onEngine(tournamentMatchSetup(world, fixture), engine);
+      for (let index = 0; index < 200; index++) {
+        const copy = clone(setup);
+        copy.seed = `${setup.seed}:kick:${index}`;
+        let session = createMatchSession(copy, defaultTactics(world, copy));
+        while (session.state.match.status !== 'finished')
+          session = applyMatchCommand(session, autoPlayCommand(session));
+        const took = rules22(copy)
+          ? session.state.penaltyShootout?.kicks.some((kick) => kick.choiceId)
+          : session.state.shootout;
+        if (!took) continue;
+        expect(sessionPenalties(session)).toEqual(session.state.penalties);
+        commitTournamentMatch(world, session);
+        expect(fixture.penalties).toEqual(session.state.penalties);
+        return;
+      }
+      throw new Error('No shootout found');
+    },
+    60000,
+  );
 });

@@ -2,9 +2,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
 import { createRng } from '../src/engine/rng';
-import { generateWorld } from '../src/engine/world/generate';
 import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
-import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
+import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import {
   applyLifestyleAction,
@@ -28,36 +27,25 @@ import {
   weeklyUpkeep,
 } from '../src/engine/career/lifestyle';
 import { moraleParts } from '../src/engine/career/social';
+import { careerContract } from '../src/engine/career/market';
 import { LIFESTYLE_BY_ID } from '../src/engine/career/lifestyle/catalogue';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import {
+  NATIONAL_SEED,
+  TEST_DRAFT,
+  nationalCareer,
+  nationalCareerSeason,
+  nationalWorld,
+} from './support/world';
 
 const L = CONFIG.career.lifestyle;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const valid = (world: World) => expect(() => validateWorld(clone(world))).not.toThrow();
-const draft: CareerDraft = {
-  name: 'Robin Vale',
-  avatar: {
-    face: 1,
-    skin: 2,
-    hair: 3,
-    hairColor: 4,
-    facialHair: 0,
-    eyebrows: 1,
-    eyes: 2,
-    accessory: 3,
-  },
-  nationalityId: 'country:0',
-  position: 'ST',
-  foot: 'left',
-  age: 17,
-  archetype: 'finisher',
-};
 let career: World;
+// The shared national career (tests/support/world.ts).
 beforeAll(() => {
-  const base = generateWorld('lifestyle-tests', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'lifestyle-tests')[0]!;
-  career = createCareer(base, draft, trial.id, 'lifestyle-tests');
+  career = nationalCareer();
 });
 const famous = (fame: number) => {
   const world = clone(career);
@@ -118,7 +106,7 @@ describe('fame', () => {
 describe('wardrobe', () => {
   it('keeps the created look, gates the rest by fame or tokens, and never by money', () => {
     const world = clone(career);
-    expect(world.career!.style.owned).toContain(`hair:${draft.avatar.hair}`);
+    expect(world.career!.style.owned).toContain(`hair:${TEST_DRAFT.avatar.hair}`);
     expect(() =>
       applyLifestyleAction(world, { type: 'wardrobe', change: { slot: 'hair', value: 7 } }),
     ).toThrow();
@@ -132,7 +120,7 @@ describe('wardrobe', () => {
     });
     expect(styled.players[styled.career!.playerId]!.avatar.hair).toBe(7);
     // The input world and unrelated players are untouched.
-    expect(world.players[world.career!.playerId]!.avatar.hair).toBe(draft.avatar.hair);
+    expect(world.players[world.career!.playerId]!.avatar.hair).toBe(TEST_DRAFT.avatar.hair);
     const star = famous(L.fameLevels[7]);
     expect(availability(star, COSMETIC_BY_ID['celebration:backflip']!)).toBe('fame');
     valid(styled);
@@ -253,7 +241,14 @@ describe('lifestyle', () => {
     const bought = applyLifestyleAction(world, { type: 'buy-asset', itemId: 'house:flat' });
     expect(bought.career!.market.finances.cash).toBe(4_000);
     expect(weeklyUpkeep(bought)).toBe(upkeepOf(world, flat));
-    expect(lifestyleMorale(bought)).toBeGreaterThan(0);
+    // A semi-professional wage cannot keep a flat: its upkeep is an overspend, costing morale.
+    expect(weeklyUpkeep(bought)).toBeGreaterThan(
+      careerContract(bought).weeklyWage * L.overspendShare,
+    );
+    expect(lifestyleMorale(bought)).toBe(flat.morale + L.overspendMorale);
+    // On a wage that keeps it, the home lifts morale.
+    careerContract(bought).weeklyWage = weeklyUpkeep(bought) * 4;
+    expect(lifestyleMorale(bought)).toBe(flat.morale);
     expect(moraleParts(bought).lifestyle).toBe(lifestyleMorale(bought));
     bought.career!.market.finances.cash = 10;
     assetWeek(bought);
@@ -336,13 +331,13 @@ describe('challenges', () => {
     valid(tomorrow);
   }, 60000);
   it('gives defenders clean-sheet challenges instead of goals', () => {
-    const base = generateWorld('lifestyle-keeper', { format: 'legacy' });
-    const trial = trialOffers(base, 'country:0', 'keeper')[0]!;
+    const base = nationalWorld();
+    const trial = trialOffers(base, 'country:0', NATIONAL_SEED)[0]!;
     const keeper = createCareer(
       base,
-      { ...draft, position: 'GK', archetype: 'shot-stopper' },
+      { ...TEST_DRAFT, position: 'GK', archetype: 'shot-stopper' },
       trial.id,
-      'keeper',
+      NATIONAL_SEED,
     );
     for (const date of ['2026-10-06', '2026-10-13', '2026-10-20', '2026-10-27']) {
       const world = applyLifestyleAction(keeper, { type: 'refresh-challenges', date });
@@ -376,7 +371,7 @@ describe('lifestyle saves', () => {
     expect(forge((w) => w.career!.style.owned.push('hair:99'))).toThrow();
     expect(forge((w) => (w.career!.style.tokens = -5))).toThrow();
     expect(forge((w) => (w.career!.style.assets[0]!.kind = 'house'))).toThrow();
-    const plain = generateWorld('lifestyle-plain', { format: 'legacy' });
+    const plain = nationalWorld();
     plain.challenges.push(clone(owned).challenges[0]!);
     expect(() => createSave(1, 'Plain', { ...payload, world: plain })).toThrow();
   });
@@ -404,14 +399,20 @@ describe('lifestyle saves', () => {
     expect(next.career!.style.equipped.boots).toBe('boots:classic');
     expect(next.career!.social.morale!.parts.lifestyle).toBe(0);
   });
-  it('plays through a season rollover with lifestyle records intact', () => {
-    let world = famous(L.fameLevels[2]);
+  it('keeps lifestyle records through the season rollover and lapses open sponsor offers', async () => {
+    // The season just played, with a home bought and a sponsor's offer still open at its end
+    // (a whole season played with them: tests/lifestyle.slow.test.ts).
+    let world = await nationalCareerSeason();
+    world.career!.fame = L.fameLevels[3];
     world.career!.market.finances.cash = 20_000;
     world = applyLifestyleAction(world, { type: 'buy-asset', itemId: 'house:flat' });
-    while (world.phase === 'active')
-      world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+    // Offers come while enough of the season remains: this one was made in its first week.
+    const offer = makeSponsorOffer(famous(L.fameLevels[3]), createRng('rollover'))!;
+    expect(offer.status).toBe('offered');
+    world.sponsorships.push(offer);
     const next = startNextSeason(world);
     expect(next.sponsorships.every((d) => d.status !== 'offered')).toBe(true);
+    expect(next.career!.style.assets.map((asset) => asset.itemId)).toEqual(['house:flat']);
     valid(next);
   }, 120000);
 });

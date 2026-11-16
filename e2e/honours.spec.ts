@@ -1,24 +1,21 @@
-import { expect, test, type Page } from '@playwright/test';
-import { careerTabs, isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import {
+  backupFile,
+  careerTabs,
+  expect,
+  nationalCareerSeason,
+  openCareerPage,
+  skipTutorial,
+  test,
+} from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
-import { advanceCareerWeek } from '../src/engine/career/season';
 import { chronicle, encodeClip, momentLink, type ClipFrame } from '../src/engine/career/honours';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { Moment, World } from '../src/model/domain';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
   // No system share sheet in tests: links are copied, files downloaded.
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
@@ -32,9 +29,6 @@ test.beforeEach(async ({ page }) => {
       },
     });
   });
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 
@@ -140,33 +134,8 @@ const CROSS_LINK = momentLink({
 let cached: { json: string; link: string } | undefined;
 function honoursSave() {
   if (cached) return cached;
-  const base = generateWorld('honours-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'honours-browser')[0]!;
-  let world: World = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'honours-browser',
-  );
-  while (world.phase === 'active')
-    world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  // The unit tests' national career after its first season (a cached fixture).
+  const world: World = nationalCareerSeason();
   const player = world.players[world.career!.playerId]!;
   player.birthSeason = world.date.season - 34;
   const club = world.clubs[player.clubId!]!;
@@ -211,12 +180,14 @@ test('celebrates a career, shares a moment, retires and starts the next generati
     .locator('.slot-card')
     .nth(0)
     .getByLabel('Import backup — Slot 1')
-    .setInputFiles({
-      name: 'honours.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(json),
-    });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Honours career');
+    .setInputFiles(backupFile('honours', json));
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText(
+    'Honours career',
+    {
+      // Importing a national save can take several seconds on CI runners.
+      timeout: 60000,
+    },
+  );
 
   // The hub offers retirement once the season is over.
   await page.goto('/career?save=1');

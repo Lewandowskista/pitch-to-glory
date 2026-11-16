@@ -1,3 +1,5 @@
+import { LOCALE, plurals, type Translations } from './locale';
+import { momentLabels } from './moments';
 /** The weather as the match reports it, with its intensity (engine match-15). */
 const weatherNames = {
   light: { clear: 'Sunny spells', rain: 'Light rain', snow: 'Light snow', wind: 'A breeze' },
@@ -12,7 +14,7 @@ const pitchNames = {
   frozen: 'Frozen pitch',
 } as const;
 
-export const matchText = {
+const matchTextEn = {
   saveHint: 'Save your world to keep this match after refreshing or closing the browser.',
   weatherNames,
   pitchNames,
@@ -95,7 +97,8 @@ export const matchText = {
   next: 'Next key moment',
   speed: 'Match speed',
   speedValue: '{speed}×',
-  shortcuts: 'Space: play/pause · 1–4 or Enter: choose · arrows: move between choices',
+  shortcuts:
+    'Space: play/pause · 1–4 or Enter: choose · arrows: move between choices · R: replay a goal',
   simulation: 'Simulation only',
   simulationBody:
     'Follow the commentary and make every decision without loading the pitch renderer.',
@@ -282,6 +285,7 @@ export const matchText = {
     liveStats: 'Live match stats',
     commentaryShow: 'Show commentary',
     commentaryHide: 'Hide commentary',
+    commentaryLoading: 'Fetching the commentary…',
     newestFirst: 'Newest first',
     goalTag: 'Goal',
     momentTag: 'Key moment',
@@ -307,6 +311,20 @@ export const matchText = {
       success: 'to come off',
     },
     successChance: 'Success chance',
+    /**
+     * The value hint beside a choice's chance (release 1.0, step 5.1): its expected goal swing
+     * against the best choice on offer.
+     */
+    value: { best: 'Best value', even: 'Even value', costly: 'Costly' },
+    valueTitle: 'Value',
+    valueLine: 'Expected goal swing {net} ({for} for, {against} against). Best on offer: {best}.',
+    valueExplain:
+      'Value weighs the chance against what success and failure lead to, in expected goals. Best value has the biggest swing on offer; costly gives away {costly} or more against it; the rest are even.',
+    /** The outcome's factors that moved nothing, folded away. */
+    zeroFactors: plurals({
+      one: '1 more factor had no effect',
+      other: '{count} more factors had no effect',
+    }),
     escNote: 'Esc closes the breakdown first, then means back.',
     cam: 'Tactical cam · {view}',
     camViews: {
@@ -355,8 +373,11 @@ export const matchText = {
     halftimeMeta: '{home} {homeScore}–{awayScore} {away}',
     halftimeNote:
       'Your answer shapes the second half. Look for “Half-time talk” in your decision factors.',
+    /** The clock in added time (match-22), and the added-time chip's label. */
+    addedMinute: '{minute}+{added}′',
+    addedLabel: 'Added time',
     captainMeta: 'Captain · {minute}′ · {score}',
-    captainNote: 'Play and “Next key moment” resume after your call.',
+    captainNote: 'Play resumes after your call.',
     substitutionMeta: '{minute}′ · {name} off',
     substitutionBoard: 'Substitution board: number {number} off',
     substitutionBoardOn: 'Substitution board: number {number} off, number {incoming} on',
@@ -409,11 +430,7 @@ export const matchText = {
     lineupYou:
       '{club} in {formation}: eleven players in formation, attacking up. You wear number {number}, with a gold ring.',
     attackingUp: '{formation} · attacking up',
-    recorded: 'Recorded to your career',
     headlineLine: '{home} {homeScore}–{awayScore} {away} · {stadium}',
-    finalWon: 'Won',
-    finalDrew: 'Drew',
-    finalLost: 'Lost',
     xpTitle: 'How your XP was worked out',
     xpPerformance: 'Performance',
     xpOpposition: 'Opposition strength',
@@ -423,12 +440,13 @@ export const matchText = {
     whatNext: 'What next',
   },
 } as const;
+export const matchText = ({ en: matchTextEn } satisfies Translations<typeof matchTextEn>)[LOCALE];
 
 /**
  * Key-moment framings (engine match-12): three per situation, naming the people in it.
  * Parameters: {opponent}, {minute}, {keeper}, {defender}, {attacker}, {teammate}.
  */
-const situationFramings: Record<string, [string, string, string]> = {
+const situationFramingsEn: Record<string, [string, string, string]> = {
   'box-chance': [
     'You are in the box with the ball at your feet and only {keeper} to beat.',
     'The ball breaks to you twelve yards out. {defender} is scrambling across.',
@@ -520,560 +538,16 @@ const situationFramings: Record<string, [string, string, string]> = {
     'Penalty to {opponent}. {attacker} steps up. Everyone is looking at you.',
   ],
 };
+const situationFramings = (
+  { en: situationFramingsEn } satisfies Translations<typeof situationFramingsEn>
+)[LOCALE];
 const situationVariants: Record<string, string> = Object.fromEntries(
   Object.entries(situationFramings).flatMap(([id, lines]) =>
     lines.map((text, index) => [`match.situation.${id}.${index}`, text]),
   ),
 );
-/**
- * Morning headlines (engine match-12): three per story of the match. Parameters: {player},
- * {club}, {opponent}, {score} (own goals first), {goals}, {assists}.
- */
-const headlines: Record<string, [string, string, string]> = {
-  'late-winner': [
-    '{player} breaks {opponent} hearts at the death',
-    'Late, late show: {player} snatches it for {club}',
-    '{player} wins it in the dying minutes',
-  ],
-  'shootout.success': [
-    '{player} steps up in the shootout and buries it!',
-    'Ice in the veins: {player} scores in the shootout.',
-    '{player} sends the keeper the wrong way from the spot.',
-  ],
-  'shootout.failure': [
-    '{player} misses in the shootout!',
-    'Saved! {player} cannot believe it.',
-    '{player} skies the shootout penalty.',
-  ],
-  'shootout-keeper.success': [
-    '{player} saves in the shootout!',
-    'A shootout save from {player}! The stadium erupts.',
-    '{player} guesses right and keeps it out!',
-  ],
-  'shootout-keeper.failure': [
-    'The shootout penalties beat {player}.',
-    '{player} dives the wrong way in the shootout.',
-    'No luck for {player} in the shootout.',
-  ],
-  'late-equaliser': [
-    '{player} rescues a point at the death',
-    'Never beaten: {player} levels it late against {opponent}',
-    '{player}’s late strike keeps {club} alive',
-  ],
-  'hat-trick': [
-    'Match ball for {player} as {opponent} are torn apart',
-    '{player} hits a hat-trick in {score} statement',
-    'Three and counting: {player} runs riot',
-  ],
-  'final-won': [
-    'Glory! {club} win the final against {opponent}',
-    '{club} lift the trophy after {score} final win',
-    '{player} and {club} crowned after beating {opponent}',
-  ],
-  'final-lost': [
-    'Heartbreak for {club} in the final',
-    'So near: {club} beaten {score} by {opponent} in the final',
-    '{opponent} too strong for {club} on the big stage',
-  ],
-  'derby-won': [
-    'Derby day belongs to {club}',
-    '{club} take the bragging rights against {opponent}',
-    'Half the city celebrates: {club} win the derby {score}',
-  ],
-  'derby-lost': [
-    'Derby misery for {club}',
-    '{opponent} take the bragging rights against {club}',
-    'A long week ahead for {club} after {score} derby defeat',
-  ],
-  brace: [
-    'Double trouble: {player} scores twice against {opponent}',
-    '{player} brace powers {club} to {score}',
-    'Two goals, one name: {player}',
-  ],
-  'penalty-save': [
-    '{player} the spot-kick hero against {opponent}',
-    'Penalty saved! {player} stands tall for {club}',
-    '{player} guesses right and {club} hold firm',
-  ],
-  'scorer-win': [
-    '{player} on target as {club} beat {opponent} {score}',
-    '{player} strikes and {club} take the points',
-    'A goal from {player}, a win for {club}',
-  ],
-  'scorer-draw': [
-    '{player} scores but {club} are held {score}',
-    'Honours even with {opponent} despite {player}’s goal',
-    '{player} on target in {score} draw',
-  ],
-  'scorer-loss': [
-    '{player} scores, but {club} fall to {opponent}',
-    'Consolation for {player} in {score} defeat',
-    '{player}’s goal not enough against {opponent}',
-  ],
-  provider: [
-    '{player} the provider as {club} carve open {opponent}',
-    '{assists} assists for {player} in a creative masterclass',
-    '{player} pulls the strings for {club}',
-  ],
-  wall: [
-    '{player} shuts out {opponent} in {score} clean sheet',
-    'Nothing gets past {player}',
-    'A wall in {club} colours: {player} keeps {opponent} out',
-  ],
-  rout: [
-    '{club} run riot against {opponent}',
-    '{score}! {club} hand {opponent} a hiding',
-    'Statement win: {club} sweep {opponent} aside',
-  ],
-  thrashed: [
-    '{club} humbled {score} by {opponent}',
-    'A night to forget for {club} against {opponent}',
-    'Questions to answer after {score} defeat',
-  ],
-  nightmare: [
-    'A night to forget for {player} against {opponent}',
-    'Costly errors leave {player} and {club} red-faced',
-    '{player} punished as {opponent} capitalise',
-  ],
-  'strong-win': [
-    '{player} stars as {club} beat {opponent}',
-    'Standout {player} drives {club} to victory',
-    '{club} win {score} with {player} at the heart of it',
-  ],
-  win: [
-    '{club} see off {opponent} {score}',
-    'Three points for {club} against {opponent}',
-    'Job done: {club} beat {opponent}',
-  ],
-  draw: [
-    '{club} and {opponent} share the points',
-    'Stalemate: {club} held {score}',
-    'No way through for {club} or {opponent}',
-  ],
-  'strong-loss': [
-    '{player} shines in defeat to {opponent}',
-    'Lone bright spark {player} cannot stop {opponent}',
-    '{club} beaten {score} despite {player}’s efforts',
-  ],
-  loss: [
-    '{club} fall {score} to {opponent}',
-    '{opponent} too strong for {club}',
-    'Defeat for {club} as {opponent} take the points',
-  ],
-  'sent-off': [
-    'Red mist: {player} sent off against {opponent}',
-    '{player} sees red as {club} finish {score}',
-    'Early bath for {player} in {club}’s {score} with {opponent}',
-  ],
-};
-const headlineText: Record<string, string> = Object.fromEntries(
-  Object.entries(headlines).flatMap(([kind, lines]) =>
-    lines.map((text, index) => [`match.headline.${kind}.${index}`, text]),
-  ),
-);
-/** Touchline reactions (engine match-12) by result and how the player played. */
-const reactionText: Record<string, string> = {
-  'match.reaction.manager.win.star':
-    'Outstanding. You won us that game, and everyone in the dressing room knows it.',
-  'match.reaction.manager.win.solid': 'Good win, good shift. Keep doing the simple things well.',
-  'match.reaction.manager.win.poor':
-    'We got the points, but I need more from you. The team carried you today.',
-  'match.reaction.manager.draw.star':
-    'You gave everything and deserved more. That level, every week.',
-  'match.reaction.manager.draw.solid': 'A point is a point. We go again next week.',
-  'match.reaction.manager.draw.poor':
-    'That was not good enough from you. We needed more on the ball.',
-  'match.reaction.manager.loss.star':
-    'Hard to take, but your performance is the one thing I am pleased with.',
-  'match.reaction.manager.loss.solid': 'We fell short as a team. Watch it back and learn from it.',
-  'match.reaction.manager.loss.poor':
-    'A poor day for you and for us. I expect a reaction in training.',
-  'match.reaction.fans.win.star': 'What a player! Sing the name!',
-  'match.reaction.fans.win.solid': 'Three points and a decent shift. We will take that.',
-  'match.reaction.fans.win.poor': 'We won, no thanks to some of the performances out there.',
-  'match.reaction.fans.draw.star': 'The best thing about a frustrating afternoon.',
-  'match.reaction.fans.draw.solid': 'A point. Nothing more, nothing less.',
-  'match.reaction.fans.draw.poor': 'Flat, all of it. We need more from everyone.',
-  'match.reaction.fans.loss.star': 'At least one player turned up today.',
-  'match.reaction.fans.loss.solid': 'Disappointing. A long journey home.',
-  'match.reaction.fans.loss.poor': 'Unacceptable. Some of them should not be wearing the shirt.',
-  'match.reaction.manager.sent-off.second-yellow':
-    'Two bookings is carelessness. You left us a man short and you will miss the next one.',
-  'match.reaction.manager.sent-off.straight-red':
-    'Reckless. You let the team down, and now you are suspended. We will talk this week.',
-  'match.reaction.fans.sent-off.win': 'Got away with it. The ten held on, no thanks to that red.',
-  'match.reaction.fans.sent-off.draw': 'That red card cost us two points.',
-  'match.reaction.fans.sent-off.loss': 'Sent off and beaten. Not a day to remember.',
-};
-/** Commentary templates: three variants per outcome, picked deterministically by the engine. */
-const commentary: Record<string, [string, string, string]> = {
-  attempt: [
-    '{player} lets fly from a promising position.',
-    'A strike from {player} tests the goalkeeper.',
-    '{player} finds a yard of space and shoots.',
-  ],
-  goal: [
-    'GOAL! {player} finds the back of the net!',
-    'It’s in! {player} sends the crowd into raptures.',
-    '{player} scores, and the bench is on its feet!',
-  ],
-  chance: [
-    '{player} gets on the end of it and shoots.',
-    'The move opens up a sight of goal for {player}.',
-    '{player} is through and pulls the trigger.',
-  ],
-  counter: [
-    'The opposition break quickly and {player} shoots.',
-    '{player} punishes the loss of possession with an effort.',
-    'A swift counter ends with {player} having a go.',
-  ],
-  'routine.success': [
-    '{player} keeps the ball moving.',
-    'A tidy pass from {player}.',
-    '{player} finds a teammate in space.',
-  ],
-  'routine.failure': [
-    '{player}’s pass is cut out.',
-    'A loose ball from {player} hands over possession.',
-    '{player} tries to force it and loses the ball.',
-  ],
-  'shot.success': [
-    '{player} drills it inside the near post!',
-    'Low and hard from {player}, and the keeper is beaten at the near post!',
-    '{player} goes early and finds the gap at the near post!',
-  ],
-  'shot.failure': [
-    '{player} hits it firmly, but the keeper smothers it.',
-    'The near-post effort from {player} is blocked.',
-    '{player} drags it across the face of goal.',
-  ],
-  'placed.success': [
-    '{player} curls it beyond the dive into the far corner!',
-    'Pure placement from {player}, inside the far post!',
-    '{player} opens the body and passes it into the far corner!',
-  ],
-  'placed.failure': [
-    '{player} bends it just wide of the far post.',
-    'The keeper stretches to tip away the placed effort from {player}.',
-    '{player} goes for the corner and misses by inches.',
-  ],
-  'long.success': [
-    '{player} unleashes from distance and it flies in!',
-    'What a hit from {player}! Unstoppable from range.',
-    '{player} spots the keeper off the line and scores from distance!',
-  ],
-  'long.failure': [
-    '{player} tries it from range, and it sails over.',
-    'A long-range drive from {player} is held comfortably.',
-    '{player} snatches at it from distance and it is blocked.',
-  ],
-  'header.success': [
-    '{player} rises highest and powers the header home!',
-    'A towering header from {player} finds the net!',
-    '{player} meets the cross perfectly with the head!',
-  ],
-  'header.failure': [
-    '{player} gets above the marker but heads over.',
-    'The header from {player} is straight at the keeper.',
-    '{player} cannot direct the header on target.',
-  ],
-  'pass.success': [
-    '{player} slides it across to a teammate.',
-    'Unselfish from {player}, laying it into a better position.',
-    '{player} picks the right pass at the right moment.',
-  ],
-  'pass.failure': [
-    'The pass from {player} is read and intercepted.',
-    'The ball from {player} is just behind the runner.',
-    '{player} looks to set up a teammate, but the defence recovers.',
-  ],
-  'through.success': [
-    '{player} threads a perfect ball in behind!',
-    'A defence-splitting pass from {player}!',
-    '{player} spots the run and finds it with precision.',
-  ],
-  'through.failure': [
-    'The through ball from {player} is overhit.',
-    'The defence steps up and cuts out the pass from {player}.',
-    '{player} tries to unlock the back line, but it is intercepted.',
-  ],
-  'cross.success': [
-    '{player} whips in a dangerous delivery.',
-    'A pinpoint cross from {player} finds a teammate.',
-    '{player} switches play to the free player.',
-  ],
-  'cross.failure': [
-    'The cross from {player} is cleared at the near post.',
-    'The delivery from {player} floats harmlessly out of play.',
-    '{player} hits the first defender with the cross.',
-  ],
-  'dribble.success': [
-    '{player} drops a shoulder and is past the defender!',
-    'Quick feet from {player} leave the marker behind.',
-    '{player} glides past the challenge.',
-  ],
-  'dribble.failure': [
-    '{player} tries to beat the defender but is crowded out.',
-    'The defender stands firm and takes the ball off {player}.',
-    '{player} runs into a wall of bodies.',
-  ],
-  'control.success': [
-    '{player} kills it dead and makes room to shoot.',
-    'A superb first touch from {player} sets up the chance.',
-    '{player} controls on the chest and turns.',
-  ],
-  'control.failure': [
-    'A heavy touch from {player} and the chance is gone.',
-    '{player} cannot bring it under control.',
-    'The ball bounces off {player} and away.',
-  ],
-  'carry.success': [
-    '{player} drives forward into open grass.',
-    '{player} carries the ball through the lines.',
-    'Strong running from {player} gains the yards.',
-  ],
-  'carry.failure': [
-    '{player} is dispossessed while carrying forward.',
-    '{player} runs into trouble and loses the ball.',
-    'The press catches {player} in possession.',
-  ],
-  'intercept.success': [
-    '{player} reads it and steps in to intercept.',
-    'Great anticipation from {player} to cut out the pass.',
-    '{player} gets there first and snuffs out the danger.',
-  ],
-  'intercept.failure': [
-    '{player} gambles on the interception and is caught out.',
-    'The pass slips past the outstretched leg of {player}.',
-    '{player} steps up too early and the attacker is through.',
-  ],
-  'tackle.success': [
-    '{player} times the tackle perfectly.',
-    'A crunching, clean challenge from {player}.',
-    '{player} wins the ball with a decisive tackle.',
-  ],
-  'tackle.failure': [
-    '{player} dives in and is beaten.',
-    'The attacker skips past the challenge from {player}.',
-    '{player} commits and misses the ball.',
-  ],
-  'jockey.success': [
-    '{player} shows the attacker wide and the move fizzles out.',
-    'Patient defending from {player} buys time for the cover.',
-    '{player} holds firm and the threat passes.',
-  ],
-  'jockey.failure': [
-    'The attacker finds a yard of space past {player}.',
-    '{player} backs off and invites the shot.',
-    '{player} is turned and the attacker is away.',
-  ],
-  card: [
-    'Yellow card. {player} goes into the book.',
-    '{player} is booked for a late challenge.',
-    'The referee shows {player} a yellow card.',
-  ],
-  'second-yellow': [
-    'Second yellow! {player} is off, and the side are down a man.',
-    '{player} is booked again, and the red card follows.',
-    'A second caution for {player}, and that is an early bath.',
-  ],
-  red: [
-    'Straight red! {player} is sent off.',
-    '{player} sees red for a reckless challenge.',
-    'No hesitation from the referee: a straight red for {player}.',
-  ],
-  change: [
-    'Substitution: {receiver} comes on for {player}.',
-    'A change: {player} makes way for {receiver}.',
-    '{player} is replaced by {receiver}.',
-  ],
-  'track.success': [
-    '{player} spots the run, goes with it and cuts out the pass.',
-    '{player} tracks the runner all the way and nicks the ball away.',
-    'Great awareness from {player}, who reads the run and steps in front.',
-  ],
-  'track.failure': [
-    '{player} is a yard behind the runner, and the ball is played through.',
-    'The runner loses {player} with a clever change of pace.',
-    '{player} follows the wrong man and the runner is free.',
-  ],
-  'recycle.success': [
-    '{player} plays it short and keeps possession.',
-    'Calm on the ball from {player} under pressure.',
-    '{player} finds the nearest teammate and the press is beaten.',
-  ],
-  'recycle.failure': [
-    'The short pass from {player} is intercepted near goal!',
-    'The press forces {player} into a mistake.',
-    '{player} is caught dwelling on the ball.',
-  ],
-  'long-ball.success': [
-    '{player} launches it long and finds a teammate.',
-    'A raking ball forward from {player}.',
-    '{player} turns defence into attack with one pass.',
-  ],
-  'long-ball.failure': [
-    'The long ball from {player} is headed straight back.',
-    'The ball forward from {player} is won by the defence.',
-    '{player} hits it long, but nobody is there.',
-  ],
-  'catch.success': [
-    '{player} gathers it cleanly.',
-    'Safe hands from {player}, who holds on comfortably.',
-    '{player} gets behind the ball and claims it.',
-  ],
-  'catch.failure': [
-    '{player} cannot keep it out!',
-    'It squirms through the grasp of {player}!',
-    '{player} gets a touch, but not enough!',
-  ],
-  'parry.success': [
-    '{player} parries it away from danger.',
-    'A strong hand from {player} pushes it aside.',
-    '{player} beats the shot away.',
-  ],
-  'parry.failure': [
-    'The shot is too powerful for {player}!',
-    '{player} gets fingertips to it, but it goes in!',
-    '{player} dives, but it is already past!',
-  ],
-  'line.success': [
-    '{player} stays big and makes the save.',
-    'Patience from {player}, who reacts brilliantly on the line.',
-    '{player} stands firm and keeps it out.',
-  ],
-  'line.failure': [
-    '{player} is rooted to the spot as it goes in.',
-    'The finish beats {player} on the line.',
-    '{player} has no chance from there.',
-  ],
-  'rush.success': [
-    '{player} races off the line and smothers it!',
-    'Brave from {player}, who spreads wide and wins the ball.',
-    '{player} narrows the angle and takes it off the attacker’s toes.',
-  ],
-  'rush.failure': [
-    '{player} comes out, but the attacker gets there first.',
-    'The attacker rounds {player}!',
-    '{player} is caught in no man’s land.',
-  ],
-  'claim.success': [
-    '{player} comes for the cross and claims it.',
-    'Commanding from {player}, plucking it out of the air.',
-    '{player} takes the cross under pressure.',
-  ],
-  'claim.failure': [
-    '{player} misjudges the flight of the cross.',
-    '{player} comes for it and does not get there.',
-    'The cross evades the grasp of {player}.',
-  ],
-  'punch.success': [
-    '{player} punches clear.',
-    'A strong fist from {player} clears the danger.',
-    '{player} gets a firm punch on it.',
-  ],
-  'punch.failure': [
-    'The punch from {player} only reaches the edge of the box.',
-    '{player} flaps at it and misses.',
-    'The punch from {player} drops to an attacker.',
-  ],
-  'penalty.success': [
-    '{player} sends the keeper the wrong way. Penalty scored!',
-    'Ice cold from {player}. The penalty is buried.',
-    '{player} steps up and smashes the penalty home!',
-  ],
-  'penalty.failure': [
-    'Saved! The keeper reads {player} and keeps the penalty out.',
-    '{player} drags the penalty wide of the post.',
-    '{player} blazes the penalty over the bar!',
-  ],
-  'free-kick.success': [
-    '{player} whips the free kick over the wall and in!',
-    'Free kick, {player}… and it’s in the top corner!',
-    'The wall jumps, the keeper dives, and {player}’s free kick nestles in the net!',
-  ],
-  'free-kick.failure': [
-    '{player} clips the top of the wall and over.',
-    'The keeper gathers {player}’s free kick at the second attempt.',
-    '{player} curls the free kick a yard wide.',
-  ],
-  'corner.success': [
-    '{player} swings in a corner that finds a teammate’s head.',
-    'A wicked delivery from {player} causes chaos in the six-yard box.',
-    '{player} picks out the run perfectly from the corner.',
-  ],
-  'corner.failure': [
-    '{player}’s corner is headed away at the near post.',
-    'The keeper comes and claims {player}’s delivery.',
-    '{player} overhits the corner and it sails out for a goal kick.',
-  ],
-  'block.success': [
-    '{player} throws everything at it and blocks on the line!',
-    'Off the line! {player} somehow keeps it out!',
-    '{player} gets a body in the way when it looked a certain goal!',
-  ],
-  'block.failure': [
-    '{player} stretches, but cannot keep it out.',
-    'It squeezes past {player} on the line.',
-    '{player} gets a touch, but it still crosses the line.',
-  ],
-  'offside.success': [
-    '{player} steps up, and the flag goes up. Offside!',
-    'A perfectly timed step from {player} catches the runner offside.',
-    '{player} holds the line and the attack dies.',
-  ],
-  'offside.failure': [
-    '{player} steps up, but the runner has timed it and is through!',
-    'One defender stays deep and {player}’s trap is sprung.',
-    '{player} is caught square, and the striker is in behind.',
-  ],
-  'penalty-save.success': [
-    'SAVED! {player} guesses right and keeps out the penalty!',
-    '{player} stands tall and blocks the spot kick!',
-    'What a save from {player}, diving full length to stop the penalty!',
-  ],
-  'penalty-save.failure': [
-    'The penalty beats {player}, who went the wrong way.',
-    '{player} gets a hand to it, but the penalty goes in.',
-    'No chance for {player}. Into the corner.',
-  ],
-  'shootout.success': [
-    '{player} steps up in the shootout and buries it!',
-    'Ice in the veins: {player} scores in the shootout.',
-    '{player} sends the keeper the wrong way from the spot.',
-  ],
-  'shootout.failure': [
-    '{player} misses in the shootout!',
-    'Saved! {player} cannot believe it.',
-    '{player} skies the shootout penalty.',
-  ],
-  'shootout-keeper.success': [
-    '{player} saves in the shootout!',
-    'A shootout save from {player}! The stadium erupts.',
-    '{player} guesses right and keeps it out!',
-  ],
-  'shootout-keeper.failure': [
-    'The shootout penalties beat {player}.',
-    '{player} dives the wrong way in the shootout.',
-    'No luck for {player} in the shootout.',
-  ],
-  'late-equaliser': [
-    'LATE DRAMA! {player} levels it in the dying minutes!',
-    'They’re level! {player} strikes with time almost up!',
-    '{player} hauls them level at the death!',
-  ],
-  'late-winner': [
-    'LATE, LATE GOAL! {player} puts them ahead at the death!',
-    '{player} scores, and surely that’s the winner!',
-    'Pandemonium! {player} has won it late on!',
-  ],
-};
-const engineText: Record<string, string> = {
-  ...Object.fromEntries(
-    Object.entries(commentary).flatMap(([key, lines]) =>
-      lines.map((text, index) => [`match.commentary.${key}.${index}`, text]),
-    ),
-  ),
+/** The engine's labels; its commentary lines are in commentary.ts. */
+const engineTextEn: Record<string, string> = {
   'match.status.preview': 'Before kickoff',
   'match.status.live': 'Match in progress',
   'match.status.decision': 'Key moment',
@@ -1101,8 +575,8 @@ const engineText: Record<string, string> = {
   'match.situation.shootout-keeper':
     'Level at full time. If it comes to penalties, it is you against their takers.',
   ...situationVariants,
-  ...headlineText,
-  ...reactionText,
+  // The 1.0 key moments (engine match-22): new situations, choices and reads.
+  ...momentLabels,
   'match.pressure.level': 'Level, {minute}th minute. This could decide it.',
   'match.pressure.behind': 'A goal down, {minute}th minute. Time is running out.',
   'match.pressure.ahead': 'One goal in it, {minute}th minute. Hold on.',
@@ -1191,9 +665,6 @@ const engineText: Record<string, string> = {
   'match.factor.style.direct': 'Their direct play',
   'match.factor.foot.weak': 'Weaker foot',
   'match.factor.foot.inside': 'Cutting in on your stronger foot',
-  'match.commentary.halftime': 'The whistle brings the first half to a close.',
-  'match.commentary.extra-time': 'Still level after ninety minutes: extra time it is.',
-  'match.commentary.substitution': 'The manager makes a change. Your shift is over.',
   'match.rating.base': 'Starting rating',
   'match.rating.shooting': 'Shooting decisions',
   'match.rating.passing': 'Passing decisions',
@@ -1206,6 +677,7 @@ const engineText: Record<string, string> = {
   'match.rating.errors': 'Goals conceded from your moments',
   'match.rating.team': 'Result and clean sheet',
   'match.rating.discipline': 'Cards',
+  'match.rating.par': 'Expected from your moments',
   'match.rating.limit': 'Rating limit and rounding',
   'match.booking.base': 'Foul chance of this challenge',
   'match.booking.aggression': 'Aggression',
@@ -1234,12 +706,21 @@ const engineText: Record<string, string> = {
     'Hold your shape, protect the space, and choose your tackles carefully.',
   'match.instructions.keeper': 'Command your area and keep your distribution composed.',
 };
+const engineText = ({ en: engineTextEn } satisfies Translations<typeof engineTextEn>)[LOCALE];
+/**
+ * Engine copy loaded with a lazy part of the match screen (release 1.0 step 5.4: the occasions,
+ * `i18n/occasions.ts`), registered when that module loads so this module stays small.
+ */
+const registered: Record<string, string> = {};
+export function registerMatchText(entries: Record<string, string>): void {
+  Object.assign(registered, entries);
+}
 /** True when a key has its own copy (tests use it to catch untranslated engine keys). */
 export function hasMatchLabel(key: string): boolean {
-  return key in engineText;
+  return key in engineText || key in registered;
 }
 export function matchLabel(key: string): string {
-  return engineText[key] ?? key;
+  return engineText[key] ?? registered[key] ?? key;
 }
 export function matchFormat(template: string, values: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (token, key: string) => String(values[key] ?? token));
@@ -1249,14 +730,12 @@ export function situationText(moment: {
   situationKey: string;
   situationParams?: Record<string, string>;
 }): string {
-  return matchFormat(matchLabel(moment.situationKey), moment.situationParams ?? {});
+  // A match-22 framing loads with the match (momentsCopy.ts); until then, the plain sentence.
+  const key = moment.situationKey;
+  const text = engineText[key] ?? engineText[key.replace(/\.\d+$/, '')] ?? key;
+  return matchFormat(text, moment.situationParams ?? {});
 }
-/** What a late moment in a close game means, or an empty string. */
-export function pressureText(moment: {
-  pressureKey?: string;
-  situationParams?: Record<string, string>;
-}): string {
-  return moment.pressureKey
-    ? matchFormat(matchLabel(moment.pressureKey), moment.situationParams ?? {})
-    : '';
+/** Copy that loads with the match (step 5.2: match-22's framings and reads, momentsCopy.ts). */
+export function addMatchLabels(labels: Readonly<Record<string, string>>): void {
+  Object.assign(engineText, labels);
 }

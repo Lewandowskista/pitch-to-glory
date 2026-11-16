@@ -9,9 +9,11 @@ import {
   type AppSave,
 } from '../src/persistence/schema';
 import { executePersistenceRequest } from '../src/workers/persistence.worker';
+import { unpackBackup } from '../src/persistence/backup';
 import type { PersistenceOperation } from '../src/persistence/workerClient';
-import { generateWorld } from '../src/engine/world/generate';
 import type { World } from '../src/model/domain';
+import { nationalWorld } from './support/world';
+import { decodeWorldBytes } from '../src/workers/worldCodec';
 
 const databases: SaveDatabase[] = [];
 const setup = () => {
@@ -24,7 +26,7 @@ afterEach(async () => {
   for (const db of databases.splice(0)) await db.delete();
 });
 let shared: World | null = null;
-const world = () => (shared ??= generateWorld('save-recovery', { format: 'legacy' }));
+const world = () => (shared ??= nationalWorld());
 const worldSave = (slot: 1 | 2 | 3 = 1): AppSave =>
   createSave(slot, 'Clock career', {
     kind: 'world',
@@ -116,6 +118,12 @@ describe('save timestamps after a clock change (S1)', () => {
   });
 });
 
+/** Damage slot 1's stored world (stored as an object, the pre-1.0 form, which still reads). */
+async function damage(db: SaveDatabase): Promise<void> {
+  const record = (await db.worlds.get(1))!;
+  const stored = (record.bytes ? decodeWorldBytes(record.bytes) : record.world) as World;
+  await db.worlds.put({ slot: 1, world: { ...stored, phase: 'broken' as never } });
+}
 describe('recovery export (S3)', () => {
   const stored = async (db: SaveDatabase, slot: 1 | 2 | 3) =>
     structuredClone(
@@ -126,8 +134,7 @@ describe('recovery export (S3)', () => {
     const { db, repo } = setup();
     await repo.write(worldSave(), null);
     // A validator regression, or damage: the world no longer passes its checks.
-    const record = (await db.worlds.get(1))!;
-    await db.worlds.put({ ...record, world: { ...record.world, phase: 'broken' as never } });
+    await damage(db);
     await expect(repo.read(1)).rejects.toMatchObject({ code: 'invalid' });
     await expect(repo.exportJSON(1)).rejects.toMatchObject({ code: 'invalid' });
     // The slot list reads metadata only, so the slot still looks ready.
@@ -171,8 +178,7 @@ describe('recovery export (S3)', () => {
   it('runs in the persistence worker, including the unchecked copy of an unsaved session', async () => {
     const { db, repo } = setup();
     await repo.write(worldSave(), null);
-    const record = (await db.worlds.get(1))!;
-    await db.worlds.put({ ...record, world: { ...record.world, phase: 'broken' as never } });
+    await damage(db);
     let sequence = 0;
     const request = (operation: PersistenceOperation) =>
       executePersistenceRequest(
@@ -184,10 +190,10 @@ describe('recovery export (S3)', () => {
       code: 'invalid',
     });
     const response = await request({ operation: 'export-recovery', slot: 1 });
-    expect(response).toMatchObject({ ok: true, value: { name: 'Clock career' } });
-    if (!response.ok || !response.value || !('json' in response.value))
+    expect(response).toMatchObject({ ok: true, value: { name: 'Clock career', compressed: true } });
+    if (!response.ok || !response.value || !('file' in response.value))
       throw new Error('Expected a recovery file');
-    expect(JSON.parse(response.value.json)).toMatchObject({
+    expect(JSON.parse((await unpackBackup(response.value.file)).json)).toMatchObject({
       payload: { world: { phase: 'broken' } },
     });
 
@@ -205,14 +211,15 @@ describe('recovery export (S3)', () => {
     };
     expect(await request(operation)).toMatchObject({ ok: false, code: 'invalid' });
     const unchecked = await request({ ...operation, unvalidated: true });
-    if (!unchecked.ok || !unchecked.value || !('json' in unchecked.value))
+    if (!unchecked.ok || !unchecked.value || !('file' in unchecked.value))
       throw new Error('Expected an unchecked file');
-    expect(JSON.parse(unchecked.value.json)).toMatchObject({
+    const json = (await unpackBackup(unchecked.value.file)).json;
+    expect(JSON.parse(json)).toMatchObject({
       format: 'pitch-to-glory',
       name: 'Unsaved',
       payload: { world: { phase: 'broken' } },
     });
-    expect(Object.keys(JSON.parse(unchecked.value.json)).sort()).toEqual(
+    expect(Object.keys(JSON.parse(json)).sort()).toEqual(
       Object.keys(unvalidatedSave(1, 'Unsaved', payload)).sort(),
     );
   });

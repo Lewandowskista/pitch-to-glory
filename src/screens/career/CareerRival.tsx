@@ -11,6 +11,7 @@ import { format } from '../../i18n';
 import { formatGameDate } from '../../i18n/calendar';
 import { careerText as c } from '../../i18n/career';
 import { socialText as s } from '../../i18n/social';
+import { plural } from '../../i18n/locale';
 import { CardTitle, Panel, cx } from '../../ui/kit';
 import { CareerPage, CrestImage, useSaveLink } from './shared';
 import { money } from './marketUi';
@@ -43,8 +44,7 @@ function intro(world: World): string | undefined {
   const gap = lines.career.goals - lines.rival.goals;
   const params = { rival: rival.name, count: Math.abs(gap) };
   if (gap === 0) return format(s.rival.intro.level, params);
-  if (gap > 0) return format(gap === 1 ? s.rival.intro.aheadOne : s.rival.intro.ahead, params);
-  return format(gap === -1 ? s.rival.intro.behindOne : s.rival.intro.behind, params);
+  return plural(Math.abs(gap), gap > 0 ? s.rival.intro.ahead : s.rival.intro.behind, params);
 }
 
 const ageOf = (world: World, player: Player) => world.date.season - player.birthSeason;

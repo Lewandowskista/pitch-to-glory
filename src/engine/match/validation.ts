@@ -134,9 +134,12 @@ export function validateSetup(setup: MatchSetup): void {
         !Array.isArray(p.secondaryPositions)
       )
         throw new Error('Invalid match player');
+      // An outfielder's untrained goalkeeping may be left out (it is derived from the id).
+      if (p.keeperAttributes === undefined && p.primaryPosition === 'GK')
+        throw new Error('Invalid match attributes');
       for (const [names, values] of [
         [attributes, p.attributes],
-        [keeping, p.keeperAttributes],
+        ...(p.keeperAttributes === undefined ? [] : [[keeping, p.keeperAttributes] as const]),
       ] as const) {
         if (
           !values ||
@@ -170,6 +173,26 @@ export function validateSetup(setup: MatchSetup): void {
     throw new Error('Invalid match suspensions');
   const p = setup.players[setup.selectedPlayerId]!;
   if (p.retired || p.injuryId || p.fitness <= 0) throw new Error('Selected player unavailable');
+  // The occasions (match-22): the bench's promised role, the injury factor and the trust.
+  if (
+    setup.bench !== undefined &&
+    (!setup.bench ||
+      Object.keys(setup.bench).join(',') !== 'role' ||
+      !['key', 'rotation', 'backup', 'youth'].includes(setup.bench.role))
+  )
+    throw new Error('Invalid match bench');
+  if (
+    setup.injury !== undefined &&
+    (!setup.injury ||
+      !number(setup.injury.factor, 0, 20) ||
+      (setup.injury.reinjury !== undefined &&
+        (!setup.injury.reinjury ||
+          !number(setup.injury.reinjury.risk, 0, 1) ||
+          !string(setup.injury.reinjury.kind))))
+  )
+    throw new Error('Invalid match injury');
+  if (setup.trust !== undefined && !number(setup.trust, 0, 100))
+    throw new Error('Invalid match trust');
 }
 /** Tactics must use a personal role from the selected player's own position list. */
 export function validateTactics(t: Tactics, position: Position): void {
@@ -185,18 +208,27 @@ export function validateTactics(t: Tactics, position: Position): void {
 }
 export function validateCommand(command: MatchCommand): void {
   if (!command || typeof command !== 'object') throw new Error('Invalid match command');
-  const fields: Record<string, string[]> = {
-    kickoff: ['type'],
-    advance: ['type'],
-    choose: ['choiceId', 'type'],
-    halftime: ['response', 'type'],
-    captain: ['instruction', 'type'],
-    substitution: ['response', 'type'],
+  const fields: Record<string, string[][]> = {
+    kickoff: [['type']],
+    advance: [['type']],
+    choose: [['choiceId', 'type']],
+    // A role may be named at half-time (match-22).
+    halftime: [
+      ['response', 'type'],
+      ['response', 'role', 'type'],
+    ],
+    captain: [['instruction', 'type']],
+    substitution: [['response', 'type']],
+    injury: [['response', 'type']],
   };
-  if (
-    !fields[command.type] ||
-    Object.keys(command).sort().join(',') !== fields[command.type]!.join(',')
-  )
+  const keys = Object.keys(command).sort().join(',');
+  if (!fields[command.type]?.some((shape) => shape.join(',') === keys))
     throw new Error('Invalid match command');
   if (command.type === 'choose' && !string(command.choiceId)) throw new Error('Invalid choice');
+  if (
+    command.type === 'halftime' &&
+    command.role !== undefined &&
+    (!string(command.role) || command.response !== 'role')
+  )
+    throw new Error('Invalid halftime role');
 }

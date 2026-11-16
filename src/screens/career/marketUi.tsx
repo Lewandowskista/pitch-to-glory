@@ -24,16 +24,18 @@ import { disciplineText, matchesLabel, scopeLabel } from '../../i18n/discipline'
 import { socialText } from '../../i18n/social';
 import { lifestyleText } from '../../i18n/lifestyle';
 import { honoursText } from '../../i18n/honours';
+import { formatMoney } from '../../i18n/locale';
 
 const socialMessages = socialText.messages;
 const lifestyleMessages = lifestyleText.messages;
 const honoursMessages = honoursText.messages;
-import { ui, useEditBlock } from './shared';
+import { useEditBlock } from './shared';
 import { audio } from '../../audio';
 
-const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
-export const money = (value: number) => format(m.money, { amount: integer.format(value) });
-export const weekly = (value: number) => format(m.perWeek, { amount: integer.format(value) });
+/** An amount of credits ("12,500 Cr"). */
+export const money = formatMoney;
+/** A weekly amount of credits ("12,500 Cr / week"). */
+export const weekly = (value: number) => format(m.perWeek, { money: formatMoney(value) });
 export const roleName = (role: Contract['role']) => m.roles[role];
 
 /**
@@ -240,5 +242,3 @@ export function Stat({
     </div>
   );
 }
-
-export const panel = ui.panel;

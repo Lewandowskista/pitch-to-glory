@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useAppStore } from '../store';
 import { DEFAULT_SETTINGS } from '../persistence/settings';
 import { format, t } from '../i18n';
@@ -20,11 +20,21 @@ import { SwitchRow } from '../ui/kit/ToggleSwitch';
 import { RangeSlider } from '../ui/kit/RangeSlider';
 import { RadioTile } from '../ui/kit/RadioTile';
 import { audio, type SoundName } from '../audio';
+import { platform } from '../platform';
 import type { AudioSettings, Settings as Preferences } from '../model/domain';
 import { useUrlDialog } from './career/useUrlDialog';
 import { analyticsConfig } from '../analytics/config';
 import { updateConsent, useAnalyticsConsent } from '../analytics/consent';
 import { privacyText } from '../i18n/privacy';
+import { diagnosticsText as d } from '../i18n/diagnostics';
+import { formatDate, plural } from '../i18n/locale';
+import { diagnostics, type DiagnosticEntry } from '../diagnostics';
+import {
+  bugReportUrl,
+  currentContext,
+  diagnosticsFileName,
+  diagnosticsReport,
+} from '../diagnostics/report';
 
 type Theme = Preferences['theme'];
 const THEMES: { theme: Theme; icon: 'settings' | 'sun' | 'moon' }[] = [
@@ -163,6 +173,7 @@ export default function Settings() {
               </StatusLine>
             </Panel>
             <PrivacySettings />
+            <DiagnosticsSettings />
             <Panel aria-labelledby="settings-about" className="flex flex-col gap-4">
               <div>
                 <CardTitle id="settings-about">{t.settings.about}</CardTitle>
@@ -296,6 +307,10 @@ function SoundSettings() {
   const mounted = useRef(false);
   const previewVersion = useRef(0);
   const [previewing, setPreviewing] = useState<SoundName | 'crowd' | null>(null);
+  // On a data saver the music waits for the player to ask for it (src/audio/player.ts).
+  const [musicAllowed, setMusicAllowed] = useState(
+    () => audio.musicAllowed || !platform.prefersReducedData(),
+  );
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -366,8 +381,30 @@ function SoundSettings() {
         description={t.settings.musicBody}
         checked={sound.musicEnabled}
         disabled={sound.muted}
-        onChange={(musicEnabled) => set({ musicEnabled })}
+        onChange={(musicEnabled) => {
+          // Switching it on is the player's own choice, which a data saver waits for.
+          if (musicEnabled) {
+            setMusicAllowed(true);
+            audio.allowMusic();
+          }
+          set({ musicEnabled });
+        }}
       />
+      {!musicAllowed && sound.musicEnabled && !sound.muted && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="min-w-0 flex-1 basis-60 text-muted">{t.settings.musicSaveData}</p>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setMusicAllowed(true);
+              audio.allowMusic();
+              void audio.unlock();
+            }}
+          >
+            {t.settings.musicDownload}
+          </Button>
+        </div>
+      )}
       <div className="flex flex-col gap-1">
         {volumes.map(([key, label]) => {
           const percent = Math.round(sound[key] * 100);
@@ -470,5 +507,118 @@ function PrivacySettings() {
         {p.link}
       </ButtonLink>
     </Panel>
+  );
+}
+
+/** The newest entries shown in the card; the export holds them all. */
+const SHOWN = 3;
+/**
+ * Local diagnostics (release 1.0 step 4.7): what went wrong on this device, an export to attach
+ * to a bug report, and the report itself. Nothing is sent: the player downloads the file and
+ * opens the report form.
+ */
+function DiagnosticsSettings() {
+  const entries = useSyncExternalStore(
+    diagnostics.subscribe,
+    diagnostics.entries,
+    diagnostics.entries,
+  );
+  const [status, setStatus] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const total = entries.reduce((sum, entry) => sum + entry.count, 0);
+  const latest = entries.slice(-SHOWN).reverse();
+  const exportFile = () => {
+    const state = useAppStore.getState();
+    const context = currentContext({ activeSave: state.activeSave, world: state.world });
+    const report = diagnosticsReport(entries, context);
+    platform
+      .saveFile(
+        diagnosticsFileName(context.now),
+        JSON.stringify(report, null, 2),
+        'application/json',
+      )
+      .then(() => setStatus({ tone: 'success', text: d.exported }))
+      .catch(() => setStatus({ tone: 'error', text: d.exportFailed }));
+  };
+  return (
+    <Panel
+      id="diagnostics"
+      aria-labelledby="settings-diagnostics"
+      className="flex scroll-mt-24 flex-col gap-4"
+    >
+      <div>
+        <CardTitle id="settings-diagnostics">{d.title}</CardTitle>
+        <p className={cardBody}>{d.body}</p>
+      </div>
+      <div className="rounded-control bg-surface-soft px-4 py-3 text-sm">
+        <p className="m-0 font-bold" data-testid="diagnostics-count">
+          {total ? plural(total, d.count) : d.none}
+        </p>
+        {latest.length > 0 && (
+          <>
+            <h3 className="mt-3 mb-1.5 text-xs font-extrabold tracking-[0.08em] text-muted uppercase">
+              {d.latest}
+            </h3>
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {latest.map((entry, index) => (
+                <DiagnosticRow key={`${entry.time}-${index}`} entry={entry} />
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="secondary" icon="download" onClick={exportFile}>
+          {d.export}
+        </Button>
+        <Button
+          variant="text"
+          icon="trash"
+          disabled={entries.length === 0}
+          onClick={() => {
+            diagnostics.clear();
+            setStatus({ tone: 'success', text: d.cleared });
+          }}
+        >
+          {d.clear}
+        </Button>
+      </div>
+      <StatusLine tone={status?.tone ?? 'success'} className="self-start">
+        {status?.text ?? ''}
+      </StatusLine>
+      <div className="flex flex-col gap-1.5 border-t border-line pt-4">
+        <ReportBugButton className="self-start" />
+        <p className="m-0 text-xs text-muted">{d.reportHint}</p>
+      </div>
+    </Panel>
+  );
+}
+function DiagnosticRow({ entry }: { entry: DiagnosticEntry }) {
+  return (
+    <li className="flex min-w-0 flex-col gap-0.5">
+      <span className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
+        <span className="font-bold text-ink">{d.kinds[entry.kind]}</span>
+        <span>{entry.route}</span>
+        <time dateTime={entry.time}>
+          {formatDate(entry.time, { dateStyle: 'medium', timeStyle: 'short' })}
+        </time>
+        {entry.count > 1 && <span>{format(d.repeated, { count: entry.count })}</span>}
+      </span>
+      <span className="break-words">{entry.message}</span>
+    </li>
+  );
+}
+/** "Report a bug": a prefilled GitHub issue in a new tab, through the platform adapter. */
+function ReportBugButton({ className }: { className?: string }) {
+  return (
+    <Button
+      variant="secondary"
+      iconEnd="arrow"
+      className={className}
+      onClick={() => {
+        void platform.openExternal(bugReportUrl(currentContext({ activeSave: null, world: null })));
+      }}
+    >
+      {d.report}
+    </Button>
   );
 }

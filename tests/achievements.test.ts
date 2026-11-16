@@ -1,14 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Award, Position, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { decidedTitles } from '../src/engine/world/titles';
-import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
-import { advanceCareerWeek } from '../src/engine/career/season';
 import {
   achievementScore,
   addAchievement,
+  adoptAchievementsNow,
   awardAchievement,
   contribution,
   creditCaps,
@@ -18,35 +16,14 @@ import {
 } from '../src/engine/career/honours/achievements';
 import { careerHallOfFameScore, hallOfFameRank } from '../src/engine/career/honours/retirement';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalCareerSeason, nationalCareerWeeks } from './support/world';
 
 const F = CONFIG.career.honours.hallOfFame;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
-const draft: CareerDraft = {
-  name: 'Robin Vale',
-  avatar: {
-    face: 1,
-    skin: 2,
-    hair: 3,
-    hairColor: 4,
-    facialHair: 0,
-    eyebrows: 1,
-    eyes: 2,
-    accessory: 3,
-  },
-  nationalityId: 'country:0',
-  position: 'GK',
-  foot: 'right',
-  age: 17,
-  archetype: 'shot-stopper',
-};
-
 let season: World;
-beforeAll(() => {
-  const base = generateWorld('achievement-tests', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'achievement-tests')[0]!;
-  season = createCareer(base, draft, trial.id, 'achievement-tests');
-  while (season.phase === 'active')
-    season = advanceCareerWeek(season, { inPlace: true, autoPlay: true }).world;
+// The shared national career after its first season (tests/support/world.ts).
+beforeAll(async () => {
+  season = await nationalCareerSeason();
 }, 300000);
 
 describe('one record for every player', () => {
@@ -171,5 +148,36 @@ describe('one record for every player', () => {
     expect(veteran.hallOfFame).toBeGreaterThan(0);
     addAchievement(next, veteran.id, 10);
     expect(() => validateWorld(clone(next))).not.toThrow();
+  }, 120000);
+
+  it('is adopted part-way through a season when an older save loads, as at its start', async () => {
+    // The shared career twelve weeks into its first season, which kept the record from the
+    // start; the same world saved without it adopts it on load (docs/COMPATIBILITY.md).
+    const original = await nationalCareerWeeks();
+    const world = clone(original);
+    delete world.achievements;
+    for (const player of Object.values(world.players)) delete player.hallOfFame;
+    for (const record of Object.values(world.archive?.players ?? {})) delete record.hallOfFame;
+    expect(adoptAchievementsNow(world)).toBe(true);
+    expect(world.achievements).toMatchObject({ version: 1, since: world.date.season });
+    // This season so far is not seeded: it accrues at the season's end, as everyone's does.
+    expect(seasonContributions(world)).toEqual(seasonContributions(original));
+    // So every record matches the one kept since the start, but for this season's caps, which
+    // were never recorded for anyone but the career player before the record existed.
+    let capped = 0;
+    for (const player of Object.values(original.players)) {
+      const missing = (player.hallOfFame ?? 0) - (world.players[player.id]!.hallOfFame ?? 0);
+      const caps = Math.round(missing / F.cap);
+      expect(caps, player.id).toBeGreaterThanOrEqual(0);
+      expect(missing, player.id).toBeCloseTo(caps * F.cap, 5);
+      if (caps) capped++;
+    }
+    expect(capped).toBeLessThan(Object.keys(original.players).length / 10);
+    expect(() => validateWorld(clone(world))).not.toThrow();
+    // Between seasons the record waits for the next season start.
+    const ended = clone(season);
+    delete ended.achievements;
+    expect(adoptAchievementsNow(ended)).toBe(false);
+    expect(ended.achievements).toBeUndefined();
   }, 120000);
 });

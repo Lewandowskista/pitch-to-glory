@@ -1,3 +1,4 @@
+import { platform } from '../platform';
 import { compareVersions, isVersion } from './semver';
 
 /**
@@ -13,22 +14,13 @@ export interface VersionStore {
   write(version: string): void;
 }
 
-/** This browser's localStorage. Private windows and blocked storage can throw on any access. */
+/**
+ * This device's record, through the platform adapter (`release-seen`, stored under
+ * `LAST_SEEN_KEY` on the web). Without storage the notice simply never shows.
+ */
 export const browserVersionStore: VersionStore = {
-  read() {
-    try {
-      return localStorage.getItem(LAST_SEEN_KEY);
-    } catch {
-      return null;
-    }
-  },
-  write(version) {
-    try {
-      localStorage.setItem(LAST_SEEN_KEY, version);
-    } catch {
-      // Without storage the notice simply never shows.
-    }
-  },
+  read: () => platform.readRecord('release-seen'),
+  write: (version) => void platform.writeRecord('release-seen', version),
 };
 
 /**

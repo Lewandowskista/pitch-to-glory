@@ -171,7 +171,8 @@ export function generatePlayer(
       familiarity: within(rng, GEN.secondaryFamiliarity),
     })),
     attributes,
-    keeperAttributes,
+    // An outfielder's goalkeeping is untrained and derived from the id (`keeperAttributesOf`).
+    ...(position === 'GK' ? { keeperAttributes } : {}),
     hidden: {
       injuryProneness: rng.int(1, 99),
       bigMatchTemperament: rng.int(1, 99),

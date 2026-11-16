@@ -9,7 +9,6 @@ import {
   validateMatchSession,
   CUT_FAMILIES,
   NARRATION_FAMILIES,
-  NARRATION_VARIANTS,
   OFF_ANIMATION,
   OutdatedMatchSessionError,
   type MatchSession,
@@ -17,6 +16,7 @@ import {
 } from '../src/engine/match';
 import { FORMATION_SLOTS, formationOf, type SlotRole } from '../src/engine/selection/formations';
 import { hasNarrationLabel, narrationFeed, narrationName } from '../src/i18n/narration';
+import { narrationVariants } from '../src/engine/match/commentary';
 import type { Beat, PatternId, Point, Position, ReplayFrame } from '../src/model/domain';
 
 /**
@@ -338,7 +338,7 @@ describe('match narration', { timeout: 180000 }, () => {
       for (const line of session.state.narration)
         used.add(line.key.split('.').slice(2, -1).join('.'));
     for (const family of NARRATION_FAMILIES)
-      for (let variant = 0; variant < NARRATION_VARIANTS; variant++)
+      for (let variant = 0; variant < narrationVariants(family); variant++)
         expect(hasNarrationLabel(`match.narration.${family}.${variant}`)).toBe(true);
     // The common families all appear in a sample of matches.
     for (const family of [

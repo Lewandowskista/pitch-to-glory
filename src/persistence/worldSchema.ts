@@ -1,4 +1,5 @@
-﻿import type { World, Standing } from '../model/domain';
+﻿import { covers } from './coverage';
+import type { World, Standing } from '../model/domain';
 import { CONFIG } from '../engine/config';
 import {
   requireValue,
@@ -7,12 +8,15 @@ import {
   text,
   id,
   array,
+  DETAILED_HISTORY_LIMIT,
+  HISTORY_LIMIT,
   ids,
   date,
   options,
   map,
   ref,
   standings,
+  validateCompactSummary,
   validateEntities,
   playedThisWeek,
 } from './worldValidation';
@@ -293,10 +297,12 @@ export function validateWorld(value: unknown): World {
           ([field, value]) => row[field as keyof Standing] === value,
         ),
       );
-  const history = array(w.history, 100);
+  // One summary a season; retention compacts all but the last seasons to their titles.
+  const history = array(w.history, HISTORY_LIMIT);
   if (w.phase === 'complete')
     requireValue(history.length > 0 && object(history.at(-1)).season === currentDate.season);
   let previousSeason = 0;
+  let detailed = 0;
   for (const value of history) {
     const summary = object(value);
     number(summary.season, 1800, Number(season.year), true);
@@ -305,6 +311,19 @@ export function validateWorld(value: unknown): World {
         (w.phase === 'complete' || Number(summary.season) < Number(currentDate.season)),
     );
     previousSeason = Number(summary.season);
+    if (summary.compact !== undefined) {
+      requireValue(summary.divisionChampions === undefined);
+      validateCompactSummary(summary, {
+        leagues,
+        clubs,
+        competitions,
+        leagueCount: 24,
+        cupCount: 6,
+        current: Number(currentDate.season),
+      });
+      continue;
+    }
+    requireValue(++detailed <= DETAILED_HISTORY_LIMIT);
     const tables = object(summary.tables);
     requireValue(Object.keys(tables).length === 24);
     for (const [key, value] of Object.entries(tables)) {
@@ -387,3 +406,58 @@ export function validateWorld(value: unknown): World {
   for (const key of ['matches']) requireValue(Object.keys(object(w[key])).length === 0);
   return value as World;
 }
+/** The world, legacy and national (step 4.9: every field of `World`, checked by `tests/validator-coverage.test.ts`). */
+export const WORLD_FIELDS = covers<World>('', {
+  format: true,
+  developmentVersion: true,
+  achievements: true,
+  selectionVersion: true,
+  economyVersion: true,
+  identityVersion: true,
+  career: true,
+  pyramid: true,
+  id: true,
+  seed: true,
+  rng: true,
+  date: true,
+  season: true,
+  countries: true,
+  leagues: true,
+  clubs: true,
+  managers: true,
+  players: true,
+  contracts: true,
+  competitions: true,
+  fixtures: true,
+  matches: true,
+  agents: true,
+  scouting: true,
+  offers: true,
+  loans: true,
+  negotiations: true,
+  relationships: true,
+  rivalries: true,
+  dressingRooms: true,
+  media: true,
+  inbox: true,
+  sponsorships: true,
+  challenges: true,
+  nationalTeams: true,
+  callUps: true,
+  awards: true,
+  trophies: true,
+  records: true,
+  legacies: true,
+  chronicle: true,
+  moments: true,
+  events: true,
+  phase: true,
+  results: true,
+  history: true,
+  archive: true,
+  international: true,
+  awardState: true,
+  seasonStats: true,
+  discipline: true,
+  edits: true,
+});

@@ -56,7 +56,8 @@ describe('objectives preview (match-15)', () => {
       const world = createCareer(base, draft({ position, archetype }), trial.id, 'objectives');
       for (const fixture of upcoming(world)) {
         const preview = previewObjectives(world, fixture)!;
-        expect(preview).toHaveLength(2);
+        // One objective on match-22 (X1a).
+        expect(preview).toHaveLength(1);
         const session = createMatchSession(careerMatchSetup(world, fixture), defaultTactics(world));
         expect(session.state.match.objectives).toEqual(preview);
         // Keyed only by the fixture's seed and the position.
@@ -79,10 +80,5 @@ describe('objectives preview (match-15)', () => {
     world = advanceCareerWeek(world, { inPlace: true }).world;
     const later = world.fixtures[fixture.id] && !world.results[fixture.id];
     if (later) expect(previewObjectives(world, fixture)).toEqual(before);
-  });
-  it('previews nothing in a world on the earlier selection rules', () => {
-    const legacy = clone(createCareer(base, draft(), trial.id, 'objectives-legacy'));
-    delete legacy.selectionVersion;
-    expect(previewObjectives(legacy, upcoming(legacy)[0]!)).toBeNull();
   });
 });

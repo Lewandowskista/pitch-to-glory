@@ -1,7 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Fixture, Injury, MediaItem, TransferOffer, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { getSeasonWeeks } from '../src/engine/world/calendar';
@@ -14,31 +12,13 @@ import {
   sinceValue,
   withSave,
 } from '../src/screens/career/agenda';
+import { nationalCareer, nationalCareerSeason } from './support/world';
 
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
-const draft: CareerDraft = {
-  name: 'Robin Vale',
-  avatar: {
-    face: 1,
-    skin: 2,
-    hair: 3,
-    hairColor: 4,
-    facialHair: 0,
-    eyebrows: 1,
-    eyes: 2,
-    accessory: 3,
-  },
-  nationalityId: 'country:0',
-  position: 'ST',
-  foot: 'left',
-  age: 17,
-  archetype: 'finisher',
-};
 let start: World;
 beforeAll(() => {
-  const base = generateWorld('agenda-tests', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'agenda-tests')[0]!;
-  start = createCareer(base, draft, trial.id, 'agenda-tests');
+  // The shared national career (tests/support/world.ts).
+  start = nationalCareer();
   between = findBetweenMatches();
 }, 60000);
 const player = (world: World) => world.players[world.career!.playerId]!;
@@ -301,8 +281,8 @@ describe('season agenda', () => {
     expect(agenda.at(-1)!.entries.at(-1)).toEqual({ kind: 'season-end' });
   });
 
-  it('has nothing to play or advance once the season is complete', () => {
-    const world = weeks(clone(start), 200);
+  it('has nothing to play or advance once the season is complete', async () => {
+    const world = await nationalCareerSeason();
     expect(world.phase).toBe('complete');
     expect(advancePreview(world, null).kind).toBe('complete');
     expect(hubPriorities(world, null).map((item) => item.kind)).not.toContain('play');

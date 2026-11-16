@@ -356,7 +356,12 @@ export interface Player {
   primaryPosition: Position;
   secondaryPositions: PositionFamiliarity[];
   attributes: Attributes;
-  keeperAttributes: KeeperAttributes;
+  /**
+   * Goalkeeping. Absent for an outfield player whose goalkeeping is untrained, as it never
+   * changes: `keeperAttributesOf` (engine/keeping.ts) derives it from the id (schema 23,
+   * retention). Always stored for goalkeepers and for anyone whose values were changed.
+   */
+  keeperAttributes?: KeeperAttributes;
   hidden: HiddenAttributes;
   potential: number;
   personality: Personality;
@@ -394,6 +399,12 @@ export interface ArchivedPlayer {
 }
 export interface WorldArchive {
   players: Record<Id, ArchivedPlayer>;
+  /**
+   * Hall of Fame scores of archived players no longer kept by name (retention, schema 23):
+   * `[score, players]` pairs by ascending score, so every rank among all players ever stays
+   * exact. Absent until the first is pruned.
+   */
+  pruned?: [score: number, players: number][];
 }
 /** A skill-tree node. Its id doubles as the trait id the match engine reads from `traits`. */
 export interface Skill {
@@ -501,6 +512,8 @@ export interface CareerMatchRecord {
   yellowCards?: number;
   /** Sent off, and why (the discipline phase). */
   sentOff?: SentOff;
+  /** Came on as a substitute at this minute, after starting on the bench (release 1.0). */
+  cameOn?: number;
 }
 /**
  * The career. The player is an ordinary entry in `world.players` and their club's squad;
@@ -516,6 +529,12 @@ export interface Career {
   xp: number;
   /** XP at which the current level began (schema 17); absent in older saves until migrated. */
   levelXp?: number;
+  /**
+   * Matches in a row the player took part in without a positive decision chain (release 1.0
+   * X1a, match-22): from `CONFIG.match.chains.droughtMatches` the next match's chains start in
+   * better situations (the drought director). Absent until a chain match is committed.
+   */
+  chainDrought?: number;
   attributePoints: number;
   skillPoints: number;
   skills: Id[];
@@ -1462,7 +1481,9 @@ export interface Moment {
     | 'great-save'
     | 'penalty-save'
     | 'last-ditch'
-    | 'shootout';
+    | 'shootout'
+    // Release 1.0 X1b: the best decision chain of a match that saved nothing else.
+    | 'chain';
   minute: number;
   scorerName: string;
   home: { name: string; color: Hex };
@@ -1561,7 +1582,47 @@ export interface DecisionChoice {
   booking?: BookingRisk;
   /** The foot a shot, cross or carry is made with (engine match-19), and whether it is the weaker. */
   foot?: { side: 'left' | 'right'; weak: boolean };
+  /**
+   * A chain step's option (engine match-22, release 1.0 X1a): what its chance is the chance of
+   * (`match.outcome.<outcome>`: "Goal 34%"), its band by that chance, and the declared
+   * consequence of failing (`match.chain.failure.<ifFailed>`: "If blocked: they break").
+   */
+  outcome?: ChoiceOutcome;
+  band?: OutcomeBand;
+  ifFailed?: ChainFailure;
 }
+/** What a chain step's chance is the chance of (engine match-22). */
+export type ChoiceOutcome =
+  | 'goal'
+  | 'pass'
+  | 'beat'
+  | 'stop'
+  | 'save'
+  | 'control'
+  | 'turn'
+  | 'run'
+  | 'combine'
+  | 'shield'
+  | 'goal-side'
+  | 'press'
+  | 'cover'
+  | 'set'
+  | 'read';
+/** A chance's band (engine match-22): likely (65% or more), even (40–64%), a long shot (below 40%). */
+export type OutcomeBand = 'likely' | 'even' | 'long';
+/** The declared consequence of a failed chain step (engine match-22). */
+export type ChainFailure =
+  | 'lost'
+  | 'counter'
+  | 'offside'
+  | 'foul-won'
+  | 'beaten'
+  | 'foul'
+  | 'misread'
+  | 'missed'
+  | 'goal'
+  | 'shot'
+  | 'card';
 export interface KeyMoment {
   id: Id;
   minute: number;
@@ -1573,14 +1634,43 @@ export interface KeyMoment {
   pressureKey?: string;
   /** A follow-up moment (match-13): the shot after a beaten defender, or the shootout kick. */
   follows?: 'chain' | 'shootout';
+  /** In added time (engine match-22): the added minute. */
+  addedTime?: number;
   frame: ReplayFrame;
   /** The third the moment happens in, from the selected team's goal (engine match-15). */
   zone?: PitchZone;
   /** Who the moment involves (engine match-15); absent on earlier engines. */
   cast?: MomentCast;
+  /**
+   * What the pitch shows (engine match-22): the read of the play each choice's odds depend on
+   * (`match.read.<id>.<state>`, e.g. the keeper off his line, a wall of four), in order.
+   * Absent on earlier engines.
+   */
+  reads?: MomentRead[];
   /** Expected goals this moment replaces for the selected team and against it. */
   budget: { for: number; against: number };
   choices: DecisionChoice[];
+  /**
+   * A step of a decision chain (engine match-22, release 1.0 X1a): the chain, this step's
+   * 0-based index, the chain's planned length and who the step involves (section 1.7's `cast`,
+   * named apart from match-15's `cast` above). Absent on match-21.
+   */
+  chainId?: Id;
+  step?: number;
+  steps?: 2 | 3;
+  chainCast?: {
+    you: Id;
+    opponent?: Id;
+    teammates: Id[];
+    defenders: Id[];
+    keeper?: Id;
+    ghosts: Id[];
+  };
+}
+/** One read of a key moment (engine match-22): a state of the play, drawn or from a matchup. */
+export interface MomentRead {
+  id: Id;
+  state: Id;
 }
 export interface DecisionInput {
   momentId: Id;
@@ -1602,7 +1692,18 @@ export interface MatchEvent {
   id: Id;
   minute: number;
   kind:
-    'goal' | 'pass' | 'shot' | 'save' | 'dribble' | 'tackle' | 'card' | 'substitution' | 'halftime';
+    | 'goal'
+    | 'pass'
+    | 'shot'
+    | 'save'
+    | 'dribble'
+    | 'tackle'
+    | 'card'
+    | 'substitution'
+    | 'halftime'
+    // A decision chain starts and ends (engine match-22, release 1.0 X1a).
+    | 'chain-start'
+    | 'chain-end';
   playerId: Id | null;
   teamId: Id;
   point: Point;
@@ -1622,12 +1723,25 @@ export interface MatchEvent {
   /** On shots: the chance of a goal from this shot (engine match-14). */
   xg?: number;
   /**
+   * On a shot that did not go in (engine match-22): how it ended. Absent on earlier engines,
+   * and where the commentary line already says (the player's own shots, except the woodwork).
+   */
+  shotResult?: ShotResult;
+  /**
    * On cards: what was shown. Engine match-15 books cosmetic yellows only; match-16 adds a
    * second yellow (a yellow, then red: off) and a straight red.
    */
   card?: CardKind;
+  /** In added time (engine match-22): the added minute, shown as `minute+addedTime`. */
+  addedTime?: number;
+  /** On chain events (engine match-22): the chain, and on its end how it ended. */
+  chainId?: Id;
+  chainOutcome?:
+    'goal' | 'assist' | 'chance' | 'stop' | 'won' | 'lost' | 'conceded' | 'foul' | 'card';
 }
 export type CardKind = 'yellow' | 'second-yellow' | 'red';
+/** Where a shot that did not go in ended (engine match-22). */
+export type ShotResult = 'saved' | 'blocked' | 'off-target' | 'woodwork';
 /** A dismissal (engine match-16): the minute and why. */
 export interface SentOff {
   minute: number;
@@ -1647,6 +1761,16 @@ export interface BookingRisk {
   /** Already booked: a second yellow sends the player off. */
   booked: boolean;
   factors: ProbabilityFactor[];
+  /**
+   * The foul is the choice itself (engine match-22, a professional foul): a card is risked when
+   * it succeeds, not when it fails, and `yellow` and `red` are computed that way.
+   */
+  onSuccess?: true;
+  /**
+   * Expected goals the card would cost the side (engine match-22): a dismissal's chance times
+   * what playing a man down for the rest of the match costs. Counted in the choice's value.
+   */
+  cost?: number;
 }
 export interface MatchReport {
   playerId: Id;
@@ -1666,6 +1790,11 @@ export interface MatchReport {
    * dismissal, if any. Absent on earlier engines.
    */
   cards?: { yellow: number; sentOff?: SentOff };
+  /**
+   * The player started on the bench (engine match-22): the minute they came on, or null when
+   * they were an unused substitute (no rating, XP or fame then).
+   */
+  bench?: { cameOn: number | null };
 }
 export interface Match {
   id: Id;
@@ -1964,6 +2093,11 @@ export interface SeasonSummary {
   divisionChampions?: Record<string, { competitionId: Id; clubId: Id }>;
   phases?: Record<Id, LeaguePhase>;
   ties?: Record<Id, PostseasonTie>;
+  /**
+   * A season older than the kept window (retention, schema 23): only its champions, division
+   * champions and cup winners remain; `tables` and `movements` are empty, without play-offs.
+   */
+  compact?: true;
 }
 export interface Settings {
   theme: 'system' | 'light' | 'dark';
@@ -2007,7 +2141,7 @@ export interface WorldState {
 export type SavePayload = FoundationState | WorldState;
 export interface SaveFile {
   format: 'pitch-to-glory';
-  schemaVersion: 22;
+  schemaVersion: 23;
   engineVersion: string;
   slot: SlotId;
   name: string;
@@ -2015,20 +2149,4 @@ export interface SaveFile {
   updatedAt: string;
   revision: number;
   payload: SavePayload;
-}
-export interface SaveV1 {
-  format: 'pitch-to-glory';
-  schemaVersion: 1;
-  slot: SlotId;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  seed: string;
-}
-export interface SlotSummary {
-  slot: SlotId;
-  name: string;
-  updatedAt: string;
-  kind: SavePayload['kind'];
-  revision: number;
 }

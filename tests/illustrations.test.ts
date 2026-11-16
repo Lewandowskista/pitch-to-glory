@@ -25,6 +25,7 @@ import { renderStadium } from '../src/engine/assets/stadium';
 import { TONE } from '../src/engine/assets/illustration';
 import { contrastRatio, PALETTES } from '../src/engine/assets/shared';
 import { posterSvg } from '../src/screens/career/chroniclePoster';
+import { nationalWorld } from './support/world';
 
 const ids = (svg: string) => [...svg.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]!);
 
@@ -126,7 +127,7 @@ describe('illustrations', () => {
   });
 });
 
-describe('illustration mapping in generated worlds', () => {
+describe('illustration mapping in generated worlds, national and legacy-compat', () => {
   const awards: AwardKind[] = [
     'month',
     'team-season',
@@ -138,7 +139,7 @@ describe('illustration mapping in generated worlds', () => {
   let national: World;
   let legacy: World;
   beforeAll(() => {
-    national = generateWorld('illustrations-national');
+    national = nationalWorld();
     legacy = generateWorld('illustrations-legacy', { format: 'legacy' });
   }, 120000);
 
@@ -204,7 +205,7 @@ describe('Chronicle poster', () => {
   };
   let world: World;
   beforeAll(() => {
-    const base = generateWorld('poster-tests', { format: 'legacy' });
+    const base = nationalWorld();
     const trial = trialOffers(base, 'country:0', 'poster-tests')[0]!;
     world = createCareer(base, draft, trial.id, 'poster-tests');
     const player = world.players[world.career!.playerId]!;

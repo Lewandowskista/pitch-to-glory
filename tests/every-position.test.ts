@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { CareerMatchRecord, MatchEvent, SeasonLine, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { nextCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCommand, careerMatchSetup, defaultTactics } from '../src/engine/career/matches';
@@ -11,6 +10,7 @@ import { backLine, rivalOutput, seasonLines } from '../src/engine/career/social/
 import { STORYLETS } from '../src/engine/career/stories/storylets';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { createRng } from '../src/engine/rng';
+import { nationalWorld } from './support/world';
 
 /**
  * Review phase 3, step 3.4: a keeper's or defender's career collects Moments, rival verdicts
@@ -39,7 +39,7 @@ const draft = (position: CareerDraft['position'], archetype: string): CareerDraf
 let keeper: World;
 let played: MatchSession;
 beforeAll(() => {
-  const base = generateWorld('every-position', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'every-position')[0]!;
   keeper = createCareer(base, draft('GK', 'shot-stopper'), trial.id, 'every-position');
   const fixture = nextCareerFixture(keeper)!;

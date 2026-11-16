@@ -26,6 +26,45 @@ export type ReleaseSection = (typeof RELEASE_SECTIONS)[number];
 
 export const PATCH_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '0.11.0',
+    date: '2026-11-16',
+    title: 'Every moment counts',
+    summary:
+      'Matches become a two-to-three-minute highlights reel built around a few big moments of your own, and your saves get faster, lighter and much harder to lose.',
+    new: [
+      'Matches are now a highlights reel: a fast ticker with a momentum wave runs between the action, and your moments and every goal play as short clips on a pitch that shows only the players involved. One button, or Space, skips to your next moment.',
+      'Your key moments are now four to six decision chains a match: two or three linked choices in one move, such as receiving the ball, beating your man and finishing. The stakes are shown before you choose.',
+      'Every choice shows its real chance of what it is for, how likely it is, and what happens if it fails. A tick or a cross with one reason shows how it went.',
+      'Matches build to a climax: every match gives you one big chance or one big stop, and a close game saves its last chain for the closing minutes or added time.',
+      'After a run of quiet matches, your coach tells you the opposition will leave you more space, and they do. The odds you see never change.',
+      'Stoppage time, injuries during matches (play on or come off), keepers who can be booked and an extra substitution in extra time.',
+      'Left out of the eleven? You start on the bench and can come on in the second half.',
+      'Level knockouts end in a full penalty shootout, five kicks each and sudden death: take your own kick, or face every one in goal.',
+      'Watch highlights plays a whole match in about a minute without decisions, and Simulate goes straight to the result.',
+      'Each match report gives every chain its own tile to replay, and your best chain is saved to your Moments.',
+      'Automatic backups: each save keeps copies from the start of each season and from each day you play, and a save that won’t open can be restored from one or downloaded.',
+      'Diagnostics in Settings: see problems the game ran into on this device, export them, and report a bug. Nothing is sent unless you send it.',
+    ],
+    improved: [
+      'Pre-match is one screen with one objective, and Kick off starts the match. Half-time is one card with two answers.',
+      'Match ratings are believable: most matches land between 6 and 8, and every position is judged against what its chances were worth.',
+      'Match statistics look like real football: about twelve shots a team, a third of them on target, shots that hit the woodwork, and possession that follows playing style and home advantage.',
+      'Live commentary has far more variety and names the team, the keeper and the score; managers and fans react to how the match went.',
+      'A new career always starts its first two matches, and your debut has an early chance.',
+      'Continue and season simulation are much faster, especially later in a career.',
+      'Long careers stay light: saves stop growing by a megabyte a season, and the World archive keeps full tables for the last fifteen seasons.',
+      'Backups download as compressed files about an eighth of their former size. Every older backup still imports.',
+      'The music starts straight away instead of after a pause on your first tap.',
+      'Updating with several tabs open is safe: every tab saves first, and the update waits while another tab is busy.',
+      'If a page runs into a problem, the rest of the game keeps running, and your match report is still there after a refresh.',
+      'A save with a damaged feed, statistics or history charts now loads without that part, and when storage is full the game says so and offers to export.',
+    ],
+    fixed: [
+      'Last week’s match report or a repeated level-up no longer appears after reopening the game.',
+      'Matches you had in progress from an older version now restart from kick-off; your career, season and results are kept.',
+    ],
+  },
+  {
     version: '0.10.0',
     date: '2026-10-25',
     title: 'Help shape the game',

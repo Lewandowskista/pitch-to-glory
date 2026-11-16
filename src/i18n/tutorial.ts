@@ -1,5 +1,6 @@
+import { LOCALE, type Translations } from './locale';
 /** Tutorial copy (milestone 9): the first career week and the first match. */
-export const tutorialText = {
+const tutorialTextEn = {
   label: 'Tutorial',
   progress: 'Step {step} of {total}',
   next: 'Next',
@@ -40,27 +41,30 @@ export const tutorialText = {
   match: {
     tactics: {
       title: 'Before kick-off',
-      body: 'Choose your role, risk level and mentality. They shape the situations you will face and how the odds lean.',
+      body: 'Your role is the manager’s pick; change it here. Risk and mentality sit under Details. They shape the moments you get and how the odds lean.',
     },
     kickoff: {
       title: 'Kick off',
-      body: 'Start the match when you are ready.',
+      body: 'Kick off starts play. Watch highlights plays the reel with your decisions made for you; Simulate goes straight to the report.',
     },
     controls: {
-      title: 'Controlling the match',
-      body: 'Space plays or pauses. 1×, 2× and 4× change the speed, and "Next key moment" jumps straight to your next decision.',
+      title: 'The ticker',
+      body: 'Dead play runs by as a ticker: the score, the clock and the momentum wave. Your moments and every goal play as short clips. Space or "Skip to next moment" jumps ahead.',
     },
     live: {
       title: 'Follow the game',
-      body: 'Commentary, the score, momentum and your live rating update as play goes on. Play the match to reach your first key moment.',
+      body: 'The score, the clock, the momentum wave and your live rating update as play goes on. The full commentary is in the Match log.',
     },
     decision: {
       title: 'A key moment',
-      body: 'Play stops for your decisions. Each choice shows its chance of success; open "Why this choice?" to see the attributes, traits and fatigue behind it. Press 1–4 or click to choose.',
+      body: 'Play stops for your decision. Each choice names its outcome and its real chance, and what a failure costs. "Why?" shows the attributes, traits and fatigue behind it. Press 1–3 or tap to choose.',
     },
     outcome: {
       title: 'Every result is explained',
-      body: 'You see the roll against the chance, and every factor that moved it. Learn from it for the next moment.',
+      body: 'A ✓ or ✗ on the pitch says what decided it, with the chance it had. Play then moves on by itself; the full factors are in your report.',
     },
   },
 } as const;
+export const tutorialText = ({ en: tutorialTextEn } satisfies Translations<typeof tutorialTextEn>)[
+  LOCALE
+];

@@ -259,4 +259,6 @@ export const SYSTEMIC_SKILLS = {
   'captains-voice': 'leadership',
   leader: 'leadership',
   'two-footed': 'foot',
+  // A condition on every choice of a clutch moment (match-22), not a boost to some.
+  clutch: 'clutch',
 } as const;

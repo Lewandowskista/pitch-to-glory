@@ -8,6 +8,12 @@
  *   npm run profile:match -- --positions ST,GK --matches 500
  *   npm run profile:match -- --seeds match-profile,match-profile-b   several world seeds
  *   npm run profile:match -- --check                 assert the gates on the last run, per seed
+ *   npm run profile:match -- --check --assert-targets   also fail on the 1.0 targets (step 2.3)
+ *
+ * The check also reports the 1.0 targets (docs/RELEASE-1.0-PLAN.md step 2.3; `TARGETS` below):
+ * choices that matter, no dominant choice, believable ratings, match statistics and goals in
+ * added time. Each is reported, not asserted, until the phase 5 step that meets it flips its
+ * `asserted` flag: ratings and match statistics are asserted from step 5.3.
  *
  * Not modelled: a player starting on the bench. The match engine's selected player always
  * starts; benching is a career matter, gated by the career profile's playing time.
@@ -15,6 +21,15 @@
  * Writes artifacts/profile/matches.json.
  */
 import { CALIBRATION_GATE, calibrationProblems } from './calibration';
+import {
+  assertAllTargets,
+  evaluateTargets,
+  percentile as quantile,
+  printTargets,
+  standardDeviation,
+  within,
+  type Target,
+} from './targets';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Position } from '../src/model/domain';
 import { generateWorld } from '../src/engine/world/generate';
@@ -29,7 +44,8 @@ import {
 import { ABILITY_WEIGHTS } from '../src/engine/strength';
 import { FORMATION_SLOTS, FORMATIONS } from '../src/engine/selection/formations';
 import { expectedImpact } from '../src/engine/match/decisions';
-import { SITUATION_BY_ID } from '../src/engine/match/situations';
+import { situationOf, templateOf } from '../src/engine/match/situations22';
+import { createRng } from '../src/engine/rng';
 import { autoPlayCommand } from '../src/engine/career/matches';
 import { motionProbe } from '../src/engine/match/motion';
 
@@ -46,7 +62,15 @@ export interface PositionProfile {
   matches: number;
   goals: number;
   assists: number;
-  rating: { mean: number; p10: number; p90: number; nineOrMore: number };
+  rating: {
+    mean: number;
+    p10: number;
+    p90: number;
+    nineOrMore: number;
+    /** Standard deviation and the share rated 5.0 or less (1.0 targets, step 2.3). */
+    sd?: number;
+    fiveOrLess?: number;
+  };
   moments: number;
   objectives: Record<string, { offered: number; completed: number }>;
   substituted: number;
@@ -90,6 +114,38 @@ export interface PositionProfile {
    * the player's own slot and out of position (a formation without it; absent where every
    * formation has the slot), and substitutions and ratings fresh and tired.
    */
+  /**
+   * Choices that matter (1.0 targets, step 2.3): per seed, the selected side's goal difference
+   * with the best policy less that with the worst, on the same specialised setup.
+   */
+  swing?: { mean: number; se: number; n: number };
+  /**
+   * No dominant choice (1.0 targets): per situation, its instances in the best-policy matches
+   * and how often each choice had the highest expected value (ties share the credit).
+   */
+  dominance?: Record<string, { n: number; best: Record<string, number> }>;
+  /**
+   * Decision chains (engine match-22, release 1.0 X1a): chains a match and their planned
+   * length; how each policy's chains ended (best on the profile's setup, a random choice at
+   * every step, the worst on the specialised setup); the steps with the best policy (lead-ins
+   * and finishes, finishing shots); matches with at least one positive chain; the prizes of
+   * attacking chains; the hero beat and the climax.
+   */
+  chains?: ChainProfile;
+  /**
+   * Match statistics of the best-policy matches (1.0 targets): shots and shots on target by
+   * both sides, goals and goals in added time, and the home side's possession in each match.
+   */
+  statistics?: {
+    matches: number;
+    shots: number;
+    onTarget: number;
+    /** Shots off the post or bar (engine match-22; absent before). */
+    woodwork?: number;
+    goals: number;
+    addedTimeGoals: number;
+    possession: number[];
+  };
   scenarios?: {
     /** Mean contribution of the "Out of position" factor to the choices taken. */
     slot: { own: number; outOfPosition: number | null; n: number };
@@ -103,6 +159,25 @@ export interface PositionProfile {
   };
 }
 
+export interface ChainProfile {
+  matches: number;
+  chains: number;
+  threeSteps: number;
+  outcomes: Record<string, number>;
+  positive: { best: number; random: number; worst: number; bestShaped: number };
+  /** Chains played with each policy (the denominators of `positive`). */
+  played: { best: number; random: number; worst: number; bestShaped: number };
+  matchesWithPositive: number;
+  lead: { n: number; success: number };
+  finish: { n: number; success: number };
+  shots: { n: number; goals: number };
+  /** Attacking chains' prizes (expected goals at the start), and how many reached 0.25. */
+  prize: { n: number; sum: number; high: number };
+  /** Matches with 60 minutes or more, and those with a high-value chain (hero beat). */
+  hero: { matches: number; met: number };
+  /** Close games at 75′, and those whose last chain came from 82′ (in added time). */
+  climax: { close: number; late: number; added: number };
+}
 function argument(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
   return index >= 0 ? process.argv[index + 1] : undefined;
@@ -117,6 +192,77 @@ const worstCommand = (session: MatchSession): MatchCommand => {
   }
   return autoPlayCommand(session);
 };
+/** A random choice at every step (the "average" policy of the chain gates). */
+const randomCommand = (session: MatchSession): MatchCommand => {
+  const moment = session.state.currentMoment;
+  if (moment) {
+    const pick = createRng(`${session.setup.seed}:random:${moment.id}`).int(
+      0,
+      moment.choices.length - 1,
+    );
+    return { type: 'choose', choiceId: moment.choices[pick]!.id };
+  }
+  return autoPlayCommand(session);
+};
+/** Positive chains and chains played in a session. */
+const positives = (session: MatchSession): [number, number] => {
+  const chains = session.state.chains ?? [];
+  return [chains.filter((chain) => chain.positive).length, chains.length];
+};
+/** The close game at 75′ and where its last chain came (the climax). */
+function climaxOf(
+  session: MatchSession,
+  own: number,
+): { close: boolean; minute?: number; added: boolean } {
+  const goals = session.state.match.events.filter((e) => e.kind === 'goal' && e.minute < 75);
+  const ownId = own === 0 ? session.setup.home.id : session.setup.away.id;
+  const mine = goals.filter((e) => e.teamId === ownId).length;
+  const close = Math.abs(2 * mine - goals.length) <= 1;
+  const last = (session.state.chains ?? []).at(-1);
+  return { close, ...(last ? { minute: last.minute } : {}), added: Boolean(last?.addedTime) };
+}
+function tallyChains(profile: ChainProfile, session: MatchSession, own: number): void {
+  const s = session.state;
+  const chains = s.chains ?? [];
+  profile.matches++;
+  profile.chains += chains.length;
+  if (chains.some((chain) => chain.positive)) profile.matchesWithPositive++;
+  for (const chain of chains) {
+    if (chain.steps === 3) profile.threeSteps++;
+    profile.outcomes[chain.outcome] = (profile.outcomes[chain.outcome] ?? 0) + 1;
+    for (const result of chain.results) {
+      const finish = result.step === chain.steps - 1;
+      const bucket = finish ? profile.finish : profile.lead;
+      bucket.n++;
+      if (result.success) bucket.success++;
+      if (!finish) continue;
+      const moment = s.match.keyMoments.find(
+        (entry) => entry.chainId === chain.id && entry.step === result.step,
+      );
+      if (moment && templateOf(moment.situationId, result.choiceId)?.direct === 'for') {
+        profile.shots.n++;
+        if (result.success) profile.shots.goals++;
+      }
+    }
+    if (chain.kind === 'attack' && chain.prize !== undefined) {
+      profile.prize.n++;
+      profile.prize.sum += chain.prize;
+      if (chain.prize >= 0.25 - 1e-9) profile.prize.high++;
+    }
+  }
+  // The hero beat: 60 minutes or more on the pitch, and a chain worth 0.25 (its prize: expected
+  // goals in attack, the danger it faces in defence).
+  if (s.selectedPlayerMinutes >= 60) {
+    profile.hero.matches++;
+    if (chains.some((chain) => (chain.prize ?? 0) >= 0.25 - 1e-9)) profile.hero.met++;
+  }
+  const climax = climaxOf(session, own);
+  if (climax.close && !s.substituted && !s.sentOff) {
+    profile.climax.close++;
+    if ((climax.minute ?? 0) >= 82) profile.climax.late++;
+    if (climax.added) profile.climax.added++;
+  }
+}
 function play(session: MatchSession, command: (s: MatchSession) => MatchCommand): MatchSession {
   while (session.state.match.status !== 'finished')
     session = applyMatchCommand(session, command(session));
@@ -161,6 +307,27 @@ const positionFactors = (session: MatchSession): number[] =>
   });
 const mean = (values: number[]) =>
   values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+
+/** A goal in added time: match-22 marks it with its added minute (release 1.0 step 5.4). */
+const inAddedTime = (event: { kind: string; addedTime?: unknown }) =>
+  event.kind === 'goal' && Boolean(event.addedTime);
+
+/** Credit the choice with the highest expected value at each of a match's key moments. */
+function tallyBestChoices(
+  tally: NonNullable<PositionProfile['dominance']>,
+  session: MatchSession,
+): void {
+  for (const moment of session.state.match.keyMoments) {
+    if (moment.choices.length < 2) continue;
+    const values = moment.choices.map((choice) => expectedImpact(choice).net);
+    const top = Math.max(...values);
+    const best = moment.choices.filter((_, index) => values[index]! >= top - 1e-9);
+    const entry = (tally[moment.situationId] ??= { n: 0, best: {} });
+    entry.n++;
+    for (const choice of best)
+      entry.best[choice.id] = (entry.best[choice.id] ?? 0) + 1 / best.length;
+  }
+}
 
 export function profilePosition(
   position: Position,
@@ -207,6 +374,32 @@ export function profilePosition(
   const late = result.late!;
   const odds = { own: [] as number[], away: [] as number[] };
   const prevented: number[] = [];
+  const swing: number[] = [];
+  const dominance: NonNullable<PositionProfile['dominance']> = {};
+  const chainProfile: ChainProfile = {
+    matches: 0,
+    chains: 0,
+    threeSteps: 0,
+    outcomes: {},
+    positive: { best: 0, random: 0, worst: 0, bestShaped: 0 },
+    played: { best: 0, random: 0, worst: 0, bestShaped: 0 },
+    matchesWithPositive: 0,
+    lead: { n: 0, success: 0 },
+    finish: { n: 0, success: 0 },
+    shots: { n: 0, goals: 0 },
+    prize: { n: 0, sum: 0, high: 0 },
+    hero: { matches: 0, met: 0 },
+    climax: { close: 0, late: 0, added: 0 },
+  };
+  const statistics: NonNullable<PositionProfile['statistics']> = {
+    matches: 0,
+    shots: 0,
+    onTarget: 0,
+    woodwork: 0,
+    goals: 0,
+    addedTimeGoals: 0,
+    possession: [],
+  };
   const tired = {
     fresh: [] as boolean[],
     tired: [] as boolean[],
@@ -246,6 +439,19 @@ export function profilePosition(
         FORMATION_SLOTS[f].some((s) => s.position === position),
       )!;
     const best = play(createMatchSession(setup, tactics), autoPlayCommand);
+    // 1.0 targets: the best choice at every moment, and the match's statistics.
+    tallyBestChoices(dominance, best);
+    statistics.matches++;
+    statistics.shots += best.state.stats.homeShots + best.state.stats.awayShots;
+    statistics.onTarget += best.state.stats.shotsOnTarget[0] + best.state.stats.shotsOnTarget[1];
+    const woodwork = best.state.stats.woodwork ?? [0, 0];
+    statistics.woodwork! += woodwork[0] + woodwork[1];
+    statistics.possession.push(best.state.stats.homePossession);
+    for (const event of best.state.match.events)
+      if (event.kind === 'goal') {
+        statistics.goals++;
+        if (inAddedTime(event)) statistics.addedTimeGoals++;
+      }
     // Late moments by the score at the time (review phase 6).
     for (const moment of best.state.match.keyMoments) {
       if (moment.minute < 75) continue;
@@ -255,7 +461,7 @@ export function profilePosition(
       const mine = goals.filter((event) => event.teamId === club.id).length;
       const theirs = goals.length - mine;
       const state = mine < theirs ? 'behind' : mine > theirs ? 'ahead' : 'level';
-      const phase = SITUATION_BY_ID[moment.situationId]?.phase;
+      const phase = situationOf(moment.situationId)?.phase;
       if (phase === 'attack') late[state].attack++;
       else if (phase === 'defence') late[state].defence++;
     }
@@ -286,6 +492,19 @@ export function profilePosition(
     const shaped = specialise(setup, selected);
     const bestShaped = play(createMatchSession(shaped, tactics), autoPlayCommand);
     const worst = play(createMatchSession(shaped, tactics), worstCommand);
+    // Decision chains (X1a): the best policy's chains in full, and how each policy's ended.
+    const random = play(createMatchSession(setup, tactics), randomCommand);
+    tallyChains(chainProfile, best, own);
+    for (const [name, session] of [
+      ['best', best],
+      ['random', random],
+      ['worst', worst],
+      ['bestShaped', bestShaped],
+    ] as const) {
+      const [good, all] = positives(session);
+      chainProfile.positive[name] += good;
+      chainProfile.played[name] += all;
+    }
     const s = best.state;
     const report = s.report!;
     result.goals += s.stats.goals;
@@ -330,6 +549,11 @@ export function profilePosition(
     result.xp += report.xp;
     result.fame += report.fameDelta;
     prevented.push(worst.state.match.score[1 - own]! - bestShaped.state.match.score[1 - own]!);
+    swing.push(
+      bestShaped.state.match.score[own]! -
+        bestShaped.state.match.score[1 - own]! -
+        (worst.state.match.score[own]! - worst.state.match.score[1 - own]!),
+    );
     result.policy.best[0] += bestShaped.state.match.score[own]!;
     result.policy.best[1] += bestShaped.state.match.score[1 - own]!;
     result.policy.worst[0] += worst.state.match.score[own]!;
@@ -356,11 +580,12 @@ export function profilePosition(
     }
   }
   const round = (value: number, digits = 2) => Math.round(value * 10 ** digits) / 10 ** digits;
-  // Three matches a seed: the best policy, and the best and worst on the specialised profile.
+  // Four matches a seed: the best policy, the best and worst on the specialised profile, and a
+  // random choice at every step (X1a).
   result.cost = {
-    matchMs: round((performance.now() - started) / (3 * matches)),
-    motionMs: round(motionProbe.ms / (3 * matches)),
-    narrationMs: round(motionProbe.narrationMs / (3 * matches)),
+    matchMs: round((performance.now() - started) / (4 * matches)),
+    motionMs: round(motionProbe.ms / (4 * matches)),
+    narrationMs: round(motionProbe.narrationMs / (4 * matches)),
   };
   motionProbe.clock = null;
   result.goals = round(result.goals / matches);
@@ -370,6 +595,8 @@ export function profilePosition(
     p10: percentile(ratings, 0.1),
     p90: percentile(ratings, 0.9),
     nineOrMore: round(ratings.filter((value) => value >= 9).length / matches, 3),
+    sd: round(standardDeviation(ratings), 3),
+    fiveOrLess: round(ratings.filter((value) => value <= 5).length / matches, 3),
   };
   result.moments = round(result.moments / matches, 1);
   result.substituted = round(result.substituted / matches, 3);
@@ -403,6 +630,28 @@ export function profilePosition(
     se: round(sd / Math.sqrt(Math.max(1, prevented.length)), 3),
     n: prevented.length,
   };
+  const swingSd = Math.sqrt(
+    swing.reduce((sum, value) => sum + (value - mean(swing)) ** 2, 0) /
+      Math.max(1, swing.length - 1),
+  );
+  result.swing = {
+    mean: round(mean(swing), 3),
+    se: round(swingSd / Math.sqrt(Math.max(1, swing.length)), 3),
+    n: swing.length,
+  };
+  result.dominance = Object.fromEntries(
+    Object.entries(dominance).map(([situation, entry]) => [
+      situation,
+      {
+        n: entry.n,
+        best: Object.fromEntries(
+          Object.entries(entry.best).map(([choice, count]) => [choice, round(count, 2)]),
+        ),
+      },
+    ]),
+  );
+  result.statistics = statistics;
+  result.chains = chainProfile;
   result.scenarios = {
     slot: {
       own: round(mean(odds.own), 4),
@@ -613,6 +862,304 @@ export const GATES: Gate[] = [
   },
 ];
 
+/**
+ * The 1.0 match targets (docs/RELEASE-1.0-PLAN.md step 2.3), over every seed in the run. Phase 5
+ * (engine match-22) meets them and sets `asserted: true` on each.
+ */
+const seedsOf = (profiles: PositionProfile[]) => [
+  ...new Set(profiles.map((p) => p.seed ?? 'match-profile')),
+];
+const bySeed = (profiles: PositionProfile[]) =>
+  seedsOf(profiles).map(
+    (seed) => [seed, profiles.filter((p) => (p.seed ?? 'match-profile') === seed)] as const,
+  );
+/** The 1.0 bands, in one place. */
+export const TARGET_BANDS = {
+  /** Perfect versus worst play, goals a match, for every position. */
+  swing: 0.3,
+  /** Seeds the swing must hold on. */
+  seeds: 2,
+  /** The most often one choice may be best in its situation, and the instances to judge it. */
+  dominantShare: 0.6,
+  dominantMinimum: 30,
+  // The redesign's tighter band (mean 6.6–6.9, sd 0.8–1.0) is the tuning goal after the owner
+  // plays the chains; until then the 5.3 band stays asserted.
+  rating: { mean: [6.5, 6.9], sd: [0.7, 1.0], nineOrMore: 0.03, fiveOrLess: 0.03 },
+  /**
+   * Decision chains (release 1.0 X1a; docs/EXPERIENCE-REDESIGN-1.0.md 1.1): best minus worst
+   * play a chain and a match (every position); the best option's success at a lead-in step and
+   * a finishing shot's; chains ending positively with a random choice at every step ("on
+   * average"), the best and the worst play; matches with a positive chain; the striker's goals
+   * plus assists a match.
+   */
+  chains: {
+    swingPerChain: 0.12,
+    swingPerMatch: 0.6,
+    lead: [0.6, 0.75],
+    shots: [0.3, 0.5],
+    positive: { average: [0.5, 0.6], best: 0.65, worst: 0.35 },
+    matchesWithPositive: [0.85, 0.9],
+    strikerInvolvement: [0.55, 0.75],
+  },
+  onTargetShare: [0.3, 0.4],
+  shotsPerTeam: [11, 14],
+  /** Home possession: the 10th percentile at most, the 90th at least. */
+  possession: [40, 60],
+  /** Goals in added time, as a share of all goals (football data: about 7–9%). */
+  addedTimeShare: [0.06, 0.1],
+} as const;
+export const TARGETS: Target<PositionProfile[]>[] = [
+  {
+    id: 'choices-matter',
+    name: `choices matter: perfect vs worst play ≥ ${TARGET_BANDS.swing} goals a match for every position, on ${TARGET_BANDS.seeds} seeds`,
+    phase: 5,
+    // Met and asserted in release 1.0 step 5.2 (engine match-22).
+    asserted: true,
+    evaluate: (profiles) => {
+      const seeds = bySeed(profiles).filter(([, list]) => list.every((p) => p.swing));
+      if (!seeds.length) return { met: null, value: 'no swing data (rerun the profile)' };
+      const parts = seeds.map(
+        ([seed, list]) =>
+          `${seed}: ${list.map((p) => `${p.position} ${p.swing!.mean.toFixed(2)}±${p.swing!.se.toFixed(2)}`).join(', ')}`,
+      );
+      const low = seeds.flatMap(([, list]) =>
+        list.filter((p) => p.swing!.mean < TARGET_BANDS.swing),
+      );
+      const enough = seeds.length >= TARGET_BANDS.seeds;
+      return {
+        met: low.length ? false : enough ? true : null,
+        value: `${parts.join(' | ')}${enough ? '' : ` (${seeds.length} of ${TARGET_BANDS.seeds} seeds)`}`,
+      };
+    },
+  },
+  {
+    id: 'no-dominant-choice',
+    name: `no dominant choice: none best in more than ${TARGET_BANDS.dominantShare * 100}% of its situation's instances (situations with ≥ ${TARGET_BANDS.dominantMinimum})`,
+    phase: 5,
+    // Met and asserted in release 1.0 step 5.2 (engine match-22).
+    asserted: true,
+    evaluate: (profiles) => {
+      if (!profiles.some((p) => p.dominance)) return { met: null, value: 'no dominance data' };
+      const offenders: string[] = [];
+      let judged = 0;
+      for (const [seed, list] of bySeed(profiles)) {
+        const pooled: Record<string, { n: number; best: Record<string, number> }> = {};
+        for (const profile of list)
+          for (const [situation, entry] of Object.entries(profile.dominance ?? {})) {
+            const target = (pooled[situation] ??= { n: 0, best: {} });
+            target.n += entry.n;
+            for (const [choice, count] of Object.entries(entry.best))
+              target.best[choice] = (target.best[choice] ?? 0) + count;
+          }
+        for (const [situation, entry] of Object.entries(pooled)) {
+          if (entry.n < TARGET_BANDS.dominantMinimum) continue;
+          judged++;
+          const [choice, count] = Object.entries(entry.best).sort((a, b) => b[1] - a[1])[0]!;
+          const share = count / entry.n;
+          if (share > TARGET_BANDS.dominantShare)
+            offenders.push(
+              `${seed} ${situation}/${choice} ${Math.round(share * 100)}% of ${entry.n}`,
+            );
+        }
+      }
+      return {
+        met: offenders.length === 0,
+        value: offenders.length
+          ? `${offenders.length} of ${judged} situations: ${offenders.join('; ')}`
+          : `${judged} situations judged, none dominated`,
+      };
+    },
+  },
+  {
+    id: 'ratings',
+    name: 'ratings: per-position mean 6.5–6.9, standard deviation 0.7–1.0, ≤ 3% at 9.0+ and ≤ 3% at 5.0 or less',
+    phase: 5,
+    // Met by step 5.3 (engine match-22) on both seeds.
+    asserted: true,
+    evaluate: (profiles) => {
+      const measured = profiles.filter((p) => p.rating.sd !== undefined);
+      if (!measured.length) return { met: null, value: 'no rating spread data' };
+      const band = TARGET_BANDS.rating;
+      const off = measured.filter(
+        (p) =>
+          !within(p.rating.mean, band.mean[0], band.mean[1]) ||
+          !within(p.rating.sd!, band.sd[0], band.sd[1]) ||
+          p.rating.nineOrMore > band.nineOrMore ||
+          p.rating.fiveOrLess! > band.fiveOrLess,
+      );
+      const line = (p: PositionProfile) =>
+        `${p.position} ${p.rating.mean.toFixed(2)} sd ${p.rating.sd!.toFixed(2)} 9+ ${(p.rating.nineOrMore * 100).toFixed(1)}% ≤5 ${(p.rating.fiveOrLess! * 100).toFixed(1)}%`;
+      return {
+        met: off.length === 0,
+        value: bySeed(measured)
+          .map(([seed, list]) => `${seed}: ${list.map(line).join(', ')}`)
+          .join(' | '),
+      };
+    },
+  },
+  {
+    id: 'match-statistics',
+    name: 'match statistics: shots on target 30–40%; 11–14 shots a team; possession p10–p90 at least 40–60%',
+    phase: 5,
+    // Met by step 5.3 (engine match-22) on both seeds.
+    asserted: true,
+    evaluate: (profiles) => {
+      const measured = profiles.filter((p) => p.statistics);
+      if (!measured.length) return { met: null, value: 'no statistics data' };
+      const parts: string[] = [];
+      let met = true;
+      for (const [seed, list] of bySeed(measured)) {
+        const sum = (pick: (s: NonNullable<PositionProfile['statistics']>) => number) =>
+          list.reduce((total, p) => total + pick(p.statistics!), 0);
+        const matches = sum((s) => s.matches);
+        const onTarget =
+          sum((s) => s.onTarget) /
+          Math.max(
+            1,
+            sum((s) => s.shots),
+          );
+        const shots = sum((s) => s.shots) / Math.max(1, 2 * matches);
+        const possession = list.flatMap((p) => p.statistics!.possession);
+        const p10 = quantile(possession, 0.1);
+        const p90 = quantile(possession, 0.9);
+        const woodwork = sum((s) => s.woodwork ?? 0) / Math.max(1, matches);
+        const ok =
+          within(onTarget, TARGET_BANDS.onTargetShare[0], TARGET_BANDS.onTargetShare[1]) &&
+          within(shots, TARGET_BANDS.shotsPerTeam[0], TARGET_BANDS.shotsPerTeam[1]) &&
+          p10 <= TARGET_BANDS.possession[0] &&
+          p90 >= TARGET_BANDS.possession[1];
+        met &&= ok;
+        parts.push(
+          `${seed}: on target ${(onTarget * 100).toFixed(1)}%, ${shots.toFixed(1)} shots a team, possession p10–p90 ${p10}–${p90}%, ${woodwork.toFixed(2)} off the woodwork a match, ${matches} matches`,
+        );
+      }
+      return { met, value: parts.join(' | ') };
+    },
+  },
+  {
+    // Release 1.0 step 5.4 (review M12): stoppage time is played, and goals come in it.
+    id: 'added-time-goals',
+    name: `some goals in added time: ${TARGET_BANDS.addedTimeShare[0] * 100}–${TARGET_BANDS.addedTimeShare[1] * 100}% of all goals`,
+    phase: 5,
+    asserted: true,
+    evaluate: (profiles) => {
+      const measured = profiles.filter((p) => p.statistics);
+      if (!measured.length) return { met: null, value: 'no statistics data' };
+      const parts: string[] = [];
+      let met = true;
+      for (const [seed, list] of bySeed(measured)) {
+        const added = list.reduce((total, p) => total + p.statistics!.addedTimeGoals, 0);
+        const goals = list.reduce((total, p) => total + p.statistics!.goals, 0);
+        const share = added / Math.max(1, goals);
+        met &&= within(share, TARGET_BANDS.addedTimeShare[0], TARGET_BANDS.addedTimeShare[1]);
+        parts.push(`${seed}: ${added} of ${goals} goals (${(share * 100).toFixed(1)}%)`);
+      }
+      return { met, value: parts.join(' | ') };
+    },
+  },
+];
+
+/** A ratio of two counts pooled over a seed's positions. */
+const pooledShare = (list: PositionProfile[], pick: (c: ChainProfile) => [number, number]) => {
+  let a = 0,
+    b = 0;
+  for (const p of list) {
+    if (!p.chains) continue;
+    const [x, y] = pick(p.chains);
+    a += x;
+    b += y;
+  }
+  return b ? a / b : Number.NaN;
+};
+const percent = (value: number) => `${(value * 100).toFixed(0)}%`;
+/**
+ * Decision chains (release 1.0 X1a). Reported: each becomes an asserted gate once a full run on
+ * both seeds meets it (docs/MATCH-BALANCING.md "Decision chains" has the latest figures).
+ */
+export const CHAIN_TARGETS: Target<PositionProfile[]>[] = [
+  {
+    id: 'chain-swing',
+    name: `chains decide: best minus worst ≥ ${TARGET_BANDS.chains.swingPerChain} goals a chain and ≥ ${TARGET_BANDS.chains.swingPerMatch} a match, every position`,
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      const measured = profiles.filter((p) => p.swing && p.chains?.chains);
+      if (!measured.length) return { met: null, value: 'no chain data' };
+      const B = TARGET_BANDS.chains;
+      const per = (p: PositionProfile) => p.swing!.mean / (p.chains!.chains / p.chains!.matches);
+      const off = measured.filter(
+        (p) => per(p) < B.swingPerChain || p.swing!.mean < B.swingPerMatch,
+      );
+      return {
+        met: off.length === 0,
+        value: bySeed(measured)
+          .map(
+            ([seed, list]) =>
+              `${seed}: ${list.map((p) => `${p.position} ${per(p).toFixed(3)}/${p.swing!.mean.toFixed(2)}`).join(', ')}`,
+          )
+          .join(' | '),
+      };
+    },
+  },
+  {
+    id: 'chain-steps',
+    name: `chain steps: the best option at a lead-in succeeds ${TARGET_BANDS.chains.lead.join('–')}, a finishing shot ${TARGET_BANDS.chains.shots.join('–')} (pooled a seed)`,
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      if (!profiles.some((p) => p.chains)) return { met: null, value: 'no chain data' };
+      const B = TARGET_BANDS.chains;
+      let met = true;
+      const parts = bySeed(profiles).map(([seed, list]) => {
+        const lead = pooledShare(list, (c) => [c.lead.success, c.lead.n]);
+        const shots = pooledShare(list, (c) => [c.shots.goals, c.shots.n]);
+        met &&= within(lead, B.lead[0], B.lead[1]) && within(shots, B.shots[0], B.shots[1]);
+        return `${seed}: lead ${percent(lead)}, shots ${percent(shots)}`;
+      });
+      return { met, value: parts.join(' | ') };
+    },
+  },
+  {
+    id: 'chain-positive',
+    name: `chains end positively ${TARGET_BANDS.chains.positive.average.join('–')} with a random choice, ≥ ${TARGET_BANDS.chains.positive.best} with the best, ≤ ${TARGET_BANDS.chains.positive.worst} with the worst; ${TARGET_BANDS.chains.matchesWithPositive.join('–')} of matches have one (pooled a seed)`,
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      if (!profiles.some((p) => p.chains)) return { met: null, value: 'no chain data' };
+      const B = TARGET_BANDS.chains;
+      let met = true;
+      const parts = bySeed(profiles).map(([seed, list]) => {
+        const random = pooledShare(list, (c) => [c.positive.random, c.played.random]);
+        const best = pooledShare(list, (c) => [c.positive.best, c.played.best]);
+        const worst = pooledShare(list, (c) => [c.positive.worst, c.played.worst]);
+        const matches = pooledShare(list, (c) => [c.matchesWithPositive, c.matches]);
+        met &&=
+          within(random, B.positive.average[0], B.positive.average[1]) &&
+          best >= B.positive.best &&
+          worst <= B.positive.worst &&
+          within(matches, B.matchesWithPositive[0], B.matchesWithPositive[1]);
+        return `${seed}: random ${percent(random)}, best ${percent(best)}, worst ${percent(worst)}, matches ${percent(matches)}`;
+      });
+      return { met, value: parts.join(' | ') };
+    },
+  },
+  {
+    id: 'striker-involvement',
+    name: `a striker's goals plus assists ${TARGET_BANDS.chains.strikerInvolvement.join('–')} a match`,
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      const strikers = profiles.filter((p) => p.position === 'ST');
+      if (!strikers.length) return { met: null, value: 'no striker profile' };
+      const [low, high] = TARGET_BANDS.chains.strikerInvolvement;
+      return {
+        met: strikers.every((p) => within(p.goals + p.assists, low, high)),
+        value: strikers.map((p) => `${p.seed}: ${(p.goals + p.assists).toFixed(2)}`).join(' | '),
+      };
+    },
+  },
+];
+
 /** Every seed's profiles are checked on their own (review phase 6: several seeds). */
 function check(): void {
   const all = JSON.parse(readFileSync(OUT, 'utf8')) as PositionProfile[];
@@ -627,6 +1174,8 @@ function check(): void {
       if (problem) failed++;
     }
   }
+  // The 1.0 targets: reported until their phase asserts them.
+  failed += printTargets(evaluateTargets([...TARGETS, ...CHAIN_TARGETS], all, assertAllTargets()));
   if (failed) process.exitCode = 1;
 }
 

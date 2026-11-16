@@ -1,22 +1,11 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import { expect, skipTutorial, test } from './support';
 import { readFileSync } from 'node:fs';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 
@@ -50,7 +39,7 @@ async function accessibilityViolations(page: Page): Promise<string[]> {
 }
 
 function worldSave(): { json: string; club: string; league: string } {
-  const world = generateWorld('edit-browser', { format: 'legacy' });
+  const world = generateWorld('edit-browser');
   const save = createSave(1, 'Edit world', {
     kind: 'world',
     world,
@@ -81,7 +70,10 @@ test('renames, repaints and recrests, reverts, exports and imports edits', async
     buffer: Buffer.from(json),
   });
   await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Edit world');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Edit world', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
 
   await page.goto('/edit?save=1');
   await expect(page.getByRole('heading', { name: 'No edits yet in this world.' })).toHaveCount(0);
@@ -132,9 +124,9 @@ test('renames, repaints and recrests, reverts, exports and imports edits', async
   await page
     .getByRole('region', { name: league })
     .getByLabel('Name', { exact: true })
-    .fill('Premier Division');
+    .fill('Crown Division');
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: 'Premier Division', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Crown Division', level: 2 })).toBeVisible();
 
   await expect(page.getByText('1 club · 1 league · 0 players edited')).toBeVisible();
   await page.getByLabel('Search').fill('');
@@ -170,7 +162,7 @@ test('renames, repaints and recrests, reverts, exports and imports edits', async
     timeout: 30000,
   });
   await page.goto('/world?save=1');
-  await expect(page.getByText('Premier Division').first()).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText('Crown Division').first()).toBeVisible({ timeout: 30000 });
 
   if (browserName === 'chromium') {
     for (const scheme of ['light', 'dark'] as const) {

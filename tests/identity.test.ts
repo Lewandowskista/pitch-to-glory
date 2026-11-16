@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Player, Position } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { autoPlayCommand } from '../src/engine/career/matches';
 import { SKILL_BY_ID, SYSTEMIC_SKILLS } from '../src/engine/career/catalogue';
 import {
   applyMatchCommand,
   createMatchSession,
   createMatchSetup,
-  engineFor,
-  EXTRA_TIME_MATCH_ENGINE,
+  isCurrentSetup,
   MATCH_ENGINE_VERSION,
   SITUATION_BY_ID,
   validateMatchSession,
@@ -22,6 +20,7 @@ import {
   situationWeights,
   type DecisionContext,
 } from '../src/engine/match/decisions';
+import { nationalWorld } from './support/world';
 
 /**
  * Review phase 4, steps 4.1 and 4.2 (engine match-19): the opposition's style shapes the
@@ -29,7 +28,7 @@ import {
  */
 const F = CONFIG.match.foot;
 const S = CONFIG.match.styles;
-const world = generateWorld('identity-tests', { format: 'legacy' });
+const world = nationalWorld();
 const clubs = Object.values(world.clubs);
 
 function context(
@@ -67,8 +66,6 @@ function context(
     teammateFinishing: 60,
     consistencyShift: 0,
     chemistry: 60,
-    latest: true,
-    stackImpact: true,
     ...extra,
   };
 }
@@ -198,14 +195,10 @@ describe('engine match-19', () => {
     return session;
   };
 
-  it('is played by new setups, and setups without it keep match-18', () => {
+  it('is played by new setups', () => {
     const setup = createMatchSetup(world, home.id, away.id, selected, 'identity:1');
     expect(setup.identity).toBe(true);
-    expect(engineFor(setup)).toBe(MATCH_ENGINE_VERSION);
-    const older = structuredClone(setup);
-    delete older.defending;
-    delete older.identity;
-    expect(engineFor(older)).toBe(EXTRA_TIME_MATCH_ENGINE);
+    expect(isCurrentSetup(setup)).toBe(true);
   });
 
   it('plays, replays and validates a whole match', () => {

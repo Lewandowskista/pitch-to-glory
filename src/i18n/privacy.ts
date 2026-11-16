@@ -1,8 +1,9 @@
+import { LOCALE, type Translations } from './locale';
 /**
  * Privacy copy (docs/ANALYTICS.md): the Settings card, the one-time invitation after the first
  * finished match and the privacy page. Kept out of the app shell; only these screens load it.
  */
-export const privacyText = {
+const privacyTextEn = {
   settings: {
     title: 'Privacy',
     body: 'No ads and no account. Choose what the game may share to help make it better.',
@@ -77,3 +78,6 @@ export const privacyText = {
     settings: 'Open Settings',
   },
 } as const;
+export const privacyText = ({ en: privacyTextEn } satisfies Translations<typeof privacyTextEn>)[
+  LOCALE
+];

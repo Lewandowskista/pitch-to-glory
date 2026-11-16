@@ -12,11 +12,11 @@ import {
   teamStrength,
   strengthFromAbility,
 } from '../src/engine/strength';
-import { generateWorld } from '../src/engine/world/generate';
 import { simulateWeek } from '../src/engine/world/simulate';
 import type { Club, World } from '../src/model/domain';
+import { nationalWorld } from './support/world';
 
-const world = generateWorld('strength-tests', { format: 'legacy' });
+const world = nationalWorld();
 const squad = (source: World, club: Club) => club.playerIds.map((id) => source.players[id]!);
 // Same Poisson sampler as the background resolver.
 function poisson(rng: Rng, mean: number): number {
@@ -37,7 +37,7 @@ describe('shared strength model', () => {
       const weights = ABILITY_WEIGHTS[player.primaryPosition];
       const entries =
         player.primaryPosition === 'GK'
-          ? Object.values(player.keeperAttributes).map((value) => [value, 1] as const)
+          ? Object.values(player.keeperAttributes!).map((value) => [value, 1] as const)
           : Object.entries(player.attributes).map(
               ([key, value]) => [value, weights[key as keyof typeof weights] ?? 1] as const,
             );
@@ -111,28 +111,6 @@ describe('shared strength model', () => {
       const [lambdaHome, lambdaAway] = expectedGoals(
         strength(world.clubs[fixture.homeId]!, `${fixture.id}:home`),
         strength(world.clubs[fixture.awayId]!, `${fixture.id}:away`),
-        !!fixture.neutral,
-      );
-      const rng = createRng(`${world.seed}:result:${fixture.id}`);
-      expect(next.results[fixture.id]!.score).toEqual([
-        poisson(rng, lambdaHome),
-        poisson(rng, lambdaAway),
-      ]);
-    }
-  });
-  it('keeps the line-based eleven in a world saved before formations', () => {
-    const before: World = { ...world, selectionVersion: undefined };
-    const next = simulateWeek(before);
-    const fixtures = fixturesOf(before, next);
-    expect(fixtures.length).toBeGreaterThan(20);
-    for (const fixture of fixtures) {
-      const home = world.clubs[fixture.homeId]!,
-        away = world.clubs[fixture.awayId]!;
-      const [lambdaHome, lambdaAway] = expectedGoals(
-        teamStrength(home.reputation, selectStartingPlayers(squad(world, home))) +
-          managerStrengthBonus(world.managers[home.managerId]!.ability),
-        teamStrength(away.reputation, selectStartingPlayers(squad(world, away))) +
-          managerStrengthBonus(world.managers[away.managerId]!.ability),
         !!fixture.neutral,
       );
       const rng = createRng(`${world.seed}:result:${fixture.id}`);

@@ -1,5 +1,13 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import {
+  expect,
+  matchState,
+  nationalCareer,
+  playReel,
+  recordedReport,
+  skipTutorial,
+  test,
+} from './support';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -16,21 +24,14 @@ import type { World } from '../src/model/domain';
  */
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 
-/** Two engine-played seasons: the second ends before a tournament year, the player named in it. */
+/**
+ * Two engine-played seasons: the second ends before a tournament year, the player named in it.
+ * A compact legacy world: two national seasons would take minutes in Node before each run (the
+ * national tournament rules: tests/honours.test.ts and tests/qualifying*.test.ts).
+ */
 let cached: string | undefined;
 function tournamentSave(): string {
   if (cached) return cached;
@@ -78,33 +79,11 @@ function tournamentSave(): string {
   return cached;
 }
 
-const state = (page: Page) => page.getByTestId('match-state');
+const state = matchState;
 /** Play the prepared match from kickoff to full time, using skip and number keys. */
 async function playMatch(page: Page) {
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  for (let turns = 0; turns < 160; turns++) {
-    const status = await state(page).getAttribute('data-status');
-    if (status === 'finished') return;
-    if (status === 'decision') {
-      await expect(page.locator('.match-choices button').first()).toBeFocused();
-      await page.keyboard.press('1');
-      await expect(state(page)).not.toHaveAttribute('data-status', 'decision');
-    } else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team/ }).click();
-    else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible())
-      await page.getByRole('button', { name: /Accept the change/ }).click();
-    else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
-      await page.getByRole('button', { name: /Keep the team composed/ }).click();
-    else {
-      const pause = page.getByRole('button', { name: 'Pause', exact: true });
-      if (await pause.isVisible()) await pause.click();
-      await page
-        .getByRole('button', { name: 'Next key moment', exact: true })
-        .click({ timeout: 3000 })
-        .catch(() => {});
-    }
-  }
-  throw new Error('Tournament match did not reach full time');
+  await playReel(page);
 }
 
 test('plays a tournament match for the nation, then the rest before the next season', async ({
@@ -164,8 +143,7 @@ test('plays a tournament match for the nation, then the rest before the next sea
 
   // Full time records the result once, with the XP it granted.
   await playMatch(page);
-  await expect(page.getByTestId('career-xp')).toBeVisible({ timeout: 60000 });
-  await expect(page.getByTestId('career-xp')).toContainText('XP earned');
+  await recordedReport(page);
 
   // Continue plays the rest of the round and brings the next match.
   await page.getByRole('button', { name: 'Continue the tournament', exact: true }).click();
@@ -197,6 +175,7 @@ test('plays a tournament match for the nation, then the rest before the next sea
 let qualifyingCached: string | undefined;
 function qualifyingSave(): string {
   if (qualifyingCached) return qualifyingCached;
+  // A compact legacy world, as above: a season and a half before the journey starts.
   const base = generateWorld('qualifying-browser', { format: 'legacy' });
   const trial = trialOffers(base, 'country:0', 'qualifying-browser')[0]!;
   let world: World = createCareer(
@@ -250,8 +229,11 @@ test('shows the nation’s qualifying group and matches on the national page', a
       mimeType: 'application/json',
       buffer: Buffer.from(qualifyingSave()),
     });
+  // A national save takes several seconds to import on a slow CI runner: wait for the import.
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 120000 });
   await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText(
     'Qualifying career',
+    { timeout: 30000 },
   );
   await page.goto('/career/national?save=1');
   const panel = page.getByTestId('qualifying');
@@ -268,31 +250,7 @@ test('shows the nation’s qualifying group and matches on the national page', a
 let windowCached: string | undefined;
 function windowSave(): string {
   if (windowCached) return windowCached;
-  const base = generateWorld('window-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'window-browser')[0]!;
-  let world: World = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'window-browser',
-  );
+  let world: World = nationalCareer('window-browser');
   const player = world.players[world.career!.playerId]!;
   for (const key of Object.keys(player.attributes) as (keyof typeof player.attributes)[])
     player.attributes[key] = 95;
@@ -328,7 +286,10 @@ test('plays an international window match, then has the rest simulated', async (
       mimeType: 'application/json',
       buffer: Buffer.from(windowSave()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Window career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Window career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
 
   // The hub puts the nation's match first, and the National page shows the choice.
   await page.goto('/career?save=1');
@@ -340,7 +301,7 @@ test('plays an international window match, then has the rest simulated', async (
   await fixture.getByRole('button', { name: 'Go to the pre-match briefing' }).click();
   await expect(state(page)).toHaveAttribute('data-status', 'preview');
   await playMatch(page);
-  await expect(page.getByTestId('career-xp')).toContainText('XP earned', { timeout: 60000 });
+  await recordedReport(page);
 
   // The second match waits; the player has it simulated with the week instead.
   await page.getByRole('button', { name: 'Your next fixture', exact: true }).click();

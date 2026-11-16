@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { MatchSession } from '../../engine/match/types';
 import { audio, type SoundName } from '../../audio';
+import type { ReelBeat } from './reel/useReel';
 
 const MATCH_SOUNDS: SoundName[] = [
   'whistle',
@@ -15,16 +16,21 @@ const MATCH_SOUNDS: SoundName[] = [
 ];
 
 /**
- * Match sound: whistles at kick-off, half-time and full time, a cue when a key moment
- * pauses play, the crowd roaring for the player's side and groaning at the opposition's
- * goals, and a crowd bed that rises with play and momentum. Only new events make sound, so
- * a restored match does not replay its history; a burst of events (skipping ahead, 4×
- * speed) plays at most one goal sound.
+ * Match sound for the highlights reel: whistles at kick-off, half-time and full time; the
+ * crowd swelling before each chain and a cue when its card opens; the net and the roar (or
+ * the groan) when a goal goes in on the pitch — not before, while its clip still plays; a
+ * kick for shots in the ticker; and a crowd bed that follows the beat and the occasion. Only
+ * new events make sound, so a restored match does not replay its history.
  */
-export function useMatchAudio(session: MatchSession | null, playing: boolean): void {
+export function useMatchAudio(
+  session: MatchSession | null,
+  beat: ReelBeat['kind'],
+  heldGoalId?: string,
+): void {
   const status = session?.state.match.status;
   const events = session?.state.match.events;
-  const count = events?.length ?? 0;
+  // A goal still on the pitch is not counted until it goes in.
+  const count = (events?.length ?? 0) - (heldGoalId ? 1 : 0);
   const momentum = session?.state.match.momentum ?? 50;
   const selected = session?.setup.selectedPlayerId;
   const ownTeamId = session
@@ -33,7 +39,6 @@ export function useMatchAudio(session: MatchSession | null, playing: boolean): v
       : session.setup.away.id
     : null;
   const seed = session?.setup.seed;
-  // A final, a cup tie or a derby fills the stadium: the crowd bed rises with the occasion.
   const occasion =
     (session?.setup.fixture?.importance ?? 1) > 1 ||
     (Boolean(session?.setup.home.city) && session?.setup.home.city === session?.setup.away.city);
@@ -41,7 +46,7 @@ export function useMatchAudio(session: MatchSession | null, playing: boolean): v
   const lastCount = useRef(count);
 
   useEffect(() => {
-    audio.prepare(MATCH_SOUNDS);
+    void audio.prepare(MATCH_SOUNDS);
     return () => audio.crowd(null);
   }, []);
 
@@ -60,14 +65,17 @@ export function useMatchAudio(session: MatchSession | null, playing: boolean): v
       audio.play('whistle');
     else if (status === 'halftime') audio.play('whistleLong');
     else if (status === 'finished') audio.play('whistleFull');
-    else if (status === 'decision') audio.play('moment');
   }, [status]);
+
+  useEffect(() => {
+    if (beat === 'card') audio.play('moment');
+  }, [beat]);
 
   useEffect(() => {
     const from = lastCount.current;
     lastCount.current = count;
     if (!events || count <= from) return;
-    const fresh = events.slice(from);
+    const fresh = events.filter((event) => event.id !== heldGoalId).slice(from);
     const goals = fresh.filter((event) => event.kind === 'goal');
     if (goals.length) {
       const ours = goals.some((goal) => goal.teamId === ownTeamId);
@@ -80,21 +88,23 @@ export function useMatchAudio(session: MatchSession | null, playing: boolean): v
     if (recent.some((event) => event.kind === 'save' && event.teamId !== ownTeamId))
       audio.play('ooh');
     if (recent.some((event) => event.kind === 'card')) audio.play('whistle');
-  }, [count, events, ownTeamId]);
+  }, [count, events, ownTeamId, heldGoalId]);
 
   useEffect(() => {
     if (!status) return audio.crowd(null);
     const excitement = Math.min(1, Math.abs(momentum - 50) / 50);
     const level =
-      status === 'live'
-        ? playing
-          ? 0.3 + 0.5 * excitement
-          : 0.2
-        : status === 'decision'
-          ? 0.55
-          : status === 'preview'
-            ? 0.1
-            : 0.15;
+      beat === 'build'
+        ? 0.9
+        : beat === 'clip' || beat === 'banner'
+          ? 0.65
+          : beat === 'card'
+            ? 0.55
+            : status === 'live'
+              ? 0.3 + 0.4 * excitement
+              : status === 'preview'
+                ? 0.1
+                : 0.15;
     audio.crowd(Math.round(Math.min(1, level * (occasion ? 1.25 : 1)) * 10) / 10);
-  }, [status, playing, momentum, occasion]);
+  }, [status, beat, momentum, occasion]);
 }

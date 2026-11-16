@@ -1,12 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { DecisionSample } from '../src/model/domain';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import { careerPreMatch, expect, nationalCareer, skipTutorial, test } from './support';
 
 /**
  * Phase 5: the manager's formation and the selection reasons on the Club page and in the
@@ -15,31 +13,7 @@ import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
  */
 const saves = new Map<string, string>();
 test.beforeAll(async ({ browserName }, workerInfo) => {
-  const base = generateWorld('coaching-journey', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'coaching-journey')[0]!;
-  let world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'coaching-journey',
-  );
+  let world = nationalCareer('coaching-journey');
   for (let week = 0; week < 4; week++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
   for (let guard = 0; guard < 6 && !pendingCareerFixture(world); guard++)
@@ -77,17 +51,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 });
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 async function importCareer(page: Page) {
   await page.goto('/saves');
@@ -110,10 +73,10 @@ test('the Club page and the briefing explain selection with the formation', asyn
   await expect(card).toContainText('Role promised');
   await expect(card).toContainText(/Chance of starting the next match\s*\d+%/);
   await page.goto('/match?save=1');
-  await page.getByRole('button', { name: 'Go to the pre-match briefing' }).click();
-  await expect(page.getByRole('heading', { name: 'How the manager picked you' })).toBeVisible({
-    timeout: 30000,
-  });
+  // The fixture is prepared on arrival; the selection sits under the pre-match Details.
+  await careerPreMatch(page);
+  await page.locator('.reel-details > summary').click();
+  await expect(page.getByRole('heading', { name: 'How the manager picked you' })).toBeVisible();
   await expect(page.getByText(/You were picked to start: a \d+% chance/)).toBeVisible();
   // Each side's eleven shows its formation and the slot each starter fills.
   await expect(page.locator('.match-lineup-title').first()).toContainText(
@@ -154,7 +117,7 @@ test('advice fills a draft that only saving applies, and a goal stays once taken
   await page.getByRole('button', { name: 'Save training' }).click();
   await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 30000 });
   await page.reload();
-  await expect(page.locator('#focus-0')).toHaveValue('passing', { timeout: 30000 });
+  await expect(page.locator('#focus-0')).toHaveValue('passing', { timeout: 60000 });
   await expect(page.getByText('Your saved plan already follows this advice.')).toBeVisible();
 
   const goal = page.getByRole('region', { name: 'Season goal' });
@@ -180,6 +143,6 @@ test('the hub’s coaching tile opens Training with the advice ready to save', a
   await expect(tile).toContainText('Suggests: Passing', { timeout: 30000 });
   await tile.getByRole('link', { name: 'See the advice' }).click();
   await expect(page).toHaveURL(/\/career\/training\?advice=1&save=1/);
-  await expect(page.locator('#focus-0')).toHaveValue('passing', { timeout: 30000 });
+  await expect(page.locator('#focus-0')).toHaveValue('passing', { timeout: 60000 });
   await expect(page.getByText('The sessions are in your plan below.')).toBeVisible();
 });

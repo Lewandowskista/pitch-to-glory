@@ -4,7 +4,6 @@ import { CONFIG } from '../src/engine/config';
 import { careerCap } from '../src/engine/ageing';
 import { playerAbility } from '../src/engine/strength';
 import { getSeasonWeeks } from '../src/engine/world/calendar';
-import { generateWorld } from '../src/engine/world/generate';
 import { startNextSeason } from '../src/engine/world/simulate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -20,6 +19,7 @@ import {
 import { retirementState } from '../src/engine/career/honours';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 const L = CONFIG.career.longevity;
 const R = CONFIG.career.honours.retirement;
@@ -46,7 +46,7 @@ const draft: CareerDraft = {
 let career: World;
 let season: World;
 beforeAll(() => {
-  const base = generateWorld('longevity-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'longevity-tests')[0]!;
   career = createCareer(base, draft, trial.id, 'longevity-tests');
   season = clone(career);
@@ -170,7 +170,7 @@ describe('retirement under late decline', () => {
     expect(retired.career).toBeUndefined();
   }, 120000);
 
-  it('adopts the rules with a new season, keeping saved careers valid', () => {
+  it('adopts the rules when an older save loads, keeping saved careers valid', () => {
     const world = clone(season);
     delete world.career!.developmentRules;
     delete world.career!.conditioning;
@@ -180,11 +180,13 @@ describe('retirement under late decline', () => {
       gallery: { seed: 'l', generation: 0 },
       settings: DEFAULT_SETTINGS,
     });
+    expect(parseSave(JSON.stringify(save))).toEqual(save);
+    // The same career saved by an earlier release adopts the rules in the migration.
     const old: unknown = JSON.parse(JSON.stringify({ ...save, schemaVersion: 21 }));
     const migrated = migrateSave(old);
-    expect(migrated.schemaVersion).toBe(22);
-    expect(parseSave(JSON.stringify(save))).toEqual(save);
-    const next = startNextSeason(world);
+    expect(migrated.schemaVersion).toBe(CONFIG.saves.schemaVersion);
+    if (migrated.payload.kind !== 'world') throw new Error('Expected a world');
+    const next = migrated.payload.world;
     const player = next.players[next.career!.playerId]!;
     expect(next.career!.developmentRules).toBe(3);
     expect(next.career!.conditioning).toBe(planConditioning(player, next.career!.training));

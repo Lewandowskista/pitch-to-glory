@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { trainingDraftText as text } from '../i18n/trainingDraft';
 import { errorText, t } from '../i18n';
+import { errorCode } from '../persistence/errors';
 import { resumeTrainingAdvance, resolveTrainingAbandonment } from '../store/trainingTransitions';
 
 /** One shell-owned gate covers every operation that can consume pending training intent. */
@@ -100,6 +101,11 @@ export function TrainingDraftGuard() {
       setParams(next, { replace: true });
     }
   };
+  /** A failure (such as a chunk that cannot load offline) shows in the dialog's alert. */
+  const resume = (saveDraft: boolean) =>
+    void resumeTrainingAdvance(saveDraft).catch((cause: unknown) =>
+      useAppStore.getState().setSaveStatus('error', errorCode(cause)),
+    );
   if (!kind || value !== kind) return null;
   return (
     <dialog
@@ -137,18 +143,10 @@ export function TrainingDraftGuard() {
           </button>
           {kind === 'advance' ? (
             <>
-              <button
-                className="button secondary"
-                disabled={saving}
-                onClick={() => void resumeTrainingAdvance(false)}
-              >
+              <button className="button secondary" disabled={saving} onClick={() => resume(false)}>
                 {text.savedContinue}
               </button>
-              <button
-                className="button"
-                disabled={saving}
-                onClick={() => void resumeTrainingAdvance(true)}
-              >
+              <button className="button" disabled={saving} onClick={() => resume(true)}>
                 {saving ? t.app.saving : text.saveContinue}
               </button>
             </>

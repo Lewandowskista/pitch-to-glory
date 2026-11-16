@@ -3,7 +3,7 @@ import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
 import { createRng } from '../src/engine/rng';
 import { generateWorld } from '../src/engine/world/generate';
-import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
+import { lifecycleWeeks, simulateWeek } from '../src/engine/world/simulate';
 import {
   archiveAndPrune,
   fillSquads,
@@ -12,6 +12,7 @@ import {
 } from '../src/engine/world/lifecycle';
 import { createFeederClub } from '../src/engine/world/feeder';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 const L = CONFIG.world.lifecycle;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
@@ -23,6 +24,8 @@ describe('squad lifecycle', () => {
     expect(retirementProbability(L.forcedRetirementAge)).toBe(1);
   });
 
+  // The rule is the same in every format; a compact world reaches its intake week in a third of
+  // the time (the national world's lifecycle over two seasons: tests/lifecycle.slow.test.ts).
   it('renews or releases every expiring contract and keeps squads viable', () => {
     let world = generateWorld('lifecycle-contracts', { format: 'legacy' });
     while (world.date.week < CONFIG.world.intakeWeek)
@@ -45,7 +48,7 @@ describe('squad lifecycle', () => {
   }, 120000);
 
   it('signs free agents into squads below target, strongest clubs choosing first', () => {
-    const world = generateWorld('lifecycle-signings', { format: 'legacy' });
+    const world = nationalWorld();
     const club = Object.values(world.clubs).sort((a, b) => b.reputation - a.reputation)[0]!;
     for (const player of club.playerIds
       .map((id) => world.players[id]!)
@@ -66,7 +69,7 @@ describe('squad lifecycle', () => {
   });
 
   it('retires free agents nobody signs and archives retirees at rollover', () => {
-    const world = generateWorld('lifecycle-archive', { format: 'legacy' });
+    const world = nationalWorld();
     const reference = Object.values(world.players)[5]!;
     world.players['veteran-free'] = {
       ...structuredClone(reference),
@@ -76,7 +79,7 @@ describe('squad lifecycle', () => {
       contractId: null,
       releasedSeason: world.date.season - 1,
     };
-    world.date.week = CONFIG.world.intakeWeek;
+    world.date.week = lifecycleWeeks(world).intake;
     seasonalSquadReview(world, createRng('free-agents'));
     expect(world.players['veteran-free']!.retired).toBe(true);
     world.events.push({
@@ -124,40 +127,4 @@ describe('squad lifecycle', () => {
     expect(dormantIds).not.toContain(third.id);
     expect(Object.keys(world.clubs).length - before).toBe(1);
   });
-
-  it('simulates in place exactly as a copied world resumed from JSON mid-season', () => {
-    let continuous = generateWorld('lifecycle-resume');
-    let resumed = clone(continuous);
-    while (continuous.date.week <= 44) continuous = simulateWeek(continuous, { inPlace: true });
-    while (resumed.date.week <= 39) resumed = simulateWeek(resumed);
-    resumed = clone(resumed);
-    while (resumed.date.week <= 44) resumed = simulateWeek(resumed);
-    expect(resumed).toEqual(continuous);
-    // Eighty-nine national weeks: well over a minute when other suites share the machine.
-  }, 300000);
-
-  it('keeps a national world bounded and valid across two seasons', () => {
-    let world = generateWorld('lifecycle-national');
-    const sizes: number[] = [];
-    const dormant: number[] = [];
-    for (let season = 0; season < 2; season++) {
-      while (world.phase === 'active') world = simulateWeek(world, { inPlace: true });
-      world = startNextSeason(world, { inPlace: true });
-      expect(() => validateWorld(clone(world))).not.toThrow();
-      sizes.push(Object.keys(world.players).length);
-      dormant.push(
-        Object.values(world.clubs).filter((club) => !world.leagues[club.leagueId]).length,
-      );
-      for (const club of Object.values(world.clubs).filter((c) => world.leagues[c.leagueId]))
-        for (const id of club.playerIds)
-          expect(
-            world.contracts[world.players[id]!.contractId!]!.end.season,
-          ).toBeGreaterThanOrEqual(world.date.season);
-    }
-    // Departed clubs are reused, so the dormant pool grows far slower than one season's departures.
-    expect(dormant[1]! - dormant[0]!).toBeLessThan(dormant[0]! / 2);
-    expect(sizes[1]! - sizes[0]!).toBeLessThan(2500);
-    expect(Object.keys(world.archive!.players).length).toBeGreaterThan(0);
-    expect(world.events.every((event) => event.date.season >= world.date.season - 1)).toBe(true);
-  }, 120000);
 });

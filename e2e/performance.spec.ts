@@ -1,8 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { cpus, totalmem } from 'node:os';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { skipTutorial } from './support';
+import { gzipSync } from 'node:zlib';
+import { careerPreMatch, skipTutorial } from './support';
+import { attachWorkers, samplePeak, traceThreads, type ThreadTime } from './threads';
 
 /**
  * Performance on real play states (Phase 4.2). Runs only as the `performance` project
@@ -13,7 +15,9 @@ import { skipTutorial } from './support';
  */
 const PROFILES = {
   desktop: { viewport: { width: 1440, height: 900 }, cpu: 1 },
-  // A mid-range phone: a phone viewport with the CPU slowed four times.
+  // A mid-range phone: a phone viewport with the CPU slowed four times. Chromium slows only the
+  // page's main thread (finding P2); the workers are asked too (e2e/threads.ts), and when Chromium
+  // refuses, their traced CPU time is reported apart and scaled by the same factor.
   phone: { viewport: { width: 390, height: 844 }, cpu: 4 },
 } as const;
 /**
@@ -36,6 +40,36 @@ const TOLERANCES = {
  * (docs/DEVICE-ACCEPTANCE.md) are the acceptance.
  */
 const TARGETS = { interaction: 100, hubReady: 3000, frameP95: 17.5 } as const;
+/**
+ * The 1.0 performance budget (docs/RELEASE-1.0-PLAN.md, Phase 3), on the late save: REPORTED
+ * until phase 3 meets it and sets `asserted`. Phone figures use the honest measure: when the
+ * workers could not be throttled, their CPU time scaled by the phone's factor is added.
+ * The rest of the budget is measured elsewhere: shell + route JS ≤ 280 KB gzip
+ * (scripts/check-bundle.mjs), season simulation ≤ 75 s and the save after 34 seasons ≤ 90 MB
+ * (the world drift gate, `npm run drift`), first-session audio CPU ≤ 100 ms (not yet measured
+ * by a harness).
+ */
+const BUDGET_1_0 = {
+  asserted: false,
+  phase: 3,
+  fixture: 'late',
+  values: {
+    /** Main-thread JavaScript the hub loads, gzip. */
+    hubMainJsKB: 350,
+    /** Continue to the next matchday, and until saved: desktop. */
+    continueDesktopMs: 1200,
+    continueDesktopSavedMs: 2000,
+    /** Continue until saved on the phone profile (workers scaled when unthrottled). */
+    continuePhoneSavedMs: 5000,
+    /** The longest main-thread task during Continue. */
+    longestTaskMs: 200,
+    /**
+     * Peak JavaScript heap across the page and its workers during Continue (a lower bound on
+     * the plan's peak memory across threads).
+     */
+    peakHeapMB: 400,
+  },
+} as const;
 const FIXTURES = ['populated', 'late'] as const;
 
 interface Row {
@@ -43,6 +77,8 @@ interface Row {
   profile: string;
   importMs: number;
   hubReadyMs: number;
+  /** The cold hub load until its first-of-the-day challenge refresh is saved. */
+  hubSavedMs: number;
   calendarMs: number;
   inboxMs: number;
   /** The slowest interaction's event duration (Event Timing), a stand-in for INP. */
@@ -53,10 +89,34 @@ interface Row {
   longestTaskMs: number;
   frames: { renderer: string; fps: number; p95: number; p99: number; longest: number };
   heapMB: number | null;
+  /** Whether Chromium throttled the workers on this profile (P2). */
+  workerThrottling: string;
+  /** CPU time by thread during the hub load and during Continue (tracing, top-level tasks). */
+  threads: { hub: ThreadTime; advance: ThreadTime };
+  /**
+   * The phone's honest figures: measured time plus the workers' CPU time scaled by the
+   * profile's factor, when Chromium could not throttle them (null otherwise).
+   */
+  scaled: { hubReadyMs: number; advanceMs: number; advanceSavedMs: number } | null;
+  /** Each Continue press until the matchday, in ms. */
+  presses: number[];
+  /**
+   * From the first Continue press to the matchday and to saved, timed inside the page (the
+   * polled `advanceMs` and `saveMs` include Playwright's polling interval).
+   */
+  exact: { advanceMs: number | null; savedMs: number | null };
+  /** The longest main-thread task during Continue. */
+  advanceLongestTaskMs: number;
+  /** Main-thread JavaScript loaded for the hub, gzip KB (from dist). */
+  hubMainJsKB: number | null;
+  /** Peak JavaScript heap across the page and its workers during Continue, MB. */
+  peakHeapMB: number;
   /** Regression tolerances: asserted. */
   tolerances: Record<string, boolean>;
   /** Product targets: reported, never asserted. */
   targets: Record<string, boolean>;
+  /** The 1.0 budget (Phase 3), on the late save: reported until phase 3 asserts it. */
+  budget: Record<string, boolean>;
 }
 const rows: Row[] = [];
 
@@ -90,6 +150,7 @@ test.afterAll(async () => {
         profiles: PROFILES,
         tolerances: { asserted: true, values: TOLERANCES },
         targets: { asserted: false, values: TARGETS },
+        budget: BUDGET_1_0,
         rows,
       },
       null,
@@ -107,10 +168,82 @@ const perf = (page: Page) =>
     state.events.length = 0;
     return result;
   });
+/**
+ * Watch, inside the page, for the first Continue press and then for the matchday link and the
+ * saved status, recording when each appeared.
+ */
+async function watchContinue(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const times: { start?: number; matchday?: number; saved?: number } = {};
+    (window as Window & { __continue?: typeof times }).__continue = times;
+    document.addEventListener(
+      'click',
+      (event) => {
+        const target = event.target as Element | null;
+        if (
+          times.start === undefined &&
+          target?.closest('button')?.textContent?.includes('Continue')
+        )
+          times.start = performance.now();
+      },
+      true,
+    );
+    // Saved: the last time "All changes saved" came back after the press (a write in
+    // between hides it), so a save that follows the matchday counts.
+    let shown = true;
+    const check = () => {
+      if (times.start === undefined) return;
+      if (
+        times.matchday === undefined &&
+        [...document.querySelectorAll('a')].some((a) => a.textContent?.includes('Play matchday'))
+      )
+        times.matchday = performance.now();
+      const saved = Boolean(document.body.textContent?.includes('All changes saved'));
+      if (saved && !shown) times.saved = performance.now();
+      shown = saved;
+    };
+    new MutationObserver(check).observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+  });
+}
+async function continueTimes(
+  page: Page,
+): Promise<{ advanceMs: number | null; savedMs: number | null }> {
+  return page.evaluate(() => {
+    const times = (
+      window as Window & { __continue?: { start?: number; matchday?: number; saved?: number } }
+    ).__continue;
+    const since = (at?: number) =>
+      times?.start !== undefined && at !== undefined ? Math.round(at - times.start) : null;
+    // Never shown as unsaved: saved when the matchday came.
+    return {
+      advanceMs: since(times?.matchday),
+      savedMs: since(Math.max(times?.saved ?? 0, times?.matchday ?? 0) || undefined),
+    };
+  });
+}
 async function timed(action: () => Promise<unknown>): Promise<number> {
   const started = Date.now();
   await action();
   return Date.now() - started;
+}
+/** Gzip size of the JavaScript files the page loaded itself (workers load theirs apart). */
+async function mainThreadJsKB(page: Page): Promise<number | null> {
+  // A worker's own script is fetched by the page (initiator "other") but runs in the worker.
+  const paths = await page.evaluate(() =>
+    (performance.getEntriesByType('resource') as PerformanceResourceTiming[])
+      .filter((entry) => entry.initiatorType !== 'other')
+      .map((entry) => new URL(entry.name).pathname)
+      .filter((path) => path.endsWith('.js') && !/\.worker-/.test(path)),
+  );
+  if (process.env.PERF_DEBUG) console.log(`hub main-thread scripts: ${paths.join(', ')}`);
+  const files = [...new Set(paths)].map((path) => `dist${path}`).filter((file) => existsSync(file));
+  if (!files.length) return null;
+  const bytes = files.reduce((sum, file) => sum + gzipSync(readFileSync(file)).length, 0);
+  return Math.round((bytes / 1024) * 10) / 10;
 }
 
 for (const fixture of FIXTURES)
@@ -118,7 +251,7 @@ for (const fixture of FIXTURES)
     keyof typeof PROFILES,
     (typeof PROFILES)[keyof typeof PROFILES],
   ][])
-    test(`${fixture} career · ${profile}`, async ({ page, browserName }) => {
+    test(`${fixture} career · ${profile}`, async ({ page, browser, browserName }) => {
       test.skip(browserName !== 'chromium', 'CPU throttling and memory are Chromium-only');
       const path = `artifacts/performance/${fixture}.json`;
       test.skip(!existsSync(path), `Run npm run perf:fixtures to create ${path}`);
@@ -138,15 +271,27 @@ for (const fixture of FIXTURES)
         });
       });
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: settings.cpu });
+      // The workers too, where Chromium allows it (P2); their heaps are sampled either way.
+      const workers = await attachWorkers(cdp, settings.cpu);
 
-      // The hub, from a cold load of the saved career.
-      const hubReadyMs = await timed(async () => {
-        await page.goto('/career?save=1');
-        await expect(page.getByRole('region', { name: 'Needs you' })).toBeVisible({
-          timeout: 120000,
+      // The hub, from a cold load of the saved career, traced by thread.
+      let hubReadyMs = 0;
+      let hubStarted = 0;
+      const hubThreads = await traceThreads(browser, page, async () => {
+        hubStarted = Date.now();
+        hubReadyMs = await timed(async () => {
+          await page.goto('/career?save=1');
+          await expect(page.getByRole('region', { name: 'Needs you' })).toBeVisible({
+            timeout: 120000,
+          });
         });
       });
+      const hubMainJsKB = await mainThreadJsKB(page);
+      // The first hub load of a day refreshes the daily challenges, a world change that is
+      // saved (finding P3, step 3.4): past the autosave delay, until saved.
+      await page.waitForTimeout(600);
       await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 60000 });
+      const hubSavedMs = Date.now() - hubStarted;
       const loading = await perf(page);
 
       // The agenda and a long inbox, through the page tabs.
@@ -168,27 +313,41 @@ for (const fixture of FIXTURES)
       // Continue: the world simulates to the next matchday and saves each week. Continue also
       // stops for a decision that arrives or falls due (review phase 5), so it is pressed again
       // until the matchday; the time covers every press.
-      const advanceMs = await timed(async () => {
-        const play = page.getByRole('link', { name: 'Play matchday' });
-        const go = page.getByRole('button', { name: 'Continue to next matchday' });
-        for (let press = 0; press < 12 && !(await play.isVisible()); press++) {
-          await expect(go.or(play)).toBeVisible({ timeout: 300000 });
-          if (await play.isVisible()) break;
-          await expect(go).toBeEnabled({ timeout: 300000 });
-          await go.click();
-          await expect(go.or(play)).toBeEnabled({ timeout: 300000 });
-        }
-        await expect(play).toBeVisible({ timeout: 300000 });
+      const presses: number[] = [];
+      let advanceMs = 0;
+      let saveMs = 0;
+      const stopHeap = samplePeak(workers.heap);
+      // Exact times from inside the page as well: Playwright polls with growing intervals (up to
+      // half a second), which the polled figures include.
+      await watchContinue(page);
+      const advanceThreads = await traceThreads(browser, page, async () => {
+        advanceMs = await timed(async () => {
+          const play = page.getByRole('link', { name: 'Play matchday' });
+          const go = page.getByRole('button', { name: 'Continue to next matchday' });
+          for (let press = 0; press < 12 && !(await play.isVisible()); press++) {
+            await expect(go.or(play)).toBeVisible({ timeout: 300000 });
+            if (await play.isVisible()) break;
+            await expect(go).toBeEnabled({ timeout: 300000 });
+            const started = Date.now();
+            await go.click();
+            await expect(go.or(play)).toBeEnabled({ timeout: 300000 });
+            presses.push(Date.now() - started);
+          }
+          await expect(play).toBeVisible({ timeout: 300000 });
+        });
+        saveMs = await timed(() =>
+          expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 60000 }),
+        );
       });
-      const saveMs = await timed(() =>
-        expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 60000 }),
-      );
+      const peakHeapMB = Math.round((await stopHeap()) / 1e6);
+      const exact = await continueTimes(page);
       const advancing = await perf(page);
 
       // The live pitch: frame pacing over six seconds of play at normal speed.
       await page.getByRole('link', { name: 'Play matchday' }).click();
-      await page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }).click();
+      await careerPreMatch(page);
       await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+      // A second of play first: the measurement is of steady play, not of kick-off.
       await page.waitForTimeout(1000);
       const frames = await page.evaluate(async () => {
         const gaps: number[] = [];
@@ -224,11 +383,27 @@ for (const fixture of FIXTURES)
       const tasks = [...loading.longTasks, ...interactions.longTasks, ...advancing.longTasks];
       const budget = TOLERANCES[profile];
       const interactionMs = Math.round(Math.max(0, ...interactions.events));
+      const workerThrottling = workers.throttling();
+      // Unthrottled worker time on the phone, scaled by the profile's factor (P2).
+      const unthrottled = settings.cpu > 1 && workerThrottling !== 'applied';
+      const extra = (threads: ThreadTime) =>
+        unthrottled ? (settings.cpu - 1) * threads.workersMs : 0;
+      const scaled = unthrottled
+        ? {
+            hubReadyMs: hubReadyMs + extra(hubThreads),
+            advanceMs: advanceMs + extra(advanceThreads),
+            advanceSavedMs: advanceMs + saveMs + extra(advanceThreads),
+          }
+        : null;
+      const advanceLongestTaskMs = Math.round(Math.max(0, ...advancing.longTasks));
+      const B = BUDGET_1_0.values;
+      const honestSaved = scaled?.advanceSavedMs ?? advanceMs + saveMs;
       const row: Row = {
         fixture,
         profile,
         importMs,
         hubReadyMs,
+        hubSavedMs,
         calendarMs,
         inboxMs,
         interactionMs,
@@ -238,6 +413,14 @@ for (const fixture of FIXTURES)
         longestTaskMs: Math.round(Math.max(0, ...tasks)),
         frames,
         heapMB,
+        workerThrottling,
+        threads: { hub: hubThreads, advance: advanceThreads },
+        scaled,
+        presses,
+        exact,
+        advanceLongestTaskMs,
+        hubMainJsKB,
+        peakHeapMB,
         tolerances: {
           hubReady: hubReadyMs <= budget.hubReady,
           interaction: interactionMs <= budget.interaction,
@@ -250,6 +433,22 @@ for (const fixture of FIXTURES)
           hubReady: hubReadyMs <= TARGETS.hubReady,
           frames: frames.p95 <= TARGETS.frameP95,
         },
+        budget:
+          fixture !== BUDGET_1_0.fixture
+            ? {}
+            : profile === 'desktop'
+              ? {
+                  hubMainJsKB: hubMainJsKB !== null && hubMainJsKB <= B.hubMainJsKB,
+                  continue: advanceMs <= B.continueDesktopMs,
+                  continueSaved: advanceMs + saveMs <= B.continueDesktopSavedMs,
+                  longestTask: advanceLongestTaskMs <= B.longestTaskMs,
+                  peakHeap: peakHeapMB <= B.peakHeapMB,
+                }
+              : {
+                  continueSaved: honestSaved <= B.continuePhoneSavedMs,
+                  longestTask: advanceLongestTaskMs <= B.longestTaskMs,
+                  peakHeap: peakHeapMB <= B.peakHeapMB,
+                },
       };
       rows.push(row);
       console.log(JSON.stringify(row));
@@ -257,6 +456,20 @@ for (const fixture of FIXTURES)
         .map(([key, ok]) => `${key} ${ok ? 'met' : 'NOT met'}`)
         .join(', ');
       console.log(`${fixture} · ${profile} · product targets (reported, not asserted): ${met}`);
+      const thread = (t: ThreadTime) => `main ${t.mainMs} ms, workers ${t.workersMs} ms`;
+      console.log(
+        `${fixture} · ${profile} · threads: hub ${thread(hubThreads)}; Continue ${thread(advanceThreads)}, longest worker task ${advanceThreads.longestWorkerTaskMs} ms; worker throttling ${workerThrottling}` +
+          (scaled
+            ? `; scaled: hub ${scaled.hubReadyMs} ms, Continue ${scaled.advanceMs} ms, saved ${scaled.advanceSavedMs} ms`
+            : ''),
+      );
+      const owed = Object.entries(row.budget)
+        .map(([key, ok]) => `${key} ${ok ? 'met' : 'NOT met'}`)
+        .join(', ');
+      if (owed)
+        console.log(
+          `${fixture} · ${profile} · 1.0 budget (reported, asserted from phase ${BUDGET_1_0.phase}): ${owed}`,
+        );
       expect(row.tolerances, `${fixture} · ${profile} regression tolerances`).toEqual({
         hubReady: true,
         interaction: true,
@@ -264,3 +477,58 @@ for (const fixture of FIXTURES)
         frames: true,
       });
     });
+
+/**
+ * Season simulation on the late save (the 1.0 budget's "season simulation, desktop" row): the
+ * rest of the season auto-played from the hub, until the season is complete and saved. The late
+ * fixture stands in week 34 of 60, so the per-week time is reported too, with the whole
+ * 60-week season it implies.
+ */
+test('late career · season · desktop', async ({ page, browser, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Tracing and memory are Chromium-only');
+  const path = 'artifacts/performance/late.json';
+  test.skip(!existsSync(path), `Run npm run perf:fixtures to create ${path}`);
+  test.setTimeout(900000);
+  await page.setViewportSize(PROFILES.desktop.viewport);
+  const cdp = await page.context().newCDPSession(page);
+  await page.goto('/saves');
+  await page.locator('.slot-card').nth(0).getByLabel('Import backup — Slot 1').setInputFiles(path);
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 120000 });
+  const workers = await attachWorkers(cdp, 1);
+  await page.goto('/career?save=1');
+  await expect(page.getByRole('region', { name: 'Needs you' })).toBeVisible({ timeout: 120000 });
+  await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 60000 });
+  const stopHeap = samplePeak(workers.heap);
+  let seasonMs = 0;
+  let savedMs = 0;
+  const threads = await traceThreads(browser, page, async () => {
+    const started = Date.now();
+    await page.getByRole('button', { name: 'Simulate the season', exact: true }).click();
+    await page.getByRole('button', { name: 'Auto-play my matches', exact: true }).click();
+    await expect(page.getByText('Season complete', { exact: true }).first()).toBeVisible({
+      timeout: 840000,
+    });
+    seasonMs = Date.now() - started;
+    await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 60000 });
+    savedMs = Date.now() - started;
+  });
+  const peakHeapMB = Math.round((await stopHeap()) / 1e6);
+  const weeks = 60 - 34 + 1;
+  const result = {
+    fixture: 'late',
+    profile: 'desktop',
+    season: {
+      weeks,
+      seasonMs,
+      savedMs,
+      perWeekMs: Math.round(savedMs / weeks),
+      fullSeasonMs: Math.round((savedMs / weeks) * 60),
+      threads,
+      peakHeapMB,
+      budgetMs: 75000,
+    },
+  };
+  console.log(JSON.stringify(result));
+  await mkdir('artifacts/performance', { recursive: true });
+  await writeFile('artifacts/performance/season.json', JSON.stringify(result, null, 2));
+});

@@ -8,7 +8,6 @@ import {
   createMatchSetup,
   validateMatchSession,
   MATCH_ENGINE_VERSION,
-  OCCASIONS_MATCH_ENGINE,
   OFF_ANIMATION,
   PARKED,
   type MatchSession,
@@ -38,13 +37,6 @@ function play(setup: MatchSetup, keep?: (session: MatchSession) => void): MatchS
 const matches = (['ST', 'CB', 'CM', 'GK'] as const).flatMap((position) =>
   [0, 1, 2, 3, 4].map((n) => play(setupFor(position, `discipline-${position}-${n}`))),
 );
-/** The same fixtures on the match-15 path: cosmetic yellow cards only. */
-const cosmetic = (setup: MatchSetup): MatchSetup => {
-  const copy = structuredClone(setup);
-  delete copy.discipline;
-  return copy;
-};
-const matches15 = matches.map((session) => play(cosmetic(session.setup)));
 
 describe('the matchday bench (match-15)', () => {
   it('names at most seven substitutes, with a reserve keeper when the squad has one', () => {
@@ -73,12 +65,6 @@ describe('the matchday bench (match-15)', () => {
       }
     }
   });
-  it('keeps the whole squad on the bench on earlier engines', () => {
-    const legacy = setupFor('ST', 'discipline-legacy');
-    delete legacy.occasions;
-    const team = createMatchSession(legacy, tactics).state.match.home;
-    expect(team.benchIds.length).toBeGreaterThan(CONFIG.match.benchSize);
-  });
 });
 
 describe('managers’ substitutions (match-15)', () => {
@@ -89,6 +75,23 @@ describe('managers’ substitutions (match-15)', () => {
       const kickoff = createMatchSession(session.setup, tactics).state.match;
       const m = session.state.match;
       const subs = m.events.filter((e) => e.kind === 'substitution');
+      // Match-22 forces injured players off too, and replaces a keeper sent off: those changes
+      // come when they happen.
+      const hurt = new Set((session.state.injuries ?? []).map((injury) => injury.playerId));
+      if (session.state.knock && session.state.substituted)
+        hurt.add(session.setup.selectedPlayerId);
+      const keeperReds = new Set(
+        m.events
+          .filter(
+            (e) =>
+              e.kind === 'card' &&
+              e.card !== 'yellow' &&
+              session.setup.players[e.playerId!]!.primaryPosition === 'GK',
+          )
+          .map((e) => `${e.teamId}:${e.minute}`),
+      );
+      for (const id of [...(m.home.sentOffIds ?? []), ...(m.away.sentOffIds ?? [])])
+        if (session.setup.players[id]!.primaryPosition === 'GK') hurt.add(id);
       for (const team of [m.home, m.away]) {
         const own = subs.filter((e) => e.teamId === team.teamId);
         expect(own.length).toBeLessThanOrEqual(CONFIG.match.aiSubstitutions.limit);
@@ -96,23 +99,30 @@ describe('managers’ substitutions (match-15)', () => {
         // Starters and bench move together: everyone who came on left the bench.
         expect(team.starterIds).toHaveLength(11);
         expect(team.benchIds.length + own.length).toBe(before.benchIds.length);
-        expect(team.starterIds[0]).toBe(before.starterIds[0]);
+        if (!hurt.has(before.starterIds[0]!)) expect(team.starterIds[0]).toBe(before.starterIds[0]);
       }
       for (const sub of subs) {
-        if (sub.playerId === session.setup.selectedPlayerId) continue;
+        if (
+          sub.playerId === session.setup.selectedPlayerId ||
+          hurt.has(sub.playerId!) ||
+          keeperReds.has(`${sub.teamId}:${sub.minute}`)
+        )
+          continue;
         changes++;
         sides.add(sub.teamId);
         expect(sub.minute).toBeGreaterThanOrEqual(CONFIG.match.aiSubstitutions.from);
         expect(sub.minute).toBeLessThanOrEqual(CONFIG.match.aiSubstitutions.to);
         expect(session.setup.players[sub.playerId!]!.primaryPosition).not.toBe('GK');
         expect(sub.receiverId).toBeDefined();
-        expect(sub.commentaryKey).toMatch(/^match\.commentary\.change\.\d$/);
+        expect(sub.commentaryKey).toMatch(
+          /^match\.commentary\.change(-chasing|-protecting)?\.\d+$/,
+        );
         expect(sub.commentaryParams?.receiver).toBe(session.setup.players[sub.receiverId!]!.name);
         const team = sub.teamId === m.home.teamId ? m.home : m.away;
         expect(team.starterIds).toContain(sub.receiverId);
         expect(team.starterIds).not.toContain(sub.playerId);
         // The incoming player is on the pitch from then on, the outgoing one is not.
-        const later = session.state.frames.filter((f) => f.timeMs > sub.minute * 60000);
+        const later = session.state.frames.slice(playedIndex(session, sub) + 1);
         for (const frame of later) {
           const ids = frame.players.map((p) => p.id);
           expect(ids).not.toContain(sub.playerId);
@@ -132,54 +142,6 @@ describe('managers’ substitutions (match-15)', () => {
     )!;
     expect(off).toBeDefined();
     expect(session.state.match.home.starterIds).toContain(off.receiverId);
-  });
-});
-
-describe('cosmetic yellow cards (match-15)', () => {
-  it('books players weighted by aggression and tackling, never twice and never a keeper', () => {
-    let cards = 0;
-    const booked: number[] = [];
-    for (const session of matches15) {
-      expect(session.engine).toBe(OCCASIONS_MATCH_ENGINE);
-      const yellow = session.state.match.events.filter((e) => e.kind === 'card');
-      cards += yellow.length;
-      for (const card of yellow) {
-        expect(card.card).toBe('yellow');
-        expect(card.commentaryKey).toMatch(/^match\.commentary\.card\.\d$/);
-        expect(session.setup.players[card.playerId!]!.primaryPosition).not.toBe('GK');
-        booked.push(session.setup.players[card.playerId!]!.attributes.aggression);
-      }
-      const ids = yellow.map((e) => e.playerId);
-      expect(new Set(ids).size).toBe(ids.length);
-    }
-    // About 3.6 a match.
-    expect(cards / matches15.length).toBeGreaterThan(2);
-    expect(cards / matches15.length).toBeLessThan(5.5);
-  });
-  it('never changes an outcome', () => {
-    const rate = CONFIG.match.discipline.perTeamPerMinute;
-    try {
-      for (const session of matches15.slice(0, 8)) {
-        (CONFIG.match.discipline as { perTeamPerMinute: number }).perTeamPerMinute = 0;
-        const quiet = play(session.setup);
-        (CONFIG.match.discipline as { perTeamPerMinute: number }).perTeamPerMinute = rate;
-        const outcome = (s: MatchSession) => ({
-          score: s.state.match.score,
-          shots: [s.state.stats.homeShots, s.state.stats.awayShots],
-          rating: s.state.report!.rating,
-          decisions: s.state.match.events.flatMap((e) =>
-            e.outcome && !e.outcome.input.momentId.startsWith('routine:')
-              ? [[e.outcome.input, e.outcome.roll, e.outcome.probability]]
-              : [],
-          ),
-          lineups: [s.state.match.home.starterIds, s.state.match.away.starterIds],
-        });
-        expect(quiet.state.match.events.some((e) => e.kind === 'card')).toBe(false);
-        expect(outcome(quiet)).toEqual(outcome(session));
-      }
-    } finally {
-      (CONFIG.match.discipline as { perTeamPerMinute: number }).perTeamPerMinute = rate;
-    }
   });
 });
 
@@ -224,25 +186,56 @@ function hothead(seed: string): MatchSetup {
     player.attributes[key] = 20;
   return setup;
 }
-const sentOffMatches = Array.from({ length: 160 }, (_, n) => play(hothead(`hothead-${n}`))).filter(
-  (session) => session.state.sentOff,
-);
+/**
+ * The hothead also goes looking for a card: on match-22 a decision chain (X1a) offers fewer
+ * bookable choices a match than key moments did, and auto-play counts a red's cost.
+ */
+function playRecklessly(setup: MatchSetup): MatchSession {
+  let session = createMatchSession(setup, tactics);
+  while (session.state.match.status !== 'finished') {
+    const moment = session.state.currentMoment;
+    const reckless = moment?.choices.reduce((most, choice) =>
+      (choice.booking?.red ?? 0) > (most.booking?.red ?? 0) ? choice : most,
+    );
+    session = applyMatchCommand(
+      session,
+      reckless?.booking ? { type: 'choose', choiceId: reckless.id } : autoPlayCommand(session),
+    );
+  }
+  return session;
+}
+const sentOffMatches = Array.from({ length: 160 }, (_, n) =>
+  playRecklessly(hothead(`hothead-${n}`)),
+).filter((session) => session.state.sentOff);
+
+/**
+ * The index of a minute's snapshot in `state.frames` (after the kick-off frame): minutes played
+ * before it, added time included (match-22).
+ */
+function playedIndex(session: MatchSession, at: { minute: number; addedTime?: number }): number {
+  const before = (session.state.stoppage ?? [])
+    .filter((board) => board.at < at.minute)
+    .reduce((sum, board) => sum + board.minutes, 0);
+  return at.minute + (at.addedTime ?? 0) + before;
+}
 
 describe('full discipline (match-16)', () => {
   it('shows yellows, second yellows and straight reds at realistic rates', () => {
     let yellow = 0,
       red = 0,
       second = 0,
-      straight = 0;
+      straight = 0,
+      keepers = 0;
     for (const session of many) {
       expect(session.engine).toBe(MATCH_ENGINE_VERSION);
       for (const card of session.state.match.events.filter((e) => e.kind === 'card')) {
         expect(card.commentaryKey).toMatch(
           card.card === 'yellow'
-            ? /^match\.commentary\.card\.\d$/
+            ? /^match\.commentary\.card(-early|-late)?\.\d+$/
             : new RegExp(`^match\\.commentary\\.${card.card}\\.\\d$`),
         );
-        expect(session.setup.players[card.playerId!]!.primaryPosition).not.toBe('GK');
+        // Keepers are booked too on match-22 (release 1.0 step 5.4), rarely.
+        if (session.setup.players[card.playerId!]!.primaryPosition === 'GK') keepers++;
         if (card.card !== 'red') yellow++;
         if (card.card === 'second-yellow') second++;
         if (card.card === 'red') straight++;
@@ -263,6 +256,7 @@ describe('full discipline (match-16)', () => {
     expect(red / many.length).toBeLessThan(0.32);
     expect(second).toBeGreaterThan(0);
     expect(straight).toBeGreaterThan(0);
+    expect(keepers / many.length).toBeLessThan(0.3);
   });
 
   it('takes a player sent off out of play: pitch, moments, scoring and substitutions', () => {
@@ -281,8 +275,9 @@ describe('full discipline (match-16)', () => {
           expect(event.receiverId).not.toBe(id);
           expect(event.assistId).not.toBe(id);
         }
-        // Parked off the pitch in every later keyframe, and in nobody's moment.
-        for (const frame of session.state.frames.filter((f) => f.timeMs > card.minute * 60000)) {
+        // Parked off the pitch in every later keyframe, and in nobody's moment. Snapshots are
+        // one a played minute, added minutes included (match-22).
+        for (const frame of session.state.frames.slice(playedIndex(session, card) + 1)) {
           const shown = frame.players.find((p) => p.id === id)!;
           expect(shown.animation).toBe(OFF_ANIMATION);
           expect(shown.point).toEqual(PARKED);
@@ -371,7 +366,8 @@ describe('full discipline (match-16)', () => {
             booking.foul,
             6,
           );
-          const fail = 1 - choice.probability;
+          // A professional foul (match-22) risks its card when it succeeds.
+          const fail = booking.onSuccess ? choice.probability : 1 - choice.probability;
           expect(booking.yellow + booking.red).toBeCloseTo(fail * booking.foul, 5);
           if (booking.booked) expect(booking.yellow).toBe(0);
         }
@@ -379,7 +375,8 @@ describe('full discipline (match-16)', () => {
         const outcome = event.outcome;
         if (!outcome?.booking) continue;
         rolled++;
-        expect(outcome.success).toBe(false);
+        // A professional foul (match-22) is booked when it succeeds; any other choice when it fails.
+        expect(outcome.success).toBe(outcome.input.choiceId === 'professional-foul');
         const card = outcome.booking.card;
         if (card) {
           carded++;

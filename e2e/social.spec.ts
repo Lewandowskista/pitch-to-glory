@@ -1,8 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
-import { careerTabs, isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import { careerTabs, expect, nationalCareer, openCareerPage, skipTutorial, test } from './support';
 import { readFileSync } from 'node:fs';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { openPress, rivalOf } from '../src/engine/career/social';
 import { createRng } from '../src/engine/rng';
@@ -11,17 +9,6 @@ import type { World } from '../src/model/domain';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 
@@ -56,31 +43,7 @@ async function accessibilityViolations(page: Page): Promise<string[]> {
 
 /** A career a few weeks in, built with the real engine, with a rival question waiting. */
 function socialSave(): { json: string; rival: string } {
-  const base = generateWorld('social-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'social-browser')[0]!;
-  let world: World = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'social-browser',
-  );
+  let world: World = nationalCareer('social-browser');
   for (let week = 0; week < 6; week++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
   // Answer anything the simulation opened, then ask about the rival.
@@ -113,7 +76,10 @@ test('answers the press, reads club life and compares with the rival', async ({
       mimeType: 'application/json',
       buffer: Buffer.from(json),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Social career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Social career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
 
   // The hub's press room leads to the waiting question.
   await page.goto('/career?save=1');

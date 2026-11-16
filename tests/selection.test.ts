@@ -1,20 +1,19 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { LEAD_IN_IDS } from '../src/engine/match/chainTable';
 import type { Player, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
-import { startNextSeason } from '../src/engine/world/simulate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { nextCareerFixture, pendingCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCommand, careerMatchSetup, defaultTactics } from '../src/engine/career/matches';
 import { careerSelection, slotCompetition } from '../src/engine/career/market';
-import { applyMatchCommand, createMatchSession, validateMatchSession } from '../src/engine/match';
 import {
-  engineFor,
-  LEGACY_MATCH_ENGINE,
+  applyMatchCommand,
+  createMatchSession,
   MATCH_ENGINE_VERSION,
-  PREVIOUS_MATCH_ENGINE,
-} from '../src/engine/match/types';
-import { SITUATION_BY_ID } from '../src/engine/match/situations';
+  OutdatedMatchSessionError,
+  validateMatchSession,
+} from '../src/engine/match';
+import { SITUATION_22_BY_ID as SITUATION_BY_ID } from '../src/engine/match/situations22';
 import {
   FORMATION_SLOTS,
   FORMATIONS,
@@ -22,15 +21,17 @@ import {
   type Formation,
 } from '../src/engine/selection/formations';
 import { effectiveAbility, selectLineup, slotFit } from '../src/engine/selection/lineup';
-import { clubFormation, usesFormations } from '../src/engine/selection/world';
+import { clubFormation } from '../src/engine/selection/world';
+import { adoptCurrentRules } from '../src/engine/world/rules';
 import { playerAbility } from '../src/engine/strength';
-import { validateWorld } from '../src/persistence/worldSchema';
+import { ownKeeperAttributes } from '../src/engine/keeping';
+import { nationalWorld } from './support/world';
 
 /** Phase 5.1: one formation-aware selection for background, career and interactive matches. */
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 let world: World;
 beforeAll(() => {
-  const base = generateWorld('selection-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'selection-tests')[0]!;
   world = createCareer(
     base,
@@ -61,8 +62,8 @@ const careerClub = (source: World) => source.clubs[careerPlayer(source).clubId!]
 const setAll = (player: Player, value: number) => {
   for (const key of Object.keys(player.attributes))
     (player.attributes as Record<string, number>)[key] = value;
-  for (const key of Object.keys(player.keeperAttributes))
-    (player.keeperAttributes as Record<string, number>)[key] = value;
+  const keeping = ownKeeperAttributes(player);
+  for (const key of Object.keys(keeping)) (keeping as Record<string, number>)[key] = value;
 };
 
 describe('formations', () => {
@@ -181,7 +182,12 @@ describe('career selection', () => {
     const club = careerClub(source);
     source.managers[club.managerId]!.preferredFormation = '4-3-3';
     const player = careerPlayer(source);
-    // Everyone else in the eleven is far better, except the left winger.
+    // Everyone else in the eleven is far better, except the left winger. The club's other
+    // strikers are too: a semi-professional club's strikers can be weaker than its wingers, who
+    // would otherwise leave the player the centre-forward's place.
+    for (const id of club.playerIds)
+      if (id !== player.id && source.players[id]!.primaryPosition === 'ST')
+        setAll(source.players[id]!, 99);
     const without = selectLineup(club.playerIds, source.players, '4-3-3', {
       exclude: [player.id],
     });
@@ -216,24 +222,18 @@ describe('career selection', () => {
     expect(careerSelection(world, fixture)).toEqual(selection);
   });
 
-  it('keeps line-based competition until a world adopts formations at the new season', () => {
+  it('adopts formations part-way through a season when an older save loads', () => {
+    // A world saved before formation-aware selection, mid-season (docs/COMPATIBILITY.md).
     const before: World = clone(world);
     delete before.selectionVersion;
-    expect(usesFormations(before)).toBe(false);
-    const competition = slotCompetition(before, careerClub(before), careerPlayer(before));
-    expect(competition.formation).toBeNull();
-    expect(competition.position).toBe(careerPlayer(before).primaryPosition);
-    let season = before;
-    while (season.phase === 'active')
-      season = advanceCareerWeek(season, { inPlace: true, autoPlay: true }).world;
-    expect(season.selectionVersion).toBeUndefined();
-    const next = startNextSeason(season);
-    expect(next.selectionVersion).toBe(1);
-    expect(slotCompetition(next, careerClub(next), careerPlayer(next)).formation).toBe(
-      clubFormation(next, careerClub(next)),
+    expect(adoptCurrentRules(before)).toEqual(['selectionVersion']);
+    expect(before.selectionVersion).toBe(1);
+    expect(before).toEqual(world);
+    expect(slotCompetition(before, careerClub(before), careerPlayer(before)).formation).toBe(
+      clubFormation(before, careerClub(before)),
     );
-    expect(() => validateWorld(clone(next))).not.toThrow();
-  }, 120000);
+    expect(adoptCurrentRules(before)).toEqual([]);
+  });
 });
 
 describe('interactive matches', () => {
@@ -311,50 +311,44 @@ describe('interactive matches', () => {
     const own = play(false);
     expect(own.length).toBeGreaterThan(0);
     for (const moment of own) {
-      expect(SITUATION_BY_ID[moment.situationId]!.positions[primary] ?? 0).toBeGreaterThan(0);
+      // A chain's lead-in step (X1a) is never drawn on its own: its finish is.
+      if (!LEAD_IN_IDS.has(moment.situationId))
+        expect(SITUATION_BY_ID[moment.situationId]!.positions[primary] ?? 0).toBeGreaterThan(0);
       expect(moment.penalised).toBe(false);
     }
     const slotted = play(true);
     expect(slotted.length).toBeGreaterThan(0);
     for (const moment of slotted) {
-      expect(SITUATION_BY_ID[moment.situationId]!.positions.CB ?? 0).toBeGreaterThan(0);
+      if (!LEAD_IN_IDS.has(moment.situationId))
+        expect(SITUATION_BY_ID[moment.situationId]!.positions.CB ?? 0).toBeGreaterThan(0);
       expect(moment.penalised).toBe(true);
     }
     // At least one moment a striker would never face in their own position.
-    expect(slotted.some((m) => !(SITUATION_BY_ID[m.situationId]!.positions[primary] ?? 0))).toBe(
-      true,
-    );
+    expect(
+      slotted.some(
+        (m) =>
+          !LEAD_IN_IDS.has(m.situationId) &&
+          !(SITUATION_BY_ID[m.situationId]!.positions[primary] ?? 0),
+      ),
+    ).toBe(true);
   }, 120000);
 
-  it('replay match-10 sessions, saved before slot-aware moments, as they were', () => {
+  it('refuses setups and sessions from the engines before formations and slot moments', () => {
     const source = pending();
     const setup = careerMatchSetup(source, pendingCareerFixture(source)!);
-    delete setup.slotMoments;
-    expect(engineFor(setup)).toBe(PREVIOUS_MATCH_ENGINE);
     let session = createMatchSession(setup, defaultTactics(source));
-    expect(session.engine).toBe(PREVIOUS_MATCH_ENGINE);
     session = applyMatchCommand(session, { type: 'kickoff' });
     expect(validateMatchSession(clone(session))).toEqual(session);
-    // Neither engine can be claimed for the other's setup.
-    expect(() =>
-      validateMatchSession({ ...clone(session), engine: MATCH_ENGINE_VERSION }),
-    ).toThrow();
-  });
-
-  it('replay sessions from before formations with their 4-3-3', () => {
-    const source = pending();
-    delete source.selectionVersion;
-    const setup = careerMatchSetup(source, pendingCareerFixture(source)!);
-    expect(setup.formations).toBeUndefined();
-    expect(engineFor(setup)).toBe(LEGACY_MATCH_ENGINE);
-    let session = createMatchSession(setup, defaultTactics(source));
-    expect(session.engine).toBe(LEGACY_MATCH_ENGINE);
-    expect(session.state.match.home.formation).toBe('4-3-3');
-    session = applyMatchCommand(session, { type: 'kickoff' });
-    expect(validateMatchSession(clone(session))).toEqual(session);
-    // A legacy session cannot claim formations, and a new one cannot claim the old engine.
-    expect(() =>
-      validateMatchSession({ ...clone(session), engine: MATCH_ENGINE_VERSION }),
-    ).toThrow();
+    for (const flag of ['formations', 'slotMoments'] as const) {
+      const older = clone(session);
+      delete older.setup[flag];
+      expect(() => validateMatchSession(older)).toThrow(OutdatedMatchSessionError);
+      expect(() => createMatchSession(older.setup, defaultTactics(source))).toThrow(
+        OutdatedMatchSessionError,
+      );
+    }
+    expect(() => validateMatchSession({ ...clone(session), engine: 'match-10' })).toThrow(
+      OutdatedMatchSessionError,
+    );
   });
 });

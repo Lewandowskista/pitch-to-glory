@@ -7,14 +7,31 @@
  *
  *   npm run profile -- --seed review-a --position ST          one career (about seven minutes)
  *   npm run profile -- --seed review-b --position CM --specialise   points into the position's key attributes
+ *   npm run profile -- --seed review-a --position ST --policy sponsor   accepts sponsorships (C19)
  *   npm run profile -- --check                               assert the gates over artifacts/profile/*.json
+ *   npm run profile -- --check --assert-targets              also fail on the 1.0 targets
+ *
+ * The check also reports the 1.0 targets (docs/RELEASE-1.0-PLAN.md step 2.3; `TARGETS` below):
+ * honours fairness, prime years and the economy. They are reported, not asserted, until phase 7
+ * meets them and flips their `asserted` flags. They need careers to retirement for GK, CB, CM
+ * and ST with the default policy, and one with the sponsor policy.
  *
  * Writes artifacts/profile/<seed>-<position>.json.
  */
 import { suggestCommitments } from '../src/engine/career/commitments';
 import { CALIBRATION_GATE, calibrationProblems } from './calibration';
+import {
+  assertAllTargets,
+  evaluateTargets,
+  median as middle,
+  printTargets,
+  within,
+  type Target,
+} from './targets';
+import { awardAchievement } from '../src/engine/career/honours/achievements';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type {
+  Award,
   GrowthSeason,
   Id,
   Player,
@@ -71,6 +88,8 @@ export interface SeasonProfile {
   fame: number;
   fameLevel: number;
   apps: number;
+  /** Appearances off the bench (release 1.0 step 5.4); absent in profiles from before it. */
+  subApps?: number;
   starts: number;
   minutes: number;
   goals: number;
@@ -102,6 +121,18 @@ export interface SeasonProfile {
   players90: number;
   /** Whole attribute points this season by source (review phase 2, step 2.4). */
   growth?: Omit<GrowthSeason, 'season'>;
+  /**
+   * Income this season (1.0 economy target): sponsorship fees (active deals' weekly fees) and
+   * everything else the player was paid (wages, bonuses, transfer money).
+   */
+  sponsorIncome?: number;
+  footballIncome?: number;
+  /**
+   * The season's awards (1.0 honours target): the league tier each covered (null for the
+   * Golden Ball and young player), the Hall of Fame points the engine credits, and what the
+   * same award would credit in a tier-1 league.
+   */
+  awardPoints?: { kind: string; tier: number | null; points: number; tierOnePoints: number }[];
 }
 /**
  * The ways the headless player plays (review phase 2, step 2.4): `default` is the soak
@@ -125,6 +156,14 @@ export const POLICIES = {
   social: {},
   /** Weekly commitments: the suggested week, re-chosen every week (delegation). */
   delegate: {},
+  /** Accepts every sponsorship the fame level allows and keeps its commitment (C19). */
+  sponsor: { sponsors: 'accept' },
+  /** Answers every story scene, each choice in turn (C19). */
+  stories: { stories: 'rotate' },
+  /** Answers the press in each tone in turn instead of always the first (C19). */
+  press: { press: 'rotate' },
+  /** All three: sponsors, stories and a varied press, as a person might play (C19). */
+  human: { sponsors: 'accept', stories: 'rotate', press: 'rotate' },
 } as const satisfies Record<string, DecideOptions>;
 export type Policy = keyof typeof POLICIES;
 
@@ -206,7 +245,7 @@ function specialisedSpend(input: World, position: Position): World {
 const percentile = (values: number[], value: number) =>
   Math.round((100 * values.filter((v) => v < value).length) / values.length);
 function topAttributes(player: Player, count = 6): string {
-  const source = player.primaryPosition === 'GK' ? player.keeperAttributes : player.attributes;
+  const source = player.primaryPosition === 'GK' ? player.keeperAttributes! : player.attributes;
   return Object.entries(source)
     .sort((a, b) => b[1] - a[1])
     .slice(0, count)
@@ -238,6 +277,22 @@ function shop(world: World, commit: (next: World) => void): number {
   commit(applyLifestyleAction(world, { type: 'buy-asset', itemId: pick.item.id }));
   return pick.price;
 }
+/**
+ * The Hall of Fame points an award credits, and the same award's points in a tier-1 league:
+ * equal points below tier 2 mean the award counts at full weight (finding C1).
+ */
+function awardPointsOf(world: World, award: Award) {
+  const tier = award.competitionId ? (world.leagues[award.competitionId]?.tier ?? null) : null;
+  const tierOne = Object.values(world.leagues).find((league) => league.tier === 1);
+  const twin: Award = { ...award, competitionId: tierOne?.id ?? award.competitionId };
+  return {
+    kind: award.kind,
+    tier,
+    points: awardAchievement(award),
+    tierOnePoints: awardAchievement(twin),
+  };
+}
+
 export function runProfile(
   seed: string,
   position: Position,
@@ -288,6 +343,9 @@ export function runProfile(
     let lowTrustWeeks = 0;
     let spent = 0;
     let injuries = 0;
+    let sponsorIncome = 0;
+    let earned = 0;
+    const earningsBefore = world.career?.market.finances.lifetimeEarnings ?? 0;
     while (world.phase === 'active') {
       if (world.career) {
         const plan = policyPlan(policy, world.players[world.career.playerId]!);
@@ -301,6 +359,10 @@ export function runProfile(
       for (const offer of world.offers) offers.add(offer.id);
       if (world.career) spent += shop(world, (next) => (world = next));
       const played = { season: world.date.season, week: world.date.week };
+      if (world.career)
+        sponsorIncome += world.sponsorships
+          .filter((deal) => deal.status === 'active')
+          .reduce((sum, deal) => sum + deal.weeklyFee, 0);
       world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
       weeks++;
       if (managerTrust(world) < 70) lowTrustWeeks++;
@@ -322,6 +384,7 @@ export function runProfile(
       }
     }
     const career = world.career!;
+    earned = career.market.finances.lifetimeEarnings - earningsBefore;
     const player = world.players[career.playerId]!;
     const age = world.date.season - player.birthSeason;
     const club = world.clubs[player.clubId!]!;
@@ -362,6 +425,7 @@ export function runProfile(
       fame: Math.round(career.fame),
       fameLevel: fameLevel(career.fame),
       apps: matches.length,
+      subApps: matches.filter((m) => m.cameOn !== undefined).length,
       starts: matches.filter((m) => m.minutes >= 60).length,
       minutes: matches.reduce((sum, m) => sum + m.minutes, 0),
       goals: matches.reduce((sum, m) => sum + m.goals, 0),
@@ -404,6 +468,11 @@ export function runProfile(
         }),
       players85: abilities.filter((v) => v >= 85).length,
       players90: abilities.filter((v) => v >= 90).length,
+      sponsorIncome: Math.round(sponsorIncome),
+      footballIncome: Math.round(Math.max(0, earned - sponsorIncome)),
+      awardPoints: world.awards
+        .filter((a) => a.season === world.date.season && a.winnerIds.includes(player.id))
+        .map((award) => awardPointsOf(world, award)),
       growth: (() => {
         const { playing, training, points, skills, decline } = growthOf(career, world.date.season);
         return { playing, training, points, skills, decline };
@@ -411,7 +480,7 @@ export function runProfile(
     };
     profile.seasons.push(season);
     log(
-      `${season.season} age ${age} level ${season.level} ability ${season.ability} (${season.worldPercentile}%, ${season.squadRank}/${season.squadSize}) T${season.tier} ${season.club} ${season.role} ${season.wage} · ${season.apps} apps ${season.goals} g ${season.assists} a ${season.rating} · fame ${season.fame} · rival ${season.rivalAbility} T${season.rivalTier} · caps ${season.caps}`,
+      `${season.season} age ${age} level ${season.level} ability ${season.ability} (${season.worldPercentile}%, ${season.squadRank}/${season.squadSize}) T${season.tier} ${season.club} ${season.role} ${season.wage} · ${season.apps} apps (${season.subApps ?? 0} off the bench) ${season.goals} g ${season.assists} a ${season.rating} · fame ${season.fame} · rival ${season.rivalAbility} T${season.rivalTier} · caps ${season.caps}`,
     );
     const rule = retirementState(world);
     if (rule === 'forced' || (rule === 'available' && age >= RETIRE_AGE)) {
@@ -597,6 +666,199 @@ export const GATES: Gate[] = [
   },
 ];
 
+/**
+ * The 1.0 career targets (docs/RELEASE-1.0-PLAN.md step 2.3). Phase 7 meets them and sets
+ * `asserted: true`. The bands marked "proposed" are this step's proposals, to be agreed in phase
+ * 7 (docs/BALANCING.md, "1.0 targets").
+ */
+export const TARGET_BANDS = {
+  /**
+   * Proposed: each line's median Hall of Fame rank within this factor of the striker careers'
+   * median rank, either way (an order of magnitude, among some 60,000 ranked players).
+   */
+  honoursFactor: 10,
+  /** Median age at fame level 10. */
+  fameTenAge: 27,
+  /** Fan affection pinned: at or above this, in at most this share of seasons from 25. */
+  fansPinned: 95,
+  fansPinnedShare: 0.5,
+  fansFromAge: 25,
+  /**
+   * Proposed: with the sponsor-accepting policy, lifetime earnings at each age within this
+   * multiple of the football income (wages, bonuses, transfers) earned by then.
+   */
+  wealthMultiple: { 21: 1.25, 25: 1.5, 29: 2 } as Record<number, number>,
+} as const;
+const LINES: Partial<Record<Position, string>> = {
+  GK: 'keeper',
+  CB: 'defender',
+  LB: 'defender',
+  RB: 'defender',
+  DM: 'midfielder',
+  CM: 'midfielder',
+  AM: 'midfielder',
+  ST: 'striker',
+};
+const policyOf = (profile: CareerProfile) => profile.policy ?? 'default';
+/** Policies added for the 1.0 targets (C19): judged by the targets, not by the gates. */
+const TARGET_POLICIES: ReadonlySet<string> = new Set(['sponsor', 'stories', 'press', 'human']);
+/** The retired career's Hall of Fame rank and score (null before retirement). */
+const hallOfFame = (profile: CareerProfile) =>
+  (profile.legacy as { hallOfFame?: { rank: number; of: number; score: number } } | null)
+    ?.hallOfFame ?? null;
+/** The age a career first reached fame level 10 (Infinity when it never did). */
+const fameTenAge = (profile: CareerProfile) =>
+  profile.seasons.find((season) => season.fameLevel >= 10)?.age ?? Number.POSITIVE_INFINITY;
+/** Lifetime earnings over football income, by the end of the season at `age`. */
+function wealthMultiple(profile: CareerProfile, age: number): number | null {
+  const upTo = profile.seasons.filter((season) => season.age <= age);
+  if (!upTo.length || upTo.at(-1)!.age !== age || upTo.some((s) => s.footballIncome === undefined))
+    return null;
+  const football = upTo.reduce((sum, season) => sum + season.footballIncome!, 0);
+  const sponsors = upTo.reduce((sum, season) => sum + season.sponsorIncome!, 0);
+  return football ? (football + sponsors) / football : null;
+}
+const percent = (value: number) => `${Math.round(value * 100)}%`;
+export const TARGETS: Target<CareerProfile[]>[] = [
+  {
+    id: 'honours-fairness',
+    name: `honours fairness: median Hall of Fame rank of keeper, defender and midfielder careers within ×${TARGET_BANDS.honoursFactor} of striker careers' (proposed band)`,
+    phase: 7,
+    asserted: false,
+    evaluate: (profiles) => {
+      const retired = profiles.filter((p) => policyOf(p) === 'default' && hallOfFame(p));
+      const byLine = new Map<string, number[]>();
+      for (const profile of retired) {
+        const line = LINES[profile.position];
+        if (line) byLine.set(line, [...(byLine.get(line) ?? []), hallOfFame(profile)!.rank]);
+      }
+      const striker = byLine.get('striker');
+      const describe = [...byLine.entries()]
+        .map(([line, ranks]) => {
+          const scores = retired
+            .filter((p) => LINES[p.position] === line)
+            .map((p) => hallOfFame(p)!.score);
+          return `${line} #${ranks.join('/#')} (score ${scores.join('/')})`;
+        })
+        .join(', ');
+      const others = ['keeper', 'defender', 'midfielder'].filter((line) => byLine.has(line));
+      if (!striker || !others.length)
+        return {
+          met: null,
+          value: `needs retired striker and other careers: ${describe || 'none'}`,
+        };
+      const reference = middle(striker);
+      const off = others.filter((line) => {
+        const ratio = middle(byLine.get(line)!) / reference;
+        return !within(ratio, 1 / TARGET_BANDS.honoursFactor, TARGET_BANDS.honoursFactor);
+      });
+      const missing = ['keeper', 'defender', 'midfielder'].filter((line) => !byLine.has(line));
+      return {
+        met: off.length ? false : missing.length ? null : true,
+        value: `${describe}${off.length ? `; outside the band: ${off.join(', ')}` : ''}${missing.length ? `; not measured: ${missing.join(', ')}` : ''}`,
+      };
+    },
+  },
+  {
+    id: 'award-tier-weight',
+    name: 'honours fairness: no award below tier 2 counted at full weight',
+    phase: 7,
+    asserted: false,
+    evaluate: (profiles) => {
+      const below = profiles.flatMap((p) =>
+        p.seasons.flatMap((s) =>
+          (s.awardPoints ?? [])
+            .filter((award) => award.tier !== null && award.tier > 2)
+            .map((award) => ({ ...award, seed: p.seed, season: s.season })),
+        ),
+      );
+      if (!profiles.some((p) => p.seasons.some((s) => s.awardPoints)))
+        return { met: null, value: 'no award data (rerun the profiles)' };
+      const full = below.filter((award) => award.points > 0 && award.points >= award.tierOnePoints);
+      return {
+        met: full.length === 0,
+        value: `${full.length} of ${below.length} awards below tier 2 at full weight${
+          full.length
+            ? ` (${full
+                .slice(0, 6)
+                .map((a) => `${a.seed} ${a.season} ${a.kind} tier ${a.tier}: ${a.points}`)
+                .join('; ')}${full.length > 6 ? '; …' : ''})`
+            : ''
+        }`,
+      };
+    },
+  },
+  {
+    id: 'prime-fame',
+    name: `prime years: median age at fame level 10 ≥ ${TARGET_BANDS.fameTenAge}`,
+    phase: 7,
+    asserted: false,
+    evaluate: (profiles) => {
+      const ages = profiles.filter((p) => policyOf(p) === 'default').map(fameTenAge);
+      if (!ages.length) return { met: null, value: 'no default-policy careers' };
+      const value = middle(ages);
+      return {
+        met: value >= TARGET_BANDS.fameTenAge,
+        value: `median ${value} (${ages.map((a) => (Number.isFinite(a) ? a : 'never')).join(', ')})`,
+      };
+    },
+  },
+  {
+    id: 'prime-fans',
+    name: `prime years: fan affection not pinned at ≥ ${TARGET_BANDS.fansPinned} for more than half of seasons from ${TARGET_BANDS.fansFromAge} (median career)`,
+    phase: 7,
+    asserted: false,
+    evaluate: (profiles) => {
+      const shares = profiles
+        .filter((p) => policyOf(p) === 'default')
+        .map((p) => p.seasons.filter((s) => s.age >= TARGET_BANDS.fansFromAge))
+        .filter((seasons) => seasons.length)
+        .map(
+          (seasons) =>
+            seasons.filter((s) => s.fans >= TARGET_BANDS.fansPinned).length / seasons.length,
+        );
+      if (!shares.length) return { met: null, value: 'no seasons from 25' };
+      const value = middle(shares);
+      return {
+        met: value <= TARGET_BANDS.fansPinnedShare,
+        value: `median ${percent(value)} of seasons pinned (${shares.map(percent).join(', ')})`,
+      };
+    },
+  },
+  {
+    id: 'economy',
+    name: 'economy: with the sponsor-accepting policy, lifetime earnings at 21, 25 and 29 within ×1.25, ×1.5 and ×2 of football income (proposed band, C19)',
+    phase: 7,
+    asserted: false,
+    evaluate: (profiles) => {
+      const sponsored = profiles.filter(
+        (p) => policyOf(p) === 'sponsor' || policyOf(p) === 'human',
+      );
+      if (!sponsored.length)
+        return { met: null, value: 'no sponsor-accepting careers (run --policy sponsor)' };
+      const parts: string[] = [];
+      let met = true;
+      for (const [age, limit] of Object.entries(TARGET_BANDS.wealthMultiple)) {
+        const values = sponsored
+          .map((p) => wealthMultiple(p, Number(age)))
+          .filter((v): v is number => v !== null);
+        if (!values.length) continue;
+        const value = middle(values);
+        met &&= value <= limit;
+        const cash = sponsored
+          .map((p) => p.seasons.find((s) => s.age === Number(age))?.cash)
+          .filter((v): v is number => v !== undefined);
+        parts.push(
+          `at ${age} ×${value.toFixed(2)} (cash ${cash.map((c) => `${Math.round(c / 1000)}k`).join('/')})`,
+        );
+      }
+      return parts.length
+        ? { met, value: parts.join(', ') }
+        : { met: null, value: 'no income data (rerun the profiles)' };
+    },
+  },
+];
+
 function check(): void {
   // Career profiles only: the match and world profiles live beside them.
   const files = readdirSync(OUT_DIR).filter(
@@ -607,20 +869,28 @@ function check(): void {
   );
   if (!profiles.length) throw new Error(`No profiles in ${OUT_DIR}`);
   console.log(`${profiles.length} profiles: ${files.join(', ')}`);
+  // The C19 policies feed the 1.0 targets only; the gates keep judging the careers they did.
+  const gated = profiles.filter((p) => !TARGET_POLICIES.has(policyOf(p)));
+  if (gated.length < profiles.length)
+    console.log(
+      `Gates over ${gated.length}; ${profiles.length - gated.length} for the targets only.`,
+    );
   let failed = 0;
   for (const gate of GATES) {
-    const problem = gate.check(profiles);
+    const problem = gate.check(gated);
     console.log(`${problem ? 'FAIL' : 'ok  '} ${gate.name}${problem ? ` — ${problem}` : ''}`);
     if (gate.share) {
-      const { hits, of } = gate.share(profiles);
+      const { hits, of } = gate.share(gated);
       const [low, high] = wilson(hits, of);
       console.log(
         `       ${hits} of ${of} (${Math.round((100 * hits) / of)}%), 95% interval ${Math.round(low * 100)}–${Math.round(high * 100)}%`,
       );
     }
-    if (gate.values) console.log(`       ${quartiles(gate.values(profiles))}`);
+    if (gate.values) console.log(`       ${quartiles(gate.values(gated))}`);
     if (problem) failed++;
   }
+  // The 1.0 targets: reported until their phase asserts them.
+  failed += printTargets(evaluateTargets(TARGETS, profiles, assertAllTargets()));
   if (failed) process.exitCode = 1;
 }
 

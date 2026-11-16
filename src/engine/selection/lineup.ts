@@ -44,10 +44,11 @@ const NATURAL_LINE: Record<Position, Line> = {
   RW: 'attack',
   ST: 'attack',
 };
+/** How much of a player's ability counts at a positional fit (0–100). */
+const fitScale = (fit: number) => S.unfamiliarFactor + ((1 - S.unfamiliarFactor) * fit) / 100;
 /** A player's ability in a slot, scaled by positional fit. */
 export function effectiveAbility(player: Player, position: Position): number {
-  const fit = slotFit(player, position);
-  return playerAbility(player) * (S.unfamiliarFactor + ((1 - S.unfamiliarFactor) * fit) / 100);
+  return playerAbility(player) * fitScale(slotFit(player, position));
 }
 export const available = (player: Player | undefined): player is Player =>
   Boolean(player && !player.retired && !player.injuryId && player.fitness > 0);
@@ -118,8 +119,12 @@ export function selectLineup(
     player.id === options.selected || !options.seed
       ? 1
       : 1 - Math.max(0, player.fatigue - R.fatigueFrom) / R.fatigueDivisor;
+  // Each player's ability once per selection, not once per comparison (review P5).
+  const abilities = new Map<Id, number>();
+  for (const player of pool) abilities.set(player.id, playerAbility(player));
   const valueIn = (player: Player, position: Position) =>
-    effectiveAbility(player, position) * condition(player) + (jitter.get(player.id) ?? 0);
+    abilities.get(player.id)! * fitScale(slotFit(player, position)) * condition(player) +
+    (jitter.get(player.id) ?? 0);
   const byAbility = (a: Player, b: Player) =>
     valueIn(b, b.primaryPosition) - valueIn(a, a.primaryPosition) || (a.id < b.id ? -1 : 1);
   const filled: (Id | null)[] = slots.map(() => null);

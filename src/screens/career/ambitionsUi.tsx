@@ -12,8 +12,8 @@ import { liveHallOfFameRank } from '../../engine/career/honours/retirement';
 import { useAppStore } from '../../store';
 import { format } from '../../i18n';
 import { ambitionsText as a } from '../../i18n/ambitions';
+import { formatNumber, ordinal } from '../../i18n/locale';
 import { ambitionName } from './ambitionText';
-import { ordinal } from './honoursUi';
 import { ui, useEditBlock } from './shared';
 import { useUrlDialog } from './useUrlDialog';
 
@@ -31,7 +31,7 @@ function HallOfFameLine({ world }: { world: World }) {
           <span className="font-display text-xl leading-none tabular-nums">
             {format(a.hallOfFame.rank, {
               rank: ordinal(standing.rank),
-              of: standing.of.toLocaleString('en'),
+              of: formatNumber(standing.of),
             })}
           </span>
         )}

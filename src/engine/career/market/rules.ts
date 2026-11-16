@@ -14,7 +14,7 @@ import { createRng } from '../../rng';
 import { playerAbility, wageFor } from '../../strength';
 import { effectiveAbility, available, selectLineup, slotFit } from '../../selection/lineup';
 import { FORMATION_SLOTS, type Formation } from '../../selection/formations';
-import { clubFormation, clubStarters, usesFormations } from '../../selection/world';
+import { clubFormation, clubStarters } from '../../selection/world';
 import { getSeasonWeeks } from '../../world/calendar';
 import { suspension } from '../../world/discipline';
 
@@ -25,7 +25,6 @@ import { suspension } from '../../world/discipline';
 export const M = CONFIG.career.market;
 export type Role = Contract['role'];
 export type Line = keyof typeof M.slots;
-export const ROLES: readonly Role[] = ['key', 'rotation', 'youth', 'backup'];
 /** Higher is a stronger promise. Youth sits above backup: it carries a development promise. */
 export const ROLE_RANK: Record<Role, number> = { key: 3, rotation: 2, youth: 1, backup: 0 };
 
@@ -159,42 +158,19 @@ export function bonusesFor(weeklyWage: number) {
   };
 }
 
-/** Teammates in the player's line who are better than them: their place in the pecking order. */
-export function lineRank(world: World, club: Club, player: Player): number {
-  const line = lineOf(player.primaryPosition);
-  const ability = playerAbility(player);
-  return club.playerIds.filter((id) => {
-    if (id === player.id) return false;
-    const other = world.players[id]!;
-    return (
-      lineOf(other.primaryPosition) === line &&
-      !other.injuryId &&
-      (playerAbility(other) > ability || (playerAbility(other) === ability && other.id < player.id))
-    );
-  }).length;
-}
 /**
- * The squad role a club can honestly promise, from where the player would rank. With
- * formations, from the competition for their slot under the club's manager (the measure
- * selection uses): in the eleven a key player, one place outside rotation. An injured player is
- * judged as if fit. Worlds before formations rank the line in a 4-3-3.
+ * The squad role a club can honestly promise, from the competition for their slot under the
+ * club's manager (the measure selection uses): in the eleven a key player, one place outside
+ * rotation. An injured player is judged as if fit.
  */
 export function deservedRole(world: World, club: Club, player: Player): Role {
   const young = ageOf(world, player) <= M.youngAge - 1;
-  if (usesFormations(world)) {
-    const fit = player.injuryId
-      ? { ...world, players: { ...world.players, [player.id]: { ...player, injuryId: null } } }
-      : world;
-    const competition = slotCompetition(fit, club, fit.players[player.id]!);
-    if (competition.inTeam) return 'key';
-    if (competition.placesOutside <= 1) return 'rotation';
-    return young ? 'youth' : 'backup';
-  }
-  const slots = M.slots[lineOf(player.primaryPosition)];
-  const rank = lineRank(world, club, player);
-  if (slots === 1) return rank === 0 ? 'key' : young ? 'youth' : 'backup';
-  if (rank < slots - 1) return 'key';
-  if (rank < slots + 1) return 'rotation';
+  const fit = player.injuryId
+    ? { ...world, players: { ...world.players, [player.id]: { ...player, injuryId: null } } }
+    : world;
+  const competition = slotCompetition(fit, club, fit.players[player.id]!);
+  if (competition.inTeam) return 'key';
+  if (competition.placesOutside <= 1) return 'rotation';
   return young ? 'youth' : 'backup';
 }
 
@@ -218,8 +194,8 @@ export function managerTrust(world: World): number {
 
 /** Where the career player stands for a place in the manager's eleven. */
 export interface SlotCompetition {
-  /** The manager's formation; null in a world still on line-based selection. */
-  formation: Formation | null;
+  /** The manager's formation. */
+  formation: Formation;
   inTeam: boolean;
   /** The slot the player fills, or the one they are closest to. */
   position: Position;
@@ -233,22 +209,9 @@ export interface SlotCompetition {
 /**
  * The career player's competition for a place. With formations: picked in the eleven the
  * club would field, or else the slot with the fewest teammates ahead (valued in that slot,
- * so a familiar secondary position can be the way in). Before: the place in the line's
- * pecking order by ability.
+ * so a familiar secondary position can be the way in).
  */
 export function slotCompetition(world: World, club: Club, player: Player): SlotCompetition {
-  if (!usesFormations(world)) {
-    const slots = M.slots[lineOf(player.primaryPosition)];
-    const rank = lineRank(world, club, player);
-    return {
-      formation: null,
-      inTeam: rank < slots,
-      position: player.primaryPosition,
-      fit: 100,
-      placesOutside: rank < slots ? 0 : rank - slots + 1,
-      aheadIds: [],
-    };
-  }
   const formation = clubFormation(world, club);
   const lineup = selectLineup(club.playerIds, world.players, formation);
   const at = lineup.starterIds.indexOf(player.id);
@@ -396,8 +359,10 @@ export function careerSelection(world: World, fixture: Fixture): Selection {
     probability = 0;
   }
   const draw = createRng(`${world.seed}:selection:${fixture.id}`).next();
+  // A new career's first fixtures always start (release 1.0 X1a): no debut on the bench.
+  const debut = career.matches.length < CONFIG.career.debutStarts;
   return {
-    selected: registered && !suspended && draw < probability,
+    selected: registered && !suspended && (debut || draw < probability),
     probability,
     registered,
     suspended,

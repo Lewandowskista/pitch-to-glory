@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { careerDrive, driveKind } from '../src/engine/career/social/drive';
 import { moraleParts } from '../src/engine/career/social/week';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 /**
  * Review phase 4, step 4.2: a revealed ambition becomes a stated preference (top-division
@@ -16,7 +16,7 @@ const D = CONFIG.career.social.morale.drive;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 let career: World;
 beforeAll(() => {
-  const base = generateWorld('drive-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'drive-tests')[0]!;
   career = createCareer(
     base,

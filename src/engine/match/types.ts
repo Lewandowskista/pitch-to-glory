@@ -14,121 +14,79 @@ import type { Formation } from '../selection/formations';
 export type { Tactics } from '../../model/domain';
 
 /**
- * Bumped whenever replayed state changes; saved sessions from another engine are discarded.
- * `match-14` annotated the choreography (beats, a focus range) and kept bookkeeping stats
- * without changing any outcome of `match-13`. `match-15` (redesign phase 6) changes outcomes
- * by design: key moments name their cast and each choice's target (a pass reaches the teammate
- * named before the choice), "Track the runner" when defending, objectives on their own stream,
- * cosmetic yellow cards, AI substitutions with a bench of seven, and weather intensity with a
- * pitch state as separate odds factors. `match-16` (the discipline phase, decision 5) adds full
- * discipline: second yellows and straight reds, sides playing on with fewer men, the career
- * player's own dismissal and a booking risk on defending choices. `match-17` (review phase 2,
- * step 2.1) gives the selected player one effective role: the formation slot they start in sets
- * their role choices, objectives, involvement, half-time role change and back-line credit, not
- * their primary position. `match-18` (review phase 3, step 3.1) plays extra time in the session
- * when a tie needs it, with key moments, and settles the shootout there: the player's kick is
- * taken after extra time, only if the sides are still level. `match-19` (review phase 4, steps
- * 4.1 and 4.2) gives the opposition an identity and the player a stronger foot: the opponent's
- * playing style tilts which situations reach the player and the odds of the choices it
- * affects, and a shot or carry with the weaker foot costs odds unless the player is
- * two-footed. `match-20` (review phase 6) makes defending decide more: a back-line player's
- * moments carry more of the opposition's goals, and their attributes move defending odds
- * further, so choosing well measurably prevents goals. `match-21` goes further where match-20
- * left the choices close: a defensive midfielder's moments carry more of the opposition's
- * goals, and a keeper's saves lean harder on the attributes behind them.
+ * Bumped whenever replayed state changes. A saved session replays only on the engine that made
+ * it; a build keeps at most the previous engine as well, for one minor release
+ * (docs/COMPATIBILITY.md), and loading discards any other session with a notice.
+ *
+ * History: `match-14` annotated the choreography (beats, a focus range) and kept bookkeeping
+ * stats. `match-15` (redesign phase 6): key moments name their cast and each choice's target,
+ * "Track the runner" when defending, objectives on their own stream, AI substitutions with a
+ * bench of seven, and weather intensity with a pitch state. `match-16`: full discipline (second
+ * yellows, straight reds, sides a man short, booking risks). `match-17`: the formation slot the
+ * player starts in sets their role. `match-18`: extra time and the shootout are played in the
+ * session. `match-19`: the opponent's playing style and the player's stronger foot. `match-20`:
+ * a back-line player's moments carry more of the opposition's goals. `match-21`: so do a
+ * defensive midfielder's, and a keeper's saves lean harder on their attributes.
+ *
+ * The 1.0 compatibility cut (docs/RELEASE-1.0-PLAN.md step 2.4) removed every engine before
+ * match-21; their sessions restart from kick-off. `match-22` (release 1.0, Phase 5) gathers the
+ * 1.0 match rules behind one setup flag, `rules22`; match-21 is kept as the previous engine, so
+ * a session saved by 0.9.x or 0.10.0 finishes under the rules it started with.
  */
-export const MATCH_ENGINE_VERSION = 'match-21';
+export const MATCH_ENGINE_VERSION = 'match-22';
 /**
- * The engine before screening (match-21). A setup with `defending` but without `screening`
- * still replays as it was.
+ * The engine before this one, kept for one minor release (docs/COMPATIBILITY.md): a setup with
+ * every one of its flags (`PREVIOUS_SETUP_FLAGS`) but not `rules22` replays on it.
  */
-export const DEFENDING_MATCH_ENGINE = 'match-20';
+export const PREVIOUS_MATCH_ENGINE = 'match-21';
 /**
- * The engine before decisive defending. A setup with `identity` but without `defending` still
- * replays as it was.
+ * The setup flags of the previous engine (match-21), in the order setups store them. Each one
+ * switched on a step of the engine history above; a setup without any of them is from an
+ * engine this build no longer plays.
  */
-export const IDENTITY_MATCH_ENGINE = 'match-19';
+export const PREVIOUS_SETUP_FLAGS = {
+  slotMoments: true,
+  dramaMoments: true,
+  occasions: true,
+  discipline: true,
+  roleSlot: true,
+  extraTimePlay: true,
+  identity: true,
+  defending: true,
+  screening: true,
+} as const;
+/** The setup flags of the current engine: the previous engine's and `rules22` (match-22). */
+export const CURRENT_SETUP_FLAGS = { ...PREVIOUS_SETUP_FLAGS, rules22: true } as const;
+const hasFlags = (setup: Partial<MatchSetup>, flags: object): boolean =>
+  Array.isArray(setup.formations) &&
+  (Object.keys(flags) as (keyof MatchSetup)[]).every((flag) => setup[flag] === true);
+/** Whether a setup is the current engine's: formations and every current flag. */
+export const isCurrentSetup = (setup: Partial<MatchSetup>): boolean =>
+  hasFlags(setup, CURRENT_SETUP_FLAGS);
 /**
- * The engine before opponent identity and the preferred foot. A setup with `extraTimePlay` but
- * without `identity` still replays as it was.
+ * The engine a setup plays on: the current one when it has every current flag, the previous
+ * one when it has every previous flag but not `rules22`, and undefined for a setup from an
+ * engine this build no longer plays.
  */
-export const EXTRA_TIME_MATCH_ENGINE = 'match-18';
+export function setupEngine(setup: Partial<MatchSetup>): string | undefined {
+  if (isCurrentSetup(setup)) return MATCH_ENGINE_VERSION;
+  return setup.rules22 === undefined && hasFlags(setup, PREVIOUS_SETUP_FLAGS)
+    ? PREVIOUS_MATCH_ENGINE
+    : undefined;
+}
 /**
- * The engine before playable extra time: the shootout kick came at 90 minutes and extra time
- * and penalties were simulated afterwards. A setup with `roleSlot` but without
- * `extraTimePlay` still replays as it was.
+ * Whether the 1.0 match rules (`match-22`) apply. Every rule change of release 1.0 Phase 5
+ * (steps 5.2 to 5.5) is gated on it, so a match-21 session saved before the update replays and
+ * finishes exactly as it would have (docs/COMPATIBILITY.md, "How to change match rules in
+ * match-22"):
+ *
+ *   const odds = rules22(session.setup) ? newOdds(context) : odds21(context);
+ *
+ * Keep the match-21 branch byte-for-byte as it was: same draws, same streams, same order, same
+ * rounding. New random draws go on new streams. `tests/match-outcome-snapshot.test.ts` pins the
+ * match-21 table, and the golden 0.9.1 session must still replay.
  */
-export const ROLE_MATCH_ENGINE = 'match-17';
-/**
- * The engine before the effective role: the primary position set role choices, objectives and
- * involvement. A setup with `discipline` but without `roleSlot` still replays as it was.
- */
-export const DISCIPLINE_MATCH_ENGINE = 'match-16';
-/**
- * The engine before full discipline (redesign phase 6): yellow cards are cosmetic. A setup with
- * `occasions` but without `discipline` still replays as it was, so sessions saved by match-15
- * keep playing.
- */
-export const OCCASIONS_MATCH_ENGINE = 'match-15';
-/**
- * The engine before big occasions (a shootout kick, chained moments, final and derby
- * headlines). A setup with `dramaMoments` but without `occasions` still replays as it was.
- */
-export const DRAMA_MATCH_ENGINE = 'match-12';
-/**
- * The engine before key moments followed the state of the game (late moments in a close game,
- * set pieces, situations weighted by the score). A setup without `dramaMoments` still replays
- * with slot-aware moments only, so sessions saved before keep playing.
- */
-export const SLOT_MATCH_ENGINE = 'match-11';
-/**
- * The engine before key moments followed the formation slot. A setup without `slotMoments`
- * still replays with moments drawn for the primary position, so sessions saved before keep
- * playing.
- */
-export const PREVIOUS_MATCH_ENGINE = 'match-10';
-/**
- * The engine before formations (Phase 5.1). A setup without `formations` still replays with
- * its 4-3-3 lineup and strength, so sessions saved before keep playing.
- */
-export const LEGACY_MATCH_ENGINE = 'match-10-lines';
-/** The engine a setup replays with. */
-export const engineFor = (
-  setup: Pick<
-    MatchSetup,
-    | 'formations'
-    | 'slotMoments'
-    | 'dramaMoments'
-    | 'occasions'
-    | 'discipline'
-    | 'roleSlot'
-    | 'extraTimePlay'
-    | 'identity'
-    | 'defending'
-    | 'screening'
-  >,
-): string =>
-  !setup.formations
-    ? LEGACY_MATCH_ENGINE
-    : !setup.slotMoments
-      ? PREVIOUS_MATCH_ENGINE
-      : !setup.dramaMoments
-        ? SLOT_MATCH_ENGINE
-        : setup.occasions
-          ? setup.discipline
-            ? setup.roleSlot
-              ? setup.extraTimePlay
-                ? setup.identity
-                  ? setup.defending
-                    ? setup.screening
-                      ? MATCH_ENGINE_VERSION
-                      : DEFENDING_MATCH_ENGINE
-                    : IDENTITY_MATCH_ENGINE
-                  : EXTRA_TIME_MATCH_ENGINE
-                : ROLE_MATCH_ENGINE
-              : DISCIPLINE_MATCH_ENGINE
-            : OCCASIONS_MATCH_ENGINE
-          : DRAMA_MATCH_ENGINE;
+export const rules22 = (setup: Pick<MatchSetup, 'rules22'>): boolean => setup.rules22 === true;
 
 export interface MatchSetup {
   version: 1;
@@ -141,7 +99,10 @@ export interface MatchSetup {
   neutral: boolean;
   /** A scheduled fixture played by the career player; absent for friendlies. */
   fixture?: MatchFixture;
-  /** Home and away managers' formations; absent for a world on the earlier 4-3-3 selection. */
+  /**
+   * Home and away managers' formations. Every current setup has them (`isCurrentSetup`); the
+   * stored shape keeps them optional because sessions from before formations lacked them.
+   */
   formations?: [Formation, Formation];
   /**
    * Key moments follow the formation slot the selected player fills, and an unfamiliar slot
@@ -195,6 +156,11 @@ export interface MatchSetup {
    */
   screening?: true;
   /**
+   * The 1.0 match rules (`match-22`, release 1.0 Phase 5): every rule change since match-21 is
+   * gated on it (`rules22`). Absent in sessions saved before, which replay on match-21.
+   */
+  rules22?: true;
+  /**
    * The late-winner and late-equaliser headlines (0.9.1) ask that the player's late goal
    * decided the result, not only that they scored late. Narrative only, so the engine is
    * unchanged; absent in sessions saved before, which keep the headline they finished with.
@@ -211,6 +177,114 @@ export interface MatchSetup {
    * leadership order. Absent, the most experienced leader on the pitch wears the armband.
    */
   captain?: true;
+  /**
+   * The career player starts on the bench (match-22, release 1.0 step 5.4): the manager may
+   * bring them on later, by the role they were promised. Absent for a starter.
+   */
+  bench?: { role: 'key' | 'rotation' | 'backup' | 'youth' };
+  /**
+   * The career player's injury factor (match-22): fatigue, injury proneness, Iron Man and a
+   * physio, as the career's injury system has it, and a rushed return's re-injury risk.
+   * Absent, the factor is taken from the player alone.
+   */
+  injury?: { factor: number; reinjury?: { risk: number; kind: string } };
+  /** The career player's trust with their manager (0–100; 50 when absent), match-22. */
+  trust?: number;
+  /**
+   * The drought director (match-22, release 1.0 X1a): after three matches without a positive
+   * chain, this match's chains start in better situations (never better odds), and the
+   * pre-match card says so. Absent otherwise.
+   */
+  drought?: true;
+  /** A new career's first fixture (match-22): its first chain comes in the first 15 minutes. */
+  debut?: true;
+}
+/**
+ * Decision chains (match-22, release 1.0 X1a; docs/EXPERIENCE-REDESIGN-1.0.md section 1.7).
+ * A chain is two or three linked decisions in one phase of play: a read, an action and a
+ * finish. A match-21 session has none of these.
+ */
+export type ChainKind = 'attack' | 'defence' | 'set-piece' | 'keeper' | 'shootout';
+/** How a chain ended, for the ticker, the report and the drought director. */
+export type ChainOutcome =
+  'goal' | 'assist' | 'chance' | 'stop' | 'won' | 'lost' | 'conceded' | 'foul' | 'card';
+/** An i18n key with the names and numbers it refers to. */
+export interface KeyedLine {
+  key: string;
+  params: Record<string, string | number>;
+}
+/** One answered step of a chain. */
+export interface ChainStepResult {
+  step: number;
+  choiceId: string;
+  /** The chance as displayed. */
+  probability: number;
+  success: boolean;
+  /** The one-line reason: the factor that weighed most, and the chance. */
+  cause: KeyedLine;
+}
+/** The chain being played. */
+export interface ChainState {
+  /** Stable within the session: `${minute}-${index}` (`+added` in added time). */
+  id: string;
+  kind: ChainKind;
+  minute: number;
+  addedTime?: number;
+  /** The side in possession when it starts. */
+  side: 0 | 1;
+  /** Planned length. */
+  steps: 2 | 3;
+  /** 0-based index of the current step. */
+  step: number;
+  /** The stakes header line. */
+  stakes: KeyedLine;
+  /** Starting expected goals (attack) or danger (defence), for the stakes header. */
+  prize?: number;
+  /** The close-game climax. */
+  climax?: true;
+  /** The hero beat. */
+  hero?: true;
+  results: ChainStepResult[];
+  /** The situation of each step, the finish last (engine data). */
+  path: string[];
+  /** The chain's budget at the reference player: expected goals for and against. */
+  budget: { for: number; against: number };
+  /** The opponents drawn once for every step (the cast). */
+  opponents: { keeper?: string; defender?: string; attacker?: string };
+  /** The edge the last step left for the next (`{ id: 'edge', state }`). */
+  staged?: { id: string; state: string }[];
+  /** The edges so far, multiplied out: how much bigger the chance (or smaller the danger). */
+  value?: number;
+}
+/** A finished chain, as the ticker, the report and the career read it. */
+export interface ChainSummary {
+  id: string;
+  kind: ChainKind;
+  minute: number;
+  addedTime?: number;
+  outcome: ChainOutcome;
+  /** Counts toward "a positive chain": a goal, an assist, a chance, a stop or a set piece won. */
+  positive: boolean;
+  /** Planned length. */
+  steps: 2 | 3;
+  /** Its expected goals (attack) or danger (defence) at the start. */
+  prize?: number;
+  climax?: true;
+  hero?: true;
+  results: ChainStepResult[];
+}
+/** Who a chain step involves, for the clip (a cast of at most seven, and faint ghosts). */
+export interface ChainCast {
+  you: string;
+  /** The direct opponent, named on step 1. */
+  opponent?: string;
+  /** 0–2. */
+  teammates: string[];
+  /** 0–2. */
+  defenders: string[];
+  keeper?: string;
+  /** 0–4 context players, drawn faint. */
+  ghosts: string[];
 }
 export interface MatchFixture {
   id: string;
@@ -234,9 +308,16 @@ export type MatchCommand =
   | { type: 'kickoff' }
   | { type: 'advance' }
   | { type: 'choose'; choiceId: string }
-  | { type: 'halftime'; response: 'motivate' | 'role' | 'complain' }
+  | {
+      type: 'halftime';
+      response: 'motivate' | 'role' | 'complain';
+      /** The role asked for (match-22); absent, the first role that differs from the current. */
+      role?: string;
+    }
   | { type: 'substitution'; response: 'accept' | 'encourage' }
-  | { type: 'captain'; instruction: 'push' | 'calm' };
+  | { type: 'captain'; instruction: 'push' | 'calm' }
+  /** After a knock (match-22): play on, or come off. */
+  | { type: 'injury'; response: 'play-on' | 'off' };
 export interface LiveStats {
   homeShots: number;
   awayShots: number;
@@ -259,6 +340,8 @@ export interface LiveStats {
   xg: [number, number];
   /** Shots that ended in the net or in the keeper's hands [home, away], as choreographed. */
   shotsOnTarget: [number, number];
+  /** Shots that hit the post or the bar [home, away] (engine match-22; absent before). */
+  woodwork?: [number, number];
   /** The selected player's completed decision passes that led to a teammate's shot. */
   keyPasses: number;
   /** The selected player's tackling decisions, won or lost (`tackles` counts those won). */
@@ -271,9 +354,12 @@ export interface LiveStats {
 /** The heat grid: columns along the pitch and rows across it (cells of about 5 m × 5 m). */
 export const HEAT_COLUMNS = 20;
 export const HEAT_ROWS = 13;
-/** `discipline` (cards) exists only on the match-16 path. */
+/**
+ * `discipline` (cards) counts from match-16; `par` (what the reference player was expected to
+ * earn from the player's moments, subtracted) from match-22.
+ */
 export type RatingPart =
-  RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team' | 'discipline';
+  RatingFamily | 'goals' | 'assists' | 'saves' | 'errors' | 'team' | 'discipline' | 'par';
 /** How play restarts at the start of the next passage (see motion.ts). */
 export type Restart = 'kickoff' | 'goal' | 'second-half' | 'goal-kick' | 'corner';
 /** Who has the ball between passages. */
@@ -323,6 +409,40 @@ export interface NarrationLine {
   params: Record<string, string>;
   /** The engine event the move led to (a shot, or the decision it played). */
   eventId?: string;
+  /** In added time (match-22): the added minute, shown as `minute+addedTime`. */
+  addedTime?: number;
+}
+/** One kick of a match-22 shootout. */
+export interface ShootoutKick {
+  side: 0 | 1;
+  takerId: string;
+  keeperId: string;
+  scored: boolean;
+  probability: number;
+  roll: number;
+  /** The career player's own kick or save: the choice they made. */
+  choiceId?: string;
+}
+/** A player forced off injured during a match-22 session (not the career player). */
+export interface MatchInjury {
+  playerId: string;
+  minute: number;
+  addedTime?: number;
+  /** The injury type (`CONFIG.career.injuries.types`). */
+  kind: string;
+}
+/** The career player's knock in a match-22 session and what came of it. */
+export interface MatchKnock {
+  minute: number;
+  addedTime?: number;
+  /** The injury type it is, or becomes when aggravated. */
+  kind: string;
+  /** An injury at once: the player's match ends there, without a choice. */
+  serious: boolean;
+  /** Their answer to a knock that was not serious. */
+  decision?: 'play-on' | 'off';
+  /** Playing on, the knock became an injury at this minute. */
+  aggravated?: { minute: number; addedTime?: number };
 }
 export interface MatchState {
   match: Match;
@@ -358,7 +478,11 @@ export interface MatchState {
    */
   heat: number[];
   /** Rating contributions above the base, by decision family and outcome bonus. */
-  ratingParts: Record<Exclude<RatingPart, 'discipline'>, number> & { discipline?: number };
+  ratingParts: Record<Exclude<RatingPart, 'discipline' | 'par'>, number> & {
+    discipline?: number;
+    /** Engine match-22 only: written at the first key moment. */
+    par?: number;
+  };
   report: MatchReport | null;
   momentMinutes: number[];
   /** Second-half odds multiplier from the half-time talk. */
@@ -387,10 +511,60 @@ export interface MatchState {
   sentOff?: SentOff;
   /** A follow-up moment due after a beaten defender (match-13): the chance it carries. */
   chain?: { goal: number };
+  /**
+   * Stoppage time (match-22): each period's board, in order. While `added` is set, the clock
+   * stands at the period's last minute and plays its added minutes.
+   */
+  stoppage?: { at: number; minutes: number }[];
+  /** The added minute being played (match-22), absent in normal time. */
+  added?: number;
+  /** The late key moment of a close game falls in this minute of second-half added time. */
+  lateAdded?: number;
+  /**
+   * A career player who started on the bench (match-22): the minute they came on, and
+   * whether they asked to come on at half-time.
+   */
+  bench?: { on?: number; asked?: true };
+  /** The career player's knock (match-22). */
+  knock?: MatchKnock;
+  /** Waiting for the career player's answer to a knock (match-22). */
+  injuryDecisionPending?: true;
+  /** Other players forced off injured (match-22), for the world's injury table. */
+  injuries?: MatchInjury[];
+  /**
+   * The minutes the captain's calls were asked for (match-22): at the second half's start,
+   * after conceding and late on, a few at most.
+   */
+  captainCalls?: number[];
+  /** Substituted, the career player rallied the side (match-22): its odds for the rest. */
+  rally?: true;
+  /** The half-time role request (match-22): what was asked, and the refusal roll. */
+  roleRequest?: { role: string; refusal: number; roll: number; granted: boolean };
+  /**
+   * A match-22 shootout, kick by kick: the side that kicks first, each side's order of takers
+   * (players on the pitch at the end, best takers first), and the kicks taken.
+   */
+  penaltyShootout?: { first: 0 | 1; order: [string[], string[]]; kicks: ShootoutKick[] };
+  /**
+   * Decision chains (match-22, X1a): the chain being played (section 1.7's `chain`, named apart
+   * from match-13's follow-up `chain` above), and those finished, in order.
+   */
+  decisionChain?: ChainState;
+  chains?: ChainSummary[];
+  /**
+   * The director's plan (match-22): the minute of the hero beat's chain, and the close game's
+   * climax (the last chain, placed late).
+   */
+  director?: { hero?: number; climax?: true; heroDone?: true };
+  /** Touchline interrupts asked so far (match-22): at most one a match. */
+  interrupts?: number;
 }
 export interface MatchSession {
   version: 1;
-  /** Engine that produced this session; must equal MATCH_ENGINE_VERSION to replay. */
+  /**
+   * Engine that produced this session: `MATCH_ENGINE_VERSION`, or `PREVIOUS_MATCH_ENGINE` for a
+   * setup without `rules22`. It must be the engine its setup plays on (`setupEngine`) to replay.
+   */
   engine: string;
   setup: MatchSetup;
   initialTactics: Tactics;

@@ -100,3 +100,73 @@ export function chooseMatchKits(home: Pick<Club, 'kits'>, away: Pick<Club, 'kits
   )[0]!;
   return { home: base, away: away.kits[best], awayChoice: best, clash: true };
 }
+
+/** The surfaces a team colour is drawn on in a match: the grass, a light or dark card, the scoreboard. */
+export type MatchSurface = 'pitch' | 'light' | 'dark' | 'night';
+export interface TeamColour {
+  colour: Hex;
+  /** The surfaces the colour does not stand out on for every viewer: it is outlined there. */
+  edge: Record<MatchSurface, boolean>;
+}
+export interface MatchColours {
+  kits: MatchKits;
+  home: TeamColour;
+  away: TeamColour;
+  /** The two colours are too alike for some viewers: away tokens get a second marker. */
+  clash: boolean;
+}
+
+/** Whether a colour stands out from a surface for every kind of vision. */
+export const standsOut = (colour: Hex, surface: Hex) =>
+  safeDifference(colour, surface).difference >= CONFIG.accessibility.surfaceClash;
+const distinct = (a: Hex, b: Hex) =>
+  safeDifference(a, b).difference >= CONFIG.accessibility.kitClash;
+
+/**
+ * Each side's colour for a match (review U19): its shirt colour, checked against the other
+ * side (as `chooseMatchKits`) and against every surface it is drawn on. A shirt that vanishes
+ * into the grass even with typical vision (green on green) is drawn in another colour of its
+ * kit that stands out there and stays distinct from the other side; any colour still too close
+ * to a surface for some viewers is outlined on that surface.
+ */
+export function matchColours(
+  home: Pick<Club, 'kits'>,
+  away: Pick<Club, 'kits'>,
+  surfaces: Record<MatchSurface, Hex>,
+): MatchColours {
+  const kits = chooseMatchKits(home, away);
+  const onPitch = (kit: Kit, other: Hex | null): Hex => {
+    const primary = kit.colors[0];
+    if (colourDifference(primary, surfaces.pitch) >= CONFIG.accessibility.surfaceClash)
+      return primary;
+    return (
+      kit.colors
+        .slice(1)
+        .find(
+          (colour) => standsOut(colour, surfaces.pitch) && (!other || distinct(colour, other)),
+        ) ?? primary
+    );
+  };
+  let homeColour = onPitch(kits.home, null);
+  let awayColour = onPitch(kits.away, homeColour);
+  // A home side drawn in another colour must not take the away side's.
+  if (homeColour !== kits.home.colors[0] && !distinct(homeColour, awayColour)) {
+    homeColour = kits.home.colors[0];
+    awayColour = onPitch(kits.away, homeColour);
+  }
+  const team = (colour: Hex): TeamColour => ({
+    colour,
+    edge: {
+      pitch: !standsOut(colour, surfaces.pitch),
+      light: !standsOut(colour, surfaces.light),
+      dark: !standsOut(colour, surfaces.dark),
+      night: !standsOut(colour, surfaces.night),
+    },
+  });
+  return {
+    kits,
+    home: team(homeColour),
+    away: team(awayColour),
+    clash: kits.clash || !distinct(homeColour, awayColour),
+  };
+}

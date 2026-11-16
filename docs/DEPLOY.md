@@ -10,10 +10,10 @@ These jobs start together, except the browser journeys, which wait only for the 
 
 1. **build** (Linux): `npm ci` and `npm run build`, which runs the strict typecheck and the per-route bundle budget. The built `dist/` is kept as an artifact; it is what the browsers test and what deploys.
 2. **checks** (Linux): Prettier, ESLint, the release check (`npm run check:release`: patch notes for `package.json`'s version and an up-to-date `CHANGELOG.md`; see [releasing](RELEASING.md)) and one national season of headless career play with its end-of-season checks (`npm run soak -- --seasons 1`).
-3. **unit** (Linux, three machines): every unit test, split with `vitest run --shard`.
+3. **unit** (Linux, three machines): the fast unit-test project (`vitest run --project fast`), split with `vitest run --shard`. Pushes to `main` and manual runs also start **unit-slow** (Linux, two machines): the slow project of statistical gates, soaks, multi-season worlds and golden saves (`vitest run --project slow`), which pull requests skip. Which files are slow is set in `vitest.config.ts` (`*.slow.test.ts`).
 4. **browsers** (Windows, two machines per engine, six in parallel): the Playwright journeys against that exact build, served with the production headers, split with `playwright test --shard`. Each WebKit machine runs one journey at a time to avoid the concurrent-test stall seen in run 38307621502; Chromium and Firefox use two workers each. Windows runners are retained because hosted macOS WebKit exhausts Metal/WebGL memory during career journeys, while Linux WebKit crashes in the GPU match renderer. The first Chromium machine also builds a second release and replaces the first under a saved career (`npm run test:update`). Browser jobs have a 30-minute limit. The offline-world journey allows two minutes for initial precaching plus offline generation/advancement; its offline assertions remain mandatory.
 5. **custom-domain** (Linux): the release journey against a build for a custom `SITE_URL`.
-6. **deploy** (pushes to `main` only, after all of the above pass): uploads `dist/` to the Cloudflare Pages project `pitch-to-glory` with Wrangler. It creates the project on the first deploy. Until the two secrets below exist, this job reports a notice and skips, without failing.
+6. **deploy** (pushes to `main` only, after all of the above pass, the slow unit tests included): uploads `dist/` to the Cloudflare Pages project `pitch-to-glory` with Wrangler. It creates the project on the first deploy. Until the two secrets below exist, this job reports a notice and skips, without failing.
 
 Splitting the work this way runs every test as before and takes the pipeline from about 29 minutes to about 12: the browser journeys no longer wait for the unit tests, and no single machine runs a whole suite.
 
@@ -21,8 +21,8 @@ Pull requests run the checks but never deploy. Each browser test gets one retry:
 
 Two scheduled workflows run longer checks off the critical path and keep their reports as artifacts:
 
-- `.github/workflows/endurance.yml`: five seasons of one career every night, run twice to prove the seed reproduces, and two full careers (retirement, then the child's career) every Sunday (`npm run soak`).
-- `.github/workflows/performance.yml`: every Saturday, career saves from `npm run perf:fixtures`, timed journeys with frame pacing and interaction latency (`npm run test:performance`), and Lighthouse on loaded career pages (`npm run audit -- --populated`).
+- `.github/workflows/endurance.yml`: five seasons of one career every night, run twice to prove the seed reproduces, and two full careers (retirement, then the child's career) every Sunday (`npm run soak`). Every night it also runs the slow unit-test project (`npm run test:slow`).
+- `.github/workflows/performance.yml`: every Saturday, career saves from `npm run perf:fixtures`, timed journeys with frame pacing and interaction latency (`npm run test:performance`), and Lighthouse on loaded career pages (`npm run lighthouse -- --populated`).
 
 Both can be started from the **Actions** tab.
 
@@ -76,9 +76,9 @@ npm run format:check && npm run lint && npm test
 npm run build
 npx playwright install chromium firefox webkit
 npm run test:e2e
-npm run audit          # Lighthouse: mobile > 85, desktop > 90, accessibility > 95
+npm run lighthouse     # Lighthouse: mobile > 85, desktop > 90, accessibility > 95
 npm run soak -- --seasons 5 --repeat   # long careers, reproducibility and save size
-npm run perf:fixtures && npm run test:performance && npm run audit -- --populated-only
+npm run perf:fixtures && npm run test:performance && npm run lighthouse -- --populated-only
 ```
 
 Physical-device checks are manual: see [DEVICE-ACCEPTANCE.md](DEVICE-ACCEPTANCE.md).

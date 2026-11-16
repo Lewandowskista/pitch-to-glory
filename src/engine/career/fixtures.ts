@@ -6,7 +6,8 @@ const C = CONFIG.career;
 
 /**
  * The earliest unplayed fixture of the career player's club this week that they will play:
- * fit, registered and picked by the manager.
+ * fit and registered, picked by the manager to start or, since release 1.0 (match-22), named
+ * on the bench. A suspended player sits it out.
  */
 export function pendingCareerFixture(world: World): Fixture | null {
   const career = world.career;
@@ -24,7 +25,7 @@ export function pendingCareerFixture(world: World): Fixture | null {
           !world.results[fixture.id],
       )
       .sort((a, b) => a.date.day - b.date.day || (a.id < b.id ? -1 : 1))
-      .find((fixture) => careerSelection(world, fixture).selected) ?? null
+      .find((fixture) => matchdaySquad(world, fixture)) ?? null
   );
 }
 /** The next fixture of the career player's club from this week on (for the hub). */
@@ -69,4 +70,13 @@ export function fixtureKind(world: World, fixture: Fixture): FixtureKind {
 }
 export function fixtureImportance(world: World, fixture: Fixture): number {
   return C.importance[fixtureKind(world, fixture)];
+}
+
+/**
+ * Whether the career player is in the matchday squad for a fixture of their club: picked to
+ * start, or on the bench (release 1.0 step 5.4), when registered and not suspended.
+ */
+export function matchdaySquad(world: World, fixture: Fixture): boolean {
+  const selection = careerSelection(world, fixture);
+  return selection.selected || (selection.registered && !selection.suspended);
 }

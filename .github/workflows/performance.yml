@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
@@ -28,7 +28,7 @@ jobs:
       - run: npm run perf:fixtures
       # One job at a time: the journeys, then Lighthouse, never alongside each other.
       - run: npm run test:performance
-      - run: npm run audit -- --populated
+      - run: npm run lighthouse -- --populated
         if: always()
       - uses: actions/upload-artifact@v4
         if: always()
@@ -47,14 +47,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run profile -- --seed review-a --position ST
       - run: npm run profile -- --seed review-b --position CM
       - run: npm run profile -- --seed review-c --position CB
+      # For the 1.0 targets (step 2.3): a keeper for honours fairness, and a sponsor-accepting
+      # career for the economy (C19; judged by the targets only, not the gates).
+      - run: npm run profile -- --seed review-d --position GK
+      - run: npm run profile -- --seed review-a --position ST --policy sponsor
       - run: npm run profile -- --check
-      - run: npm run profile:match -- --matches 300
+      # Two seeds: the 1.0 "choices matter" target is judged on both (step 2.3).
+      - run: npm run profile:match -- --matches 300 --seeds match-profile,match-profile-b
         if: always()
       - run: npm run profile:match -- --check
         if: always()

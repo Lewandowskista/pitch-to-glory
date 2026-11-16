@@ -3,6 +3,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -14,8 +15,9 @@ import { useAppStore } from '../store';
 import { useAutosave } from '../hooks/useAutosave';
 import { errorCode } from '../persistence/errors';
 import { loadedPersistence, persistence, preloadPersistence } from '../persistence/lazy';
-import { recoveryFileName } from '../persistence/files';
-import { platform } from '../platform';
+import { exportUnsavedCopy } from './exportUnsaved';
+import { RouteBoundary } from './RouteBoundary';
+import { failureNotice } from '../diagnostics';
 import { Icon, type IconName } from './Icon';
 import { Dialog } from './Dialog';
 import { PwaPrompt } from './PwaPrompt';
@@ -99,6 +101,12 @@ export function Shell() {
   const dirty = useAppStore((s) => Boolean(s.activeSave && s.change !== s.savedChange));
   const saveNotice = useAppStore((s) => s.saveNotice);
   const trainingPending = useAppStore((s) => Boolean(s.trainingDraft));
+  // An unhandled failure from the game's own code: said once, without blocking play.
+  const failure = useSyncExternalStore(
+    failureNotice.subscribe,
+    failureNotice.get,
+    failureNotice.get,
+  );
   const location = useLocation();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -230,7 +238,10 @@ export function Shell() {
         path: groupHome(entry),
         label: entry.label,
         icon: entry.icon,
-        current: group?.id === entry.id,
+        // Matchday is reached from the hub: it belongs to Overview, never to More (X1b).
+        current:
+          group?.id === entry.id ||
+          (entry.id === 'overview' && /^\/match(\/|$)/.test(location.pathname)),
         count: entry.id === 'overview' ? unread : 0,
       }))
     : [home, careerItem, matchItem, worldItem].map((item) => ({
@@ -379,36 +390,7 @@ export function Shell() {
                   <button
                     type="button"
                     className="text-button"
-                    onClick={() => {
-                      // Validation and serialization of a large world run in the persistence worker.
-                      void persistence()
-                        .then(async (p) => {
-                          const snapshot = p.snapshot();
-                          const file = await p.saves
-                            .serialize(active.slot, active.name, snapshot)
-                            .then((checked) => ({
-                              name: 'pitch-to-glory-unsaved.json',
-                              json: checked.json,
-                            }))
-                            // A session that no longer passes its checks is still worth keeping:
-                            // download it unchecked, named as a recovery copy.
-                            .catch(async () => ({
-                              name: recoveryFileName('unsaved'),
-                              json: (
-                                await p.saves.serializeUnvalidated(
-                                  active.slot,
-                                  active.name,
-                                  snapshot,
-                                )
-                              ).json,
-                            }));
-                          await platform.saveFile(file.name, file.json, 'application/json');
-                          track('export_done', { what: 'unsaved' });
-                        })
-                        .catch((error) =>
-                          useAppStore.getState().setSaveStatus('error', errorCode(error)),
-                        );
-                    }}
+                    onClick={() => void exportUnsavedCopy(active)}
                   >
                     {t.app.exportUnsaved}
                   </button>
@@ -427,6 +409,22 @@ export function Shell() {
               )}
             </div>
           )}
+          {failure && (
+            <div className="global-notice" role="status">
+              <Icon name="alert" />
+              <span className="banner-text">{t.app.failure}</span>
+              <Link
+                className="text-button"
+                to="/settings#diagnostics"
+                onClick={() => failureNotice.dismiss()}
+              >
+                {t.app.failureAction}
+              </Link>
+              <button type="button" className="text-button" onClick={() => failureNotice.dismiss()}>
+                {t.app.dismiss}
+              </button>
+            </div>
+          )}
           {saveNotice && (
             <div className="global-notice" role="status">
               <Icon name="ball" />
@@ -441,7 +439,10 @@ export function Shell() {
             </div>
           )}
           <main id="main" ref={main} tabIndex={-1}>
-            <Outlet />
+            {/* A page that fails takes only itself down (release 1.0 step 4.2). */}
+            <RouteBoundary resetKey={location.pathname}>
+              <Outlet />
+            </RouteBoundary>
           </main>
           <footer className="page-footer">
             <span>{t.app.name}</span>
@@ -552,7 +553,8 @@ export function Shell() {
 function useAudio(settings: AudioSettings): void {
   useEffect(() => audio.configure(settings), [settings]);
   useEffect(() => {
-    const unlock = () => audio.unlock();
+    // `unlock` never rejects (src/audio/index.ts); listeners ignore what they return.
+    const unlock = () => void audio.unlock();
     const click = (event: MouseEvent) => {
       const target = (event.target as Element | null)?.closest(
         'button, a[href], summary, [role="tab"], input[type="checkbox"], input[type="radio"]',

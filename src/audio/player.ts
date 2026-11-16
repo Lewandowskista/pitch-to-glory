@@ -1,10 +1,22 @@
 ﻿import { Howl, Howler } from 'howler';
 import type { AudioSettings } from '../model/domain';
 import { DEFAULT_SETTINGS } from '../persistence/settings';
+import { platform } from '../platform';
 import { CROWD_SOUNDS, type SoundName } from './synth';
-import type { AudioName } from './music';
+import musicOpus from '../assets/audio/after-the-floodlights.ogg?url';
+import musicAac from '../assets/audio/after-the-floodlights.m4a?url';
+import { recordFailure } from '../diagnostics';
 
-/** Lazy playback and mixing. All synthesis stays off the main thread. */
+/** Lazy playback and mixing. Effects are synthesised off the main thread; music downloads. */
+type AudioName = SoundName | 'music';
+/**
+ * The music loop, rendered from src/audio/music.ts at build time (scripts/render-music.ts):
+ * Opus first, AAC for browsers without Ogg Opus. Both decode to the exact loop length.
+ */
+const MUSIC_SOURCES = [
+  { src: musicOpus, format: 'opus' },
+  { src: musicAac, format: 'm4a' },
+] as const;
 let worker: Worker | null = null;
 let nextId = 0;
 interface Request {
@@ -54,7 +66,7 @@ function failWorker(): void {
   }
   pending.clear();
 }
-function render(name: AudioName): Promise<Uint8Array<ArrayBuffer>> {
+function render(name: SoundName): Promise<Uint8Array<ArrayBuffer>> {
   if (!worker) {
     worker = new Worker(new URL('./synth.worker.ts', import.meta.url), { type: 'module' });
     worker.onmessage = (
@@ -67,7 +79,10 @@ function render(name: AudioName): Promise<Uint8Array<ArrayBuffer>> {
       if (event.data.wav) request.resolve(event.data.wav);
       else request.reject(new Error(event.data.error ?? 'Audio rendering failed'));
     };
-    worker.onerror = failWorker;
+    worker.onerror = (event) => {
+      recordFailure('worker', event?.message || 'The sound worker stopped', 'audio');
+      failWorker();
+    };
     worker.onmessageerror = failWorker;
   }
   const id = nextId++;
@@ -84,58 +99,99 @@ function render(name: AudioName): Promise<Uint8Array<ArrayBuffer>> {
 function load(name: AudioName): Promise<Howl> {
   let result = howls.get(name);
   if (!result) {
-    result = render(name).then((wav) => {
-      const url = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
-      return new Promise<Howl>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          URL.revokeObjectURL(url);
-          sound.unload();
-          reject(new Error('Audio decoding timed out'));
-        }, 15000);
-        const sound = new Howl({
-          src: [url],
-          format: ['wav'],
-          loop: name === 'crowd' || name === 'music',
-          preload: true,
-          volume: 0,
-          onload: () => {
-            clearTimeout(timeout);
-            mixOutput();
-            // HTML audio still streams from the URL; Web Audio owns the decoded buffer.
-            if (Howler.usingWebAudio && Reflect.get(sound, '_webAudio') !== false)
-              URL.revokeObjectURL(url);
-            resolve(sound);
-          },
-          onloaderror: (_, error) => {
-            clearTimeout(timeout);
-            URL.revokeObjectURL(url);
-            sound.unload();
-            reject(new Error(String(error)));
-          },
-          onplayerror: (id) => {
-            // Retry persistent beds on a genuine gesture. One-shots become stale.
-            const loop = name === 'music' ? music : name === 'crowd' ? bed : null;
-            if (loop) {
-              if (loop.track) loop.track.playing = false;
-              sound.once('unlock', () => {
-                if (loop.track?.id === id) syncLoop(loop);
-              });
-            } else sound.stop(id);
-          },
-        });
-      });
-    });
+    result =
+      name === 'music'
+        ? loadMusic()
+        : render(name).then((wav) => {
+            const url = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
+            return decode(name, url, 'wav', 15000, () => URL.revokeObjectURL(url));
+          });
     result.catch(() => howls.delete(name));
     howls.set(name, result);
   }
   return result;
 }
+/**
+ * The music file in the first format the browser plays. Howler only tries the first source it
+ * believes playable, so a source that fails to decode falls through to the next here.
+ */
+async function loadMusic(): Promise<Howl> {
+  let sources = MUSIC_SOURCES.filter((source) => Howler.codecs(source.format));
+  // Offline, only a file the service worker cached on an earlier play can load: never request
+  // one that would fail. The music starts when the connection returns (`online` below).
+  if (navigator.onLine === false) {
+    const cached = await Promise.all(
+      sources.map(async (source) =>
+        typeof caches === 'undefined' ? false : Boolean(await caches.match(source.src)),
+      ),
+    );
+    sources = sources.filter((_, index) => cached[index]);
+  }
+  return sources.reduce<Promise<Howl>>(
+    (previous, source) =>
+      // A 600 KB download on a slow connection: allow far longer than a local render.
+      previous.catch(() => decode('music', source.src, source.format, 60000)),
+    Promise.reject(new Error('No playable music format')),
+  );
+}
+/** Decode one sound; `release` frees a temporary URL once Web Audio holds the samples. */
+function decode(
+  name: AudioName,
+  url: string,
+  format: string,
+  timeoutMs: number,
+  release: () => void = () => {},
+): Promise<Howl> {
+  return new Promise<Howl>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      release();
+      sound.unload();
+      reject(new Error('Audio decoding timed out'));
+    }, timeoutMs);
+    const sound = new Howl({
+      src: [url],
+      format: [format],
+      loop: name === 'crowd' || name === 'music',
+      preload: true,
+      volume: 0,
+      onload: () => {
+        clearTimeout(timeout);
+        mixOutput();
+        // HTML audio still streams from the URL; Web Audio owns the decoded buffer.
+        if (Howler.usingWebAudio && Reflect.get(sound, '_webAudio') !== false) release();
+        resolve(sound);
+      },
+      onloaderror: (_, error) => {
+        clearTimeout(timeout);
+        release();
+        sound.unload();
+        reject(new Error(String(error)));
+      },
+      onplayerror: (id) => {
+        // Retry persistent beds on a genuine gesture. One-shots become stale.
+        const loop = name === 'music' ? music : name === 'crowd' ? bed : null;
+        if (loop) {
+          if (loop.track) loop.track.playing = false;
+          sound.once('unlock', () => {
+            if (loop.track?.id === id) syncLoop(loop);
+          });
+        } else sound.stop(id);
+      },
+    });
+  });
+}
 const audible = () => !settings.muted && settings.master > 0 && !document.hidden;
 const channel = (name: SoundName) => (CROWD_SOUNDS.has(name) ? settings.crowd : settings.effects);
+/**
+ * On a device that asks to save data, the music is only downloaded once the player asks for it
+ * in Settings (`allowMusic`), not merely because it is on by default.
+ */
+let musicChosen = false;
+const musicAllowed = () => musicChosen || music.track !== null || !platform.prefersReducedData();
 const desired = (loop: Loop) =>
   audible() &&
   (loop.name === 'music'
-    ? settings.musicEnabled && settings.music > 0
+    ? settings.musicEnabled && settings.music > 0 && musicAllowed()
     : bedLevel !== null && settings.crowd > 0);
 const loopVolume = (loop: Loop) =>
   loop.name === 'music'
@@ -187,6 +243,10 @@ function syncLoop(loop: Loop): void {
         loop.loading = false;
       });
   }
+}
+export function allowMusic(): void {
+  musicChosen = true;
+  syncLoop(music);
 }
 export function unlock(): void {
   mixOutput();
@@ -263,3 +323,5 @@ export function crowd(level: number | null): void {
   syncLoop(music);
 }
 document.addEventListener('visibilitychange', () => configure(settings));
+// Music skipped while offline (nothing cached yet) starts once the connection returns.
+globalThis.addEventListener?.('online', () => syncLoop(music));

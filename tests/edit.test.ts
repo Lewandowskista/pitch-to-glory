@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Club, Hex, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
 import { simulateWeek } from '../src/engine/world/simulate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import {
@@ -27,6 +26,7 @@ import {
 import { validateWorld } from '../src/persistence/worldSchema';
 import { validateNationalWorld } from '../src/persistence/nationalWorldSchema';
 import { withDeviceTutorial } from '../src/store';
+import { nationalWorld } from './support/world';
 
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const valid = (world: World) => expect(() => validateWorld(clone(world))).not.toThrow();
@@ -43,7 +43,7 @@ const club = (home: Hex, away: Hex, third: Hex): Pick<Club, 'kits'> => ({
 
 let world: World;
 beforeAll(() => {
-  world = generateWorld('edit-tests', { format: 'legacy' });
+  world = nationalWorld();
 });
 
 describe('colour-blind-safe kit clash detection', () => {
@@ -250,7 +250,7 @@ describe('edit mode', () => {
   });
 
   it('keeps edits through simulated weeks in a national world and a career', () => {
-    const national = generateWorld('edit-national');
+    const national = nationalWorld();
     const id = Object.keys(national.clubs)[0]!;
     let edited = applyEditAction(national, { type: 'rename-club', id, name: 'Renamed FC' });
     edited = simulateWeek(edited);
@@ -339,7 +339,7 @@ describe('settings and saves', () => {
       },
     };
     const save = createSave(1, 'Edited', payload);
-    expect(save.schemaVersion).toBe(22);
+    expect(save.schemaVersion).toBe(CONFIG.saves.schemaVersion);
     expect(parseSave(JSON.stringify(save))).toEqual(save);
     const oldSettings = Object.fromEntries(
       Object.entries(DEFAULT_SETTINGS).filter(([key]) => key !== 'audio' && key !== 'tutorial'),
@@ -349,7 +349,7 @@ describe('settings and saves', () => {
       schemaVersion: 12,
       payload: { ...payload, world, settings: oldSettings },
     });
-    expect(migrated.schemaVersion).toBe(22);
+    expect(migrated.schemaVersion).toBe(CONFIG.saves.schemaVersion);
     expect(migrated.payload.settings).toEqual(DEFAULT_SETTINGS);
   });
 });

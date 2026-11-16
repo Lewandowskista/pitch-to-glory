@@ -8,7 +8,8 @@ import { renderTrophy } from '../../engine/assets/trophies';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
-import { CareerPage, CrestImage, EmptySection, plural } from './shared';
+import { plural } from '../../i18n/locale';
+import { CareerPage, CrestImage, EmptySection } from './shared';
 import { renderFlag } from '../../engine/assets/flags';
 import { Artwork } from '../../ui/Artwork';
 import { Icon } from '../../ui/Icon';
@@ -215,14 +216,10 @@ function NationalContent({
                       {honours.caps[l]}
                     </span>
                     <span className="block text-xs text-muted">
-                      {honours.caps[l] === 1 ? h.national.cap : h.national.capsWord}
+                      {plural(honours.caps[l], h.national.capsWord)}
                     </span>
                     <span className="mt-1 block text-xs font-bold whitespace-nowrap">
-                      {plural(
-                        honours.internationalGoals[l],
-                        h.national.goal,
-                        h.national.goalsCount,
-                      )}
+                      {plural(honours.internationalGoals[l], h.national.goalsCount)}
                     </span>
                   </dd>
                 </div>

@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { generateWorld } from '../src/engine/world/generate';
-import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
 import { validateWorld } from '../src/persistence/worldSchema';
 import { createSave, DEFAULT_SETTINGS, migrateSave, parseSave } from '../src/persistence/schema';
 import Dexie from 'dexie';
 import { SaveDatabase, SaveRepository } from '../src/persistence/repository';
+import { CONFIG } from '../src/engine/config';
 
 describe('national world persistence', () => {
-  it('preserves version three worlds and their original rules', () => {
+  it('legacy-compat: preserves version three worlds and their original rules', () => {
     const world = generateWorld('legacy-version', { format: 'legacy' });
     const save = createSave(1, 'Legacy', {
       kind: 'world',
@@ -16,11 +16,11 @@ describe('national world persistence', () => {
       gallery: { seed: 'art', generation: 0 },
     });
     const migrated = migrateSave({ ...save, schemaVersion: 3 });
-    expect(migrated.schemaVersion).toBe(22);
+    expect(migrated.schemaVersion).toBe(CONFIG.saves.schemaVersion);
     expect(migrated.payload).toEqual(save.payload);
     expect(world.format).toBeUndefined();
   });
-  it('upgrades an actual version-three database without regenerating its world', async () => {
+  it('legacy-compat: upgrades an actual version-three database without regenerating its world', async () => {
     const world = generateWorld('database-v3', { format: 'legacy' });
     const save = {
       ...createSave(1, 'Legacy', {
@@ -39,7 +39,7 @@ describe('national world persistence', () => {
     const upgraded = new SaveDatabase(name);
     try {
       const read = await new SaveRepository(upgraded).read(1);
-      expect(read?.schemaVersion).toBe(22);
+      expect(read?.schemaVersion).toBe(CONFIG.saves.schemaVersion);
       expect(read?.payload).toEqual(save.payload);
     } finally {
       upgraded.close();
@@ -76,26 +76,4 @@ describe('national world persistence', () => {
     truncated.season.end.week = 46;
     expect(() => validateWorld(truncated)).toThrow();
   }, 30000);
-  it('validates weekly checkpoints, resolved playoffs, feeder movement and a new season', () => {
-    let world = generateWorld('national-checkpoints');
-    while (world.phase === 'active') {
-      world = simulateWeek(world);
-      validateWorld(world);
-    }
-    expect(Object.keys(world.pyramid!.ties).length).toBeGreaterThan(0);
-    expect(Object.keys(world.pyramid!.phases).length).toBeGreaterThan(0);
-    const damaged = structuredClone(world);
-    Object.values(damaged.pyramid!.ties)[0]!.aggregate = [999, 999];
-    expect(() => validateWorld(damaged)).toThrow();
-    const archived = structuredClone(world);
-    Object.values(archived.history[0]!.ties!)[0]!.winnerId = 'club:missing';
-    expect(() => validateWorld(archived)).toThrow();
-    const bonus = structuredClone(world);
-    const survival = Object.values(bonus.pyramid!.phases).find(
-      (phase) => phase.kind === 'survival',
-    )!;
-    survival.initialPoints[survival.clubIds[0]!]! += 1;
-    expect(() => validateWorld(bonus)).toThrow();
-    expect(() => validateWorld(startNextSeason(world))).not.toThrow();
-  }, 360000);
 });

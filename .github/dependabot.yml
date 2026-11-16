@@ -1,0 +1,48 @@
+# Monthly dependency updates (review K12), grouped so each month brings a few pull requests
+# rather than one per package. A dependency joins the first group it matches; anything in no
+# group (Dexie, Pixi, Howler, Zustand, the fonts) gets its own pull request. Every update runs
+# the full CI, including the bundle budgets and the browser journeys.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+    groups:
+      react:
+        patterns:
+          - react
+          - react-dom
+          - react-router
+          - react-router-dom
+          - '@types/react'
+          - '@types/react-dom'
+          - eslint-plugin-react-hooks
+          - framer-motion
+      build:
+        patterns:
+          - vite
+          - '@vitejs/*'
+          - vite-plugin-pwa
+          - tailwindcss
+          - '@tailwindcss/*'
+      testing:
+        patterns:
+          - vitest
+          - '@playwright/test'
+          - fake-indexeddb
+          - axe-core
+          - lighthouse
+      dev-tooling:
+        dependency-type: development
+        patterns:
+          - '*'
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns:
+          - '*'

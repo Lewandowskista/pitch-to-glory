@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       # Analytics (docs/ANALYTICS.md): the PostHog project key and host are repository
@@ -43,14 +43,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run format:check
       - run: npm run lint
+      # Unused files, exports and dependencies (knip.jsonc).
+      - run: npm run knip
+      # Known vulnerabilities in what ships (development tooling never reaches players);
+      # Dependabot (.github/dependabot.yml) proposes updates monthly.
+      - run: npm audit --omit=dev --audit-level=high
       # Every push to main is a release: package.json's version needs patch notes, and
       # CHANGELOG.md must match them (docs/RELEASING.md).
       - run: npm run check:release
+      # The persisted save shape must match the shape recorded for CONFIG.saves.schemaVersion,
+      # so a changed save cannot ship without a schema bump (docs/RELEASING.md, "Save schema").
+      - run: npm run check:save-shape
       # One national season of headless career play: invariants, export, import and the size
       # limit at its end (scripts/soak-career.ts). Longer runs are in endurance.yml.
       - run: npm run soak -- --seasons 1
@@ -60,7 +68,7 @@ jobs:
           name: soak-smoke
           path: artifacts/soak/*.json
           if-no-files-found: ignore
-  # Every unit test, split across three machines.
+  # The fast unit tests (vitest.config.ts), split across three machines, on every run.
   unit:
     runs-on: ubuntu-latest
     strategy:
@@ -71,17 +79,37 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx vitest run --shard=${{ matrix.shard }}/3
+      - run: npx vitest run --project fast --shard=${{ matrix.shard }}/3
+  # The slow unit tests: statistical gates, soaks, multi-season worlds and golden saves. Pull
+  # requests skip them; every push to main runs them before it deploys, and endurance.yml runs
+  # them nightly.
+  unit-slow:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --project slow --shard=${{ matrix.shard }}/2
   # Two machines per engine, against the build. Keep Windows: hosted macOS WebKit
   # exhausts Metal/WebGL memory, and Linux WebKit crashes in the GPU renderer.
   # Serialize WebKit within each shard to avoid the original concurrent-test stall.
+  # Chromium runs on Linux: on the Windows runners the match screen ran many times slower.
   browsers:
     needs: build
-    runs-on: windows-latest
-    timeout-minutes: 30
+    runs-on: ${{ matrix.browser == 'chromium' && 'ubuntu-latest' || 'windows-latest' }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -91,14 +119,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - uses: actions/download-artifact@v4
         with:
           name: web-build
           path: dist
-      - run: npx playwright install ${{ matrix.browser }}
+      - run: npx playwright install ${{ matrix.browser == 'chromium' && '--with-deps ' || '' }}${{ matrix.browser }}
       # Keep both WebKit shards and the real GPU tests, with one journey per machine.
       - run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2 --workers=${{ matrix.browser == 'webkit' && 1 || 2 }}
       # A second release replaces the first under a saved career (e2e/update.spec.ts).
@@ -117,7 +145,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
@@ -128,7 +156,7 @@ jobs:
           name: custom-domain-results
           path: test-results
   deploy:
-    needs: [build, checks, unit, browsers, custom-domain]
+    needs: [build, checks, unit, unit-slow, browsers, custom-domain]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
@@ -140,6 +168,7 @@ jobs:
       PROJECT: pitch-to-glory
       WRANGLER: wrangler@4.148.0
     steps:
+      # No checkout in this job, so no .nvmrc to read: keep this in step with it.
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

@@ -1,4 +1,5 @@
-export const trainingDraftText = {
+import { LOCALE, type Translations } from './locale';
+const trainingDraftTextEn = {
   pending: 'Training changes pending',
   advanceTitle: 'Save your training before continuing?',
   advanceBody:
@@ -11,3 +12,6 @@ export const trainingDraftText = {
   discardContinue: 'Discard changes and continue',
   keepEditing: 'Keep editing',
 } as const;
+export const trainingDraftText = (
+  { en: trainingDraftTextEn } satisfies Translations<typeof trainingDraftTextEn>
+)[LOCALE];

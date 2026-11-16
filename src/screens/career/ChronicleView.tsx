@@ -8,9 +8,10 @@ import { track } from '../../analytics';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
+import { plural } from '../../i18n/locale';
 import { Button, ButtonLink, CardTitle, Panel, StatusLine, cx } from '../../ui/kit';
 import { CrestImage, PlayerPortrait, useSaveLink } from './shared';
-import { CHRONICLE_GLYPH, chronicleSentence, counted, Glyph, EXPAND_CHEVRON } from './honoursUi';
+import { CHRONICLE_GLYPH, chronicleSentence, Glyph, EXPAND_CHEVRON } from './honoursUi';
 import { POSTER_HIGHLIGHTS, posterFonts, posterPng, posterSvg } from './chroniclePoster';
 
 /** Highlighted entries: bold in the timeline and on the poster. */
@@ -211,9 +212,9 @@ export function ChronicleView({
               <span className="text-[0.8125rem] text-muted">
                 <b className="text-ink">{rangeLabel(blocks)}</b>
                 {' · '}
-                {counted(blocks.length, h.chronicle.seasons)}
+                {plural(blocks.length, h.chronicle.seasons)}
                 {' · '}
-                {counted(entryCount(blocks), h.chronicle.entriesCount)}
+                {plural(entryCount(blocks), h.chronicle.entriesCount)}
               </span>
               <Button
                 variant="secondary"
@@ -309,22 +310,24 @@ function ChronicleHeader({
           icon="download"
           busy={busy}
           disabled={!entries.length}
-          onClick={async () => {
-            setStatus({ tone: 'neutral', text: h.chronicle.exporting });
-            try {
-              const fonts = await posterFonts();
-              const blob = await posterPng(posterSvg(world, player, entries, fonts));
-              await platform.shareFile(
-                `${player.name.replace(/\s+/g, '-').toLowerCase()}-chronicle.png`,
-                blob,
-                'image/png',
-              );
-              track('shared', { what: 'chronicle', method: 'file' });
-              setStatus({ tone: 'success', text: h.chronicle.exported });
-            } catch {
-              setStatus({ tone: 'error', text: h.chronicle.exportFailed });
-            }
-          }}
+          onClick={() =>
+            void (async () => {
+              setStatus({ tone: 'neutral', text: h.chronicle.exporting });
+              try {
+                const fonts = await posterFonts();
+                const blob = await posterPng(posterSvg(world, player, entries, fonts));
+                await platform.shareFile(
+                  `${player.name.replace(/\s+/g, '-').toLowerCase()}-chronicle.png`,
+                  blob,
+                  'image/png',
+                );
+                track('shared', { what: 'chronicle', method: 'file' });
+                setStatus({ tone: 'success', text: h.chronicle.exported });
+              } catch {
+                setStatus({ tone: 'error', text: h.chronicle.exportFailed });
+              }
+            })()
+          }
         >
           {h.chronicle.export}
         </Button>
@@ -423,12 +426,12 @@ function Season({
         {matches.length > 0 && (
           <p className="text-[0.8125rem] text-muted">
             {format(h.chronicle.seasonLine, {
-              apps: counted(matches.length, C.apps),
-              goals: counted(
+              apps: plural(matches.length, C.apps),
+              goals: plural(
                 matches.reduce((sum, m) => sum + m.goals, 0),
                 C.goals,
               ),
-              assists: counted(
+              assists: plural(
                 matches.reduce((sum, m) => sum + m.assists, 0),
                 C.assists,
               ),
@@ -520,8 +523,8 @@ function Folded({
           {open
             ? h.chronicle.hide
             : format(h.chronicle.show, {
-                seasons: counted(blocks.length, h.chronicle.seasons),
-                entries: counted(entryCount(blocks), h.chronicle.entriesCount),
+                seasons: plural(blocks.length, h.chronicle.seasons),
+                entries: plural(entryCount(blocks), h.chronicle.entriesCount),
               })}
         </Button>
       </div>
@@ -544,7 +547,7 @@ function Folded({
                   {chronicleSentence(world, entry)}
                 </span>
                 <span className="shrink-0 text-xs whitespace-nowrap text-muted max-sm:hidden">
-                  {counted(block.entries.length, h.chronicle.entriesCount)}
+                  {plural(block.entries.length, h.chronicle.entriesCount)}
                 </span>
               </li>
             );

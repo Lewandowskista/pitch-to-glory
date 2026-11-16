@@ -1,5 +1,6 @@
+import { LOCALE, type Translations } from './locale';
 /** What a career fixture is about: one line on the hub and before kickoff. */
-export const stakesText = {
+const stakesTextEn = {
   label: 'What is at stake',
   kinds: {
     final: 'A final. Win it and there is silverware.',
@@ -19,3 +20,6 @@ export const stakesText = {
   },
   rank: ['1st', '2nd', '3rd'],
 } as const;
+export const stakesText = ({ en: stakesTextEn } satisfies Translations<typeof stakesTextEn>)[
+  LOCALE
+];

@@ -1,11 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Club, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
-import { generateWorld } from '../src/engine/world/generate';
-import { simulateWeek, startNextSeason } from '../src/engine/world/simulate';
+import { simulateWeek } from '../src/engine/world/simulate';
+import { adoptCurrentRules } from '../src/engine/world/rules';
 import { economyCosts, usualWages } from '../src/engine/world/economy';
 import { clubSupport } from '../src/engine/career/training';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalCareerWeeks, nationalWorld } from './support/world';
 
 /**
  * Review phase 4, step 4.4: club balances can go into debt, the wage budget is what a club
@@ -15,8 +16,8 @@ const E = CONFIG.world.background.economy;
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 let world: World;
 beforeAll(() => {
-  world = generateWorld('club-economy', { format: 'legacy' });
-}, 120000);
+  world = nationalWorld();
+});
 
 const wagesOf = (w: World, club: Club) =>
   club.playerIds.reduce((sum, id) => sum + w.contracts[w.players[id]!.contractId!]!.weeklyWage, 0);
@@ -86,24 +87,28 @@ describe('the club economy', () => {
     expect(() => validateWorld(clone(w))).not.toThrow();
   }, 120000);
 
-  it('keeps worlds from before it on the old rules until a season starts', () => {
-    const w = clone(world);
-    delete w.economyVersion;
-    const club = Object.values(w.clubs).find((c) => w.leagues[c.leagueId])!;
-    club.finances.balance = 1000;
-    const budget = club.finances.wageBudget;
-    payroll(w, club, 1.5);
-    simulateWeek(w, { inPlace: true });
-    expect(w.clubs[club.id]!.finances.balance).toBe(0);
-    expect(w.clubs[club.id]!.finances.wageBudget).toBeGreaterThanOrEqual(budget);
-    expect(w.clubs[club.id]!.finances.strain).toBeUndefined();
-    while (w.phase === 'active') simulateWeek(w, { inPlace: true });
-    const next = startNextSeason(w);
-    expect(next.economyVersion).toBe(1);
-    const usual = usualWages(next);
-    const any = Object.values(next.clubs).find((c) => next.leagues[c.leagueId])!;
-    expect(any.finances.weeklyCosts).toBe(
-      economyCosts(usual.get(any.id)!, any.finances.weeklyIncome),
+  it('is adopted part-way through a season when an older save loads', async () => {
+    // A world saved before the economy, twelve weeks into a season (docs/COMPATIBILITY.md).
+    const older = await nationalCareerWeeks();
+    delete older.economyVersion;
+    const balances = Object.fromEntries(
+      Object.values(older.clubs).map((club) => [club.id, club.finances.balance]),
     );
-  }, 300000);
+    expect(adoptCurrentRules(older)).toEqual(['economyVersion']);
+    expect(older.economyVersion).toBe(1);
+    // Running costs from what peers pay now; nothing else about the books moves.
+    const usual = usualWages(older);
+    for (const club of Object.values(older.clubs).filter((c) => older.leagues[c.leagueId])) {
+      expect(club.finances.weeklyCosts).toBe(
+        economyCosts(usual.get(club.id)!, club.finances.weeklyIncome),
+      );
+      expect(club.finances.balance).toBe(balances[club.id]);
+    }
+    // The next week runs on the economy: a club paying over the odds is stretched.
+    const club = Object.values(older.clubs).find((c) => older.leagues[c.leagueId])!;
+    payroll(older, club, 1.5);
+    simulateWeek(older, { inPlace: true, allowCareerFixture: true });
+    expect(older.clubs[club.id]!.finances.strain).toBe('stretched');
+    expect(() => validateWorld(clone(older))).not.toThrow();
+  }, 120000);
 });

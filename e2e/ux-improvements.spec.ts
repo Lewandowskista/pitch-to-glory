@@ -1,7 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import {
   autoPlayCommand,
@@ -11,35 +9,12 @@ import {
 } from '../src/engine/career/matches';
 import { applyMatchCommand, createMatchSession } from '../src/engine/match';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import { expect, nationalCareer, openCareerPage, skipTutorial, test } from './support';
 
 let backup: string;
 test.beforeAll(async ({ browserName }, workerInfo) => {
   const seed = 'training-ux';
-  const base = generateWorld(seed, { format: 'legacy' });
-  const world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-    },
-    trialOffers(base, 'country:0', seed)[0]!.id,
-    seed,
-  );
+  const world = nationalCareer(seed);
   // Finish this week's selected fixtures so the real hub offers Continue, not Play.
   // This is a valid post-match career state, without editing fixtures or selection rules.
   for (let fixture = pendingCareerFixture(world); fixture; fixture = pendingCareerFixture(world)) {
@@ -65,14 +40,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 test.beforeEach(async ({ page }) => {
   test.setTimeout(120000);
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
   await page.goto('/saves');
   await page
     .locator('.slot-card')
@@ -82,9 +49,6 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
   await page.goto('/career/training?save=1');
   await expect(page.locator('#focus-0')).toBeVisible({ timeout: 30000 });
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 const firstSession = (page: Page) => page.getByRole('region', { name: 'Session 1', exact: true });
 const high = (page: Page) => firstSession(page).locator('input[value="high"]');
@@ -224,7 +188,10 @@ test('a nested deletion gate returns to the original confirmation on Back', asyn
   await expect(page.getByRole('dialog', { name: 'Leave training changes behind?' })).toHaveCount(0);
   await expect(deletion).toBeVisible();
   await deletion.getByRole('button', { name: 'Keep save', exact: true }).click();
-  await expect(page.locator('.slot-card').first().getByRole('heading')).toHaveText('Training UX');
+  await expect(page.locator('.slot-card').first().getByRole('heading')).toHaveText('Training UX', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
   await expect(
     page.getByRole('link', { name: 'Training changes pending', exact: true }),
   ).toBeVisible();

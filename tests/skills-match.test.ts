@@ -54,6 +54,7 @@ const KEEPING = [
 ];
 function player(traits: string[]): DecisionContext['player'] {
   return {
+    id: 'skills-player',
     attributes: Object.fromEntries(KEYS.map((key) => [key, 60])) as Player['attributes'],
     keeperAttributes: Object.fromEntries(
       KEEPING.map((key) => [key, 60]),
@@ -112,7 +113,7 @@ describe('skills in key moments', () => {
       expect(situation.choices.filter((c) => !c.latest).length).toBeLessThanOrEqual(4);
     for (const position of ['ST', 'CM', 'CB', 'LB', 'DM', 'GK'] as const)
       for (const context of contexts(position, unlocking))
-        expect(buildChoices({ ...context, latest: true }).length).toBeLessThanOrEqual(4);
+        expect(buildChoices(context).length).toBeLessThanOrEqual(4);
     const unlocked = ['ST', 'CM', 'CB', 'GK'].flatMap((position) =>
       contexts(position as Position, unlocking).flatMap((c) => buildChoices(c)),
     );
@@ -186,8 +187,8 @@ describe('skills in key moments', () => {
     const context = contexts('CM', []).find((c) =>
       c.situation.choices.some((choice) => choice.id === 'short-pass'),
     )!;
-    const pass = (traits: string[], stack: boolean) =>
-      buildChoices({ ...context, player: player(traits), stackImpact: stack }).find(
+    const pass = (traits: string[]) =>
+      buildChoices({ ...context, player: player(traits) }).find(
         (choice) => choice.id === 'short-pass',
       )!;
     const one = ['playmaker'];
@@ -195,15 +196,13 @@ describe('skills in key moments', () => {
     for (const traits of [one, three])
       expect(traitCount(traits, { id: 'short-pass', traitId: null })).toBe(traits.length);
     // Odds are unchanged on this path; the created chance grows with each covering skill.
-    expect(pass(three, true).probability).toBe(pass([], true).probability);
-    const none = pass([], true).stakes.successGoal;
-    const single = pass(one, true).stakes.successGoal;
-    const stacked = pass(three, true).stakes.successGoal;
+    expect(pass(three).probability).toBe(pass([]).probability);
+    const none = pass([]).stakes.successGoal;
+    const single = pass(one).stakes.successGoal;
+    const stacked = pass(three).stakes.successGoal;
     expect(single).toBeGreaterThan(none);
     expect(stacked).toBeGreaterThan(single);
     expect(stacked / none).toBeLessThanOrEqual(CONFIG.match.decision.traitImpactMaximum + 1e-9);
-    // On earlier engines one skill or three give the same flat bonus, so saved matches replay.
-    expect(pass(three, false).stakes.successGoal).toBe(pass(one, false).stakes.successGoal);
   });
 
   it('tells a build what the next skill adds, on the path each choice takes', () => {

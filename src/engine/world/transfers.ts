@@ -13,7 +13,7 @@ import { CONFIG } from '../config';
 import type { Rng } from '../rng';
 import { playerAbility } from '../strength';
 import { effectiveAbility } from '../selection/lineup';
-import { clubLineup, usesFormations } from '../selection/world';
+import { clubLineup } from '../selection/world';
 import { marketValue } from '../career/market/rules';
 import { refreshDressingRoom } from './dressing';
 import { recordEvent } from './events';
@@ -32,7 +32,7 @@ interface Weakest {
 /** The starting slot a club would most improve by signing for it (outfield only). */
 function weakestSlot(world: World, club: Club): Weakest | null {
   const lineup = clubLineup(world, club);
-  if (!lineup || lineup.starterIds.length < 11) return null;
+  if (lineup.starterIds.length < 11) return null;
   let weakest: Weakest | null = null;
   lineup.starterIds.forEach((id, index) => {
     if (index === 0) return;
@@ -41,6 +41,15 @@ function weakestSlot(world: World, club: Club): Weakest | null {
     if (!weakest || value < weakest.value) weakest = { index, position, value };
   });
   return weakest;
+}
+
+/**
+ * Sort players in place, best first (ties by id). Each ability is worked out once before
+ * sorting rather than inside the comparator (review P5); the order is the same.
+ */
+function byAbility(players: Player[]): Player[] {
+  const ability = new Map(players.map((player) => [player, playerAbility(player)]));
+  return players.sort((a, b) => ability.get(b)! - ability.get(a)! || (a.id < b.id ? -1 : 1));
 }
 
 /** Move a player between clubs for a fee, with fresh terms at the buyer. */
@@ -58,10 +67,9 @@ export function transferPlayer(
   joinSquad(world, player, buyer);
   const old = player.contractId;
   if (old) delete world.contracts[old];
-  const rank = buyer.playerIds
-    .map((id) => world.players[id]!)
-    .sort((a, b) => playerAbility(b) - playerAbility(a) || (a.id < b.id ? -1 : 1))
-    .findIndex((entry) => entry.id === player.id);
+  const rank = byAbility(buyer.playerIds.map((id) => world.players[id]!)).findIndex(
+    (entry) => entry.id === player.id,
+  );
   const contract = contractTerms(
     world,
     buyer,
@@ -88,9 +96,9 @@ export function transferPlayer(
   refreshDressingRoom(world, buyer);
 }
 
-/** One transfer week of AI business. Worlds without formations keep their older exchanges. */
+/** One transfer week of AI business, in national worlds (legacy worlds keep their exchanges). */
 export function aiTransferWindow(world: World, rng: Rng): number {
-  if (!usesFormations(world) || world.format !== 'national-v1') return 0;
+  if (world.format !== 'national-v1') return 0;
   const careerId = world.career?.playerId;
   const protectedIds = new Set<Id>([
     ...(careerId ? [careerId] : []),
@@ -110,8 +118,7 @@ export function aiTransferWindow(world: World, rng: Rng): number {
     list.push(player);
     byPosition.set(player.primaryPosition, list);
   }
-  for (const list of byPosition.values())
-    list.sort((a, b) => playerAbility(b) - playerAbility(a) || (a.id < b.id ? -1 : 1));
+  for (const list of byPosition.values()) byAbility(list);
   const sales = new Map<Id, number>();
   let moves = 0;
   for (const buyer of clubs) {

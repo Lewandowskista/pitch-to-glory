@@ -3,10 +3,10 @@ import type { Club, World } from '../src/model/domain';
 import { CONFIG } from '../src/engine/config';
 import { createRng } from '../src/engine/rng';
 import { careerCap } from '../src/engine/ageing';
-import { generateWorld } from '../src/engine/world/generate';
 import {
   CareerMatchPendingError,
   commitPlayedFixture,
+  lifecycleWeeks,
   simulateWeek,
   startNextSeason,
 } from '../src/engine/world/simulate';
@@ -37,34 +37,27 @@ import { TRAIT_BOOSTS } from '../src/engine/match/decisions';
 import { SITUATIONS } from '../src/engine/match/situations';
 import { createSave, parseSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { validateWorld } from '../src/persistence/worldSchema';
+import {
+  NATIONAL_SEED,
+  TEST_DRAFT,
+  nationalCareer,
+  nationalCareerSeason,
+  nationalWorld,
+} from './support/world';
 
 const clone = (world: World): World => JSON.parse(JSON.stringify(world)) as World;
 const draft = (overrides: Partial<CareerDraft> = {}): CareerDraft => ({
-  name: 'Robin Vale',
-  avatar: {
-    face: 1,
-    skin: 2,
-    hair: 3,
-    hairColor: 4,
-    facialHair: 0,
-    eyebrows: 1,
-    eyes: 2,
-    accessory: 3,
-  },
-  nationalityId: 'country:0',
-  position: 'ST',
-  foot: 'left',
-  age: 17,
-  archetype: 'finisher',
+  ...TEST_DRAFT,
   ...overrides,
 });
 let base: World;
 let career: World;
 let offers: Club[];
+// The shared national world (tests/support/world.ts): the career starts at the first trial club.
 beforeAll(() => {
-  base = generateWorld('career-tests', { format: 'legacy' });
-  offers = trialOffers(base, 'country:0', 'career-tests');
-  career = createCareer(base, draft(), offers[0]!.id, 'career-tests');
+  base = nationalWorld();
+  offers = trialOffers(base, 'country:0', NATIONAL_SEED);
+  career = nationalCareer();
 });
 const player = (world: World) => world.players[world.career!.playerId]!;
 function playPending(world: World) {
@@ -86,7 +79,7 @@ describe('career creation', () => {
       expect(base.leagues[club.leagueId]!.tier).toBe(bottom);
       expect(club.identity?.reserveParentId ?? null).toBeNull();
     }
-    expect(trialOffers(base, 'country:0', 'career-tests').map((c) => c.id)).toEqual(
+    expect(trialOffers(base, 'country:0', NATIONAL_SEED).map((c) => c.id)).toEqual(
       offers.map((c) => c.id),
     );
   });
@@ -301,7 +294,7 @@ describe('career fixtures', () => {
     expect(() => validateWorld(clone(next))).not.toThrow();
   });
   it('saves a national career world straight after a committed match', () => {
-    const national = generateWorld('career-midweek');
+    const national = nationalWorld();
     const trial = trialOffers(national, 'country:2', 'midweek')[0]!;
     const world = createCareer(
       national,
@@ -399,10 +392,8 @@ describe('career fixtures', () => {
       }),
     ).toThrow();
   });
-  it('auto-plays a whole season, playing every fixture the player is picked for', () => {
-    let world = clone(career);
-    while (world.phase === 'active')
-      world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  it('auto-plays a whole season, playing every fixture the player is in the squad for', async () => {
+    const world = await nationalCareerSeason();
     const clubId = player(world).clubId!;
     const fixtures = Object.values(world.fixtures).filter(
       (f) => f.homeId === clubId || f.awayId === clubId,
@@ -410,11 +401,15 @@ describe('career fixtures', () => {
     expect(fixtures.every((f) => world.results[f.id])).toBe(true);
     const played = new Set(world.career!.matches.map((m) => m.fixtureId));
     expect(played.size).toBe(world.career!.matches.length);
-    // A rotation promise at the trial club: picked for most matches, left out of some.
+    // A rotation promise at the trial club: picked for most matches, left out of some. Since
+    // release 1.0 (match-22) a player left out starts on the bench and may come on.
     const selection = world.career!.market.selection;
-    expect(selection.selected).toBe(played.size);
-    expect(played.size + selection.dropped).toBeLessThanOrEqual(fixtures.length);
+    const starts = world.career!.matches.filter((m) => m.cameOn === undefined).length;
+    expect(selection.selected).toBe(starts);
+    expect(starts + selection.dropped).toBeLessThanOrEqual(fixtures.length);
     expect(played.size).toBeGreaterThan(fixtures.length * 0.4);
+    for (const match of world.career!.matches.filter((m) => m.cameOn !== undefined))
+      expect(match.minutes).toBeLessThan(90);
     expect(world.career!.matches.every((m) => m.auto)).toBe(true);
     expect(world.career!.level).toBeGreaterThan(1);
     expect(() => validateWorld(clone(world))).not.toThrow();
@@ -430,18 +425,14 @@ describe('career lifecycle and saves', () => {
     const p = player(world);
     p.birthSeason = world.date.season - 45;
     world.contracts[p.contractId!]!.end.season = world.date.season - 1;
-    world.date.week = CONFIG.world.intakeWeek;
+    world.date.week = lifecycleWeeks(world).intake;
     seasonalSquadReview(world, createRng('lifecycle'));
     expect(p.retired).toBe(false);
     expect(p.clubId).not.toBeNull();
   });
-  it('moves the career player when their club drops below the simulated frontier', () => {
+  it('moves the career player when their club drops below the simulated frontier', async () => {
     // National worlds have feeder levels below the frontier and allow odd group sizes.
-    const national = generateWorld('career-relegation');
-    const trial = trialOffers(national, 'country:0', 'relegation')[0]!;
-    let complete = createCareer(national, draft(), trial.id, 'relegation');
-    while (complete.phase === 'active')
-      complete = advanceCareerWeek(complete, { inPlace: true, autoPlay: true }).world;
+    const complete = await nationalCareerSeason();
     const clubId = player(complete).clubId!;
     const summary = complete.history.at(-1)!;
     summary.movements = summary.movements.filter((m) => m.clubId !== clubId);
@@ -455,7 +446,7 @@ describe('career lifecycle and saves', () => {
     expect(moved.clubId).not.toBe(clubId);
     expect(next.leagues[next.clubs[moved.clubId!]!.leagueId]).toBeDefined();
     expect(next.clubs[moved.clubId!]!.playerIds).toContain(moved.id);
-  }, 240000);
+  }, 120000);
   it('round trips a career save and rejects forged progression', () => {
     const payload = {
       kind: 'world' as const,

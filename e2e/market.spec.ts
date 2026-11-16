@@ -1,27 +1,22 @@
-import { expect, test, type Page } from '@playwright/test';
-import { careerTabs, isAbortedLoad, isBrowserNoise, openCareerPage, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import {
+  backupFile,
+  careerTabs,
+  expect,
+  nationalCareer,
+  nationalCareerSeason,
+  openCareerPage,
+  skipTutorial,
+  test,
+} from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { careerContract, makeTransferBid, marketSeasonEnd } from '../src/engine/career/market';
-import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 
@@ -56,38 +51,14 @@ async function accessibilityViolations(page: Page): Promise<string[]> {
 }
 
 /**
- * A saved career, built with the real engine: a club has had a bid accepted and its
+ * A saved national career, built with the real engine: a club has had a bid accepted and its
  * contract offer is waiting, so the journey can negotiate without simulating a season.
  */
 function marketSave(
   options: { buyerName?: string; settings?: Partial<typeof DEFAULT_SETTINGS> } = {},
 ): { json: string; buyer: string; parent: string; offerId: string } {
-  const base = generateWorld('market-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'market-browser')[0]!;
-  const world: World = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'market-browser',
-  );
-  const parent = world.clubs[trial.id]!;
+  const world: World = nationalCareer('market-browser');
+  const parent = world.clubs[world.players[world.career!.playerId]!.clubId!]!;
   const buyer = Object.values(world.clubs)
     .filter((club) => club.id !== parent.id && club.reputation > parent.reputation)
     .sort((a, b) => a.reputation - b.reputation || (a.id < b.id ? -1 : 1))[0]!;
@@ -110,12 +81,11 @@ async function importSave(page: Page, json: string): Promise<void> {
     .locator('.slot-card')
     .nth(0)
     .getByLabel('Import backup — Slot 1')
-    .setInputFiles({
-      name: 'market.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(json),
-    });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Market career');
+    .setInputFiles(backupFile('market', json));
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Market career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
 }
 
 // Phone talks keep the club's name readable and the terms close: no overflow is not enough,
@@ -190,33 +160,8 @@ for (const phone of [
 
 /** A finished season whose contract ends with it, the club's option used, and two suitors. */
 function expirySave(): { json: string; club: string } {
-  const base = generateWorld('expiry-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'expiry-browser')[0]!;
-  let world: World = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'expiry-browser',
-  );
-  while (world.phase === 'active')
-    world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  // A season played by the headless policy (shared with the unit tests' cache).
+  const world = nationalCareerSeason();
   const contract = careerContract(world);
   contract.end = { ...contract.end, season: world.date.season };
   contract.optionTaken = true;
@@ -241,7 +186,7 @@ function expirySave(): { json: string; club: string } {
   const save = createSave(1, 'Market career', {
     kind: 'world',
     world,
-    gallery: { seed: 'expiry-browser', generation: 0 },
+    gallery: { seed: 'national-tests', generation: 0 },
     settings: DEFAULT_SETTINGS,
   });
   return { json: JSON.stringify(save), club: world.clubs[contract.clubId]!.name };

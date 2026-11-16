@@ -10,7 +10,8 @@ import { trophyKindFor, trophyShapes, type TrophyKind } from '../../engine/asset
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { honoursText as h } from '../../i18n/honours';
-import { chronicleSentence, counted } from './honoursUi';
+import { plural } from '../../i18n/locale';
+import { chronicleSentence } from './honoursUi';
 
 /** Chronicle kinds that make the poster's highlights. */
 export const POSTER_HIGHLIGHTS = new Set<ChronicleEntry['kind']>([
@@ -94,9 +95,9 @@ export function posterSvg(
   // entry per national level), never totals.
   const totals = careerTotals(world, player.id);
   const stats = format(h.chronicle.poster.stats, {
-    apps: counted(totals.appearances, h.chronicle.counts.apps),
-    goals: counted(totals.goals, h.chronicle.counts.goals),
-    caps: counted(totals.caps, h.chronicle.counts.caps),
+    apps: plural(totals.appearances, h.chronicle.counts.apps),
+    goals: plural(totals.goals, h.chronicle.counts.goals),
+    caps: plural(totals.caps, h.chronicle.counts.caps),
   });
   const won = posterTrophies(world, player);
   const capacity = TROPHIES_PER_ROW * 2;

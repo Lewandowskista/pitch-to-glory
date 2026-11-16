@@ -1,5 +1,5 @@
 import type { KeyMoment, Point, ReplayFrame } from '../../model/domain';
-import { attacksRightAt, SITUATION_BY_ID, type MatchSetup } from '../../engine/match';
+import { attacksRightAt, situationOf, templateOf, type MatchSetup } from '../../engine/match/core';
 import { OFF_ANIMATION } from '../../engine/match/parked';
 
 /**
@@ -58,7 +58,6 @@ const WINDOW_WIDTH = 72;
 const WINDOW_LEFT = -2;
 /** The third each zone frames, from the attacked goal (metres), with room for labels. */
 const ZONE_TOP: Record<CamZone, number> = { final: -4.2, middle: 31.8, defensive: 66.8 };
-const PASS_BEATS = new Set(['pass', 'cross', 'switch', 'through', 'long', 'cutback']);
 
 /** The selected team's side: 0 home, 1 away. */
 export const selectedSide = (setup: Pick<MatchSetup, 'home' | 'selectedPlayerId'>): 0 | 1 =>
@@ -193,7 +192,7 @@ export function deriveCast(
 
 /** Whether the selected team is on the ball at a key moment, from its situation. */
 export function attackingMoment(moment: KeyMoment, side: 0 | 1, home: { playerIds: string[] }) {
-  const phase = SITUATION_BY_ID[moment.situationId]?.phase;
+  const phase = situationOf(moment.situationId)?.phase;
   if (phase) return phase === 'attack';
   const carrier = moment.frame.carrierId;
   if (carrier) return home.playerIds.includes(carrier) === (side === 0);
@@ -207,12 +206,11 @@ export function attackingMoment(moment: KeyMoment, side: 0 | 1, home: { playerId
  * targets with the engine's cast (phase 6).
  */
 export function choiceArrows(moment: KeyMoment, you: Point): CamArrow[] {
-  const situation = SITUATION_BY_ID[moment.situationId];
-  if (!situation) return [];
+  if (!situationOf(moment.situationId)) return [];
   const right = you.x > PITCH_WIDTH_M / 2;
   const arrows: CamArrow[] = [];
   moment.choices.forEach((choice, index) => {
-    const template = situation.choices.find((c) => c.id === choice.id);
+    const template = templateOf(moment.situationId, choice.id);
     if (!template || template.target === undefined || template.direct !== 'for') return;
     const offset = ((template.target - 50) * PITCH_WIDTH_M) / 100;
     const post = /near-post/.test(choice.id)
@@ -257,17 +255,6 @@ export function focusFrames(motion: {
   const end = Math.max(start, Math.min(frames.length - 1, focus.end));
   return frames.slice(start, end + 1);
 }
-
-/** The last completed pass in a run of keyframes up to an index, for the live trail. */
-export function lastPass(frames: readonly ReplayFrame[], upTo: number) {
-  for (let i = Math.min(upTo, frames.length - 1); i > 0; i--) {
-    const beat = frames[i]!.beat;
-    if (beat && PASS_BEATS.has(beat.kind))
-      return { index: i, from: frames[i - 1]!.ball, to: frames[i]!.ball };
-  }
-  return null;
-}
-export const isPassBeat = (kind: string | undefined) => Boolean(kind && PASS_BEATS.has(kind));
 
 /**
  * The cast the engine named (match-15), in the camera's roles: you first, then the opponent
@@ -387,5 +374,3 @@ export function momentCamera(
   const arrows = you ? (engine ?? choiceArrows(moment, you)) : [];
   return { attacksRight, window, cast, arrows };
 }
-/** The phones' camera crop: a little wider than the desktop frame, to save height. */
-export const COMPACT_ASPECT = 1.9;

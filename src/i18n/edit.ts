@@ -1,5 +1,6 @@
+import { LOCALE, plurals, type Translations } from './locale';
 /** Edit mode copy (milestone 9). */
-export const editText = {
+const editTextEn = {
   description:
     'Rename clubs, leagues and players, repaint club colours and draw new crests. Edits change names and looks only, never results, and you can revert each one.',
   empty: {
@@ -73,21 +74,20 @@ export const editText = {
     title: 'Your edits',
     summary: '{list} edited',
     counts: {
-      club: '1 club',
-      clubs: '{count} clubs',
-      league: '1 league',
-      leagues: '{count} leagues',
-      player: '1 player',
-      players: '{count} players',
+      clubs: plurals({ one: '1 club', other: '{count} clubs' }),
+      leagues: plurals({ one: '1 league', other: '{count} leagues' }),
+      players: plurals({ one: '1 player', other: '{count} players' }),
     },
     none: 'No edits yet in this world.',
     export: 'Export edits',
     import: 'Import edits',
     importLabel: 'Import an edit file',
     exported: 'Edit file saved.',
+    exportFailed: 'The edit file could not be saved in this browser.',
     imported: 'Applied {applied} edits.',
     importedSkipped: 'Applied {applied} edits; {skipped} did not match anything in this world.',
     invalid: 'That file is not a Pitch to Glory edit file.',
     body: 'An edit file carries names, colours and crests. It applies to this world, and to other worlds with the same clubs and leagues, matched by their original names.',
   },
 } as const;
+export const editText = ({ en: editTextEn } satisfies Translations<typeof editTextEn>)[LOCALE];

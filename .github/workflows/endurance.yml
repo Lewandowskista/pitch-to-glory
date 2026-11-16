@@ -1,7 +1,8 @@
 name: Career endurance
 # Long headless careers in seeded national worlds (docs/VERIFICATION.md, Phase 4.1). The
 # pull-request smoke season runs in ci.yml; this workflow runs the longer soaks off the
-# critical path and keeps their reports.
+# critical path and keeps their reports. Nightly, it also runs the slow unit-test project
+# (vitest.config.ts), which pull requests skip.
 on:
   schedule:
     # Nightly: five seasons of one career.
@@ -11,9 +12,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'seasons (five seasons) or generations (two retirements)'
+        description: 'seasons (five seasons), generations (two retirements) or slow-tests (the slow unit tests)'
         type: choice
-        options: [seasons, generations]
+        options: [seasons, generations, slow-tests]
         default: seasons
 permissions:
   contents: read
@@ -21,14 +22,27 @@ concurrency:
   group: endurance-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  slow-unit:
+    if: github.event.schedule == '17 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'slow-tests')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --project slow
   soak:
+    if: github.event_name != 'workflow_dispatch' || inputs.mode != 'slow-tests'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - name: Five seasons

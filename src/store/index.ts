@@ -66,6 +66,12 @@ interface WorldSlice {
     | null;
   worldError: string | null;
   setWorld: (world: World) => void;
+  /**
+   * A world job's result, published once at its end (release 1.0 step 3.3). With `save`, the
+   * slot's envelope after the job's checkpoints; `saved` when the published world is the one
+   * committed and nothing else changed meanwhile.
+   */
+  publishWorld: (world: World, options: { save: AppSave | null; saved: boolean }) => void;
   setWorldJob: (job: WorldJob | null) => void;
   worldFeedback: (notice: WorldSlice['worldNotice'], error?: string) => void;
 }
@@ -87,7 +93,7 @@ export type AppStore = SettingsSlice &
  * as its latest record: loading another save, a later state of the same career or a new world
  * drops it, while edits and saving the same career elsewhere keep it.
  */
-function reportFor(
+export function reportFor(
   result: MatchSlice['careerResult'],
   world: World | null,
 ): MatchSlice['careerResult'] {
@@ -238,6 +244,22 @@ const worldSlice: StateCreator<AppStore, [], [], WorldSlice> = (set) => ({
       careerResult: reportFor(state.careerResult, world),
       change: state.change + 1,
     })),
+  publishWorld: (world, { save, saved }) => {
+    set((state) => ({
+      world,
+      trainingDraft: retainedTrainingDraft(state, world),
+      trainingAdvance:
+        state.trainingSaving || retainedTrainingDraft(state, world) ? state.trainingAdvance : null,
+      matchSession: null,
+      careerResult: reportFor(state.careerResult, world),
+      change: state.change + 1,
+      ...(save ? { activeSave: save } : {}),
+    }));
+    // Saved as a second step: a change that arrives already saved reads as a load (to the
+    // analytics observer, among others), and this world is new play.
+    if (saved)
+      set((state) => ({ savedChange: state.change, saveStatus: 'saved', saveError: null }));
+  },
   setWorldJob: (worldJob) => set({ worldJob }),
   worldFeedback: (worldNotice, worldError) => set({ worldNotice, worldError: worldError ?? null }),
 });
@@ -247,6 +269,13 @@ const matchSlice: StateCreator<AppStore, [], [], MatchSlice> = (set) => ({
   careerResult: null,
   setCareerResult: (careerResult) => set({ careerResult }),
 });
+/**
+ * Whether the world is in use and must not change underneath: a world job running, a match in
+ * hand, or training being saved.
+ */
+export const worldBusy = (
+  state: Pick<AppStore, 'worldJob' | 'matchSession' | 'trainingSaving'>,
+): boolean => Boolean(state.worldJob || state.matchSession || state.trainingSaving);
 export const useAppStore = create<AppStore>()((...args) => ({
   ...settingsSlice(...args),
   ...gallerySlice(...args),

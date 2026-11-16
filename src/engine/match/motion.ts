@@ -12,8 +12,9 @@ import type {
 import { createRng, hashSeed, type Rng } from '../rng';
 import { clamp } from './decisions';
 import { OFF_ANIMATION, PARKED } from './parked';
-import { SITUATION_BY_ID, type Situation } from './situations';
-import { HEAT_COLUMNS, HEAT_ROWS, type MatchSession, type PlayState } from './types';
+import type { Situation } from './situations';
+import { situationOf } from './situations22';
+import { HEAT_COLUMNS, HEAT_ROWS, rules22, type MatchSession, type PlayState } from './types';
 import {
   FORMATION_SLOTS,
   formationOf,
@@ -77,7 +78,8 @@ interface Actor {
   /** A stable personal offset from the shape, so teammates do not move in lockstep. */
   style: Spot;
 }
-type ShotVisual = 'goal' | 'catch' | 'parry' | 'block' | 'wide' | 'over' | 'smother' | 'punch';
+type ShotVisual =
+  'goal' | 'catch' | 'parry' | 'block' | 'wide' | 'over' | 'smother' | 'punch' | 'woodwork';
 type PassStyle = 'short' | 'through' | 'cross' | 'long';
 interface Want {
   side: Side;
@@ -127,7 +129,7 @@ const WIDTH = 0.65;
 /** Metres per length unit (105 m along the pitch). */
 export const METRES_PER_UNIT = 1.05;
 /** Top running speed in length units per sporting millisecond (about 9 m/s). */
-const RUN = 0.0085;
+export const RUN = 0.0085;
 /** Longest pause a keyframe may take while players walk to their marks. */
 const MAX_STEP_MS = 14000;
 const CENTRE: Point = { x: 50, y: 50 };
@@ -137,15 +139,32 @@ const LINE_DEPTH = {
   midfield: [10, 84, 8, 66],
   attack: [28, 95, 22, 80],
 } as const;
-/** Failed shots look like their commentary line (variant index → visual; null = seeded). */
+/**
+ * Failed shots look like their commentary line (variant index → visual; null = seeded). Variants
+ * from the fourth on exist only in match-22 (release 1.0, step 5.5).
+ */
 const FAILED_SHOTS: Record<string, readonly (ShotVisual | null)[]> = {
-  shot: ['catch', 'block', 'wide'],
-  placed: ['wide', 'parry', 'wide'],
+  shot: ['catch', 'block', 'wide', 'parry', 'catch', 'wide', 'block', 'over'],
+  placed: ['wide', 'parry', 'wide', 'catch', 'wide', 'parry', 'over', 'catch'],
   long: ['over', 'catch', 'block'],
   header: ['over', 'catch', 'wide'],
   attempt: [null, 'catch', null],
   penalty: ['parry', 'wide', 'over'],
   'free-kick': ['over', 'catch', 'wide'],
+};
+/** The depth a shot is struck from at least (attack frame), once a move has brought the ball. */
+const SHOOTING_DEPTH = 62;
+/** A missed shot's line in match-22 names how it was missed (`missedShot`): drawn so. */
+const MISSED_SHOTS: Record<string, ShotVisual> = {
+  'attempt-held': 'catch',
+  'attempt-held-late': 'catch',
+  'attempt-parried': 'parry',
+  'attempt-wide': 'wide',
+  'attempt-wide-late': 'wide',
+  'attempt-over': 'over',
+  'attempt-blocked': 'block',
+  // Off the post or bar (release 1.0, step 5.3), the player's own shots included.
+  'attempt-woodwork': 'woodwork',
 };
 const KEEPER_SAVES: Record<string, ShotVisual> = {
   hold: 'catch',
@@ -885,11 +904,17 @@ class Director {
         if (this.carrier()?.id === want.target.id) {
           // Received from the move's final ball (a cross met first time stays where it is
           // met), or earlier in the move: then on to the spot.
+          // Match-22 also carries a shot on from a move that ends short of shooting range (a
+          // long ball out of defence after a corner, say), so no shot is struck from midfield.
+          const short =
+            move.purpose === 'shot' &&
+            rules22(this.session.setup) &&
+            this.toSpot(want.side, this.ball).d < SHOOTING_DEPTH;
           const end =
             spot ??
             (plan.finish
               ? this.toPitch(want.side, plan.finish)
-              : ended === 'early' && move.purpose === 'shot'
+              : (ended === 'early' || short) && move.purpose === 'shot'
                 ? this.shootingSpot(want.target)
                 : null);
           if (end && span(this.ball, end) > 2) this.carry(want.target, end);
@@ -1018,9 +1043,8 @@ class Director {
         runs.set(target.id, this.reachable(target.id, this.onside(side, arrival), 2500));
       if (step.kind === 'carry') {
         // A keeper never carries upfield: when the teammates a move starts with are missing
-        // (sent off), its carry would otherwise fall to the keeper after a goal kick. From
-        // match-19; earlier sessions replay as they were.
-        if (carrier.keeper && this.session.setup.identity) continue;
+        // (sent off), its carry would otherwise fall to the keeper after a goal kick (match-19).
+        if (carrier.keeper) continue;
         const to = point(step.to);
         // Never carry backwards, except to hold the ball up for an overlap.
         if (!step.run && this.toSpot(side, to).d < this.toSpot(side, this.ball).d - 3) continue;
@@ -1366,6 +1390,25 @@ class Director {
       });
       return this.ball;
     }
+    if (visual === 'woodwork') {
+      // Off the post (engine match-22): the ball comes back into play and the defence clears.
+      const post = toward(100, aim < 50 ? 44.6 : 55.4);
+      strike(post, 'shot', { dead: false });
+      const rebound = toward(
+        90 + this.rng.next() * 5,
+        aim < 50 ? 38 + this.rng.next() * 8 : 54 + this.rng.next() * 8,
+      );
+      // The nearest outfielder of the defence gathers the rebound.
+      const collector = this.nearest(defending, rebound).find((actor) => !actor.keeper)!;
+      this.emit({
+        dt: 700,
+        ball: rebound,
+        motion: 'loose',
+        carrier: collector.id,
+        beat: { kind: 'intercept', actor: collector, won: true },
+      });
+      return this.ball;
+    }
     const end =
       visual === 'over'
         ? toward(104, aim)
@@ -1474,7 +1517,7 @@ class Director {
     else {
       const parts = event.commentaryKey.split('.');
       const options = FAILED_SHOTS[parts[2] ?? ''];
-      const listed = options?.[Number(parts[parts.length - 1])];
+      const listed = options?.[Number(parts[parts.length - 1])] ?? MISSED_SHOTS[parts[2] ?? ''];
       const r = this.rng.next();
       visual = listed ?? (r < 0.35 ? 'catch' : r < 0.65 ? 'wide' : r < 0.8 ? 'block' : 'over');
     }
@@ -2017,21 +2060,38 @@ class Director {
         });
         return;
       }
+      // Defending scenes, with engine match-22's (step 5.2) from last-man on.
       case 'defend-attack':
       case 'offside-line':
       case 'goal-line':
       case 'penalty-save':
       case 'shot-incoming':
       case 'one-on-one':
-      case 'cross-ball': {
+      case 'cross-ball':
+      case 'last-man':
+      case 'cross-defence':
+      case 'two-on-one':
+      case 'set-piece-marking':
+      case 'sweeping': {
         const fallback = ownFrame(at.d + 6, at.w);
-        const attacker =
-          situation.id === 'cross-ball'
-            ? (byRole(this.teammates(opposition), at.w <= 50 ? 'wide-right' : 'wide-left') ??
-              outfield(opponents.attacker, fallback))
-            : outfield(opponents.attacker, fallback);
+        const wide =
+          situation.id === 'cross-ball' ||
+          situation.id === 'cross-defence' ||
+          situation.id === 'set-piece-marking';
+        const attacker = wide
+          ? (byRole(this.teammates(opposition), at.w <= 50 ? 'wide-right' : 'wide-left') ??
+            outfield(opponents.attacker, fallback))
+          : outfield(opponents.attacker, fallback);
+        const later: Record<string, Point> = {
+          'last-man': ownFrame(at.d + 7, at.w),
+          'cross-defence': ownFrame(16, at.w <= 50 ? 92 : 8),
+          'two-on-one': ownFrame(at.d + 9, at.w + 6),
+          'set-piece-marking': ownFrame(0.5, at.w <= 50 ? 99 : 1),
+          sweeping: ownFrame(26, at.w),
+        };
         const ballAt =
-          situation.id === 'defend-attack'
+          later[situation.id] ??
+          (situation.id === 'defend-attack'
             ? ownFrame(at.d + 4, at.w + (this.rng.next() - 0.5) * 2)
             : situation.id === 'offside-line'
               ? ownFrame(at.d + 18, at.w + (this.rng.next() - 0.5) * 20)
@@ -2043,7 +2103,7 @@ class Director {
                     ? ownFrame(19 + this.rng.next() * 4, 40 + this.rng.next() * 20)
                     : situation.id === 'one-on-one'
                       ? ownFrame(13, 44 + this.rng.next() * 12)
-                      : ownFrame(8, at.w <= 50 ? 94 : 6);
+                      : ownFrame(8, at.w <= 50 ? 94 : 6));
         // The opposition's move into the danger the selected player faces (not a penalty).
         this.bringBall({ side: opposition, target: attacker }, ballAt, {
           air: situation.id === 'one-on-one' || situation.id === 'penalty-save' ? false : undefined,
@@ -2054,7 +2114,10 @@ class Director {
         const ball = this.toSpot(own, this.ball);
         marks.set(
           selected.id,
-          situation.id === 'defend-attack' || situation.id === 'offside-line'
+          situation.id === 'defend-attack' ||
+            situation.id === 'offside-line' ||
+            situation.id === 'last-man' ||
+            situation.id === 'two-on-one'
             ? spot
             : ownFrame(at.d, 50 + (ball.w - 50) * 0.3),
         );
@@ -2086,6 +2149,14 @@ class Director {
           );
           if (target) marks.set(target.id, ownFrame(9, 50));
         }
+        if (situation.id === 'cross-defence' || situation.id === 'set-piece-marking') {
+          // Their striker is the man the selected defender marks in the box.
+          const target = byRole(
+            this.teammates(opposition).filter((actor) => actor.id !== attacker.id),
+            'striker',
+          );
+          if (target) marks.set(target.id, ownFrame(at.d + 1, at.w + 2));
+        }
         this.emit({
           dt: 600,
           ball: this.ball,
@@ -2103,7 +2174,7 @@ class Director {
         this.bringBall({ side: own, target: selected }, spot, {
           move: { purpose: 'scene', situationId: situation.id },
         });
-        const presser = situation.id === 'build-out';
+        const presser = situation.id === 'build-out' || situation.id === 'back-pass';
         const opponent = outfield(presser ? opponents.attacker : opponents.defender, spot);
         this.direct = opponent.id;
         marks.set(
@@ -2149,7 +2220,13 @@ class Director {
         : undefined;
     };
     // Set pieces keep their set-up: the cast is named, not moved.
-    const setPiece = ['penalty', 'free-kick', 'corner-kick', 'penalty-save'].includes(situation.id);
+    const setPiece = [
+      'penalty',
+      'free-kick',
+      'corner-kick',
+      'penalty-save',
+      'set-piece-marking',
+    ].includes(situation.id);
     if (situation.phase === 'defence') {
       const carrier = this.carrier();
       const onBall =
@@ -2166,7 +2243,11 @@ class Director {
       if (runner) {
         cast.runner = runner.id;
         taken.add(runner.id);
-        if (situation.id === 'defend-attack' || situation.id === 'offside-line')
+        if (
+          situation.id === 'defend-attack' ||
+          situation.id === 'offside-line' ||
+          situation.id === 'two-on-one'
+        )
           marks.set(runner.id, near(runner.id, ownFrame(at.d + 1, at.w + (at.w < 50 ? 12 : -12))));
       }
       // Teammates covering, goal-side of the ball.
@@ -2264,13 +2345,16 @@ function director(
   exempt?: ReadonlySet<string>,
 ) {
   const minute = session.state.match.minute;
+  // In added time (match-22) the clock stands at the period's last minute: the passage has its
+  // own stream and runs on past it.
+  const added = session.state.added ?? 0;
   return new Director(
     session,
     start,
     session.state.play,
     minute,
-    startTime,
-    createRng(`${session.setup.seed}:motion:${minute}:${tag}`),
+    startTime + added * 60000,
+    createRng(`${session.setup.seed}:motion:${added ? `${minute}+${added}` : minute}:${tag}`),
     exempt,
   );
 }
@@ -2380,7 +2464,7 @@ function outcomeScene(
     ),
   );
   const scene = director(session, lastFrame(session), minute * 60000 - 20000, 'outcome', dismissed);
-  scene.run(events, SITUATION_BY_ID[situationId] ?? null, decisionEvents);
+  scene.run(events, situationOf(situationId) ?? null, decisionEvents);
   scene.fill(2);
   return scene.finish();
 }

@@ -1,0 +1,74 @@
+name: World drift
+# The world drift gate (docs/RELEASE-1.0-PLAN.md step 2.3, docs/BALANCING.md "1.0 targets"):
+# 25 seasons on two seeds, each with a headless career and its children (scripts/world-drift.ts,
+# about 20 minutes a seed on a laptop). Every target is reported; a run fails only on a target
+# whose phase has set it to asserted. The JSON and a readable summary are kept as artifacts.
+on:
+  schedule:
+    # Nightly.
+    - cron: '7 1 * * *'
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: 'Seasons to simulate (the gate is 25)'
+        type: number
+        default: 25
+permissions:
+  contents: read
+concurrency:
+  group: drift-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [drift-a, drift-b]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Simulate and report
+        env:
+          SEED: ${{ matrix.seed }}
+          SEASONS: ${{ inputs.seasons || 25 }}
+        run: npm run drift -- --seed "$SEED" --seasons "$SEASONS"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drift-${{ matrix.seed }}
+          path: artifacts/drift/
+          if-no-files-found: warn
+  # Both seeds together: the targets judged over the two runs, and the summaries on the run page.
+  report:
+    needs: drift
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: drift-*
+          path: artifacts/drift
+          merge-multiple: true
+      - name: Summaries
+        run: |
+          {
+            echo '## World drift'
+            echo
+            echo '```'
+            cat artifacts/drift/*.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Fails only on asserted targets; reported ones print as MISS.
+      - run: npm run drift -- --check

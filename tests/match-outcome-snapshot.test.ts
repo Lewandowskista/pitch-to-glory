@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { generateWorld } from '../src/engine/world/generate';
 import { autoPlayCommand } from '../src/engine/career/matches';
 import {
@@ -9,164 +9,86 @@ import {
   rolePosition,
   rolesForPosition,
   MATCH_ENGINE_VERSION,
-  OCCASIONS_MATCH_ENGINE,
-  DISCIPLINE_MATCH_ENGINE,
-  ROLE_MATCH_ENGINE,
-  EXTRA_TIME_MATCH_ENGINE,
-  IDENTITY_MATCH_ENGINE,
-  DEFENDING_MATCH_ENGINE,
+  PREVIOUS_MATCH_ENGINE,
   type MatchCommand,
   type MatchSession,
   type MatchSetup,
   type Tactics,
 } from '../src/engine/match';
 import type { Position } from '../src/model/domain';
+import { onEngine, type Engine } from './support/engines';
 
 /**
  * Outcome snapshot (redesign step M0). Plays 200 seeded matches across eight positions, with
- * varied roles, tactics, engines (the legacy 4-3-3, slot moments, the current engine with
- * fixtures, captaincy and shootouts) and choice policies, and hashes everything the outcome
- * layer decides: the score, every event (kind, team, player, minute, commentary, assist and
- * decision outcome), every key moment's choices and their probabilities, the existing live
- * statistics and the report's rating, XP, fame and objectives. Pitch points, end points,
- * keyframes and any choreography or bookkeeping field are excluded.
+ * varied roles, tactics, fixtures (friendlies, league games, and cup ties with captaincy and
+ * shootouts) and choice policies, and hashes everything the outcome layer decides: the score,
+ * every event (kind, team, player, minute, commentary, assist and decision outcome), every key
+ * moment's choices and their probabilities, the existing live statistics and the report's
+ * rating, XP, fame and objectives. Pitch points, end points, keyframes and any choreography or
+ * bookkeeping field are excluded.
  *
  * Narrative-only engine steps must keep these hashes byte-identical. A step that is meant to
  * change outcomes (a re-gate step) updates them deliberately, together with the 10,000-match
- * gate. Run with `SNAPSHOT_PRINT=1` to print the current values.
+ * gate, and keeps the previous engine's table while that engine is supported
+ * (docs/COMPATIBILITY.md). Run with `SNAPSHOT_PRINT=1` to print the current values.
  *
- * Re-gated in redesign phase 6 (engine match-15), one step at a time; the earlier engine
- * paths (variants 0 and 1) were checked byte-identical against match-14 at every step:
- * - M4 cast and targets: a pass reaches the teammate named before the choice (the receiver is
- *   drawn on its own stream instead of the decision stream), so every later roll in a decision
- *   shifts.
- * - M5 Track the runner: a fourth choice when defending an attack, so the policies that pick
- *   by index (and the headless player, who now weighs it) choose differently for players who
- *   defend (CB, LB, DM, and CM and AM in midfield slots); GK, RW and ST are unchanged.
- * - Objectives stream (decision 3): objectives leave the preview stream for their own, so the
- *   preview stream's later draws (the consistency shift and the weather) move for every match.
- * - M7 cards and substitutions: bookings add events (ids and commentary variants move, no roll
- *   does) and the managers' changes and the bench of seven change line-ups and who scores.
- * - M8 weather and pitch: the combined conditions factor splits into a weather factor (scaled
- *   by the new intensity) and a pitch factor, so choice factors and probabilities change.
- * - Shot objectives: the targets rise to five shots for a striker and three for other attackers
- *   (the profile read 76% completion against its 75% ceiling); only the objectives, and so the
- *   AM, RW and ST hashes, change. Goals and moments are untouched.
+ * The engine history behind these values (match-15 to match-21) is in `MATCH_ENGINE_VERSION`'s
+ * comment in src/engine/match/types.ts and in docs/MATCH-BALANCING.md.
  *
- * Re-gated in the discipline phase (engine match-16, decision 5). The match-15 path is kept as
- * its own engine (setups with `occasions` but no `discipline`), and its hashes (`MATCH_15`) are
- * checked byte-identical on every run, alongside the earlier paths of variants 0 and 1:
- * - Full discipline: the cosmetic bookings leave `${seed}:discipline:${minute}` for
- *   `${seed}:cards:${minute}`, drawn at the start of the minute (three draws a side), with
- *   second yellows and straight reds. A dismissal parks the player off the pitch, takes them
- *   out of finishers, opponents, receivers and the managers' changes, and recalculates both
- *   sides' expected goals, possession and team odds, so every later roll can land differently.
- * - The career player's own dismissal ends their moments and their share of the attack and
- *   defence; their cards add a `discipline` rating part, and the headline and reactions follow.
- * - Booking risk: failed defending choices roll for a card on `${seed}:booking:...`, which
- *   never moves a decision roll; the outcome records the roll (`outcome.booking`).
- * Goals moved by at most three in a position (GK 63 → 61, DM 58 → 61, RW 53 → 54) and moments
- * by at most four (LB 238 → 234, RW 294 → 293), from dismissals and the moments they end.
+ * The 1.0 compatibility cut (docs/RELEASE-1.0-PLAN.md step 2.4) removed the engines before
+ * match-21 and their tables (match-15 to match-20). Two of every five samples played the
+ * pre-formation and slot-only paths; they now play the current engine, so the table was
+ * re-recorded on the code before the cut, and the cut left it byte-identical.
+ *
+ * Release 1.0 Phase 5 plays the same samples on both engines: `EXPECTED` on match-22 (setups
+ * with `rules22`) and `PREVIOUS` on match-21 (the same setups without it). Each 1.0 rule change
+ * re-records `EXPECTED` deliberately and must leave `PREVIOUS` byte-identical: that is the
+ * proof that sessions saved before the update still replay. Until the first rule landed the two
+ * engines played identically; step 5.5 (commentary) changed lines but not results, and step 5.3
+ * (ratings and statistics) the results: the third test checks that every table differs.
  */
 const POSITIONS: Position[] = ['GK', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'ST'];
 const PER_POSITION = 25;
 /**
- * The match-15 path (setups without `discipline`): every hash recorded at the end of phase 6,
- * held byte-identical by the discipline phase.
+ * The previous engine (match-21): a defensive midfielder's moments carry more of the
+ * opposition's goals, and a keeper's saves lean harder on their attributes. Never re-recorded
+ * while match-21 is kept: a change here means a 1.0 rule leaked into saved sessions.
  */
-const MATCH_15: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '004f2120207ee97fc7dadc43', goals: 63, moments: 214 },
-  CB: { hash: 'f598c70b8e585f4c3df20aa8', goals: 62, moments: 231 },
-  LB: { hash: 'c79dbf303b9cce13a59fd9f2', goals: 51, moments: 238 },
-  DM: { hash: '38a1e53575534e61081111c5', goals: 58, moments: 207 },
-  CM: { hash: '1965a808123a8e4e960ea515', goals: 76, moments: 242 },
-  AM: { hash: '838af718612b298a0c3af003', goals: 74, moments: 277 },
-  RW: { hash: '6832eff46902c10b0fcfdf7a', goals: 53, moments: 294 },
-  ST: { hash: '16c89f360f61c603d4bd76f2', goals: 71, moments: 301 },
+const PREVIOUS: Record<string, { hash: string; goals: number; moments: number }> = {
+  GK: { hash: '061b7390d0cefae6128dc1bb', goals: 63, moments: 214 },
+  CB: { hash: 'cec58987ce402aefd11309b9', goals: 61, moments: 231 },
+  LB: { hash: 'fd856c40a8b80b27659e4dd2', goals: 49, moments: 228 },
+  DM: { hash: '1ec5c6846207d7f6927d4fd6', goals: 60, moments: 207 },
+  CM: { hash: 'cae6cb90f9f2329cd6f41c2b', goals: 66, moments: 250 },
+  AM: { hash: 'f15966d4279057bbb603c8ce', goals: 72, moments: 268 },
+  RW: { hash: 'bfa8dd4c0ca82fe35af84bd0', goals: 54, moments: 312 },
+  ST: { hash: '4b53ae123c0f69d798d2944a', goals: 68, moments: 311 },
 };
-/** The current engine (match-16, full discipline). */
 /**
- * The current engine (match-21): a defensive midfielder's moments carry more of the
- * opposition's goals, and a keeper's saves lean harder on their attributes. Only the keeper,
- * defensive midfield and central midfield samples move (one of the latter plays a holding
- * slot); goals by at most two.
+ * Every match-21 sample's whole session (its state, keyframes and narration included, not only
+ * the outcomes above) hashed together: a saved match-21 session replays only if all of it is
+ * unchanged, so this must never move while match-21 is kept.
+ */
+const PREVIOUS_SESSIONS = '3f20bccd556199d645310c63';
+/**
+ * The current engine (match-22). Step 5.3: ratings measured against each moment's par, with a
+ * soft limit; XP and fame on the compressed scale; possession from style, home advantage, the
+ * game plan and the score; more background shots, and every missed shot a result (the woodwork
+ * among them), with real shares on target; on top of step 5.5's commentary. Step 5.4: added
+ * time, the bench, in-match injuries, keepers' cards, the shootout and the touchline. Step 5.2:
+ * reads of the play, new situations, skill mechanics and the shares through the player. X1a:
+ * decision chains (moments are chain steps), the director, one objective and one interrupt;
+ * then each lead-in's reference reach and the breaks they give away taken from the opposition.
  */
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '86a1115a4f445529158972e5', goals: 62, moments: 214 },
-  CB: { hash: '95e398e5e8bdc8062e7f8ea5', goals: 65, moments: 230 },
-  LB: { hash: '70ba050c8d69d03fe77774b0', goals: 52, moments: 233 },
-  DM: { hash: 'e4bfc9f7e709fed2d794b3f5', goals: 62, moments: 207 },
-  CM: { hash: 'd77ecbc7245b939c94e97494', goals: 71, moments: 242 },
-  AM: { hash: '94769e3efa7d09a4fab1ebcd', goals: 73, moments: 267 },
-  RW: { hash: 'b3f9fd37bef20fecfc5b12cd', goals: 53, moments: 291 },
-  ST: { hash: 'c166b294fa9869c29b4095e4', goals: 71, moments: 301 },
-};
-/**
- * The match-20 path (before screening): a back-line player's moments carry more of the opposition's
- * goals, and attributes move defending odds further. Goals moved by at most four in a position
- * (CB 61 → 65); the winger and striker samples are unchanged.
- */
-const MATCH_20: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '237274ae2fc8025675221dee', goals: 63, moments: 214 },
-  CB: { hash: '95e398e5e8bdc8062e7f8ea5', goals: 65, moments: 230 },
-  LB: { hash: '70ba050c8d69d03fe77774b0', goals: 52, moments: 233 },
-  DM: { hash: '5c6127a4e5ee7b22eba82d00', goals: 63, moments: 207 },
-  CM: { hash: 'a971824220a09a8af689f48f', goals: 73, moments: 243 },
-  AM: { hash: '94769e3efa7d09a4fab1ebcd', goals: 73, moments: 267 },
-  RW: { hash: 'b3f9fd37bef20fecfc5b12cd', goals: 53, moments: 291 },
-  ST: { hash: 'c166b294fa9869c29b4095e4', goals: 71, moments: 301 },
-};
-/**
- * The match-19 path (before decisive defending): the opposition's style tilts the situations and the odds of
- * the choices it bears on, and the weaker foot costs odds. Goals moved by at most two in a
- * position and moments by at most three; the keeper samples are unchanged (their situations
- * and choices carry no style or foot effect against these opponents).
- */
-const MATCH_19: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '6782a66059b5c58a160b2809', goals: 61, moments: 214 },
-  CB: { hash: 'e5496721233e5d2a431590a4', goals: 61, moments: 232 },
-  LB: { hash: '9f1da2f8f51bf8adae4e00f8', goals: 53, moments: 234 },
-  DM: { hash: '62dd5cd8457519933b51e0b9', goals: 62, moments: 207 },
-  CM: { hash: 'c1c81083e39b8c5e9a3920c5', goals: 70, moments: 242 },
-  AM: { hash: '67a55b69405c83db8be3ed03', goals: 73, moments: 267 },
-  RW: { hash: 'b3f9fd37bef20fecfc5b12cd', goals: 53, moments: 291 },
-  ST: { hash: 'c166b294fa9869c29b4095e4', goals: 71, moments: 301 },
-};
-/**
- * The match-18 path (no opponent identity or preferred foot). No sample plays extra time, so
- * it matches match-17 here; tests/match-drama.test.ts covers extra time.
- */
-const MATCH_18: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '6782a66059b5c58a160b2809', goals: 61, moments: 214 },
-  CB: { hash: '01246285b1223dc007d2afbf', goals: 62, moments: 231 },
-  LB: { hash: 'c8c9e7ab04ae4331827154b3', goals: 51, moments: 234 },
-  DM: { hash: 'ed5cd8ec8e9d3303e757e596', goals: 61, moments: 207 },
-  CM: { hash: '60a4a740f8cfd9510c84dbc3', goals: 72, moments: 242 },
-  AM: { hash: '2b62ae7e41db27afbe26c5ef', goals: 73, moments: 266 },
-  RW: { hash: '7d02b929574bfc69064a0c60', goals: 54, moments: 293 },
-  ST: { hash: 'f6fa6d790df559145438e97f', goals: 71, moments: 301 },
-};
-/** The match-17 path (no playable extra time), unchanged by match-18. */
-const MATCH_17: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '6782a66059b5c58a160b2809', goals: 61, moments: 214 },
-  CB: { hash: '01246285b1223dc007d2afbf', goals: 62, moments: 231 },
-  LB: { hash: 'c8c9e7ab04ae4331827154b3', goals: 51, moments: 234 },
-  DM: { hash: 'ed5cd8ec8e9d3303e757e596', goals: 61, moments: 207 },
-  CM: { hash: '60a4a740f8cfd9510c84dbc3', goals: 72, moments: 242 },
-  AM: { hash: '2b62ae7e41db27afbe26c5ef', goals: 73, moments: 266 },
-  RW: { hash: '7d02b929574bfc69064a0c60', goals: 54, moments: 293 },
-  ST: { hash: 'f6fa6d790df559145438e97f', goals: 71, moments: 301 },
-};
-/** The match-16 path (no effective role), unchanged by match-17. */
-const MATCH_16: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: '6782a66059b5c58a160b2809', goals: 61, moments: 214 },
-  CB: { hash: '01246285b1223dc007d2afbf', goals: 62, moments: 231 },
-  LB: { hash: 'c8c9e7ab04ae4331827154b3', goals: 51, moments: 234 },
-  DM: { hash: 'ed5cd8ec8e9d3303e757e596', goals: 61, moments: 207 },
-  CM: { hash: '9b91c1224a3e4d3f87011baf', goals: 76, moments: 242 },
-  AM: { hash: '436df8b4d6fe401b2f904292', goals: 74, moments: 277 },
-  RW: { hash: '7d02b929574bfc69064a0c60', goals: 54, moments: 293 },
-  ST: { hash: 'f6fa6d790df559145438e97f', goals: 71, moments: 301 },
+  GK: { hash: 'bcb712c12c5273b766c1d606', goals: 48, moments: 216 },
+  CB: { hash: '9d9a546e97e59b3b159cd35c', goals: 78, moments: 205 },
+  LB: { hash: 'c507fee76ebd8a52e3e1d6c4', goals: 57, moments: 235 },
+  DM: { hash: '9230ce2b3891d7e0247e6509', goals: 62, moments: 252 },
+  CM: { hash: 'bd32db7c63d21a7ca3fb7656', goals: 67, moments: 229 },
+  AM: { hash: '095a07cadba9957b5f911ee3', goals: 66, moments: 235 },
+  RW: { hash: '347dbcf5e8db8b59a58b3116', goals: 51, moments: 250 },
+  ST: { hash: 'f492737f19d3365b1a291d08', goals: 74, moments: 240 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });
@@ -188,15 +110,14 @@ const STAT_KEYS = [
   'fatigue',
 ] as const;
 
-type Path = 'current' | 'match-20' | 'match-19' | 'match-18' | 'match-17' | 'match-16' | 'match-15';
-function setupFor(position: Position, index: number, path: Path = 'current'): MatchSetup {
+function setupFor(position: Position, index: number): MatchSetup {
   const pair = index % 4 < 2 ? [clubs[0]!, clubs[1]!] : [clubs[2]!, clubs[3]!];
   const [home, away] = index % 2 ? [pair[1]!, pair[0]!] : [pair[0]!, pair[1]!];
   const club = pair[0]!;
   const ids = club.playerIds.filter((id) => world.players[id]!.primaryPosition === position);
   const selected = ids[Math.floor(index / 4) % ids.length]!;
   const variant = index % 5;
-  const setup = createMatchSetup(
+  return createMatchSetup(
     world,
     home.id,
     away.id,
@@ -219,27 +140,6 @@ function setupFor(position: Position, index: number, path: Path = 'current'): Ma
           }
         : {},
   );
-  if (variant === 0) {
-    // The legacy 4-3-3 path (worlds before formations).
-    delete setup.formations;
-    delete setup.slotMoments;
-    delete setup.dramaMoments;
-    delete setup.occasions;
-  } else if (variant === 1) {
-    // Slot-aware moments without the drama and occasions passes.
-    delete setup.dramaMoments;
-    delete setup.occasions;
-  }
-  // Variants 0 and 1 never carry discipline or the effective role; the match-15 run plays the
-  // rest without either, the match-16 run without the effective role.
-  if (path === 'match-15' || variant < 2) delete setup.discipline;
-  const from = (paths: Path[]) => paths.includes(path) && variant >= 2;
-  if (!from(['current', 'match-20', 'match-19', 'match-18', 'match-17'])) delete setup.roleSlot;
-  if (!from(['current', 'match-20', 'match-19', 'match-18'])) delete setup.extraTimePlay;
-  if (!from(['current', 'match-20', 'match-19'])) delete setup.identity;
-  if (!from(['current', 'match-20'])) delete setup.defending;
-  if (!from(['current'])) delete setup.screening;
-  return setup;
 }
 /** Tactics for the job the setup gives the player: the starting slot from match-17. */
 function tacticsFor(setup: MatchSetup, index: number): Tactics {
@@ -275,13 +175,14 @@ function play(setup: MatchSetup, tactics: Tactics, index: number): MatchSession 
   return session;
 }
 /** Everything the outcome layer decides, without points, frames or bookkeeping fields. */
-function outcomes(session: MatchSession, current = MATCH_ENGINE_VERSION): unknown {
+function outcomes(session: MatchSession): unknown {
   const s = session.state,
     m = s.match;
   const report = s.report!;
   return {
-    // The engine path by its rules; the current engine's version string is not an outcome.
-    engine: session.engine === current ? 'current' : session.engine,
+    // The engine's version string is not an outcome (each table checks its engine itself); the
+    // constant keeps the recorded hashes comparable across engines.
+    engine: 'current',
     score: m.score,
     momentum: m.momentum,
     weather: m.weather,
@@ -335,59 +236,47 @@ function outcomes(session: MatchSession, current = MATCH_ENGINE_VERSION): unknow
   };
 }
 
-function snapshot(path: Path) {
+function snapshot(engine: Engine) {
   const found: Record<string, { hash: string; goals: number; moments: number }> = {};
+  // Everything a saved session replays, but the engine's name and the flag that selects it.
+  const sessions = createHash('sha256');
   for (const position of POSITIONS) {
     const hash = createHash('sha256');
     let goals = 0,
       moments = 0;
     for (let index = 0; index < PER_POSITION; index++) {
-      const setup = setupFor(position, index, path);
+      const setup = onEngine(setupFor(position, index), engine);
       const session = play(setup, tacticsFor(setup, index), index);
-      const current =
-        path === 'match-15'
-          ? OCCASIONS_MATCH_ENGINE
-          : path === 'match-16'
-            ? DISCIPLINE_MATCH_ENGINE
-            : path === 'match-17'
-              ? ROLE_MATCH_ENGINE
-              : path === 'match-18'
-                ? EXTRA_TIME_MATCH_ENGINE
-                : path === 'match-19'
-                  ? IDENTITY_MATCH_ENGINE
-                  : path === 'match-20'
-                    ? DEFENDING_MATCH_ENGINE
-                    : MATCH_ENGINE_VERSION;
-      hash.update(JSON.stringify(outcomes(session, current)));
+      expect(session.engine).toBe(engine);
+      hash.update(JSON.stringify(outcomes(session)));
+      sessions.update(JSON.stringify([session.initialTactics, session.commands, session.state]));
       goals += session.state.match.score[0] + session.state.match.score[1];
       moments += session.state.match.keyMoments.length;
     }
     found[position] = { hash: hash.digest('hex').slice(0, 24), goals, moments };
   }
-  if (process.env.SNAPSHOT_PRINT) console.log(JSON.stringify(found, null, 2));
-  return found;
+  const whole = sessions.digest('hex').slice(0, 24);
+  if (process.env.SNAPSHOT_PRINT) console.log(engine, whole, JSON.stringify(found, null, 2));
+  return { outcomes: found, sessions: whole };
 }
 
 describe('match outcome snapshot', { timeout: 300000 }, () => {
+  const found = new Map<Engine, ReturnType<typeof snapshot>>();
+  beforeAll(() => {
+    for (const engine of [MATCH_ENGINE_VERSION, PREVIOUS_MATCH_ENGINE] as const)
+      found.set(engine, snapshot(engine));
+  }, 300000);
   it('keeps every outcome byte-identical per seed', () => {
-    expect(snapshot('current')).toEqual(EXPECTED);
+    expect(found.get(MATCH_ENGINE_VERSION)!.outcomes).toEqual(EXPECTED);
   });
-  it('keeps the match-20 path (before screening) byte-identical', () => {
-    expect(snapshot('match-20')).toEqual(MATCH_20);
+  it('keeps the previous engine (match-21) byte-identical, so saved sessions replay', () => {
+    expect(found.get(PREVIOUS_MATCH_ENGINE)!.outcomes).toEqual(PREVIOUS);
+    expect(found.get(PREVIOUS_MATCH_ENGINE)!.sessions).toBe(PREVIOUS_SESSIONS);
   });
-  it('keeps the match-19 path (before decisive defending) byte-identical', () => {
-    expect(snapshot('match-19')).toEqual(MATCH_19);
-  });
-  it('keeps the match-18 path (no opponent identity or foot) byte-identical', () => {
-    expect(snapshot('match-18')).toEqual(MATCH_18);
-  });
-  it('keeps the match-17 path (the kick at full time) byte-identical', () => {
-    expect(snapshot('match-17')).toEqual(MATCH_17);
-  });
-  it('keeps the match-16 path (primary-position roles) byte-identical', () => {
-    expect(snapshot('match-16')).toEqual(MATCH_16);
-  });
-  it('keeps the match-15 path (cosmetic cards) byte-identical', () => {
-    expect(snapshot('match-15')).toEqual(MATCH_15);
+  it('plays the 1.0 rules on match-22 only', () => {
+    // Every position's outcomes move under match-22 (its ratings at least), and the sessions do.
+    for (const position of POSITIONS)
+      expect(EXPECTED[position]!.hash, position).not.toBe(PREVIOUS[position]!.hash);
+    expect(found.get(MATCH_ENGINE_VERSION)!.sessions).not.toBe(PREVIOUS_SESSIONS);
   });
 });

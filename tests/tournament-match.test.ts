@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { autoPlayCommand, defaultTactics } from '../src/engine/career/matches';
@@ -13,6 +12,7 @@ import {
 } from '../src/engine/career/honours/nationalMatch';
 import { playerAbility } from '../src/engine/strength';
 import { validateWorld } from '../src/persistence/worldSchema';
+import { nationalWorld } from './support/world';
 
 /**
  * Review phase 3, step 3.2: the career player plays their nation's tournament matches in the
@@ -21,7 +21,7 @@ import { validateWorld } from '../src/persistence/worldSchema';
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 let season: World;
 beforeAll(() => {
-  const base = generateWorld('tournament-match', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'tournament-match')[0]!;
   season = createCareer(
     base,

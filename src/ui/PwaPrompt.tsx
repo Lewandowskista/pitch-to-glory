@@ -1,7 +1,6 @@
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { errorCode, UnsavedWorldError } from '../persistence/errors';
+import { errorCode } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
 import { useAppStore } from '../store';
 import { errorText, format, t } from '../i18n';
@@ -10,6 +9,9 @@ import { acknowledgeUpdate, startupUpdateNotice } from '../release/notice';
 import { Icon } from './Icon';
 import { buttonClass } from './kit/Button';
 import { useConsentInvitation } from '../analytics';
+import { afterLoadAndIdle, useServiceWorker } from './serviceWorker';
+import { UpdateBlockedError } from '../release/busy';
+import type { UpdateTabs } from '../release/updateTabs';
 const ConsentInvitation = lazy(() => import('./ConsentInvitation'));
 export function PwaPrompt() {
   const [error, setError] = useState('');
@@ -18,7 +20,30 @@ export function PwaPrompt() {
   const [updated, setUpdated] = useState(() => startupUpdateNotice(APP_VERSION) !== null);
   const onWhatsNew = useLocation().pathname === '/whats-new';
   const [activated, setActivated] = useState(false);
+  const [checking, setChecking] = useState(false);
   const reloading = useRef(false);
+  // Coordinated updates across tabs (release 1.0 step 4.1): loaded once the page is idle, or
+  // when the player asks to update first.
+  const tabs = useRef<UpdateTabs | null>(null);
+  const tabsLoading = useRef<Promise<UpdateTabs | null> | null>(null);
+  const closed = useRef(false);
+  const loadTabs = (): Promise<UpdateTabs | null> =>
+    (tabsLoading.current ??= import('../release/tabUpdates').then(
+      ({ startUpdateTabs }) => {
+        if (closed.current) return null;
+        tabs.current = startUpdateTabs(() => {
+          // Another tab activated the update; this one reloads when nothing would be lost.
+          setActivated(true);
+          setRefresh(true);
+          reloadSafely();
+        });
+        return tabs.current;
+      },
+      () => {
+        tabsLoading.current = null;
+        return null;
+      },
+    ));
   const unsavedWorld = useAppStore((state) => !!state.world && !state.activeSave);
   const simulating = useAppStore((state) => !!state.worldJob);
   // Never over a key moment's choices: the notice waits until the decision is made.
@@ -29,7 +54,7 @@ export function PwaPrompt() {
     offlineReady: [offline, setOffline],
     needRefresh: [refresh, setRefresh],
     updateServiceWorker,
-  } = useRegisterSW({
+  } = useServiceWorker({
     onRegisterError: () => setError(t.errors.storage),
     onNeedReload: () => {
       // Activation can arrive later, including after an update in another tab.
@@ -39,20 +64,76 @@ export function PwaPrompt() {
     },
   });
   function reportFailure(failure: unknown): void {
-    setError(
-      failure instanceof UnsavedWorldError ? t.app.updateSaveFirst : errorText(errorCode(failure)),
-    );
+    if (failure instanceof UpdateBlockedError)
+      // The wording loads with the update coordinator (already loaded when the player asked).
+      void import('../release/tabUpdates').then(
+        ({ blockedText }) => setError(blockedText(failure)),
+        () => setError(t.errors.busy),
+      );
+    else setError(errorText(errorCode(failure)));
   }
+  /** The new version is active: reload this tab, and ask the others to, once it is safe. */
   function reloadSafely(): void {
-    // Once: the library and our own controller-change listener can both ask.
+    // Once: the library, the controller change and another tab can all ask.
     if (reloading.current) return;
     reloading.current = true;
+    tabs.current?.announceReload();
     void persistence()
       .then((p) => p.updateApplication(async () => window.location.reload()))
       .catch((failure) => {
         reloading.current = false;
         reportFailure(failure);
       });
+  }
+  useEffect(() => {
+    closed.current = false;
+    const cancel = afterLoadAndIdle(() => void loadTabs());
+    // A new version taking control after another tab (or the library) activated it. The first
+    // install also takes control (clientsClaim), which is no reason to reload.
+    const container = navigator.serviceWorker;
+    let controller = container?.controller ?? null;
+    const changed = () => {
+      const previous = controller;
+      controller = container?.controller ?? null;
+      if (!previous) return;
+      setActivated(true);
+      setRefresh(true);
+      reloadSafely();
+    };
+    container?.addEventListener('controllerchange', changed);
+    return () => {
+      container?.removeEventListener('controllerchange', changed);
+      cancel();
+      closed.current = true;
+      tabs.current?.close();
+      tabs.current = null;
+      tabsLoading.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per shell; reads refs
+  }, []);
+  /**
+   * Save every tab, refuse while any is busy (and say which and why), then activate the new
+   * version; each tab reloads once it takes control.
+   */
+  function startUpdate(): void {
+    setError('');
+    setChecking(true);
+    void persistence()
+      .then((p) =>
+        p.updateApplication(async () => {
+          const coordinator = await loadTabs();
+          const blocker = (await coordinator?.poll()) ?? null;
+          if (blocker) throw new UpdateBlockedError(blocker.busy, blocker.page);
+          // A new worker found while the page was starting counts as "external" to the
+          // library, which then never reloads: reload when it takes control.
+          navigator.serviceWorker?.addEventListener('controllerchange', reloadSafely, {
+            once: true,
+          });
+          await updateServiceWorker(true);
+        }),
+      )
+      .catch(reportFailure)
+      .finally(() => setChecking(false));
   }
   // Opening What's new by any route counts as seeing the update.
   useEffect(() => {
@@ -105,7 +186,14 @@ export function PwaPrompt() {
         />
       </span>
       <p>
-        {error || (refresh ? (unsavedWorld ? t.app.updateSaveFirst : t.app.update) : t.app.offline)}
+        {error ||
+          (refresh
+            ? checking
+              ? t.app.updateChecking
+              : unsavedWorld
+                ? t.app.updateSaveFirst
+                : t.app.update
+            : t.app.offline)}
       </p>
       {refresh && unsavedWorld && (
         <Link className={buttonClass('primary')} to="/saves">
@@ -115,24 +203,12 @@ export function PwaPrompt() {
       {refresh && !unsavedWorld && (
         <button
           className={buttonClass('primary')}
-          disabled={simulating}
+          disabled={simulating || checking}
           title={simulating ? t.errors.busy : undefined}
           onClick={() => {
             setError('');
             if (activated) reloadSafely();
-            else
-              void persistence()
-                .then((p) =>
-                  p.updateApplication(async () => {
-                    // A new worker found while the page was starting counts as "external" to
-                    // the library, which then never reloads: reload when it takes control.
-                    navigator.serviceWorker?.addEventListener('controllerchange', reloadSafely, {
-                      once: true,
-                    });
-                    await updateServiceWorker(true);
-                  }),
-                )
-                .catch(reportFailure);
+            else startUpdate();
           }}
         >
           {t.app.updateAction}

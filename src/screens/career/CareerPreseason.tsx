@@ -13,10 +13,10 @@ import { useAppStore } from '../../store';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { preseasonText as p } from '../../i18n/preseason';
+import { ordinal } from '../../i18n/locale';
 import { Button, CardTitle, Panel, cx } from '../../ui/kit';
 import { CareerPage, useEditBlock } from './shared';
 import { SeasonGoalCard } from './CoachAdvice';
-import { ordinal } from './honoursUi';
 import { withSave } from './agenda';
 
 /**

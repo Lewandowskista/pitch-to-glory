@@ -1,5 +1,14 @@
+import { covers } from './coverage';
 import { COMMITMENTS } from '../engine/career/commitments';
-import type { Player, StoryKind, TrainingFocus } from '../model/domain';
+import type {
+  Career,
+  CareerMatchRecord,
+  Injury,
+  Player,
+  StoryKind,
+  TrainingFocus,
+  TrainingPlan,
+} from '../model/domain';
 import { CONFIG } from '../engine/config';
 import { ARCHETYPE_BY_ID, SKILL_BY_ID } from '../engine/career/catalogue';
 import { trainableAttributes, xpToNext } from '../engine/career/progression';
@@ -51,6 +60,7 @@ export function validateCareer(w: Record<string, unknown>): void {
   // The level began at `levelXp`: no earlier than the cheapest curve ever shipped allows,
   // and it has not yet earned the next one.
   number(career.levelXp, cheapestXpForLevel(Number(career.level)), Number(career.xp), true);
+  if (career.chainDrought !== undefined) number(career.chainDrought, 0, 10000, true);
   requireValue(
     career.level === CONFIG.career.maximumLevel ||
       Number(career.xp) - Number(career.levelXp) < xpToNext(Number(career.level)),
@@ -211,9 +221,11 @@ export function validateCareer(w: Record<string, unknown>): void {
     if (match.yellowCards !== undefined) number(match.yellowCards, 1, 2, true);
     if (match.sentOff !== undefined) {
       const sentOff = object(match.sentOff);
-      number(sentOff.minute, 1, 90, true);
+      number(sentOff.minute, 1, 120, true);
       options(sentOff.reason, ['second-yellow', 'straight-red']);
     }
+    // Came on from the bench (release 1.0 step 5.4).
+    if (match.cameOn !== undefined) number(match.cameOn, 1, 120, true);
   }
   if (career.coaching !== undefined) validateCoaching(career.coaching, current);
   if (career.ambitions !== undefined) validateAmbitions(career.ambitions, current, object(w.clubs));
@@ -358,3 +370,84 @@ function validateCoaching(value: unknown, current: Record<string, unknown>): voi
     requireValue(typeof result.completed === 'boolean');
   }
 }
+/** The career record (step 4.9: every field of `Career`, checked by `tests/validator-coverage.test.ts`). */
+export const CAREER_FIELDS = covers<Career>('career', {
+  version: true,
+  playerId: true,
+  archetype: true,
+  startSeason: true,
+  level: true,
+  xp: true,
+  levelXp: true,
+  chainDrought: true,
+  attributePoints: true,
+  skillPoints: true,
+  skills: true,
+  training: true,
+  commitments: true,
+  trainingProgress: true,
+  lastTraining: true,
+  injury: true,
+  reinjury: true,
+  fame: true,
+  matches: true,
+  market: true,
+  social: true,
+  style: true,
+  honours: true,
+  coaching: true,
+  ambitions: true,
+  stories: true,
+  facts: true,
+  preseason: true,
+  captaincy: true,
+  farewell: true,
+  testimonials: true,
+  developmentRules: true,
+  conditioning: true,
+  availability: true,
+  growth: true,
+});
+/** The career's training plan (step 4.9). */
+export const TRAINING_FIELDS = covers<TrainingPlan>('career.training', {
+  sessions: true,
+  extra: true,
+  commitments: true,
+});
+/** The career's injury (step 4.9). */
+export const INJURY_FIELDS = covers<Injury>('career.injury', {
+  id: true,
+  playerId: true,
+  kind: true,
+  started: true,
+  weeksRemaining: true,
+  severity: true,
+  reinjuryRisk: true,
+  recovery: true,
+  careerThreatening: true,
+  cause: true,
+});
+/** The career's match records (step 4.9). */
+export const CAREER_MATCH_FIELDS = covers<CareerMatchRecord>('career.matches.*', {
+  fixtureId: true,
+  season: true,
+  week: true,
+  competitionId: true,
+  opponentId: true,
+  home: true,
+  score: true,
+  result: true,
+  decided: true,
+  minutes: true,
+  rating: true,
+  goals: true,
+  assists: true,
+  cleanSheet: true,
+  xp: true,
+  auto: true,
+  passes: true,
+  tackles: true,
+  yellowCards: true,
+  sentOff: true,
+  cameOn: true,
+});

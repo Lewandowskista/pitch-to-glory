@@ -1,22 +1,23 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCareerFixture } from '../src/engine/career/matches';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import { careerPreMatch, expect, nationalCareer, skipTutorial, test } from './support';
 
 /**
  * Phase 4.2: a real deployment update. The old build (dist) runs a saved career; the new build
  * (dist-next, from `npm run test:update`) replaces it at the same address; the player accepts
  * the update, the career is checkpointed and continues, then keeps working offline.
  */
-/** Each worker serves its own port, so repeated runs never share a server. */
-const portFor = (worker: number) => 4176 + worker;
+/**
+ * Each worker serves its own port, so repeated runs never share a server (`UPDATE_PORT` moves
+ * the range, for runs beside another checkout's).
+ */
+const portFor = (worker: number) => Number(process.env.UPDATE_PORT ?? 4176) + worker;
 const save = 'artifacts/update-career.json';
 
 function serve(outDir: string, port: number): Promise<ChildProcess> {
@@ -64,31 +65,7 @@ const week = (page: Page) =>
     .textContent();
 
 test.beforeAll(async () => {
-  const base = generateWorld('update-journey', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'update-journey')[0]!;
-  let world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'update-journey',
-  );
+  let world = nationalCareer('update-journey');
   for (let guard = 0; guard < 6 && world.date.week < 3; guard++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
   // Play this week's match, as a player would: Continue is then the next action.
@@ -121,13 +98,6 @@ test('an update reaches a saved career, keeps it and works offline', async ({
   test.skip(browserName !== 'chromium', 'One engine is enough for the release mechanics');
   test.setTimeout(240000);
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
 
   const port = portFor(testInfo.workerIndex);
   const origin = `http://127.0.0.1:${port}`;
@@ -179,12 +149,93 @@ test('an update reaches a saved career, keeps it and works offline', async ({
     await expect(page.getByRole('region', { name: 'Needs you' })).toBeVisible({ timeout: 30000 });
     expect(await week(page)).toBe(before);
     await page.getByRole('link', { name: 'Play matchday' }).click();
-    await expect(
-      page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }),
-    ).toBeVisible({ timeout: 30000 });
+    await careerPreMatch(page);
+    await expect(page.getByRole('button', { name: 'Kick off', exact: true })).toBeVisible();
     await context.setOffline(false);
   } finally {
     await stop(server);
   }
-  expect(errors).toEqual([]);
+  // Console and page errors fail the journey when it ends (e2e/support.ts).
+});
+
+/**
+ * Release 1.0 step 4.1 (review S2): an update with two tabs open. While one tab holds a world
+ * that is not in a save slot, the other's update is refused and says which tab and why; once
+ * it is saved, the update goes ahead and both tabs reload onto the new version.
+ */
+test('an update waits for a busy tab, then reloads every tab', async ({
+  page,
+  context,
+  runtimeErrors,
+}, testInfo) => {
+  test.skip(
+    !process.env.UPDATE_JOURNEY || !existsSync('dist-next'),
+    'Run npm run test:update to build the second release and run this journey',
+  );
+  test.setTimeout(240000);
+  await skipTutorial(page);
+  const other = await context.newPage();
+  await skipTutorial(other);
+  // The other tab's console counts too.
+  other.on('pageerror', (error) => runtimeErrors.push(`other tab: ${error.message}`));
+
+  const port = portFor(testInfo.workerIndex);
+  const origin = `http://127.0.0.1:${port}`;
+  let server = await serve('dist', port);
+  try {
+    await page.goto(`${origin}/`);
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, {
+      timeout: 30000,
+    });
+    // The other tab creates a world and keeps it outside a save slot.
+    await other.goto(`${origin}/world`);
+    await other.getByLabel('World seed', { exact: true }).fill('two-tab-update');
+    await other.getByRole('button', { name: 'Create world', exact: true }).click();
+    await expect(other.getByRole('button', { name: 'Advance week', exact: true })).toBeEnabled({
+      timeout: 60000,
+    });
+    const canonical = (tab: Page) => tab.locator('link[rel="canonical"]').getAttribute('href');
+    const oldCanonical = await canonical(page);
+
+    // The new release is deployed at the same address.
+    await stop(server);
+    server = await serve('dist-next', port);
+    await page.evaluate(() =>
+      navigator.serviceWorker.getRegistration().then((registration) => registration?.update()),
+    );
+    const prompt = page.locator('.pwa-prompt');
+    await expect(prompt).toContainText('An update is ready.', { timeout: 60000 });
+    await prompt.getByRole('button', { name: 'Save & update' }).click();
+    await expect(prompt).toContainText(
+      'Another tab (World) has a world that is not saved in a slot — save it or close that tab first.',
+      { timeout: 30000 },
+    );
+    // Refused: neither tab reloaded.
+    expect(await canonical(page)).toBe(oldCanonical);
+    expect(await canonical(other)).toBe(oldCanonical);
+
+    // The world is saved; now both tabs are free and the update reloads both.
+    // The page's own link (the other tab's update prompt may offer the same).
+    await other.locator('main').getByRole('link', { name: 'Save this world', exact: true }).click();
+    await other.getByLabel('Save name').fill('Two tabs');
+    await other
+      .locator('.slot-card')
+      .first()
+      .getByRole('button', { name: 'Save world', exact: true })
+      .click();
+    await other.getByRole('link', { name: 'Open world', exact: true }).click();
+    await expect(other.locator('.save-indicator')).toHaveText('All changes saved', {
+      timeout: 30000,
+    });
+    await prompt.getByRole('button', { name: 'Save & update' }).click();
+    await expect.poll(() => canonical(page), { timeout: 60000 }).not.toBe(oldCanonical);
+    await expect.poll(() => canonical(other), { timeout: 60000 }).not.toBe(oldCanonical);
+    // The other tab comes back to its saved world.
+    await expect(other.getByRole('button', { name: 'Advance week', exact: true })).toBeVisible({
+      timeout: 30000,
+    });
+  } finally {
+    await other.close();
+    await stop(server);
+  }
 });

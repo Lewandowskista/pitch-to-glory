@@ -64,13 +64,14 @@ export const en = {
     close: 'Close',
     cancel: 'Cancel',
     helpNav:
-      'Tab: move between controls. Enter: activate. Space: play or pause a live match. 1–4: choose a key-moment action. Arrow keys: move between navigation links, tabs and match choices. Escape: close a dialog or go back. ?: open this guide.',
+      'Tab: move between controls. Enter: activate. Space: play or pause a live match. 1–4: choose a key-moment action. R: replay a goal. Arrow keys: move between navigation links, tabs and match choices. Escape: close a dialog or go back. ?: open this guide.',
     /** The shortcut guide as keycaps beside what they do (the same content as `helpNav`). */
     shortcuts: [
       { keys: ['Tab'], does: 'Move between controls.' },
       { keys: ['Enter'], does: 'Activate.' },
       { keys: ['Space'], does: 'Play or pause a live match.' },
       { keys: ['1', '2', '3', '4'], does: 'Choose a key-moment action.' },
+      { keys: ['R'], does: 'Replay a goal in a live match.' },
       {
         keys: ['←', '↑', '→', '↓'],
         does: 'Move between navigation links, tabs and match choices.',
@@ -99,11 +100,37 @@ export const en = {
     notices: {
       'match-discarded':
         'Your world loaded safely, but a match in progress was saved by an older version of the game and could not be resumed. Start it again from Matchday.',
+      'changes-discarded':
+        'Your world loaded safely, but your most recent changes since the last completed week could not be restored. Check your latest decisions before you continue.',
+      'salvaged-feed':
+        'Your save loaded, but its social feed was damaged and has been cleared. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
+      'salvaged-statistics':
+        'Your save loaded, but this season’s competition statistics were damaged and have been set aside; they start again next season. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
+      'salvaged-history':
+        'Your save loaded, but the charts of your morale, form and growth were damaged and have been cleared. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
+      salvaged:
+        'Your save loaded, but some damaged parts were set aside: the social feed, this season’s statistics, your history charts or your latest changes. Your career, players and clubs are untouched. The stored copy stays as it was until your next save, and a backup of it is kept on this device when there is room.',
     },
     reloadSave: 'Reload saved game',
     recoverTitle: 'Reload the saved game?',
     recoverBody:
       'Your unsaved changes will be replaced with the latest version in this slot. Export an unsaved copy first if you want to keep them. If the slot was deleted, your session will be detached so you can save it again.',
+    /** Updating with several tabs open (release 1.0 step 4.1). */
+    updateChecking: 'Saving and checking your other tabs…',
+    /** An unhandled failure in the background (the game carries on). */
+    failure:
+      'Something went wrong in the background. Your game carries on; the details are in Settings.',
+    failureAction: 'View details',
+    /** The page error boundary (release 1.0 step 4.2). */
+    boundary: {
+      title: 'This page ran into a problem.',
+      body: 'The rest of the game is still running and your progress is kept. Try the page again, or reload the game.',
+      loadTitle: 'This page could not load.',
+      loadBody:
+        'Part of the game did not download — the connection may have dropped, or the game was updated in another tab. Reload to fetch it again.',
+      retry: 'Try again',
+      reload: 'Reload game',
+    },
   },
   menu: {
     eyebrow: 'Welcome to your clubhouse',
@@ -234,6 +261,10 @@ export const en = {
     imported: 'Save imported.',
     deleted: 'Save deleted.',
     exported: 'Backup downloaded.',
+    exportNearLimit:
+      'This save holds {size} MB of data, close to the 128 MB a backup can hold: keep an eye on its size.',
+    exportLarge:
+      'This save holds more than the 128 MB of data a backup can hold, so it was not exported: the file could not be imported again.',
     export: 'Export backup',
     exportRecovery: 'Export a recovery copy',
     recoveryExported:
@@ -257,9 +288,9 @@ export const en = {
     collectionType: 'Gallery',
     deleteTitle: 'Delete this save?',
     deleteBody:
-      'This removes “{name}” in slot {slot} from this device. Download a backup first if you want to keep it.',
+      'This removes “{name}” in slot {slot} from this device, with its automatic backups. Download a backup first if you want to keep it.',
     deleteDamagedBody:
-      '“{name}” in slot {slot} cannot be opened here. Deleting it removes it from this device. Export a recovery copy first to keep what is stored.',
+      '“{name}” in slot {slot} cannot be opened here. Deleting it removes it and its automatic backups from this device. Export a recovery copy first to keep what is stored.',
     replaceTitle: 'Replace this save?',
     replaceBody:
       '“{name}” in slot {slot} will be replaced with your current {content} and preferences.',
@@ -282,7 +313,7 @@ export const en = {
     protected: 'Your browser granted persistent storage.',
     notProtected:
       'Your browser did not grant persistence. Download a backup to keep your saves safe.',
-    wrongFile: 'Choose a Pitch to Glory JSON backup.',
+    wrongFile: 'Choose a Pitch to Glory backup file.',
     unsaved: 'Unsaved session',
     damaged: 'Unreadable save',
     damagedBody:
@@ -296,6 +327,32 @@ export const en = {
     damagedState: 'unreadable',
     futureState: 'needs an update',
     careerTag: 'Career',
+    /** Rotating backups kept on this device (release 1.0 step 4.3). */
+    backedUp: 'Backed up on this device {date}',
+    backupsPaused: 'Automatic backups paused: storage is low on this device.',
+    backupFailed: 'The latest automatic backup could not be made.',
+    restoreHeading: 'Restore from an automatic backup',
+    backupKinds: {
+      season: 'Start of season',
+      day: 'Daily backup',
+      salvage: 'Before repair',
+    },
+    backupWhen: '{season} · Week {week}',
+    backupDetail: '{kind}, {date}',
+    restore: 'Restore {when}',
+    restoreLabel: 'Restore the backup of {when} ({detail}) — {slot}',
+    downloadBackup: 'Download the backup of {when} ({detail}) — {slot}',
+    backupDownloaded: 'Backup copy downloaded. It holds the automatic backup exactly as kept.',
+    restoreTitle: 'Restore this backup?',
+    restoreBody:
+      '“{name}” in slot {slot} will be replaced with its automatic backup of {when} ({detail}). Progress saved after it is lost. Export a recovery copy first to keep what is stored now.',
+    confirmRestore: 'Restore backup',
+    restored: 'Backup restored and loaded.',
+    restoreFailed:
+      'That backup did not pass the game’s checks either, so nothing was replaced. Try another backup, or export a recovery copy to keep what is stored.',
+    unreadableBackup:
+      'Slot {slot} could not be opened: its stored data did not pass the game’s checks. Restore it from an automatic backup on its card, or export a recovery copy to keep it.',
+    storageUse: 'Saves and backups use {used} MB of the {quota} MB this browser allows here.',
   },
   settings: {
     title: 'Settings',
@@ -313,8 +370,9 @@ export const en = {
     motion: 'Reduced motion',
     motionBody:
       'Keep transitions still and movement minimal. Your device preference is always respected.',
-    simulation: 'Simulation only',
-    simulationBody: 'Read match commentary and make decisions without the animated pitch.',
+    simulation: 'Watch highlights by default',
+    simulationBody:
+      'Matches open with Watch highlights first: the reel in about a minute, with your decisions made for you. Kick off is still there to play them yourself.',
     backups: 'Backup reminders',
     backupsBody: 'Show a reminder to download a backup when an in-game season finishes.',
     reset: 'Restore defaults',
@@ -335,6 +393,9 @@ export const en = {
     musicVolume: 'Music volume',
     musicBody:
       'After the Floodlights — mellow keys, warm bass and a relaxed lo-fi beat. Music fades lower during matches.',
+    musicSaveData:
+      'Your device asks to save data, so the music (about 600 KB) waits until you download it.',
+    musicDownload: 'Download music',
     volumeValue: '{percent}%',
     previewSounds: 'Preview a sound',
     previewLoading: 'Preparing your preview…',
@@ -379,6 +440,8 @@ export const en = {
     simulation: 'The world could not advance. Your last completed week is retained. Try again.',
     'match-active': 'Finish your match on Matchday before advancing or replacing this world.',
     storage: 'The browser could not access local storage. Check available space and try again.',
+    quota:
+      'Storage is full — export a backup and free space on this device, for example by deleting a save you no longer need.',
     render: 'The clubhouse could not open.',
     renderBody: 'Reload the page to try again. Your saves stay on this device.',
     reload: 'Reload page',
@@ -506,6 +569,9 @@ export const en = {
     },
     seasonReviewNote:
       'These are the confirmed outcomes, including playoffs and regional allocation.',
+    archiveCompactNote:
+      'Full tables, movement and playoffs are kept for the last {seasons} seasons. Older seasons keep their champions and cup winners.',
+    archiveCupWinner: '{cup}: {name}',
     tabs: 'Competition views',
     table: 'League table',
     fixtures: 'Fixtures',
@@ -612,7 +678,6 @@ export const en = {
         'Wages are above what the club earns. It signs no one, renews {cut} fewer players, offers {wage}% of a fair wage with no raise at renewal, and its training support is worth {support}%.',
       debt: 'The club is in debt. It signs no one, renews {cut} fewer players, offers {wage}% of a fair wage with no raise at renewal, and its training support is worth {support}%.',
     },
-    money: '{amount} Cr',
     squad: 'Squad',
     squadNumber: 'Squad number',
     player: 'Player',

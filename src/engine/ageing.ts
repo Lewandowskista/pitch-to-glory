@@ -61,15 +61,26 @@ const MENTAL: readonly AttributeKey[] = [
   'leadership',
   'aggression',
 ];
-export const isKeeperKey = (key: string): key is KeeperKey =>
-  (KEEPER_KEYS as readonly string[]).includes(key);
+const KEEPER_SET: ReadonlySet<string> = new Set(KEEPER_KEYS);
+export const isKeeperKey = (key: string): key is KeeperKey => KEEPER_SET.has(key);
 
+/** Every attribute's age category, worked out once: the weekly development loop asks often. */
+const CATEGORY: ReadonlyMap<string, AgeCategory> = new Map(
+  [...ATTRIBUTE_KEYS, ...KEEPER_KEYS].map((key): [string, AgeCategory] => [
+    key,
+    isKeeperKey(key)
+      ? 'keeper'
+      : PACE.includes(key)
+        ? 'pace'
+        : PHYSICAL.includes(key)
+          ? 'physical'
+          : MENTAL.includes(key)
+            ? 'mental'
+            : 'technical',
+  ]),
+);
 export function ageCategory(key: AnyAttribute): AgeCategory {
-  if (isKeeperKey(key)) return 'keeper';
-  if (PACE.includes(key)) return 'pace';
-  if (PHYSICAL.includes(key)) return 'physical';
-  if (MENTAL.includes(key)) return 'mental';
-  return 'technical';
+  return CATEGORY.get(key) ?? 'technical';
 }
 
 /** Multiplier of peak value at an age, linearly interpolated between the configured points. */
@@ -86,23 +97,41 @@ export function ageCurve(category: AgeCategory, age: number): number {
   return points[points.length - 1]![1];
 }
 
+const emphasis = (keys: AnyAttribute[]): ReadonlySet<string> => new Set(keys);
+const EMPHASIS_KEEPER = emphasis(['reflexes', 'handling', 'positioning']);
+const EMPHASIS_STRIKER = emphasis(['finishing', 'heading', 'composure']);
+const EMPHASIS_DEFENSIVE = emphasis(['tackling', 'positioning', 'strength']);
+const EMPHASIS_CREATIVE = emphasis(['passing', 'dribbling', 'vision']);
+const DEFENSIVE_POSITIONS: ReadonlySet<Position> = new Set(['CB', 'LB', 'RB', 'DM']);
+
 /** The attributes a position relies on receive extra emphasis at peak. */
 export function positionalEmphasis(position: Position, key: AnyAttribute): number {
-  const emphasised: readonly AnyAttribute[] =
+  const emphasised =
     position === 'GK'
-      ? ['reflexes', 'handling', 'positioning']
+      ? EMPHASIS_KEEPER
       : position === 'ST'
-        ? ['finishing', 'heading', 'composure']
-        : ['CB', 'LB', 'RB', 'DM'].includes(position)
-          ? ['tackling', 'positioning', 'strength']
-          : ['passing', 'dribbling', 'vision'];
-  return emphasised.includes(key) ? D.positionalEmphasis : 0;
+        ? EMPHASIS_STRIKER
+        : DEFENSIVE_POSITIONS.has(position)
+          ? EMPHASIS_DEFENSIVE
+          : EMPHASIS_CREATIVE;
+  return emphasised.has(key) ? D.positionalEmphasis : 0;
 }
+
+/**
+ * FNV-1a over `text`, continuing from `hash`. `fnv(fnv(FNV_BASIS, a), b) >>> 0` equals
+ * `hashSeed(a + b)`, so a player's id is hashed once for all of their attributes.
+ */
+function fnv(hash: number, text: string): number {
+  for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+  return hash;
+}
+const FNV_BASIS = 2166136261;
+const offsetOf = (hash: number, spread: number) =>
+  Math.round((((hash >>> 0) / 4294967296) * 2 - 1) * spread);
 
 /** Stable, id-derived deviation of one attribute from the player's peak level. */
 export function profileOffset(playerId: string, key: AnyAttribute, spread = D.profileSpread) {
-  const unit = hashSeed(`${playerId}:${key}`) / 4294967296;
-  return Math.round((unit * 2 - 1) * spread);
+  return offsetOf(hashSeed(`${playerId}:${key}`), spread);
 }
 
 /** Attributes a player never trains: an outfielder's goalkeeping and a keeper's outfield craft. */
@@ -176,17 +205,77 @@ export function generateAttributes(
  */
 export function developWeek(player: Player, age: number, seasonWeeks: number, rng: Rng): void {
   const professionalism = D.professionalismBase + player.hidden.professionalism / 100;
-  const step = (values: Record<string, number>, key: AnyAttribute) => {
-    if (isUntrained(player.primaryPosition, key)) return;
+  const targets = developmentTargets(player, age);
+  const step = (values: Record<string, number>, key: AnyAttribute, target: number) => {
+    if (target === UNTRAINED) return;
     const current = values[key]!;
-    const gap = attributeTarget(player, key, age) - current;
+    const gap = target - current;
     if (!gap) return;
     const rate = gap > 0 ? D.growthPerSeason * professionalism : D.declinePerSeason;
     if (rng.next() < Math.min(0.9, (Math.abs(gap) * rate) / seasonWeeks))
       values[key] = clamp(current + Math.sign(gap));
   };
-  for (const key of ATTRIBUTE_KEYS) step(player.attributes, key);
-  for (const key of KEEPER_KEYS) step(player.keeperAttributes, key);
+  for (let index = 0; index < ATTRIBUTE_KEYS.length; index++)
+    step(player.attributes, ATTRIBUTE_KEYS[index]!, targets[index]!);
+  // An outfielder's goalkeeping is untrained (and may not be stored): `step` leaves it alone.
+  const keeping = player.keeperAttributes;
+  if (keeping)
+    for (let index = 0; index < KEEPER_KEYS.length; index++)
+      step(keeping, KEEPER_KEYS[index]!, targets[ATTRIBUTE_KEYS.length + index]!);
+}
+
+const UNTRAINED = -1;
+interface TargetMemo {
+  id: string;
+  position: Position;
+  potential: number;
+  age: number;
+  /** `attributeTarget` for ATTRIBUTE_KEYS then KEEPER_KEYS, UNTRAINED where never trained. */
+  targets: Int16Array;
+}
+/**
+ * Attribute targets depend only on a player's id, position, potential and age, so they are
+ * worked out once a season per player instead of once a week per attribute (review P5). The
+ * memo is keyed by the player object itself, so it is never persisted and goes with its world,
+ * and it is rebuilt whenever any input differs: it only ever returns what `attributeTarget`
+ * would.
+ */
+const targetMemo = new WeakMap<Profiled, TargetMemo>();
+function developmentTargets(player: Profiled, age: number): Int16Array {
+  const memo = targetMemo.get(player);
+  if (
+    memo &&
+    memo.age === age &&
+    memo.id === player.id &&
+    memo.position === player.primaryPosition &&
+    memo.potential === player.potential
+  )
+    return memo.targets;
+  const targets = new Int16Array(ATTRIBUTE_KEYS.length + KEEPER_KEYS.length);
+  const idHash = fnv(FNV_BASIS, `${player.id}:`);
+  const fill = (key: AnyAttribute, index: number) => {
+    if (isUntrained(player.primaryPosition, key)) {
+      targets[index] = UNTRAINED;
+      return;
+    }
+    // attributeTarget(player, key, age), with the id hashed once for every attribute.
+    const peak = clamp(
+      player.potential +
+        positionalEmphasis(player.primaryPosition, key) +
+        offsetOf(fnv(idHash, key), D.profileSpread),
+    );
+    targets[index] = clamp(peak * ageCurve(ageCategory(key), age));
+  };
+  ATTRIBUTE_KEYS.forEach(fill);
+  KEEPER_KEYS.forEach((key, index) => fill(key, ATTRIBUTE_KEYS.length + index));
+  targetMemo.set(player, {
+    id: player.id,
+    position: player.primaryPosition,
+    potential: player.potential,
+    age,
+    targets,
+  });
+  return targets;
 }
 
 /** Mean ability over the attributes a player develops (keeper or outfield set). */
@@ -194,7 +283,8 @@ function trainedAbility(
   player: Pick<Player, 'primaryPosition' | 'attributes' | 'keeperAttributes'>,
 ) {
   const values = Object.values(
-    player.primaryPosition === 'GK' ? player.keeperAttributes : player.attributes,
+    // A goalkeeper's goalkeeping is always stored.
+    player.primaryPosition === 'GK' ? player.keeperAttributes! : player.attributes,
   );
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }

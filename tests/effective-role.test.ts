@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { Position, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { nextCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCommand, careerMatchSetup, defaultTactics } from '../src/engine/career/matches';
@@ -9,9 +8,7 @@ import {
   applyMatchCommand,
   createMatchSession,
   createMatchSetup,
-  DISCIPLINE_MATCH_ENGINE,
-  engineFor,
-  MATCH_ENGINE_VERSION,
+  isCurrentSetup,
   rolePosition,
   rolesForPosition,
   slotPosition,
@@ -21,14 +18,15 @@ import { objectivesFor } from '../src/engine/match/objectives';
 import { isRoleFor } from '../src/engine/match/roles';
 import { deservedRole, prospectSelection, slotCompetition } from '../src/engine/career/market';
 import { selectLineup } from '../src/engine/selection/lineup';
-import { clubFormation, usesFormations } from '../src/engine/selection/world';
+import { clubFormation } from '../src/engine/selection/world';
+import { nationalWorld } from './support/world';
 
 /**
  * One job per match (review phase 2, step 2.1): a player fielded away from their primary
  * position gets the role choices, objectives, involvement and half-time change of the slot
- * they play, on the current engine. Earlier engines keep the primary position.
+ * they play.
  */
-const world = generateWorld('effective-role', { format: 'legacy' });
+const world = nationalWorld();
 const [home, away] = Object.values(world.clubs);
 const winger = home!.playerIds
   .map((id) => world.players[id]!)
@@ -44,7 +42,7 @@ function wingerInThreeFiveTwo(): MatchSetup {
 describe('effective match role', () => {
   it('gives a winger in a formation without wingers the slot they play', () => {
     const setup = wingerInThreeFiveTwo();
-    expect(engineFor(setup)).toBe(MATCH_ENGINE_VERSION);
+    expect(isCurrentSetup(setup)).toBe(true);
     const position = rolePosition(setup);
     expect(position).toBe(slotPosition(winger, '3-5-2'));
     expect(['RW', 'LW']).not.toContain(position);
@@ -84,21 +82,8 @@ describe('effective match role', () => {
     expect(isRoleFor(position, after.state.match.tactics.role)).toBe(true);
   });
 
-  it('keeps the primary position on the earlier engine', () => {
-    const setup = wingerInThreeFiveTwo();
-    delete setup.roleSlot;
-    expect(engineFor(setup)).toBe(DISCIPLINE_MATCH_ENGINE);
-    expect(rolePosition(setup)).toBe(winger.primaryPosition);
-    const session = createMatchSession(setup, {
-      role: rolesForPosition(winger.primaryPosition)[0]!,
-      risk: 'balanced',
-      mentality: 'balanced',
-    });
-    expect(session.state.match.objectives).toEqual(objectivesFor(setup.seed, winger));
-  });
-
   it('previews on the hub exactly the objectives kickoff sets', () => {
-    const base = generateWorld('effective-role-career', { format: 'legacy' });
+    const base = nationalWorld();
     const trial = trialOffers(base, 'country:0', 'effective-role-career')[0]!;
     const draft: CareerDraft = {
       name: 'Robin Vale',
@@ -136,7 +121,6 @@ describe('role promises under the manager’s formation', () => {
   };
 
   it('promises a starter a key role, and judges an injured starter as fit', () => {
-    expect(usesFormations(world)).toBe(true);
     const starter =
       world.players[starters().find((id) => world.players[id]!.primaryPosition !== 'GK')!]!;
     expect(slotCompetition(world, club, starter).inTeam).toBe(true);

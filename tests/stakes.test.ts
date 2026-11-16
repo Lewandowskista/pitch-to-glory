@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { CareerMove, Fixture, Standing, World } from '../src/model/domain';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { fixtureStake, fixtureStakes } from '../src/engine/career/stakes';
 import { stakeText } from '../src/screens/career/stakesUi';
 import { stakesText } from '../src/i18n/stakes';
+import { nationalWorld } from './support/world';
 
 const draft: CareerDraft = {
   name: 'Robin Vale',
@@ -26,7 +26,7 @@ const draft: CareerDraft = {
 };
 let start: World;
 beforeAll(() => {
-  const base = generateWorld('stakes-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'stakes-tests')[0]!;
   start = createCareer(base, draft, trial.id, 'stakes-tests');
 }, 60000);

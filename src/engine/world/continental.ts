@@ -18,8 +18,6 @@ const KNOCKOUT_NAMES = ['round-of-16', 'quarter-finals', 'semi-finals', 'final']
 
 export const isContinental = (competition: Pick<Competition, 'kind'> | undefined) =>
   competition?.kind === 'champions' || competition?.kind === 'continental';
-export const hasContinental = (world: World) =>
-  CONTINENTAL_IDS.every((id) => isContinental(world.competitions[id]));
 
 /** Whether a fixture must produce a winner: a domestic cup tie or a continental knockout. */
 export function isKnockoutFixture(world: World, fixture: Fixture): boolean {

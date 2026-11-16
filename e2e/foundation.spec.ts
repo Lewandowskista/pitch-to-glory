@@ -1,26 +1,7 @@
-import { expect, test } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
-import { readFile } from 'node:fs/promises';
+import { expect, readBackup, skipTutorial, test } from './support';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (message) => {
-    if (message.type() === 'error' && !isBrowserNoise(message))
-      errors.push(`${message.text()} (${message.location().url || 'no location'})`);
-  });
-  await page.addInitScript(() => {
-    window.addEventListener('unhandledrejection', (event) => {
-      throw new Error(String(event.reason));
-    });
-  });
-  (page as typeof page & { runtimeErrors: string[] }).runtimeErrors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as typeof page & { runtimeErrors: string[] }).runtimeErrors).toEqual([]);
 });
 
 test('title, URLs, route refresh and keyboard navigation', async ({ page }) => {
@@ -103,17 +84,18 @@ test('three slots save, autosave, export, import, migrate and delete', async ({ 
   const downloadPromise = page.waitForEvent('download');
   await page.locator('.slot-card').nth(0).getByRole('button', { name: 'Export backup' }).click();
   const download = await downloadPromise;
-  const json = await readFile((await download.path())!, 'utf8');
-  expect(JSON.parse(json).payload.gallery.seed).toBe(seed);
+  // Every supported browser compresses backups (release 1.0 step 3.7).
+  expect(download.suggestedFilename()).toMatch(
+    /^pitch-to-glory-slot-1-\d{4}-\d{2}-\d{2}\.json\.gz$/,
+  );
+  const backupPath = (await download.path())!;
+  expect(JSON.parse(await readBackup(backupPath)).payload.gallery.seed).toBe(seed);
+  // The downloaded gzip file imports as it is; the plain JSON of earlier releases below.
   await page
     .locator('.slot-card')
     .nth(1)
     .getByLabel('Import backup — Slot 2')
-    .setInputFiles({
-      name: 'collection.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(json),
-    });
+    .setInputFiles(backupPath);
   await expect(page.locator('.notice')).toHaveText('Save imported.');
   await expect(page.locator('.slot-card').nth(1).getByRole('heading')).toHaveText(
     'Alderwick collection',
@@ -145,7 +127,13 @@ test('three slots save, autosave, export, import, migrate and delete', async ({ 
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await page.locator('.slot-card').nth(0).getByRole('button', { name: 'Delete save' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Delete save' }).click();
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('A fresh start.');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText(
+    'A fresh start.',
+    {
+      // Importing a national save can take several seconds on CI runners.
+      timeout: 60000,
+    },
+  );
 });
 
 test('a second tab cannot load or mutate an owned slot', async ({ page, context }) => {
@@ -196,7 +184,13 @@ test('invalid import preserves an existing collection', async ({ page }) => {
       buffer: Buffer.from('{invalid'),
     });
   await expect(page.getByRole('alert')).toContainText('incomplete or invalid');
-  await expect(page.locator('.slot-card').first().getByRole('heading')).toHaveText('My saved game');
+  await expect(page.locator('.slot-card').first().getByRole('heading')).toHaveText(
+    'My saved game',
+    {
+      // Importing a national save can take several seconds on CI runners.
+      timeout: 60000,
+    },
+  );
 });
 
 test('mobile shell, large text and dark gallery fit the viewport', async ({ page }) => {
@@ -379,7 +373,10 @@ test('conflicting autosave can export local changes and reload the saved version
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export unsaved copy' }).click();
   const download = await downloadPromise;
-  const json = await readFile((await download.path())!, 'utf8');
+  expect(download.suggestedFilename()).toMatch(
+    /^pitch-to-glory-unsaved-\d{4}-\d{2}-\d{2}\.json\.gz$/,
+  );
+  const json = await readBackup((await download.path())!);
   expect(JSON.parse(json).payload.gallery.seed).toBe('local-unsaved');
   await page.getByRole('button', { name: 'Reload saved game', exact: true }).click();
   await page

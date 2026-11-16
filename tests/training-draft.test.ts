@@ -1,5 +1,4 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import { useAppStore } from '../src/store';
@@ -7,19 +6,34 @@ import type { TrainingPlan, World } from '../src/model/domain';
 import * as session from '../src/persistence/session';
 import { startWorldJob } from '../src/workers/client';
 import * as transitions from '../src/store/trainingTransitions';
+import { nationalWorld } from './support/world';
 
 const storage = vi.hoisted(() => ({
   acquire: vi.fn().mockResolvedValue(true),
   write: vi.fn(),
 }));
+// A whole-world save goes through the world worker's encoding (step 3.3).
 vi.mock('../src/persistence/runtime', () => ({
   slotLocks: { acquire: storage.acquire },
-  saves: { write: storage.write },
+  saves: { writeWorld: storage.write },
+}));
+vi.mock('../src/workers/host', () => ({
+  decodeWorld: async () => null,
+  HostStopped: Error,
+  worldHost: {
+    encode: async (world: { id: string }) => ({
+      worldId: world.id,
+      summary: { worldId: world.id, season: 2026, week: 1, clubs: 0, crests: [] },
+      bytes: new Uint8Array([0x7b, 0x7d]),
+    }),
+    retire: () => {},
+    prewarm: () => {},
+  },
 }));
 
 let world: World;
 beforeAll(() => {
-  const base = generateWorld('training-draft', { format: 'legacy' });
+  const base = nationalWorld();
   world = createCareer(
     base,
     {
@@ -163,10 +177,20 @@ describe('applying training and advancing time', () => {
     });
     useAppStore.getState().applySave(save);
     useAppStore.getState().editTrainingDraft(highPlan());
-    storage.write.mockImplementation(async (value) => {
+    storage.write.mockImplementation(async (value, revision: number) => {
       expect(useAppStore.getState().world!.career!.training.sessions[0]!.intensity).toBe('normal');
       expect(useAppStore.getState().saveStatus).toBe('saving');
-      return { ...value, revision: value.revision + 1 };
+      return {
+        format: 'pitch-to-glory',
+        schemaVersion: 23,
+        engineVersion: 'test',
+        slot: value.slot,
+        name: value.name,
+        createdAt: value.createdAt,
+        updatedAt: value.updatedAt,
+        revision: revision + 1,
+        payload: { kind: 'world', gallery: value.gallery, settings: value.settings },
+      };
     });
     expect(await session.saveTrainingDraft()).toBe(true);
     expect(useAppStore.getState().world!.career!.training.sessions[0]!.intensity).toBe('high');

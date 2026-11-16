@@ -11,7 +11,6 @@ import {
   contractAskState,
   contractExpiring,
   canRequestLoan,
-  lineOf,
   managerTrust,
   marketValue,
   openOffers,
@@ -39,9 +38,10 @@ import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
 import { marketText as m } from '../../i18n/market';
 import { socialText } from '../../i18n/social';
+import { formatInteger, formatList, plural } from '../../i18n/locale';
 import { withSave } from './agenda';
 import { competitionLine } from './selectionUi';
-import { CareerPage, CrestImage, EmptySection, plural } from './shared';
+import { CareerPage, CrestImage, EmptySection } from './shared';
 import { cultureTraits } from './socialUi';
 import { useUrlDialog } from './useUrlDialog';
 import {
@@ -59,7 +59,6 @@ import {
 
 const MK = CONFIG.career.market;
 const ROLE_ORDER: ContractTerms['role'][] = ['key', 'rotation', 'youth', 'backup'];
-const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
 /** The small uppercase label over a group inside a card (at most one per card). */
 const groupLabel = 'text-xs font-extrabold tracking-[0.1em] text-muted uppercase';
 /** A light outlined button for the field-green heroes. */
@@ -140,11 +139,7 @@ function ContractCard({ world, player }: { world: World; player: Player }) {
           className="flex flex-col gap-1 rounded-control border border-gold bg-art-gold px-3.5 py-3 text-[0.8125rem]"
         >
           <p className="font-bold">{m.contract.decisionTitle}</p>
-          <p>
-            {talks
-              ? plural(talks, m.contract.decisionOffersOne, m.contract.decisionOffers)
-              : m.contract.decisionNoOffers}
-          </p>
+          <p>{talks ? plural(talks, m.contract.decisionOffers) : m.contract.decisionNoOffers}</p>
           <p>
             {format(m.contract.decisionDefault, {
               club: parent.name,
@@ -250,7 +245,6 @@ function PlayingTime({
   const selection = career.market.selection;
   const fixture = nextCareerFixture(world);
   const chance = fixture && !player.injuryId ? careerSelection(world, fixture) : null;
-  const line = lineOf(player.primaryPosition);
   const manager = club ? world.managers[club.managerId] : undefined;
   const low = chance ? chance.probability < 0.5 : false;
   return (
@@ -274,22 +268,15 @@ function PlayingTime({
             tone={low ? 'danger' : 'accent'}
             numberTone={low ? 'danger' : 'accent'}
             note={
-              chance.competition.formation ? (
-                <>
-                  {competitionLine(world, chance)}{' '}
-                  <Link
-                    className="font-bold text-accent underline underline-offset-3"
-                    to={withSave('/career/club', params.get('save'))}
-                  >
-                    {m.playing.reasons}
-                  </Link>
-                </>
-              ) : (
-                format(m.playing.chanceBody, {
-                  count: MK.slots[line],
-                  line: m.playing.lines[line],
-                })
-              )
+              <>
+                {competitionLine(world, chance)}{' '}
+                <Link
+                  className="font-bold text-accent underline underline-offset-3"
+                  to={withSave('/career/club', params.get('save'))}
+                >
+                  {m.playing.reasons}
+                </Link>
+              </>
             }
           />
         ) : (
@@ -524,7 +511,7 @@ function OfferSummary({ world, offer }: { world: World; offer: TransferOffer }) 
     <>
       {format(m.talks.summary, {
         wage: weekly(terms.weeklyWage),
-        years: plural(terms.years, m.talks.yearsOne, m.talks.yearsValue),
+        years: plural(terms.years, m.talks.yearsValue),
         role: roleName(terms.role),
       })}
     </>
@@ -546,14 +533,8 @@ function leagueLine(world: World, club: Club): string {
     gap === 0
       ? format(m.offers.tierSame, { club: parent.name })
       : gap > 0
-        ? format(gap === 1 ? m.offers.tierAboveOne : m.offers.tierAbove, {
-            count: gap,
-            club: parent.name,
-          })
-        : format(gap === -1 ? m.offers.tierBelowOne : m.offers.tierBelow, {
-            count: -gap,
-            club: parent.name,
-          });
+        ? plural(gap, m.offers.tierAbove, { club: parent.name })
+        : plural(-gap, m.offers.tierBelow, { club: parent.name });
   return `${league.name} · ${relation}`;
 }
 
@@ -614,9 +595,14 @@ function LeadOffer({
             <ClockIcon className="h-4 w-4 shrink-0 text-gold" />
             {offerFoot(offer)}
           </span>
-          <Button variant="play" size="lg" iconEnd="arrow" onClick={() => onOpen(offer.id)}>
+          <Button
+            variant="play"
+            size="lg"
+            iconEnd="arrow"
+            aria-label={format(m.offers.openWith, { club: club.name })}
+            onClick={() => onOpen(offer.id)}
+          >
             {m.offers.open}
-            <span className="sr-only">{format(m.offers.openWith, { club: club.name })}</span>
           </Button>
         </div>
       </div>
@@ -666,9 +652,15 @@ function OpenOffer({
       {note && <p className="text-[0.8125rem] text-muted">{note}</p>}
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2.5">
         <span className="text-xs font-semibold text-muted">{offerFoot(offer)}</span>
-        <Button variant="secondary" iconEnd="arrow" onClick={() => onOpen(offer.id)}>
+        <Button
+          variant="secondary"
+          iconEnd="arrow"
+          aria-label={format(offer.status === 'terms' ? m.offers.openWith : m.offers.viewWith, {
+            club: club.name,
+          })}
+          onClick={() => onOpen(offer.id)}
+        >
           {offer.status === 'terms' ? m.offers.open : m.offers.view}
-          <span className="sr-only">{format(m.offers.openWith, { club: club.name })}</span>
         </Button>
       </div>
     </li>
@@ -737,7 +729,7 @@ function Offers({ world, onOpen }: { world: World; onOpen: (id: string) => void 
         </CardTitle>
         {waiting > 0 && (
           <span className="text-[0.8125rem] font-semibold text-muted">
-            {waiting === 1 ? m.offers.waitingOne : format(m.offers.waiting, { count: waiting })}
+            {plural(waiting, m.offers.waiting)}
           </span>
         )}
       </div>
@@ -761,11 +753,7 @@ function Offers({ world, onOpen }: { world: World; onOpen: (id: string) => void 
           </ul>
           {!showAll && earlier.length > EARLIER_SHOWN && (
             <Button variant="text" className="-ml-3 mt-1" onClick={() => setShowAll(true)}>
-              {plural(
-                earlier.length - EARLIER_SHOWN,
-                m.offers.showEarlierOne,
-                m.offers.showEarlier,
-              )}
+              {plural(earlier.length - EARLIER_SHOWN, m.offers.showEarlier)}
             </Button>
           )}
         </div>
@@ -786,9 +774,7 @@ function Interest({ world }: { world: World }) {
         <CardTitle id="interest-heading">{m.interest.title}</CardTitle>
         {entries.length > 0 && (
           <span className="text-[0.8125rem] font-semibold text-muted">
-            {entries.length === 1
-              ? m.interest.countOne
-              : format(m.interest.count, { count: entries.length })}
+            {plural(entries.length, m.interest.count)}
           </span>
         )}
       </div>
@@ -910,10 +896,7 @@ function TermsList({ terms }: { terms: ContractTerms }) {
   return (
     <dl className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-2.5">
       <Stat label={m.talks.wage} value={weekly(terms.weeklyWage)} />
-      <Stat
-        label={m.talks.years}
-        value={plural(terms.years, m.talks.yearsOne, m.talks.yearsValue)}
-      />
+      <Stat label={m.talks.years} value={plural(terms.years, m.talks.yearsValue)} />
       <Stat label={m.talks.role} value={roleName(terms.role)} />
       <Stat
         label={m.talks.clause}
@@ -1118,17 +1101,18 @@ function prospectLine(world: World, club: Club, role: ContractTerms['role']): st
     position: c.positions[competition.position] ?? competition.position,
     fit: Math.round(competition.fit),
     chance: Math.round(probability * 100),
-    ahead: competition.aheadIds
-      .map((id) => world.players[id]?.name)
-      .filter(Boolean)
-      .join(m.talks.prospect.and),
+    ahead: formatList(
+      competition.aheadIds
+        .map((id) => world.players[id]?.name)
+        .filter((name): name is string => Boolean(name)),
+    ),
   };
   return competition.inTeam
     ? format(m.talks.prospect.inTeam, params)
-    : format(
-        competition.placesOutside === 1 ? m.talks.prospect.oneOutside : m.talks.prospect.outside,
-        { ...params, places: competition.placesOutside },
-      );
+    : plural(competition.placesOutside, m.talks.prospect.outside, {
+        ...params,
+        places: competition.placesOutside,
+      });
 }
 
 function TalksNote({
@@ -1157,7 +1141,7 @@ function Patience({ negotiation }: { negotiation: Negotiation }) {
   const text =
     negotiation.patience === 0
       ? m.talks.patienceNone
-      : plural(negotiation.patience, m.talks.patienceOne, m.talks.patience);
+      : plural(negotiation.patience, m.talks.patience);
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div
@@ -1334,24 +1318,23 @@ const wholeAtLeast = (value: number, min: number) => Number.isSafeInteger(value)
 function wageHint(wage: number, offered: number, estimate: number | null): string {
   if (!wholeAtLeast(wage, 1)) return '';
   const gap = wage - offered;
-  const parts = [
+  const wageClause =
     gap > 0
       ? format(m.talks.wageAbove, { amount: money(gap) })
       : gap < 0
         ? format(m.talks.wageBelow, { amount: money(-gap) })
-        : m.talks.wageSame,
-  ];
-  if (estimate !== null) {
-    const room = estimate - wage;
-    parts.push(
+        : m.talks.wageSame;
+  if (estimate === null) return format(m.talks.wageHint, { wage: wageClause });
+  const room = estimate - wage;
+  return format(m.talks.wageHintAgent, {
+    wage: wageClause,
+    agent:
       room > 0
         ? format(m.talks.agentUnder, { amount: money(room) })
         : room < 0
           ? format(m.talks.agentOver, { amount: money(-room) })
           : m.talks.agentAt,
-    );
-  }
-  return `${parts.join(', ')}.`;
+  });
 }
 
 /** A number field with "Cr" before it and an optional unit after, in one 48px box. */
@@ -1503,7 +1486,7 @@ function CounterForm({
               {Array.from({ length: MK.negotiation.maximumYears }, (_, index) => index + 1).map(
                 (count) => (
                   <option key={count} value={count}>
-                    {plural(count, m.talks.yearsOne, m.talks.yearsValue)}
+                    {plural(count, m.talks.yearsValue)}
                   </option>
                 ),
               )}
@@ -1626,7 +1609,7 @@ function Rounds({
               aria-hidden="true"
               className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-track font-display text-xl leading-none"
             >
-              {integer.format(index + 1)}
+              {formatInteger(index + 1)}
             </span>
             {round.actor === 'club' ? (
               <CrestImage crest={club.crest} alt="" className="h-10 w-9 shrink-0" />
@@ -1642,7 +1625,7 @@ function Rounds({
                   ·{' '}
                   {format(m.talks.summary, {
                     wage: weekly(round.terms.weeklyWage),
-                    years: plural(round.terms.years, m.talks.yearsOne, m.talks.yearsValue),
+                    years: plural(round.terms.years, m.talks.yearsValue),
                     role: roleName(round.terms.role),
                   })}
                 </span>

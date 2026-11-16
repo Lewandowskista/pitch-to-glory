@@ -82,6 +82,45 @@ Leave the version and date alone unless the release day changes.
 
 The same rules run as unit tests in `tests/release.test.ts`.
 
+## Save schema
+
+What each release can load and replay, and how long an earlier match engine is kept, is in
+[COMPATIBILITY.md](COMPATIBILITY.md).
+
+`CONFIG.saves.schemaVersion` (`src/engine/config.ts`) is the version written into every save. A
+build refuses a save from a newer schema (the slot shows as made by a newer version) instead of
+loading data it does not understand, so **any change to what a save stores needs a schema bump**:
+a new field (even an optional one), a removed or renamed field, a field made optional, a changed
+type or a new value in a stored union.
+
+`npm run check:save-shape` (`scripts/check-save-shape.ts`) enforces this in the `checks` job of
+`.github/workflows/ci.yml`, and `tests/save-shape.test.ts` runs the same comparison with the unit
+tests. It reads every type a save file holds, starting from `SaveFile` in `src/model/domain.ts`
+(the world, the career, the match session and the settings), describes each one canonically
+(property names, optionality and types; not comments, order or `readonly`) and compares the hash
+with `src/persistence/saveShape.json`, the shape recorded for the current schema version. It
+fails, naming the changed types, when:
+
+- the shape changed but the schema version did not;
+- the schema version changed but the record was not updated.
+
+To change the persisted shape:
+
+1. Bump `CONFIG.saves.schemaVersion` and the `SaveFile.schemaVersion` literal.
+2. Add the migration to `src/persistence/schema.ts` (a no-op when the new fields are optional),
+   with validation for the new fields and a migration test, including one from the golden saves
+   in `tests/fixtures/saves` ([README](../tests/fixtures/saves/README.md)).
+3. Run `npm run check:save-shape -- --update` and commit `src/persistence/saveShape.json`.
+
+One bump per release is enough: while the new schema version has not reached `main`, later
+changes on the same branch re-record it with `npm run check:save-shape -- --update --same-version`
+(the 1.0 branch keeps all its changes under schema 23). Use `--same-version` too for a change that
+cannot alter stored JSON, such as renaming a type, and say so in the commit message.
+`npm run check:save-shape -- --print` lists every type's description.
+
+Schema 23 changes nothing stored. Releases 0.4.0 to 0.9.1 added optional fields
+under schema 22, which is why the check exists; schema 23 marks the shape it records.
+
 ## Where the notes show
 
 - **What's new** (`/whats-new`) lists every release, newest first. The newest is open, and older

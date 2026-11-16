@@ -8,6 +8,7 @@ import {
 import { useAppStore } from '../../store';
 import { format } from '../../i18n';
 import { storyletsText as t } from '../../i18n/storylets';
+import { plural } from '../../i18n/locale';
 import { storyChoice, storyScene, storyTitle } from './storyText';
 import { ui, useEditBlock } from './shared';
 
@@ -85,9 +86,7 @@ export function StoryCard({ world }: { world: World }) {
                       ))}
                       {choice.followUp && (
                         <span className="rounded-full bg-surface px-2 py-0.5 font-semibold text-muted">
-                          {choice.followUp === 1
-                            ? t.card.followUpOne
-                            : format(t.card.followUp, { weeks: choice.followUp })}
+                          {plural(choice.followUp, t.card.followUp, { weeks: choice.followUp })}
                         </span>
                       )}
                     </span>

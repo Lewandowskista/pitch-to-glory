@@ -1,14 +1,18 @@
 import { createRng } from '../engine/rng';
 import { Biquad } from './synth';
 
-/** Original composition: After the Floodlights. No borrowed melodies or samples. */
+/**
+ * Original composition: After the Floodlights. No borrowed melodies or samples.
+ *
+ * Rendered at build time, not in the game: `npm run render:music` (scripts/render-music.ts)
+ * encodes it to src/assets/audio/, which the player downloads. Rerun it after any change here.
+ */
 export const MUSIC = {
   title: 'After the Floodlights',
   bpm: 76,
   bars: 32,
   sampleRate: 32000,
 } as const;
-export type AudioName = import('./synth').SoundName | 'music';
 const TAU = Math.PI * 2;
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
 const beat = 60 / MUSIC.bpm;

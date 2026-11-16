@@ -5,8 +5,9 @@ import { clubLineup } from '../../engine/selection/world';
 import type { Club, World } from '../../model/domain';
 import { format } from '../../i18n';
 import { careerText as c } from '../../i18n/career';
-import { marketText as m } from '../../i18n/market';
+import { squadRoleNames } from '../../i18n/squadRoles';
 import { selectionText as t } from '../../i18n/selection';
+import { formatList, plural } from '../../i18n/locale';
 
 const points = (value: number) => {
   const rounded = Math.round(value * 100);
@@ -21,11 +22,12 @@ export function competitionLine(world: World, selection: Selection): string {
     return competition.fit < 100
       ? format(t.inTeamFamiliar, { position, fit: competition.fit })
       : format(t.inTeam, { position });
-  if (!competition.formation) return format(t.outsideLine, { places: competition.placesOutside });
-  const names = competition.aheadIds.map((id) => world.players[id]?.name ?? id).join(t.and);
-  return competition.placesOutside === 1
-    ? format(t.outside, { position, names })
-    : format(t.outsideMany, { places: competition.placesOutside, position, names });
+  const names = formatList(competition.aheadIds.map((id) => world.players[id]?.name ?? id));
+  return plural(competition.placesOutside, t.outside, {
+    places: competition.placesOutside,
+    position,
+    names,
+  });
 }
 
 /**
@@ -58,7 +60,8 @@ export function SelectionReasons({
               {format(t.reasons[reason.kind], {
                 role:
                   reason.kind === 'role'
-                    ? (m.roles[reason.detail as keyof typeof m.roles] ?? String(reason.detail))
+                    ? (squadRoleNames[reason.detail as keyof typeof squadRoleNames] ??
+                      String(reason.detail))
                     : '',
                 value: typeof reason.detail === 'number' ? Math.round(reason.detail) : '',
               })}
@@ -111,15 +114,13 @@ export function FormationPitch({
   const formation = competition.formation;
   const playerId = world.career?.playerId;
   const target = useMemo(() => {
-    if (!formation) return -1;
     const slots = FORMATION_SLOTS[formation];
     if (competition.inTeam && playerId) {
-      const at = clubLineup(world, club)?.starterIds.indexOf(playerId) ?? -1;
+      const at = clubLineup(world, club).starterIds.indexOf(playerId);
       if (at >= 0) return at;
     }
     return slots.findIndex((slot) => slot.position === competition.position);
   }, [world, club, formation, competition.inTeam, competition.position, playerId]);
-  if (!formation) return null;
   const slots = FORMATION_SLOTS[formation];
   const mine = slots[target];
   const label = format(t.club.pitch, {

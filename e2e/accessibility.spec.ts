@@ -1,25 +1,12 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import { expect, nationalCareer, settled, skipTutorial, test } from './support';
 import { readFileSync } from 'node:fs';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
 
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 test.use({ actionTimeout: 15000 });
 
@@ -60,31 +47,7 @@ async function accessibilityViolations(page: Page): Promise<string[]> {
 let cached: string | undefined;
 function careerSave(): string {
   if (cached) return cached;
-  const base = generateWorld('a11y-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'a11y-browser')[0]!;
-  let world: World = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'a11y-browser',
-  );
+  let world: World = nationalCareer('a11y-browser');
   for (let week = 0; week < 8; week++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
   cached = JSON.stringify(
@@ -142,7 +105,10 @@ test('every screen passes axe in both themes and fits a phone', async ({ page, b
       mimeType: 'application/json',
       buffer: Buffer.from(careerSave()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
   const open = async (route: string) => {
     await page.goto(route);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 30000 });
@@ -150,7 +116,7 @@ test('every screen passes axe in both themes and fits a phone', async ({ page, b
     // Let slot listings and other first-load states settle, and keep the pointer off controls.
     await page.waitForLoadState('networkidle');
     await page.mouse.move(0, 0);
-    await page.waitForTimeout(250);
+    await settled(page);
   };
   if (browserName !== 'chromium') {
     // The other engines render every screen without errors (checked after each test).
@@ -200,7 +166,10 @@ test('the keyboard reaches every main control and focus is always visible', asyn
       mimeType: 'application/json',
       buffer: Buffer.from(careerSave()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
   for (const route of ['/career?save=1', '/edit?save=1', '/settings', '/career/trophies?save=1']) {
     await page.goto(route);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 30000 });
@@ -243,7 +212,10 @@ test('focus rings stand out on every field-green hero', async ({ page }) => {
       mimeType: 'application/json',
       buffer: Buffer.from(careerSave()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
   const checked: string[] = [];
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme });

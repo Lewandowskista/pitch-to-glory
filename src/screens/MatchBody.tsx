@@ -3,89 +3,87 @@ import {
   type ComponentProps,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
-import { lazyPage } from '../ui/lazyPage';
+import { lazyPage, loadWithRetry } from '../ui/lazyPage';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useAppStore } from '../store';
+import { useAppStore, worldBusy } from '../store';
 import {
-  fullTime,
   applyMatchCommand,
+  chainsReady,
   createMatchSession,
   createMatchSetup,
+  loadChains,
+  rules22,
   type MatchCommand,
-  type MatchMotion,
-} from '../engine/match';
+  type MatchSession,
+} from '../engine/match/core';
 import type { SlotId } from '../model/domain';
 import { errorCode } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
-import { errorText, format } from '../i18n';
-import {
-  matchText as m,
-  matchLabel,
-  matchFormat,
-  pressureText,
-  situationText,
-} from '../i18n/match';
-import { pitchCopy } from '../i18n/pitch';
+import { errorText, format, t } from '../i18n';
+import { matchText as m, matchLabel } from '../i18n/match';
 import { careerText as c } from '../i18n/career';
 import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
 import { FootballIllustration } from '../ui/FootballIllustration';
-import { Preview } from './match/Preview';
-import { DecisionPanel, DecisionReplay } from './match/DecisionPanel';
-import {
-  CareerFixture,
-  CareerNoMatch,
-  CareerReportActions,
-  TournamentMatch,
-  WindowMatch,
-} from './match/CareerMatchday';
+import type { FormResult } from './match/Preview';
 import {
   pendingTournamentFixture,
   pendingWindowFixture,
 } from '../engine/career/honours/international';
-import {
-  CaptainPanel,
-  CommentaryCard,
-  commentaryText,
-  HalfTimePanel,
-  MatchControls,
-  OutcomePanel,
-  PitchOverlay,
-  RatingCard,
-  Scoreboard,
-  SentOffPanel,
-  SimulationCard,
-  StatsCard,
-  SubstitutionPanel,
-  Timeline,
-} from './match/Live';
-import type { NarrationLine } from './match/feed';
-import { narrationFeed } from '../i18n/narration';
 import { pendingCareerFixture } from '../engine/career/fixtures';
-import { careerMatchSetup, defaultTactics } from '../engine/career/matches';
+import { careerMatchSetup, defaultTactics } from '../engine/career/matchSetup';
 import { startWorldJob } from '../workers/client';
-import { competitionName } from './career/selectors';
+import { competitionName, recentForm } from './career/selectors';
 import { CareerSelectionBriefing } from './match/SelectionBriefing';
 import { COSMETIC_BY_ID } from '../engine/career/lifestyle/catalogue';
-import { lifestyleText as l } from '../i18n/lifestyle';
+import { celebrationNames } from '../i18n/celebrations';
 import '../styles/match.css';
-
-import { useMatchAudio } from './match/useMatchAudio';
-import { preparePlayback } from './match/playback';
-import { shirtNumbers } from './match/pitchArt';
-import { Tutorial } from '../ui/Tutorial';
-import { tutorialText as tt } from '../i18n/tutorial';
+import '../styles/reel.css';
+import { Tutorial } from '../ui/TutorialLoader';
 import { StakeLine } from './career/stakesUi';
-const Pitch = lazyPage(() => import('./match/Pitch'));
+import { useRestoredReport } from './match/restoreReport';
+import type { ReelBeat, ReelMode } from './match/reel/useReel';
+
+/*
+ * Matchday's states each load their own screen (release 1.0, X1b), so the route's first load
+ * carries the engine and only the screen it shows: the pre-match screen, the live reel, the
+ * career's matchday panels, or the report.
+ */
+const loadReel = () => import('./match/reel/ReelScreen');
+const ReelScreen = lazyPage(loadReel);
+const loadPreview = () => import('./match/Preview');
+const Preview = lazyPage(() => loadPreview().then((module) => ({ default: module.Preview })));
+const loadMatchday = () => import('./match/CareerMatchday');
+const CareerFixture = lazyPage(() =>
+  loadMatchday().then((module) => ({ default: module.CareerFixture })),
+);
+const CareerNoMatch = lazyPage(() =>
+  loadMatchday().then((module) => ({ default: module.CareerNoMatch })),
+);
+const CareerReportActions = lazyPage(() =>
+  loadMatchday().then((module) => ({ default: module.CareerReportActions })),
+);
+const TournamentMatch = lazyPage(() =>
+  loadMatchday().then((module) => ({ default: module.TournamentMatch })),
+);
+const WindowMatch = lazyPage(() =>
+  loadMatchday().then((module) => ({ default: module.WindowMatch })),
+);
 /** A friendly between any two clubs, for a world without a career: loaded only there. */
 const Selection = lazyPage(() =>
   import('./match/Selection').then((module) => ({ default: module.Selection })),
 );
+/** The commentary's words and the narration copy (step 5.5), for the Match log. */
+const loadLines = () => import('./match/lines');
+type LinesModule = Awaited<ReturnType<typeof loadLines>>;
+/** The headless policy (Watch highlights, Simulate), fetched when either is offered. */
+const loadPolicy = () => import('./match/reel/policy');
+/** The clip renderer (Pixi): fetched with the pre-match screen, never on the first load. */
+const loadClipScene = () => import('./match/reel/clipScene');
 /** The report is needed only at the final whistle: loaded then, or fetched ahead during play. */
 const loadReport = () => import('./match/Report');
 const LazyReport = lazyPage(() => loadReport().then((module) => ({ default: module.Report })));
@@ -102,17 +100,16 @@ function Report(props: ComponentProps<typeof LazyReport>) {
     </Suspense>
   );
 }
-/** Real milliseconds per simulated minute at 1× speed. */
-const MINUTE_MS = 2200;
-/**
- * Normal play leaves time to follow the ball; decision build-ups and outcomes play slower.
- */
-function motionPace(kind: MatchMotion['kind'], speed: number) {
-  if (kind === 'minute') return { rate: 18 * speed, maxMs: (MINUTE_MS / speed) * 0.95 };
-  if (kind === 'kickoff') return { rate: 1, maxMs: 0 };
-  return { rate: 6, maxMs: 4200 };
+/** Loading one of matchday's screens. */
+function Loading() {
+  return (
+    <section className="match-panel match-loading">
+      <span className="match-spinner" aria-hidden="true" />
+      <p role="status">{m.loading}</p>
+    </section>
+  );
 }
-/** Whether the viewport is at least `query` wide, following resizes. */
+/** Whether the viewport matches `query`, following changes. */
 function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
     (change) => {
@@ -124,73 +121,86 @@ function useMediaQuery(query: string): boolean {
     () => false,
   );
 }
-/** The two-column match layout, with the live numbers beside the pitch. */
+/** The two-column match layout, with the live numbers beside the reel. */
 const WIDE = '(min-width: 951px)';
+/** Phones held upright draw the clips on a vertical pitch. */
+const UPRIGHT = '(orientation: portrait) and (max-width: 950px)';
+/** Yield to the browser between slices of a simulated match, so no task runs long. */
+const yieldTask = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-/** Matchday once there is a world to play in (or a save to load): the engine and live panels. */
+/** Matchday once there is a world to play in (or a save to load). */
 export default function MatchBody() {
   const world = useAppStore((store) => store.world);
   const job = useAppStore((store) => store.worldJob);
   const session = useAppStore((store) => store.matchSession);
-  // Fetch the report's code while the match is played, so the final whistle never waits.
+  const [lines, setLines] = useState<LinesModule>();
+  const occasions = Boolean(session && rules22(session.setup));
+  const state = session?.state;
+  const status = state?.match.status;
+  const live = status === 'live' || status === 'decision' || status === 'halftime';
+  // While a match is prepared or played, fetch what comes next: the reel and its renderer, the
+  // Match log's words and the report, so neither the first chain nor full time waits.
   const hasSession = Boolean(session);
+  // The decision chains (X1a) load with the session; the reel plays once they are in.
+  const [chainsIn, setChainsIn] = useState(chainsReady);
   useEffect(() => {
-    if (hasSession) void loadReport().catch(() => undefined);
+    if (!hasSession || chainsIn) return;
+    let current = true;
+    void loadWithRetry(loadChains).then(
+      () => current && setChainsIn(true),
+      () => current && setError(m.error),
+    );
+    return () => {
+      current = false;
+    };
+  }, [hasSession, chainsIn]);
+  useEffect(() => {
+    if (!hasSession) return;
+    let current = true;
+    const idle = window.setTimeout(() => {
+      void loadReel().catch(() => undefined);
+      void loadClipScene().catch(() => undefined);
+      void loadReport().catch(() => undefined);
+      void loadWithRetry(loadLines)
+        .then((module) => current && setLines(module))
+        .catch(() => undefined);
+    }, 300);
+    return () => {
+      current = false;
+      window.clearTimeout(idle);
+    };
   }, [hasSession]);
   const active = useAppStore((store) => store.activeSave);
   const settings = useAppStore((store) => store.settings);
   const systemReduced = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const reduced = settings.reducedMotion || systemReduced;
+  const wide = useMediaQuery(WIDE);
+  const vertical = useMediaQuery(UPRIGHT);
   const [params, setParams] = useSearchParams();
   const attemptedSlot = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
-  const choicesRef = useRef<HTMLDivElement>(null);
-  const layoutRef = useRef<HTMLDivElement>(null);
-  const wide = useMediaQuery(WIDE);
-  const [outcomeId, setOutcomeId] = useState<string | null>(null);
-  const state = session?.state;
-  const motion = state?.motion;
-  const status = state?.match.status;
+  // A save that could not be restored (open in another tab, say) can be tried again (step 4.8).
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const retryLoad = () => {
+    attemptedSlot.current = null;
+    setError('');
+    setLoadFailed(false);
+    setLoadAttempt((count) => count + 1);
+  };
+  const [mode, setMode] = useState<ReelMode>('play');
+  const [simulating, setSimulating] = useState(false);
+  const [policy, setPolicy] = useState<{ run: (s: MatchSession) => MatchCommand } | null>(null);
+  const [beat, setBeat] = useState<ReelBeat['kind']>('idle');
   const [announcement, setAnnouncement] = useState('');
-  const announcedScore = useRef('');
-  useMatchAudio(session, playing);
-  // Beat-based narration (engine M3) joins the commentary through the feed adapter.
-  const narration = useMemo<NarrationLine[] | undefined>(
-    () =>
-      session?.state.narration
-        ? narrationFeed(session).map((entry) => ({
-            id: String(entry.index),
-            minute: entry.minute,
-            text: entry.text,
-            ...(entry.eventId ? { eventId: entry.eventId } : {}),
-          }))
-        : undefined,
-    [session],
-  );
-  const reduced = settings.reducedMotion || systemReduced;
-  const momentId = state?.currentMoment?.id;
-  const latestEvent = state?.match.events[state.match.events.length - 1];
-  const latestText = latestEvent ? commentaryText(latestEvent) : '';
-  const scoreText =
-    session && state
-      ? matchFormat(m.announceScore, {
-          home: session.setup.home.name,
-          away: session.setup.away.name,
-          homeScore: state.match.score[0],
-          awayScore: state.match.score[1],
-        })
-      : '';
-  const momentText = state?.currentMoment
-    ? matchFormat(m.announceMoment, {
-        minute: state.currentMoment.minute,
-        situation: [pressureText(state.currentMoment), situationText(state.currentMoment)]
-          .filter(Boolean)
-          .join(' '),
-        count: state.currentMoment.choices.length,
-      })
-    : '';
+  const announce = useCallback((text: string) => setAnnouncement(text), []);
+  useEffect(() => {
+    if (!live) setBeat('idle');
+  }, [live]);
+  useEffect(() => {
+    if (status === 'finished') setAnnouncement(matchLabel('match.status.finished'));
+  }, [status]);
 
   useEffect(() => {
     const slot = params.get('save');
@@ -209,207 +219,105 @@ export default function MatchBody() {
       setLoading(true);
       void persistence()
         .then((p) => p.loadSlot(Number(slot) as SlotId))
-        .catch((cause: unknown) => setError(errorText(errorCode(cause))))
+        .catch((cause: unknown) => {
+          setError(errorText(errorCode(cause)));
+          setLoadFailed(true);
+        })
         .finally(() => setLoading(false));
     }
-  }, [world, active, job, params, setParams]);
+  }, [world, active, job, params, setParams, loadAttempt]);
 
-  const command = useCallback((input: MatchCommand) => {
-    const current = useAppStore.getState().matchSession;
-    if (!current || useAppStore.getState().worldJob) return;
+  /** Apply a command to the stored session; returns the sessions before and after. */
+  const apply = useCallback((input: MatchCommand) => {
+    const before = useAppStore.getState().matchSession;
+    if (!before || useAppStore.getState().worldJob) return null;
     try {
-      const next = applyMatchCommand(current, input);
-      useAppStore.getState().setMatchSession(next);
+      const after = applyMatchCommand(before, input);
+      useAppStore.getState().setMatchSession(after);
       setError('');
-      if (input.type === 'choose') {
-        setOutcomeId(
-          next.state.match.events.findLast(
-            (event) =>
-              event.outcome?.input.momentId === current.state.currentMoment?.id &&
-              event.outcome?.input.choiceId === input.choiceId,
-          )?.id ?? null,
-        );
-        setPlaying(false);
-      }
-      if (
-        next.state.match.status !== 'live' ||
-        next.state.captainDecisionPending ||
-        next.state.substitutionDecisionPending
-      )
-        setPlaying(false);
+      return { before, after };
     } catch {
       setError(m.error);
-      setPlaying(false);
+      return null;
     }
   }, []);
+  const command = useCallback((input: MatchCommand) => void apply(input), [apply]);
 
-  const nextMoment = useCallback(() => {
-    let current = useAppStore.getState().matchSession;
-    if (
-      !current ||
-      useAppStore.getState().worldJob ||
-      current.state.captainDecisionPending ||
-      current.state.substitutionDecisionPending
-    )
-      return;
-    setPlaying(false);
-    setOutcomeId(null);
+  // The headless policy, for Watch highlights and Simulate.
+  const ensurePolicy = useCallback(async () => {
+    const module = await loadPolicy();
+    const run = (current: MatchSession) => module.reelPolicy(current);
+    setPolicy((value) => value ?? { run });
+    return run;
+  }, []);
+  useEffect(() => {
+    if (status !== 'preview') return;
+    const idle = window.setTimeout(() => void loadPolicy().catch(() => undefined), 1200);
+    return () => window.clearTimeout(idle);
+  }, [status]);
+
+  /** Simulate: the whole match with the headless policy, in slices, then the report. */
+  const simulate = useCallback(async () => {
+    if (simulating || useAppStore.getState().worldJob) return;
+    setSimulating(true);
     try {
-      while (
-        current.state.match.status === 'live' &&
-        !current.state.captainDecisionPending &&
-        !current.state.substitutionDecisionPending &&
-        current.state.match.minute < fullTime(current)
-      )
-        current = applyMatchCommand(current, { type: 'advance' });
-      useAppStore.getState().setMatchSession(current);
-      setError('');
+      const [run] = await Promise.all([ensurePolicy(), loadWithRetry(loadChains)]);
+      let current = useAppStore.getState().matchSession;
+      for (
+        let slice = 0;
+        current && current.state.match.status !== 'finished' && slice < 400;
+        slice++
+      ) {
+        for (let step = 0; step < 30 && current.state.match.status !== 'finished'; step++)
+          current = applyMatchCommand(current, run(current));
+        await yieldTask();
+      }
+      if (current) useAppStore.getState().setMatchSession(current);
     } catch {
       setError(m.error);
+    } finally {
+      setSimulating(false);
     }
-  }, []);
-
-  useEffect(() => {
-    if (
-      !playing ||
-      status !== 'live' ||
-      state?.captainDecisionPending ||
-      state?.substitutionDecisionPending ||
-      job
-    )
-      return;
-    const pace = motionPace(motion!.kind, speed);
-    const passage = preparePlayback(motion!.frames, pace.rate, pace.maxMs);
-    const timer = window.setTimeout(
-      () => {
-        if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) {
-          setPlaying(false);
-          return;
-        }
-        command({ type: 'advance' });
-      },
-      Math.max(MINUTE_MS / speed, passage.duration + 80 / speed),
-    );
-    return () => window.clearTimeout(timer);
-  }, [
-    playing,
-    speed,
-    status,
-    state?.captainDecisionPending,
-    state?.substitutionDecisionPending,
-    motion,
-    job,
-    command,
-  ]);
-  useEffect(() => {
-    const pause = () => {
-      if (document.hidden) setPlaying(false);
-    };
-    const leave = () => setPlaying(false);
-    document.addEventListener('visibilitychange', pause);
-    window.addEventListener('pagehide', leave);
-    return () => {
-      document.removeEventListener('visibilitychange', pause);
-      window.removeEventListener('pagehide', leave);
-    };
-  }, []);
-  useEffect(() => {
-    const keydown = (event: KeyboardEvent) => {
-      if (
-        event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.repeat ||
-        document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]') ||
-        (event.target instanceof HTMLElement &&
-          (event.target.matches('input,select,textarea') || event.target.isContentEditable))
-      )
-        return;
-      const current = useAppStore.getState().matchSession;
-      if (!current) return;
-      if (
-        event.code === 'Space' &&
-        current.state.match.status === 'live' &&
-        !current.state.captainDecisionPending &&
-        !current.state.substitutionDecisionPending
-      ) {
-        event.preventDefault();
-        setOutcomeId(null);
-        setPlaying((value) => !value);
-      }
-      // Focus jumps to the first choice when a moment opens, so a Space pressed to play or
-      // pause must not pick that choice by accident; Enter and 1–4 choose.
-      if (event.code === 'Space' && current.state.currentMoment) event.preventDefault();
-      const choice = current.state.currentMoment?.choices[Number(event.key) - 1];
-      if (choice && /^[1-4]$/.test(event.key)) {
-        event.preventDefault();
-        command({ type: 'choose', choiceId: choice.id });
-      }
-      if (
-        current.state.currentMoment &&
-        ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
-      ) {
-        const buttons = Array.from(
-          choicesRef.current?.querySelectorAll<HTMLButtonElement>('button[data-choice]') ?? [],
-        );
-        const index = buttons.findIndex((button) => button === document.activeElement);
-        const direction = ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1;
-        event.preventDefault();
-        // Reveal the whole choice (clear of the phone tab bar); browsers differ in how far
-        // focus alone scrolls.
-        const next = buttons[(index + direction + buttons.length) % buttons.length];
-        next?.focus({ preventScroll: true });
-        next?.scrollIntoView({ block: 'nearest' });
-      }
-    };
-    window.addEventListener('keydown', keydown);
-    return () => window.removeEventListener('keydown', keydown);
-  }, [command]);
-
-  // Polite announcements: score changes, then the key moment or the latest commentary line.
-  useEffect(() => {
-    if (!scoreText) {
-      announcedScore.current = '';
-      return;
-    }
-    const scoreChanged = announcedScore.current !== '' && announcedScore.current !== scoreText;
-    announcedScore.current = scoreText;
-    setAnnouncement(
-      [scoreChanged ? scoreText : '', momentText || latestText].filter(Boolean).join(' '),
-    );
-  }, [scoreText, momentText, latestText, latestEvent?.id]);
-  // A new key moment moves focus to its first choice unless the player is typing elsewhere.
-  // Focus alone would scroll the camera away; instead the view starts at the camera and the
-  // choices under it (wide screens), or at the decision with its camera (phones).
-  useEffect(() => {
-    if (!momentId) return;
-    const active = document.activeElement;
-    if (
-      active instanceof HTMLElement &&
-      (active.matches('input:not([type="checkbox"]),select,textarea') || active.isContentEditable)
-    )
-      return;
-    const first = choicesRef.current?.querySelector<HTMLButtonElement>('button[data-choice]');
-    if (!first) return;
-    first.focus({ preventScroll: true });
-    const target = window.matchMedia(WIDE).matches
-      ? layoutRef.current
-      : first.closest<HTMLElement>('.match-decision');
-    target?.scrollIntoView({ block: 'start' });
-  }, [momentId]);
+  }, [simulating, ensurePolicy]);
 
   // Career fixtures: the session's setup names the scheduled fixture it plays.
   const careerResult = useAppStore((store) => store.careerResult);
+  // The recorded match's report survives a refresh (step 4.8).
+  useRestoredReport(
+    world,
+    active?.payload.kind === 'world' ? active.slot : null,
+    !session && !careerResult && !job,
+  );
   const careerFixture = session?.setup.fixture;
   const pending = world?.career && !session ? pendingCareerFixture(world) : null;
-  // Between seasons, the career player's nation's tournament match (review phase 3).
   const tournamentPending =
     world?.career && !session && !pending ? pendingTournamentFixture(world) : null;
-  // In an international window, the player's nation's match when they play it (0.9.0).
   const windowPending =
     world?.career && !session && !pending && !tournamentPending
       ? pendingWindowFixture(world)
       : null;
+  const prepareCareer = useCallback(() => {
+    try {
+      const current = useAppStore.getState().world;
+      if (!current || useAppStore.getState().worldJob || useAppStore.getState().matchSession)
+        return;
+      const fixture = pendingCareerFixture(current);
+      if (!fixture) return;
+      const setup = careerMatchSetup(current, fixture);
+      useAppStore
+        .getState()
+        .setMatchSession(createMatchSession(setup, defaultTactics(current, setup)));
+      setError('');
+    } catch {
+      setError(m.unavailable);
+    }
+  }, []);
+  // Play matchday goes straight to the pre-match screen: the fixture is prepared on arrival.
+  const pendingId = pending?.id;
+  useEffect(() => {
+    if (!pendingId || careerResult || job || useAppStore.getState().careerResult) return;
+    prepareCareer();
+  }, [pendingId, careerResult, job, prepareCareer]);
   const recordResult = useCallback(() => {
     const current = useAppStore.getState().matchSession;
     if (
@@ -428,37 +336,14 @@ export default function MatchBody() {
     previousStatus.current = status;
     if (status === 'finished' && was && was !== 'finished' && careerFixture) recordResult();
   }, [status, careerFixture, recordResult]);
-  const outcomeEvent = state?.match.events.find((event) => event.id === outcomeId);
-  const outcome = outcomeEvent?.outcome;
-  const outcomeMoment = outcome
-    ? state?.match.keyMoments.find((moment) => moment.id === outcome.input.momentId)
-    : undefined;
   // The career player's signature celebration after their goals (milestone 7).
   const celebrationItem =
     world?.career?.style?.equipped.celebration &&
     session?.setup.selectedPlayerId === world.career.playerId
       ? COSMETIC_BY_ID[world.career.style.equipped.celebration]
       : undefined;
-  const lastEvent = state?.match.events.at(-1);
-  const celebration =
-    celebrationItem?.motion &&
-    lastEvent?.kind === 'goal' &&
-    lastEvent.playerId === session?.setup.selectedPlayerId
-      ? { key: lastEvent.id, motion: celebrationItem.motion }
-      : null;
-  const canPlay =
-    status === 'live' &&
-    !state?.captainDecisionPending &&
-    !state?.substitutionDecisionPending &&
-    !job;
-  const deciding = Boolean(state?.currentMoment);
-  const camera = !settings.simulationOnly;
-  const replaying = Boolean(outcome && outcomeMoment && camera && motion?.kind === 'outcome');
-  // While the camera has the stage, the live pitch waits out of view.
-  const pitchAway = camera && (deciding || replaying);
   const reset = () => {
-    setPlaying(false);
-    setOutcomeId(null);
+    setMode('play');
     useAppStore.getState().setMatchSession(null);
   };
   const competition =
@@ -473,12 +358,31 @@ export default function MatchBody() {
           .join(' · ')
       : m.friendly;
   const inMatch = Boolean(session) && status !== 'preview' && status !== 'finished';
-  const numbers = session ? shirtNumbers(session.setup.players) : undefined;
+  // A step answered (the key moments opened, but for one still waiting).
+  const decided = Boolean(state && state.match.keyMoments.length > (state.currentMoment ? 1 : 0));
+  const committed =
+    careerResult && world?.career && (!session || status === 'finished') ? careerResult : null;
+  const reportSession = committed?.session ?? (status === 'finished' ? session : null);
+  const form: FormResult[] | undefined =
+    careerFixture && world?.career
+      ? recentForm(world.career).map((record) => record.result)
+      : undefined;
+  const kickoff = (next: ReelMode) => {
+    setMode(next);
+    if (chainsReady()) return command({ type: 'kickoff' });
+    void loadWithRetry(loadChains).then(
+      () => command({ type: 'kickoff' }),
+      () => setError(m.error),
+    );
+  };
+  const takeOver = useCallback(() => setMode('play'), []);
   return (
     <Page className={`match-page${inMatch ? ' is-live' : ''}`}>
-      <header className={`page-heading match-heading${inMatch ? ' is-quiet' : ''}`}>
+      {/* During play the scoreboard leads, and the report has its own title: one heading. */}
+      <header
+        className={`page-heading match-heading${session || reportSession ? ' is-quiet' : ''}`}
+      >
         <div>
-          {/* The competition (or a friendly); never a repeat of the title. */}
           {(careerFixture || !world?.career) && (
             <span className="eyebrow">
               {careerFixture && world
@@ -501,6 +405,9 @@ export default function MatchBody() {
         data-testid="match-state"
         data-status={status ?? 'selection'}
         data-minute={state?.match.minute ?? 0}
+        data-beat={beat}
+        data-mode={mode}
+        data-moment={state?.currentMoment?.id}
       >
         {status ? matchLabel(`match.status.${status}`) : m.selection}
       </span>
@@ -525,13 +432,15 @@ export default function MatchBody() {
         <p className="notice error match-notice" role="alert">
           <Icon name="warning" />
           <span>{error}</span>
+          {loadFailed && !world && (
+            <button type="button" className="text-button" onClick={retryLoad}>
+              {t.app.boundary.retry}
+            </button>
+          )}
         </p>
       )}
       {loading ? (
-        <section className="match-panel match-loading">
-          <span className="match-spinner" aria-hidden="true" />
-          <p role="status">{m.loading}</p>
-        </section>
+        <Loading />
       ) : !world ? (
         <section className="match-panel match-empty illustrated-empty max-w-3xl">
           <div className="grid justify-items-start gap-4">
@@ -546,97 +455,111 @@ export default function MatchBody() {
           </div>
           <FootballIllustration kind="match" />
         </section>
-      ) : !session && world.career ? (
-        careerResult ? (
-          <Report
-            session={careerResult.session}
-            career={{
-              outcome: careerResult.outcome,
-              recording: false,
-              onRecord: recordResult,
-              actions: <CareerReportActions world={world} outcome={careerResult.outcome} />,
-            }}
-          />
-        ) : pending ? (
-          <CareerFixture
-            world={world}
-            fixture={pending}
-            disabled={Boolean(job)}
-            onPrepare={() => {
-              try {
-                const current = useAppStore.getState().world;
-                if (!current || useAppStore.getState().worldJob) return;
-                const fixture = pendingCareerFixture(current);
-                if (!fixture) return;
-                const setup = careerMatchSetup(current, fixture);
-                useAppStore
-                  .getState()
-                  .setMatchSession(createMatchSession(setup, defaultTactics(current, setup)));
-                setError('');
-              } catch {
-                setError(m.unavailable);
+      ) : reportSession ? (
+        <Report
+          session={reportSession}
+          {...(committed
+            ? {
+                career: {
+                  outcome: committed.outcome,
+                  recording: false,
+                  onRecord: recordResult,
+                  actions: (
+                    <Suspense fallback={null}>
+                      <CareerReportActions world={world} />
+                    </Suspense>
+                  ),
+                },
               }
-            }}
-          />
-        ) : tournamentPending ? (
-          <TournamentMatch
-            world={world}
-            fixture={tournamentPending}
-            disabled={Boolean(job)}
-            onPrepare={() => {
-              // The nations' squads are built on demand: their generator stays out of this route.
-              void import('../engine/career/honours/nationalMatch')
-                .then(({ tournamentMatchSetup }) => {
-                  const current = useAppStore.getState().world;
-                  if (!current || useAppStore.getState().worldJob) return;
-                  const fixture = pendingTournamentFixture(current);
-                  if (!fixture) return;
-                  const setup = tournamentMatchSetup(current, fixture);
-                  useAppStore
-                    .getState()
-                    .setMatchSession(createMatchSession(setup, defaultTactics(current, setup)));
-                  setError('');
-                })
-                .catch(() => setError(m.unavailable));
-            }}
-          />
-        ) : windowPending ? (
-          <WindowMatch
-            world={world}
-            fixture={windowPending}
-            disabled={Boolean(job)}
-            onPrepare={() => {
-              void import('../engine/career/honours/nationalMatch')
-                .then(({ windowMatchSetup }) => {
-                  const current = useAppStore.getState().world;
-                  if (!current || useAppStore.getState().worldJob) return;
-                  const fixture = pendingWindowFixture(current);
-                  if (!fixture) return;
-                  const setup = windowMatchSetup(current, fixture);
-                  useAppStore
-                    .getState()
-                    .setMatchSession(createMatchSession(setup, defaultTactics(current, setup)));
-                  setError('');
-                })
-                .catch(() => setError(m.unavailable));
-            }}
-            onSimulate={() => {
-              // Honours actions load on demand: retirement's code stays out of this route.
-              void import('../engine/career/honours/actions')
-                .then(({ applyHonoursAction }) => {
-                  const current = useAppStore.getState().world;
-                  if (!current?.career || useAppStore.getState().worldJob) return;
-                  useAppStore
-                    .getState()
-                    .setWorld(applyHonoursAction(current, { type: 'simulate-window' }));
-                  setError('');
-                })
-                .catch(() => setError(m.unavailable));
-            }}
-          />
-        ) : (
-          <CareerNoMatch world={world} />
-        )
+            : reportSession.setup.fixture
+              ? {
+                  career: {
+                    outcome: null,
+                    recording: job?.type === 'commit-match',
+                    onRecord: recordResult,
+                    actions: null,
+                  },
+                }
+              : {
+                  onAgain: () => {
+                    setMode('play');
+                    useAppStore
+                      .getState()
+                      .setMatchSession(
+                        createMatchSession(reportSession.setup, reportSession.initialTactics),
+                      );
+                  },
+                  onNew: reset,
+                })}
+        />
+      ) : !session && world.career ? (
+        <Suspense fallback={<Loading />}>
+          {pending ? (
+            <CareerFixture
+              world={world}
+              fixture={pending}
+              disabled={Boolean(job)}
+              onPrepare={prepareCareer}
+            />
+          ) : tournamentPending ? (
+            <TournamentMatch
+              world={world}
+              fixture={tournamentPending}
+              disabled={Boolean(job)}
+              onPrepare={() => {
+                // The nations' squads are built on demand: their generator stays out of this route.
+                void import('../engine/career/honours/nationalMatch')
+                  .then(({ tournamentMatchSetup }) => {
+                    const current = useAppStore.getState().world;
+                    if (!current || useAppStore.getState().worldJob) return;
+                    const fixture = pendingTournamentFixture(current);
+                    if (!fixture) return;
+                    const setup = tournamentMatchSetup(current, fixture);
+                    useAppStore
+                      .getState()
+                      .setMatchSession(createMatchSession(setup, defaultTactics(current, setup)));
+                    setError('');
+                  })
+                  .catch(() => setError(m.unavailable));
+              }}
+            />
+          ) : windowPending ? (
+            <WindowMatch
+              world={world}
+              fixture={windowPending}
+              disabled={Boolean(job)}
+              onPrepare={() => {
+                void import('../engine/career/honours/nationalMatch')
+                  .then(({ windowMatchSetup }) => {
+                    const current = useAppStore.getState().world;
+                    if (!current || useAppStore.getState().worldJob) return;
+                    const fixture = pendingWindowFixture(current);
+                    if (!fixture) return;
+                    const setup = windowMatchSetup(current, fixture);
+                    useAppStore
+                      .getState()
+                      .setMatchSession(createMatchSession(setup, defaultTactics(current, setup)));
+                    setError('');
+                  })
+                  .catch(() => setError(m.unavailable));
+              }}
+              onSimulate={() => {
+                // Honours actions load on demand: retirement's code stays out of this route.
+                void import('../engine/career/honours/actions')
+                  .then(({ applyHonoursAction }) => {
+                    const store = useAppStore.getState();
+                    const current = store.world;
+                    if (!current?.career || worldBusy(store)) return;
+                    store.setWorld(applyHonoursAction(current, { type: 'simulate-window' }));
+                    setError('');
+                  })
+                  .catch(() => setError(m.unavailable));
+              }}
+            />
+          ) : (
+            <CareerNoMatch world={world} />
+          )}
+        </Suspense>
       ) : !session ? (
         job ? (
           <section className="match-panel match-busy">
@@ -644,14 +567,7 @@ export default function MatchBody() {
             <p role="status">{m.busy}</p>
           </section>
         ) : (
-          <Suspense
-            fallback={
-              <section className="match-panel match-loading">
-                <span className="match-spinner" aria-hidden="true" />
-                <p role="status">{m.loading}</p>
-              </section>
-            }
-          >
+          <Suspense fallback={<Loading />}>
             <Selection
               world={world}
               onPrepare={(home, away, player, seed) => {
@@ -672,244 +588,81 @@ export default function MatchBody() {
             />
           </Suspense>
         )
-      ) : (
-        <div className={inMatch ? 'match-live' : 'match-session'}>
-          <Scoreboard
+      ) : status === 'preview' ? (
+        <Suspense fallback={<Loading />}>
+          <Preview
             session={session}
-            status={status!}
-            playing={playing}
             competition={competition}
-            stadium={session.setup.neutral ? undefined : session.setup.home.stadium.name}
-            controls={
-              inMatch ? (
-                <MatchControls
-                  playing={playing}
-                  canPlay={canPlay}
-                  speed={speed}
-                  onToggle={() => {
-                    setOutcomeId(null);
-                    setPlaying(!playing);
-                  }}
-                  onSpeed={setSpeed}
-                  onNext={nextMoment}
-                />
+            form={form}
+            stake={
+              careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
+                <StakeLine world={world} fixture={world.fixtures[careerFixture.id]!} tone="panel" />
               ) : undefined
             }
+            selection={
+              careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
+                <CareerSelectionBriefing world={world} fixtureId={careerFixture.id} />
+              ) : undefined
+            }
+            onTactics={(tactics) =>
+              useAppStore.getState().setMatchSession(createMatchSession(session.setup, tactics))
+            }
+            onKickoff={() => kickoff('play')}
+            onWatch={() => {
+              void ensurePolicy()
+                .then(() => kickoff('watch'))
+                .catch(() => setError(m.unavailable));
+            }}
+            onSimulate={() => void simulate()}
+            simulating={simulating}
+            watchFirst={settings.simulationOnly}
+            onNewFixture={careerFixture ? undefined : reset}
           />
-          {status === 'preview' ? (
-            <Preview
-              session={session}
-              note={careerFixture ? c.report.previewNote : undefined}
-              stake={
-                careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
-                  <StakeLine
-                    world={world}
-                    fixture={world.fixtures[careerFixture.id]!}
-                    tone="panel"
-                  />
-                ) : undefined
-              }
-              selection={
-                careerFixture && world?.career && world.fixtures[careerFixture.id] ? (
-                  <CareerSelectionBriefing world={world} fixtureId={careerFixture.id} />
-                ) : undefined
-              }
-              onTactics={(tactics) =>
-                useAppStore.getState().setMatchSession(createMatchSession(session.setup, tactics))
-              }
-              onKickoff={() => {
-                command({ type: 'kickoff' });
-                setPlaying(false);
-              }}
-              onNewFixture={careerFixture ? undefined : reset}
-            />
-          ) : status === 'finished' && careerFixture ? (
-            <Report
-              session={session}
-              career={{
-                outcome: null,
-                recording: job?.type === 'commit-match',
-                onRecord: recordResult,
-                actions: null,
-              }}
-            />
-          ) : status === 'finished' ? (
-            <Report
-              session={session}
-              onAgain={() => {
-                setOutcomeId(null);
-                setPlaying(false);
-                useAppStore
-                  .getState()
-                  .setMatchSession(createMatchSession(session.setup, session.initialTactics));
-              }}
-              onNew={reset}
-            />
-          ) : (
-            <div className={`match-live-layout${deciding ? ' is-deciding' : ''}`} ref={layoutRef}>
-              <div className="match-live-main">
-                {deciding && (
-                  <DecisionPanel
-                    session={session}
-                    choicesRef={choicesRef}
-                    camera={camera}
-                    compact={!wide}
-                    reducedMotion={reduced}
-                    onChoose={(choiceId) => command({ type: 'choose', choiceId })}
-                  />
-                )}
-                {/* What the match is waiting on comes first. */}
-                {status === 'halftime' && (
-                  <HalfTimePanel
-                    session={session}
-                    world={world}
-                    onTalk={(response) => {
-                      setOutcomeId(null);
-                      command({ type: 'halftime', response });
-                    }}
-                  />
-                )}
-                {state!.captainDecisionPending && (
-                  <CaptainPanel
-                    session={session}
-                    onCall={(instruction) => command({ type: 'captain', instruction })}
-                  />
-                )}
-                {state!.substituted && (
-                  <SubstitutionPanel
-                    session={session}
-                    onResponse={(response) => command({ type: 'substitution', response })}
-                  />
-                )}
-                {state!.sentOff && <SentOffPanel session={session} />}
-                {replaying && outcomeMoment && (
-                  <DecisionReplay
-                    session={session}
-                    moment={outcomeMoment}
-                    compact={!wide}
-                    reducedMotion={reduced}
-                  />
-                )}
-                {outcome && outcomeMoment && (
-                  <OutcomePanel
-                    outcome={outcome}
-                    minute={outcomeMoment.minute}
-                    choice={matchLabel(
-                      outcomeMoment.choices.find((choice) => choice.id === outcome.input.choiceId)
-                        ?.labelKey ?? '',
-                    )}
-                    onContinue={() => {
-                      setOutcomeId(null);
-                      if (canPlay) setPlaying(true);
-                    }}
-                  />
-                )}
-                <section
-                  className={`match-panel match-stage${pitchAway ? ' is-away' : ' match-pitch-panel'}`}
-                  aria-labelledby="match-stage-heading"
-                >
-                  {settings.simulationOnly ? (
-                    <SimulationCard session={session} />
-                  ) : (
-                    <Suspense
-                      fallback={
-                        <p className="match-pitch-loading" role="status">
-                          {m.pitchLoading}
-                        </p>
-                      }
-                    >
-                      <Pitch
-                        frame={
-                          state!.currentMoment?.frame ?? state!.frames[state!.frames.length - 1]!
-                        }
-                        home={session.setup.home}
-                        away={session.setup.away}
-                        selectedPlayerId={session.setup.selectedPlayerId}
-                        numbers={numbers}
-                        motion={state!.motion.frames}
-                        {...motionPace(state!.motion.kind, speed)}
-                        reducedMotion={reduced}
-                        paused={!playing && status === 'live' && !outcomeId}
-                        still={pitchAway}
-                        celebration={celebration}
-                        label={matchFormat(pitchCopy.liveLabel, {
-                          formations: matchFormat(m.ui.formations, {
-                            home: session.setup.home.name,
-                            homeFormation: state!.match.home.formation,
-                            away: session.setup.away.name,
-                            awayFormation: state!.match.away.formation,
-                          }),
-                        })}
-                        overlay={<PitchOverlay session={session} />}
-                      />
-                    </Suspense>
-                  )}
-                  <div className="match-stage-body">
-                    <div className="match-stage-head">
-                      <h2 id="match-stage-heading">{session.setup.home.stadium.name}</h2>
-                      <span className="match-card-note">
-                        {matchFormat(m.ui.keyMoments, {
-                          count: state!.match.keyMoments.filter((moment) =>
-                            state!.match.events.some(
-                              (event) => event.outcome?.input.momentId === moment.id,
-                            ),
-                          ).length,
-                        })}
-                      </span>
-                      <label className="match-toggle">
-                        <input
-                          type="checkbox"
-                          role="switch"
-                          className="switch"
-                          checked={settings.simulationOnly}
-                          onChange={(event) =>
-                            useAppStore
-                              .getState()
-                              .updateSettings({ simulationOnly: event.target.checked })
-                          }
-                        />
-                        {m.simulation}
-                      </label>
-                    </div>
-                    <Timeline session={session} />
-                  </div>
-                </section>
-                <p className="match-shortcuts">{m.shortcuts}</p>
-              </div>
-              <aside className="match-live-aside" aria-label={m.stats}>
-                <RatingCard session={session} />
-                <StatsCard session={session} />
-                <CommentaryCard
-                  session={session}
-                  narration={narration}
-                  celebration={
-                    celebrationItem ? l.celebrations.names[celebrationItem.id] : undefined
-                  }
-                />
-              </aside>
-            </div>
-          )}
-        </div>
+        </Suspense>
+      ) : !chainsIn ? (
+        <Loading />
+      ) : (
+        <Suspense fallback={<Loading />}>
+          <ReelScreen
+            session={session}
+            world={world}
+            mode={mode}
+            policy={policy?.run ?? null}
+            apply={apply}
+            command={command}
+            competition={competition}
+            lines={lines}
+            celebration={celebrationItem ? celebrationNames[celebrationItem.id] : undefined}
+            occasions={occasions}
+            wide={wide}
+            vertical={vertical}
+            reduced={reduced}
+            busy={Boolean(job)}
+            announce={announce}
+            onBeat={setBeat}
+            onTakeOver={takeOver}
+          />
+        </Suspense>
       )}
       <Tutorial
         track="match"
         enabled={Boolean(session) && status !== 'finished'}
-        steps={[
+        steps={(tt) => [
           { target: 'tactics', ...tt.match.tactics, when: status === 'preview' },
           { target: 'kickoff', ...tt.match.kickoff, action: true, done: status !== 'preview' },
-          { target: 'controls', ...tt.match.controls, when: status === 'live' },
-          { target: 'live', ...tt.match.live, when: status === 'live' },
+          { target: 'controls', ...tt.match.controls, when: inMatch && beat === 'ticker' },
           {
             target: 'decision',
             ...tt.match.decision,
-            when: status === 'decision',
+            when: beat === 'card',
             action: true,
-            done: Boolean(outcome),
+            done: decided,
           },
+          // After the first answer only, so the decision's step is never skipped past.
           {
-            target: 'outcome',
+            target: 'controls',
             ...tt.match.outcome,
-            when: Boolean(outcome) || status === 'live',
+            when: inMatch && beat === 'ticker' && decided,
           },
         ]}
       />

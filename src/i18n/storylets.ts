@@ -1,13 +1,13 @@
+import { LOCALE, plurals, type Translations } from './locale';
 /**
  * Story arcs: each story's title, its scene, its choices and every way it can end.
  * Parameters: {teammate}, {manager}, {rival}, {club}, {city}, {weeks}, {goals}, {rivalGoals}.
  */
-export const storyletsText = {
+const storyletsTextEn = {
   card: {
     eyebrow: 'This week',
     respond: 'Decide by the end of week {week}. Unanswered: {lapse}',
-    followUp: 'Settled in {weeks} weeks',
-    followUpOne: 'Settled next week',
+    followUp: plurals({ one: 'Settled next week', other: 'Settled in {weeks} weeks' }),
     waiting: 'You chose: {choice}. We will see how it plays out by week {week}.',
     who: 'Who it pleases',
     up: 'pleases',
@@ -224,3 +224,6 @@ export const storyletsText = {
     },
   } as Record<string, { subject: string; body: string }>,
 } as const;
+export const storyletsText = (
+  { en: storyletsTextEn } satisfies Translations<typeof storyletsTextEn>
+)[LOCALE];

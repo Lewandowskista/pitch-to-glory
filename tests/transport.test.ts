@@ -96,3 +96,34 @@ describe('bounded worker transport', () => {
     expect(({} as Record<string, unknown>).changed).toBeUndefined();
   });
 });
+
+describe('payloads without a world (step 3.5)', () => {
+  it('go as one structured clone, with transferables moved', async () => {
+    const packets: unknown[] = [];
+    const transfers: Transferable[][] = [];
+    const session = {
+      setup: {
+        players: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`p${i}`, { i }])),
+      },
+      commands: Array.from({ length: 200 }, () => ({ type: 'advance' })),
+    };
+    // World bytes are a leaf: never walked index by index (a 75 MB world was, once).
+    const bytes = new Uint8Array(20_000_000);
+    const started = performance.now();
+    await sendChunked(
+      {
+        postMessage: (message: unknown, transfer?: Transferable[]) => {
+          packets.push(message);
+          transfers.push(transfer ?? []);
+        },
+      },
+      { requestId: 'r', operation: 'write', value: { matchSession: session }, bytes },
+      () => false,
+      [bytes.buffer],
+    );
+    expect(packets).toHaveLength(1);
+    expect(packets[0]).toMatchObject({ value: { matchSession: session } });
+    expect(transfers[0]).toEqual([bytes.buffer]);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+});

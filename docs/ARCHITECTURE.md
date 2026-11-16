@@ -6,9 +6,12 @@
 > Milestone 11 (Android) has not started; Capacitor is not installed. Since 20 October the
 > [review plan](REVIEW-PLAN-2026-10-20.md) has been carried out through Phase 6, with measurements in
 > [REVIEW-PROGRESS-2026-10-20.md](REVIEW-PROGRESS-2026-10-20.md) and rules in [BALANCING.md](BALANCING.md).
-> Live versions: save schema **22**; match engine **match-21** (earlier sessions replay on their
-> own engine); career development rules **3**; world flags `selectionVersion` 1,
-> `achievements` 1 and `economyVersion` 1 (adopted at a season start by older saves).
+> Live versions ([COMPATIBILITY.md](COMPATIBILITY.md)): save schema **23**; match engine
+> **match-22**, with **match-21** kept as the previous engine (sessions from earlier engines
+> restart from kick-off); career development
+> rules **3**; world flags `developmentVersion` 2, `selectionVersion` 1, `achievements` 1 and
+> `economyVersion` 1, adopted once by older saves when they load (`engine/world/rules.ts`).
+> Legacy compact worlds keep their frozen sporting rules in `engine/world/legacy.ts`.
 >
 > Since this document's milestone notes: the engine gained tournaments played round by round
 > and qualification (`career/honours/international.ts`, `nationalMatch.ts`), weekly commitments
@@ -42,7 +45,8 @@ src/
     strength.ts       Team strength model shared by background and interactive matches
     config.ts         Tunable constants; no browser dependencies
   model/              Serializable domain contracts below
-  persistence/        Dexie tables, schema upgrades, validation, slot repository
+  persistence/        Dexie tables, schema upgrades, validation (persistence worker only), the
+                      tab's worker-backed repository, slot locks and the lazy save system
   store/              Zustand settings, gallery, world/job, match and active-save slices
   hooks/              Autosave and browser lifecycle integration
   platform/           Platform interface and web implementation
@@ -56,14 +60,20 @@ src/
   i18n/               English strings and translation entry point
   assets/             Authored SVG brand and PWA icons
   workers/            Simulation and persistence workers, bounded message transport
-tests/                 Vitest engine/persistence/worker tests with fake IndexedDB
-e2e/                   Playwright browser journeys
+tests/                 Vitest engine/persistence/worker tests with fake IndexedDB; the fast project, and
+                       the slow project (*.slow.test.ts: statistical gates, soaks, multi-season worlds)
+  support/             The shared national test world and career, built once per engine revision
+e2e/                   Playwright browser journeys; support.ts holds their `test`, which fails a
+                       journey on any console error, page error or unhandled rejection
+types/                 engine-runtime.d.ts: the globals the engine may use (tsconfig.engine.json)
 docs/                  Architecture, decisions, balance and release instructions
 public/                Static SVG icons and share artwork
 .github/workflows/     Validation, browser tests and optional Netlify deployment
 ```
 
 Dependencies point inward: UI → store/repositories/platform; store → model/engine; persistence → model/validation. Engine imports only other pure engine modules and model types, never React, Zustand, Dexie, DOM APIs or platform code. SVG output is a string produced from validated recipes, never user-provided markup.
+
+The boundary is checked, not only described. ESLint's engine block (`eslint.config.js`) bans browser globals, UI, storage and platform imports, `Math.random` and the wall clock (`Date.now`, `performance.now`, `new Date()`, `Date()`): every random draw goes through the seeded RNG and every date arrives as an argument. `npm run typecheck` also compiles `src/engine` and `src/model` alone with `tsconfig.engine.json`: the ES2023 library with no DOM or Node types, plus the few globals every runtime shares (`types/engine-runtime.d.ts`: `structuredClone`, `TextEncoder`, `TextDecoder`, `atob`, `btoa`).
 
 ## Domain types
 
@@ -1381,22 +1391,6 @@ export interface SaveFile {
   revision: number;
   payload: SavePayload;
 }
-export interface SaveV1 {
-  format: 'pitch-to-glory';
-  schemaVersion: 1;
-  slot: SlotId;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  seed: string;
-}
-export interface SlotSummary {
-  slot: SlotId;
-  name: string;
-  updatedAt: string;
-  kind: SavePayload['kind'];
-  revision: number;
-}
 ```
 
 Save payloads are validated `FoundationState` or `WorldState`; a career travels inside the world as `World.career` (see the career section below).
@@ -1409,46 +1403,133 @@ The national calendar has 60 abstract weeks; the legacy calendar has 34. Workers
 
 The engine receives explicit data and an explicit RNG. `mulberry32` hashes text seeds once, exposes draws and serializable state, and can resume a sequence exactly. Asset generators use scoped seeds so changing gallery counts cannot alter a career simulation stream. Recipes persist; SVG strings are derived at render time. Age is a renderer input so a player's identity remains consistent over time.
 
-Zustand uses settings, gallery, world/job and session slices. Components select small slices. Ordinary edits debounce autosave; worker checkpoints flush it immediately. A world snapshot includes its current gallery/preferences; a foundation collection excludes world data. Writes are serialized and atomic. Failed writes remain dirty and surface recovery actions instead of reporting success.
+Zustand uses settings, gallery, world/job and session slices. Components select small slices. Ordinary edits debounce autosave; a world job's checkpoints are written as it runs (see "World worker, checkpoints and crash safety"). A world snapshot includes its current gallery/preferences; a foundation collection excludes world data. Writes are serialized and atomic. Failed writes remain dirty and surface recovery actions instead of reporting success.
 
-The module worker runs the same pure generation/simulation functions as Vitest. RNG state travels inside `World`. `simulateWeek` and `startNextSeason` return a copy by default; the worker passes `{ inPlace: true }` because it owns its world and each checkpoint is fully posted before the next week mutates it.
+The module worker runs the same pure generation/simulation functions as Vitest. RNG state travels inside `World`. `simulateWeek` and `startNextSeason` return a copy by default; the worker passes `{ inPlace: true }` because it owns its world: each checkpoint is encoded to bytes before the next week changes it, and a job that fails part-way drops the world it may have half-changed.
 
-The squad lifecycle (`engine/world/lifecycle.ts`) runs at the intake week and transfer windows for clubs in simulated leagues: age-curve retirement, contract renewal or release, academy intake, trimming, and free-agent signings with generated trialists as a last resort. Clubs below the simulated frontier are dormant and reused for later feeder admissions. At rollover, retired players move to `World.archive`, events older than the previous season are dropped and unemployed managers are removed, which keeps the world bounded (see BALANCING.md). A season job posts each weekly checkpoint and waits for acknowledgement after the store commit and autosave finish. Save failure halts further simulation and retains the dirty checkpoint. Cancellation terminates the worker, waits for startup/checkpoint storage to settle and retains the last committed week. Generation replaces the in-memory world through a guarded handoff, detaching its previous slot without overwriting it. Busy jobs block save-slot mutation. UI animation timing never controls randomness. An unfinished friendly prevents advancing or replacing its source world.
+The squad lifecycle (`engine/world/lifecycle.ts`) runs at the intake week and transfer windows for clubs in simulated leagues: age-curve retirement, contract renewal or release, academy intake, trimming, and free-agent signings with generated trialists as a last resort. Clubs below the simulated frontier are dormant and reused for later feeder admissions. At rollover, retired players move to `World.archive`, events older than the previous season are dropped and unemployed managers are removed, which keeps the world bounded (see BALANCING.md). A season job writes a checkpoint after every week and runs at most `workers.maxUncommittedWeeks` weeks ahead of storage. Save failure halts further simulation and publishes the simulated world as unsaved (dirty), so autosave retries it. Cancellation stops the worker at the end of the week in hand, with that week committed, and publishes it. Generation replaces the in-memory world through a guarded handoff, detaching its previous slot without overwriting it. Busy jobs block save-slot mutation. UI animation timing never controls randomness. An unfinished friendly prevents advancing or replacing its source world.
 
-Worker transport breaks large graphs into bounded entity batches and yields while sending. Inside a world it splits again any record wider than `workers.transportWideKeys` keys, or a small record holding one (archived players, season statistics, discipline records, archived seasons' tables), so no single message carries megabytes. Receivers assemble an unpublished snapshot and expose it only after the end marker; cancellation cannot publish a partial world. Simulation completion sends a small phase notification after the final durable checkpoint rather than echoing the whole graph again.
+Worker transport breaks a world object into bounded entity batches and yields while sending (the tab's whole-world sync to the world worker, a load from the persistence worker). Inside a world it splits again any record wider than `workers.transportWideKeys` keys, or a small record holding one (archived players, season statistics, discipline records, archived seasons' tables), so no single message carries megabytes. Receivers assemble an unpublished snapshot and expose it only after the end marker; cancellation cannot publish a partial world. A message without a world (a match session, patches, a request, world bytes) goes as one structured clone, with world bytes moved rather than copied (finding P7: a finished session was 30,046 patches in 941 messages).
 
-A persistent persistence worker performs save validation, migrations, JSON parsing/formatting and IndexedDB reads/writes. The browser repository delegates to this service; Node tests use the same local repository directly. Write receipts carry normalized envelope/preferences without repeating the world, and the UI retains its immutable submitted snapshot. Imports always undergo complete validation. Ownership and expected revision are checked inside the original atomic IndexedDB transaction. Cancelling simulation never terminates an in-flight persistence operation. A lightweight main-thread Dexie count observes the slot key range so worker mutations refresh save cards without reading large records on the UI thread.
+A persistent persistence worker performs save validation, migrations, JSON parsing/formatting and IndexedDB reads/writes. Write receipts carry normalized envelope/preferences without repeating the world or the match session, and the UI retains its immutable submitted snapshot. Imports and loads always undergo complete validation; the app's own world writes do not (below). Ownership and expected revision are checked inside the original atomic IndexedDB transaction. Cancelling simulation never terminates an in-flight persistence operation. The main thread never opens IndexedDB or loads Dexie or the validators: `WorkerSaveRepository` (`persistence/browserRepository.ts`) only sends requests (`persistence/protocol.ts`), and Node tests use the local `SaveRepository` (`persistence/repository.ts`). After each committed change the worker announces the database on the `pitch-to-glory:saves` BroadcastChannel; `saves.watch` re-lists the slots on that announcement, from any tab, and after this tab's own changes, which keeps the Saves screen current as Dexie's `liveQuery` did.
+
+### World worker, checkpoints and crash safety (release 1.0 Phase 3)
+
+One world worker lives as long as the loaded save (`workers/host.ts` on the tab, `workers/hostCore.ts` in the worker, messages in `workers/protocol.ts`). It holds its own copy of the world between jobs. Every world it holds carries a token the tab chose; the tab remembers which of its world objects that token stands for (`base`).
+
+```text
+UI action ──(new world, structural sharing)──▶ store.world
+   │                                              │
+   │ autosave: diffWorld(stored, store.world)      │ job: diffWorld(base, store.world)
+   ▼                                              ▼
+persistence worker ◀── patches (small) ──  tab ── patch | whole world once ──▶ world worker
+   ▲                                       ▲  ▲                                  │ simulate a week
+   │ bytes moved, not parsed               │  └── result: world bytes, once ────┤ encode JSON bytes
+   └──────────── write-world ──────────────┘◀──── checkpoint bytes, each week ───┘ (≤ 2 uncommitted)
+```
+
+- **Sending the world (3.2).** A job on the same object the worker holds sends nothing. After UI changes it sends only `diffWorld(base, world)`: UI actions copy what they change and share the rest (`tests/action-immutability.test.ts`), so the diff visits only the change and costs about a millisecond. A newly loaded save, a crashed worker or a diff over `workers.maxSyncPatches` sends the whole world once, in bounded batches; after a load this happens when the browser is idle, so the first Continue does not wait for it. Loading another save stops the worker (freeing its memory) and the next one starts fresh. Measured choice: a patch for a press answer or purchase is a few hundred bytes, while the whole late world costs the UI thread about 0.2 s of batches and the worker 0.6 s to rebuild; and after a week about 76% of the world's bytes have changed (13,600 of 29,000 players), so the worker publishes the whole world rather than a diff.
+- **Checkpoints (3.3).** For a saved world the worker encodes each changed world once as UTF-8 JSON (`workers/worldCodec.ts`: exactly `JSON.stringify(world)`, written entry by entry, with the byte range of each part). A copy of the bytes goes to the tab as a checkpoint; the tab moves it (no copy, no parse) to the persistence worker's `write-world`, in the autosave queue so writes never interleave, and acknowledges it to the worker. The worker runs at most `workers.maxUncommittedWeeks` (2) checkpoints ahead of storage, waits otherwise, and stops when one is refused. The persistence worker stores the bytes as they are (`worlds` record `{ slot, bytes }`; records from before 1.0 hold a `world` object and still read). The tab relays rather than the two workers sharing a `MessageChannel`: relaying a moved buffer costs the UI thread under a millisecond, and keeps one owner for the persistence worker's lifecycle, watchdog and revision chain, so a restarted persistence worker never leaves a dangling port.
+- **Publishing (3.3).** At the end of a job the worker publishes its world once: the last checkpoint's bytes, moved to the tab, which decodes them part by part in slices of `workers.decodeSliceMs` (`decodeWorld`). The store takes the decoded world when the job's last checkpoint has committed (`publishWorld`), together with the slot's new revision, so the screen ends on the committed world and "All changes saved" is true when shown; per week the tab receives only progress. A job whose world did not change publishes nothing.
+- **Small changes (3.4).** A UI change to a saved world is written as patches (`workers/worldPatch.ts`) appended to the slot's index record (`worldPatches`), beside the stored world, when the tab knows the stored world exactly (`session.ts`, `stored`: set by a load of a current-schema save, a whole write or a published checkpoint, at the slot's revision). A read applies them in order before validation; the next whole write clears them. Over `saves.maxWorldPatches` or `saves.maxPatchBytes`, or when the stored world is not known exactly (a migrated save, a write in doubt), the world is written whole through the world worker. Patches that no longer apply or validate are dropped on load with the `changes-discarded` notice, never the save.
+- **Crash safety.** A committed checkpoint is never lost: each is one IndexedDB transaction under the lease and revision checks. When the world worker stops during a job (a crash, or no answer within 30 s of a cancel), the tab waits for checkpoints in flight; if any committed, it loads the slot's last committed week from storage, otherwise its own world is still the latest. The worker never runs more than two uncommitted weeks ahead, and those are simulated again from the committed week, deterministically, so no week is lost or simulated twice in the save (`tests/worker-client.test.ts` compares the result with an uninterrupted simulation). An unsaved world keeps the world it had when the job started. A job that fails part-way makes the worker drop its world; the tab sends its own copy to the next job.
+- **Validation (3.1).** The app's own whole-world writes (checkpoints, autosave, save to a slot) skip `validateWorld`: the engine made the world, the bytes are never parsed by the persistence worker, and the next load or import validates everything, with the recovery export behind it. What a write still checks: the slot, preferences, the bytes' bounds, the summary and session shapes, and inside its transaction the lease, the expected revision and that a checkpoint never replaces another world. `migrateSave` must leave a current-schema world unchanged, as patches rely on it.
+- **Persistence watchdog (S9, from Phase 4.5).** The persistence worker answers every request, `ok: false` on any failure, even one while sending its reply. A request without an answer in `saves.requestTimeoutMs` (leases: `saves.leaseTimeoutMs`) restarts the worker and fails with `storage`; a write that fails so is in doubt (`PersistenceInterrupted`). If the next write to the slot then meets a conflict, the tab checks the stored revision: one past the lost write's means it committed (the slot is the tab's, under its lock), so the write goes on from there, whole, instead of reporting a false conflict.
 
 ```typescript
-type WorkerRequest =
-  | { requestId: Id; type: 'generate'; seed: string }
-  | { requestId: Id; type: 'simulate-week' | 'simulate-season' | 'next-season'; world: World }
-  | { requestId: Id; type: 'ack'; completedWeeks: number }
-  | { requestId: Id; type: 'cancel' };
-type WorkerResponse =
-  | { requestId: Id; type: 'progress'; completedWeeks: number; totalWeeks: number }
-  | { requestId: Id; type: 'checkpoint'; world: World; completedWeeks: number; totalWeeks: number }
-  | { requestId: Id; type: 'result'; world: World }
-  | { requestId: Id; type: 'complete'; phase: World['phase'] }
-  | { requestId: Id; type: 'cancelled'; world: World | null }
-  | { requestId: Id; type: 'error'; code: 'invalid' | 'busy' | 'simulation' };
+type HostRequest =
+  | { type: 'sync'; token: number; world: World }
+  | { type: 'patch'; from: number; token: number; patches: WorldPatch[] }
+  | {
+      type: 'job';
+      requestId: Id;
+      job: JobSpec;
+      token: number | null;
+      resultToken: number;
+      checkpoints: boolean;
+    }
+  | { type: 'committed' | 'commit-failed'; requestId: Id; checkpoint: number }
+  | { type: 'cancel'; requestId: Id }
+  | { type: 'encode'; requestId: Id; token: number }
+  | { type: 'drop' };
+type HostResponse =
+  | { type: 'synced' | 'sync-failed'; token: number }
+  | { type: 'progress'; requestId: Id; completedWeeks: number; totalWeeks: number }
+  | {
+      type: 'checkpoint';
+      requestId: Id;
+      checkpoint: number;
+      worldId: string;
+      summary: WorldSummary;
+      bytes: Uint8Array;
+    }
+  | {
+      type: 'result';
+      requestId: Id;
+      end: 'done' | 'cancelled' | 'stopped';
+      world: { bytes: Uint8Array; parts: WorldPart[]; token: number } | null;
+      checkpoints: number;
+      checkpointed: boolean; /* … */
+    }
+  | { type: 'encoded'; requestId: Id; worldId: string; summary: WorldSummary; bytes: Uint8Array }
+  | { type: 'error'; requestId: Id; code: 'busy' | 'stale' | 'simulation' };
 ```
+
+Measured on the 78.6 MB late save with `e2e/performance.spec.ts` (Apple M1 Pro, 25 October 2026; "exact" is timed inside the page, the polled figures include Playwright's polling interval):
+
+| Metric                                                                        | Before Phase 3                            | After 3.1–3.5                                                       | 1.0 target      |
+| ----------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------- | --------------- |
+| One-week Continue, desktop, to the matchday                                   | 1.71 s exact (2.19 s polled)              | 1.44 s exact (2.11 s polled)                                        | ≤ 1.2 s         |
+| One-week Continue, desktop, to saved                                          | 3.29 s exact (3.67 s polled)              | 1.44 s exact (2.12 s polled)                                        | ≤ 2 s           |
+| One-week Continue, phone profile, to saved (workers scaled ×4)                | 17.4 s                                    | 6.7 s                                                               | ≤ 5 s           |
+| Rest of the season (27 weeks), desktop, until saved                           | 84 s (3.1 s a week, about 187 s a season) | 23.6 s (0.87 s a week, about 52 s a season)                         | ≤ 75 s a season |
+| Longest main-thread task during Continue, desktop / phone                     | 75–102 ms / 305–330 ms                    | 87 ms / 344 ms                                                      | ≤ 200 ms        |
+| Peak heap across threads during Continue, desktop / phone                     | 667–773 MB / 557–579 MB                   | 404–455 MB / 327 MB                                                 | ≤ 400 MB        |
+| First hub load of a day until its challenge refresh is saved, desktop / phone | 3.69 s / 7.44 s                           | 2.35 s / 4.22 s (both include a 0.6 s wait past the autosave delay) | —               |
+
+The one-week Continue's remaining time is the simulation itself (about 0.7 s of the worker's 1.1 s; step 3.8 caches the engine's hot spots), the encoding (0.33 s) and the UI thread's decoding (0.35 s). The phone's longest task is the hub's re-render after the new world, as before (step 3.10).
 
 ## Persistence and tab ownership
 
-Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`). Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; v7 adds the optional career and development version; v8 adds the optional identity version and division references; v9 gives each career its market record, the agent pool and club relationships; v10 adds the social records (rival, cliques, teammates, media, morale history); v11 adds the career style record, sponsorships and challenges; v12 adds honours; v13 admits optional edits, audio and tutorial settings; v14 adds optional current-season competition statistics (`World.seasonStats`), which validation bounds and checks against every current-season result (each club's goals per competition). Earlier files migrate unchanged; a world without statistics keeps its earlier award mode until its next season.
+Database and file schema versions are independent. DB v1 holds slots; v2 adds revision indexing; v3 migrates collections and supports worlds; v4 admits versioned national pyramids; v6 splits each slot into a metadata record (`saves`), the world graph (`worlds`) and the match session (`matches`); v7 (release 1.0) adds the rotating backups (`backups`, `backupData`, below) and changes nothing stored before. Database upgrades never validate: v1–v5 records migrate lazily on read, and the v6 upgrade only moves data, leaving malformed records untouched so one damaged slot cannot abort the upgrade. File schema v6 adds optional archive, release-season, event-kind and match-engine-version fields; v7 adds the optional career and development version; v8 adds the optional identity version and division references; v9 gives each career its market record, the agent pool and club relationships; v10 adds the social records (rival, cliques, teammates, media, morale history); v11 adds the career style record, sponsorships and challenges; v12 adds honours; v13 admits optional edits, audio and tutorial settings; v14 adds optional current-season competition statistics (`World.seasonStats`), which validation bounds and checks against every current-season result (each club's goals per competition). Earlier files migrate unchanged; a world without statistics keeps its earlier award mode until its next season.
 
-Reads assemble and fully validate one slot. A world that fails validation rejects the save; an attached match session that is from another match-engine version, fails replay or no longer matches the world is discarded with a `match-discarded` recovery notice while the world is kept. Writes stay strict. National profiles are compared by rule fingerprint for their profile version, so corrected citations or descriptions never invalidate saves. The slot list reads metadata only and reports `ready`, `empty` or `error` per slot. Writes that leave the world graph unchanged (match checkpoints, preferences) update metadata and the session without transferring, validating or storing the world. Timestamps never run backwards: every write stores the later of the device time and the slot's `createdAt`, and a read treats an `updatedAt` before `createdAt` (from a device clock that ran behind, before 0.9.1) as `createdAt` instead of rejecting the save; imports from a device whose clock ran ahead are stamped the same way. Backups are compact JSON. File v1 → v2 adds settings/gallery/engine version/revision; v2 → v3 preserves those values and adds the world payload capability; v3 → v4 preserves each existing world and its rules without regeneration. Import checks the 128 MiB limit, format/version/timestamps/slot/settings and every implemented world entity. World validation checks bounded values, rosters, foreign keys, fixture pair/calendar coverage, tables reconstructed from results, cup progression and archive structure before a transaction. Malformed/future files never replace valid saves. Web Locks are preferred; transactional heartbeat leases provide a fallback. Revision checks prevent stale writes even after ownership loss. Cancelled generation reacquires a retained session's slot after cleanup, or reports a lock/storage error. Switching slots and unload release ownership; crashed fallback leases expire.
+File schema v15–v22 added optional fields (see the comments in `src/persistence/schema.ts`). Releases 0.4.0 to 0.9.1 then added further optional fields under v22, so v23 changes nothing stored and marks the shape from which `npm run check:save-shape` holds every persisted-shape change to a schema bump ([RELEASING.md](RELEASING.md), "Save schema"): it hashes the types reachable from `SaveFile` with the TypeScript compiler API and compares them with `src/persistence/saveShape.json`. Real files exported by past releases (`tests/fixtures/saves`, made by `scripts/make-golden-save.ts`) are imported, played on and round-tripped by `tests/golden-saves.test.ts`.
 
-Only three slot IDs are accepted at every repository boundary. Export uses JSON downloads. A **recovery export** reads a slot's `saves`, `worlds` and `matches` records in a read-only transaction in the persistence worker and downloads them, reassembled into the backup envelope but neither migrated nor validated, as `pitch-to-glory-slot-<n>-recovery-<date>.json`; it is offered on unreadable slots, in their delete and replace confirmations and when a load or export fails validation, and never writes. When the in-memory session fails validation, "Export unsaved copy" falls back to the same unchecked envelope around the snapshot. Import uses a labelled native file input. Delete and replacement use URL-backed confirmation dialogs so back/Esc cancels. Browser storage persistence is requested only from a user action explaining that it reduces eviction; export remains available because persistence is not a backup.
+Reads assemble and fully validate one slot, applying its stored patches first. A world that fails validation is tried again without an optional part (the salvage load, below) and otherwise rejects the save; an attached match session that is from another match-engine version, fails replay or no longer matches the world is discarded with a `match-discarded` recovery notice while the world is kept. Imports stay strict; the app's own world writes are checked for shape, ownership and revision only (step 3.1, above). National profiles are compared by rule fingerprint for their profile version, so corrected citations or descriptions never invalidate saves. The slot list reads metadata only and reports `ready`, `empty` or `error` per slot. Writes that leave the world graph unchanged (match checkpoints, preferences) update metadata and the session without transferring, validating or storing the world. Timestamps never run backwards: every write stores the later of the device time and the slot's `createdAt`, and a read treats an `updatedAt` before `createdAt` (from a device clock that ran behind, before 0.9.1) as `createdAt` instead of rejecting the save; imports from a device whose clock ran ahead are stamped the same way. Backups are compact JSON, written gzip-compressed (below). File v1 → v2 adds settings/gallery/engine version/revision; v2 → v3 preserves those values and adds the world payload capability; v3 → v4 preserves each existing world and its rules without regeneration. Import checks the 128 MiB limit on the uncompressed JSON, format/version/timestamps/slot/settings and every implemented world entity. World validation checks bounded values, rosters, foreign keys, fixture pair/calendar coverage, tables reconstructed from results, cup progression and archive structure before a transaction. Malformed/future files never replace valid saves. Web Locks are preferred; transactional heartbeat leases provide a fallback. The native lock is held by the tab (`SlotLocks`, `persistence/locks.ts`); the lease record lives in IndexedDB and is written by the persistence worker on the tab's behalf (`lease-acquire`, `lease-release`, `persistence/leaseLock.ts`). Lease requests skip the worker's save queue and the chunked transport in both directions, so a heartbeat never waits behind a large world, and every write still checks the lease inside its own transaction. Revision checks prevent stale writes even after ownership loss. Cancelled generation reacquires a retained session's slot after cleanup, or reports a lock/storage error. Switching slots and unload release ownership; crashed fallback leases expire.
+
+Only three slot IDs are accepted at every repository boundary. Export downloads a backup file (below). A **recovery export** reads a slot's `saves`, `worlds` and `matches` records in a read-only transaction in the persistence worker and downloads them, reassembled into the backup envelope but neither migrated nor validated, as `pitch-to-glory-slot-<n>-recovery-<date>.json.gz`; it is offered on unreadable slots, in their delete and replace confirmations and when a load or export fails validation, and never writes. When the in-memory session fails validation, "Export unsaved copy" falls back to the same unchecked envelope around the snapshot. Import uses a labelled native file input.
+
+**Backup files (step 3.7, `persistence/backup.ts`).** Every export (a slot's backup, a recovery copy, "Export unsaved copy") is packed in the persistence worker: the JSON becomes a `Blob` (whose size is its UTF-8 length, measured without another copy), is refused with `large` above `saves.maxFileBytes` (128 MiB, the import limit, so no backup is written that could not be imported again; the Saves screen says why), and is piped through `CompressionStream('gzip')` where the browser has it. The worker answers with a `BackupFile` (`{ name, file, compressed, bytes, nearLimit }`); the tab only hands the `Blob` to `platform.saveFile` as `pitch-to-glory-<slot-n|unsaved>-<date>.json.gz` (`application/gzip`), or `.json` (`application/json`) without `CompressionStream`, and adds a non-blocking warning above `saves.warnExportBytes` (100 MiB). Import goes the other way: `platform.readFileBlob` checks the picked file's size and passes the `File` itself to the worker (`validate`, then `import`), which tells gzip from plain JSON by the magic bytes `1f 8b`, never by the name, so every plain backup from earlier releases still imports. A gzip file over `saves.maxCompressedFileBytes` (64 MiB) is refused before reading; it is inflated with `DecompressionStream`, counting bytes as they arrive, and refused with the same `large` error as soon as the output passes 128 MiB, so a decompression bomb never holds more than the limit. The known byte length goes to `parseSave`, which otherwise counts UTF-8 bytes without encoding the string (`withinUtf8Bytes`). Damaged gzip is `invalid`. The late save (65.5 MiB of JSON after retention) exports as 7.6 MiB of gzip; in Node the export takes 1.6 s and a gzip import 1.1 s, of which inflating is 0.16 s.
+
+Delete and replacement use URL-backed confirmation dialogs so back/Esc cancels. Browser storage persistence is requested only from a user action explaining that it reduces eviction (the Saves screen's "Protect local saves", which also shows whether it was granted and how much of the browser's quota the saves and backups use); it is not requested at the first save. Export remains available because persistence is not a backup.
+
+### Backups, salvage and storage (release 1.0 Phase 4)
+
+**Rotating backups (step 4.3, `persistence/backups.ts`).** Dexie v7 adds two tables: `backups` holds what each generation is (`BackupInfo`: slot, kind, when it was taken, the save's name and revision, the world's id, season and week, its size) and the latest skip per slot (`BackupSkip`); `backupData` holds the generation's records (the slot record with any patches, the world's bytes and the match session). Listing reads only the first. Each slot keeps up to three generations, one of each kind:
+
+| Kind      | Taken                                                                                                                                                | Why                                                         |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `season`  | After a whole write (`writeWorld`, `store`: checkpoints, saving to a slot, import) whose world is another world, or in a later season, than the copy | A restore point at most one season old                      |
+| `day`     | After a load that passed every check, the first of a calendar day on the device                                                                      | A state known to load, at most a day of play behind         |
+| `salvage` | After a salvage load (step 4.4), when the records it read are not yet kept                                                                           | The original of a repaired save, until it is salvaged again |
+
+The two mechanisms differ on purpose: `season` follows the play inside a long session, and `day` is never an unverified world, so a world that the engine broke during a session cannot overwrite both. The repository hands the committed records (already in memory: the bytes that were just written, or just read) to a `BackupScheduler`, which takes backups one at a time on its own promise chain after the request has been answered, never queuing the same slot and kind twice; a backup never delays or fails the save that made it due. The world's bytes are gzip-compressed with `CompressionStream` where available (a first-season career world: 52.7 MiB of JSON, 5.9 MiB, 1.1 s in Node; a late world about 7.6 MiB), so three slots with every generation cost about 70 MiB at worst. Before a copy, `navigator.storage.estimate()` must leave free at least `CONFIG.saves.backups.minFreeBytes` (64 MiB) and `reserveWorlds` (2) times the world's size after it; otherwise the backup is skipped and `{ reason: 'space' }` recorded (a failed copy records `failed`), which the slot card shows ("Automatic backups paused: storage is low"). Without an estimate the copy goes ahead and a quota error only records a skip. After each backup the worker announces the database on the save channel, so slot cards show "Backed up on this device …". A copy that finishes after its slot was deleted deletes itself; `remove` deletes a slot's backups in its own transaction (the confirmation says so).
+
+**Restore.** A slot that will not load (an unreadable record, or a load that failed its checks; not one saved by a newer version) lists its generations on the Saves screen with Restore and Download. Restore (`restore`, a mutation) first assembles and validates the backup exactly as a load does (salvage included) and refuses with `invalid` before anything is replaced; then, under the lease and the expected revision, writes its records back at a revision above both the slot's and the backup's, and answers with the loaded save, which the tab applies like an import. The confirmation offers the recovery copy of what is stored now. Download (`export-generation`) assembles one generation like a recovery copy, unchecked. Backups are never part of a slot's export.
+
+**Salvage load (step 4.4, `persistence/salvage.ts`).** When strict validation fails, `evaluate` (shared by load and restore) tries, in order: the records with their patches; without the patches (`changes-discarded`); then without one optional part at a time, then two or more together, fewest first, with the patches if they applied and lastly without. The parts are the social feed (`World.media`, emptied), this season's competition statistics (`World.seasonStats`, removed: awards and the Hall of Fame fall back to their earlier rules until the next season starts them again) and the history charts (`career.social.history` emptied, `career.growth` removed). A part the world does not have is not tried. The match session and patches were already dropped on their own when they fail. Core data (career, players, clubs, competitions, fixtures, results) is never dropped. The first version that passes loads with a recovery notice naming the part (`salvaged-feed`, `salvaged-statistics`, `salvaged-history`, or `salvaged` for several or with the latest changes), and `StoredState.salvaged` and `pristine: false` so the tab never writes patches against the salvaged world. Nothing stored changes: the next whole write (the player continues a week) replaces the records, and the `salvage` backup keeps the original meanwhile and after. Imports stay strict. A failing load costs one decode and validation per attempt (at most ten), on the failure path only.
+
+**Storage preflight and quota (step 4.6, `persistence/storage.ts`).** Before a whole write (`writeWorld`, `store` for imports and Node writes, `restore`) the worker asks `navigator.storage.estimate()`; when the free space is less than the bytes plus `CONFIG.saves.quotaMarginBytes` (4 MiB), backups are deleted oldest first until it fits, and if it still does not the write fails with `SaveError('quota')` before any transaction starts. A `QuotaExceededError` from IndexedDB itself (directly, in Dexie's wrapper or as the `inner` of an aborted transaction) maps to the same code (`failureCode`). The tab shows "Storage is full — export a backup and free space…": the shell's save banner (with Export unsaved copy) for autosave, and the Saves screen's alert, with its own Export unsaved copy, for saving to a slot or importing. Without an estimate the preflight passes and only the browser's own error applies.
+
+**Validator coverage (step 4.9, finding K8, `persistence/coverage.ts`).** Validators check a world in place, so a field added to a domain type without a check used to pass unchecked (and, where a validator rebuilds an object, be dropped). Each validator module now declares `covers<T>(path, { field: true, … })` for the types it checks; `FieldCoverage<T>` requires exactly the keys of `T`, optional ones included, so a new, renamed or removed field fails the typecheck until the manifest is updated. A string instead of `true` records a deliberate gap and why. Manifests cover the world, the career (training, injury, match records), market (finances, moves, offers, contracts), honours (international state, legacies, awards), social, style (assets, sponsorships, challenges), players and their statistics, clubs and managers. The rebuilt `Settings`, audio settings and gallery `satisfies Record<keyof T, unknown>`. `tests/validator-coverage.test.ts` validates three fully populated worlds (`tests/support/populated.ts`: the second season with every optional career field set, a live tournament, a child career with its parent's legacy) through recording proxies on the manifests' paths, and fails when a declared field is absent from all of them or a field declared `true` is never read by the validator; the same worlds save, load and export byte-identical. It found five fields that were never checked (the press stance, contract options and other players' sell-on clubs, sponsor fees paid, asset upkeep), now validated.
 
 ## Platform contract
 
 ```typescript
 interface PlatformAdapter {
   /** Device preferences: the settings, or another device-only record (`'analytics'`); null removes. */
-  readPreferences(scope?: 'settings' | 'analytics'): unknown;
-  writePreferences(value: unknown, scope?: 'settings' | 'analytics'): boolean;
+  readPreferences(scope?: 'settings' | 'analytics' | 'match'): unknown;
+  writePreferences(value: unknown, scope?: 'settings' | 'analytics' | 'match'): boolean;
   /** POST a JSON body (analytics); resolves whether it was accepted and never rejects. */
   send(url: string, body: string, hiding?: boolean): Promise<boolean>;
   saveFile(name: string, content: string | Blob, mime: string): Promise<void>;
@@ -1456,16 +1537,30 @@ interface PlatformAdapter {
   /** Share a link through the system share sheet, or copy it; reports which happened. */
   shareLink(url: string, title: string): Promise<'shared' | 'copied' | 'failed'>;
   readFile(file: File): Promise<string>;
+  /** A picked file as a Blob for a worker to read (save backups); size-checked, not read. */
+  readFileBlob(file: File): Promise<Blob>;
   requestPersistentStorage(): Promise<boolean>;
   isStoragePersistent(): Promise<boolean>;
   haptic(kind: 'selection' | 'success'): Promise<void>;
   onBack(handler: () => void): () => void;
   wakeLock(): Promise<() => Promise<void>>;
   notify(title: string, body: string): Promise<boolean>;
+  /** Small device-only text records outside the saves; null reads missing, writing null removes. */
+  readRecord(key: DeviceRecord): string | null;
+  writeRecord(key: DeviceRecord, value: string | null): boolean;
+  /** Open an address outside the game (the bug report form); nothing is sent. */
+  openExternal(url: string): Promise<boolean>;
 }
+type DeviceRecord =
+  | 'release-seen' // the last version seen, for "Updated to x.y.z" (ptg-last-version)
+  | 'diagnostics' // the local diagnostics log (ptg-diagnostics)
+  | 'career-draft' // the new-career wizard's draft, this tab's session only
+  | `match-report-${1 | 2 | 3}`; // each slot's last match report (step 4.8)
 ```
 
-The web adapter owns download/share fallback, file size limits, storage persistence, optional vibration, popstate, wake lock, optional notifications and analytics delivery (`fetch` with `keepalive`, handing a failed request to `sendBeacon` while the page is hidden). Analytics consent and the tier-2 install id live under the `analytics` preference scope (`ptg-analytics` on the web), never in `Settings` or a save.
+No module outside `src/platform/` touches `localStorage` or `sessionStorage` (release 1.0 step 4.8, review K15): the wizard draft, the release notice, the diagnostics log and the match reports go through `readRecord`/`writeRecord`, which never throw (private windows and blocked storage read as missing).
+
+The web adapter owns download/share fallback, file size limits, storage persistence, optional vibration, popstate, wake lock, optional notifications and analytics delivery (`fetch` with `keepalive`, handing a failed request to `sendBeacon` while the page is hidden). Analytics consent and the tier-2 install id live under the `analytics` preference scope (`ptg-analytics` on the web), never in `Settings` or a save. The live match's speed lives under the `match` scope (`ptg-match`), so it is remembered per device and never changes a save's shape.
 
 Analytics (`src/analytics/`, [ANALYTICS.md](ANALYTICS.md)) adds a few hundred bytes to the shell: `track()` queues events in memory, and `startAnalytics()` imports the client when the browser is idle after load. The client checks consent and the per-event allow-list, adds the common properties and sends batches through `platform.send`. A separately loaded observer derives play events from store updates, world job results and the finished match on the main thread; the engine is never involved. Without a build-time key, or under automation, nothing loads. Unsupported capabilities return a documented benign result. No feature requests notification permission automatically. Android/Capacitor is intentionally absent until the final milestone.
 
@@ -1477,13 +1572,115 @@ Career navigation (`src/screens/career/navigation.ts`) groups the career pages i
 
 The career agenda (`src/screens/career/agenda.ts`) derives everything the hub and the Calendar page (`/career/calendar`) show from the saved world, with no new stored state: the priority queue (a recovery choice, then the match, then deadlines by date, then unspent points), the season week by week, what Continue will simulate and which deadlines would lapse on the way, and a digest of the simulated weeks. The hub writes the week an advance started to the URL (`since`), so the digest survives a refresh; nothing predicts selection or results.
 
-English UI strings live in `src/i18n/en.ts`, `match.ts` and `pitch.ts`; generated names and recipe identifiers are data. CSS tokens define theme colors, spacing, radii, fonts and shadows, and are exposed to Tailwind utilities through `@theme inline`. New UI uses utilities; screens built before milestone 4 keep their component CSS partials until reworked. Fonts are bundled locally from licensed font packages. Route and reward transitions honour reduced motion.
+English UI strings live in the copy modules under `src/i18n/` (the shell's `en.ts`, and one module per area, split by route for bundle size), served through the locale seam (Localization, below); generated names and recipe identifiers are data. CSS tokens define theme colors, spacing, radii, fonts and shadows, and are exposed to Tailwind utilities through `@theme inline`. New UI uses utilities; screens built before milestone 4 keep their component CSS partials until reworked. Fonts are bundled locally from licensed font packages. Route and reward transitions honour reduced motion.
 
-Vite PWA precaches route chunks, both workers, SVG icons and fonts after one connected visit. Updates flush autosave before activation. Netlify preserves deep-link refresh. CI runs types, lint, Vitest, build and Chromium/Firefox/WebKit tests; deployment requires configured secrets. Nothing has been deployed by these milestones.
+Vite PWA precaches route chunks, both workers, SVG icons and fonts after one connected visit.
+
+**Updates across tabs (release 1.0 step 4.1, review S2).** Activating a new service worker deletes the old version's chunks, so every open tab must reload, and only when nothing is lost. "Save & update" first writes this tab's pending autosave and refuses while it is busy (`release/busy.ts`: a world job, training being saved, a world outside a slot, or a change that could not be saved). It then polls every other tab over the `pitch-to-glory:update` BroadcastChannel (`release/updateTabs.ts`, loaded when the page is idle): each acknowledges at once with its page title, writes its own pending autosave and answers with what still holds it. Any answer that is not free refuses the update with that tab's page and reason ("Another tab (World) has a world that is not saved in a slot…"); a tab that acknowledged but does not answer within 15 s holds it as unresponsive, and one that never acknowledges (frozen, discarded) is not counted. When every tab is free the waiting worker activates; each tab reloads on `controllerchange` (and on the activating tab's `reload` broadcast, for a tab the worker does not control) through `updateApplication`, which flushes and checks again, so a tab that became busy meanwhile keeps running and shows the prompt. Every tab also asks the registration for an update when it comes back into view or focus, at most once every 15 minutes (`checkForUpdatesOnReturn`), since installed apps and long-lived tabs navigate only inside the page.
+
+**Error boundaries (step 4.2).** `RouteBoundary` wraps the `Outlet` inside the shell, keyed by the path, so a failing page leaves the navigation, save indicator and autosave running. It writes the pending autosave at once, records the failure in the diagnostics log, and offers Try again (which also lets a failed lazy page load again), Export unsaved copy (`ui/exportUnsaved.ts`, the save-error banner's path, falling back to the unchecked recovery copy) and Reload; a page whose code did not download says so. `lazyPage` retries a failed load once after 700 ms (Firefox and Safari fetch again; Chromium and WebKit keep a failed module for the page, so the boundary's Reload is the remedy) and never settles while the page is being left. The live pitch has its own boundary (`match/SafePitch.tsx`) that falls back to the SVG pitch (`match/PitchFallback.tsx`, its own chunk) and then to a line of text. The outer `ErrorBoundary` remains for a failing shell, and also flushes; the shell's autosave hook flushes instead of dropping a pending write when it unmounts. Journeys force a page failure through `window.__ptgForceFailure.route`, read only under automation.
+
+**Local diagnostics (step 4.7).** `src/diagnostics` keeps the last 50 failures on the device (`diagnostics` record, never in a save, never sent): caught render errors, uncaught errors, unhandled rejections, `vite:preloadError` (which also covers failed dynamic imports) and world, persistence and sound worker errors. Each entry is a kind, a fixed source tag, the route pattern, the version, the time, a count of identical consecutive repeats, and the message scrubbed exactly like analytics (`diagnostics/scrub.ts`: no addresses, paths, quoted text or digits; class name kept). An unhandled rejection whose stack runs through the game's own scripts shows a non-blocking notice linking to Settings. Settings → Diagnostics shows the count and the latest three, exports `pitch-to-glory-diagnostics-<date>.json` (`format`, app version, schema and engine, a coarse device class, input, viewport, browser engine and whether installed, the loaded save's slot, revision, schema, engine, seed and world format, and the log) and clears it. "Report a bug" (Settings and the clubhouse footer) opens a prefilled GitHub issue through `platform.openExternal` with the version, schema, engine and coarse device, and asks for the file; nothing is attached or sent automatically. Analytics' `error` event reads from this log.
+
+**The post-match report after a refresh (step 4.8).** When a career match is recorded, the match screen keeps its report on the device (`match-report-<slot>`: the session as setup and commands, about the size of the setup, and the commit's outcome). After a refresh the match screen replays it and shows the report again while it is the career's latest match in that world, on the current engine; moving on from the report removes the record, and loading another slot leaves it for later. It is not part of the save. Netlify preserves deep-link refresh. CI runs types, lint, Vitest, build and Chromium/Firefox/WebKit tests; deployment requires configured secrets. Nothing has been deployed by these milestones.
+
+## Localization
+
+The game ships in English, and every string, number, date and plural goes through one seam, `src/i18n/locale.ts` (release 1.0 plan, step 2.6), so adding a language is translation work rather than a code change on every screen.
+
+**The registry.** `LOCALES` lists each language with its BCP 47 formatting tag (English formats as `en-GB`, as the game always has), its currency template (`{amount} Cr`) and its ordinal suffixes. `LOCALE` is the active language. Each copy module keeps its English table and serves it through the registry, typed by that table:
+
+```ts
+const careerTextEn = { … };
+export const careerText = ({ en: careerTextEn } satisfies Translations<typeof careerTextEn>)[LOCALE];
+```
+
+`Translations<T>` requires a table for every language in `LOCALES`, each of type `Translation<T>`: the English shape with its strings widened to `string` (so `as const` literals do not bind a translation), its tuples and functions kept. The shell's `t` (`src/i18n/index.ts`) is served the same way from `en`. Imports did not change: screens still import `careerText` or `t`, and each copy module stays its own file, so the per-route copy split (the bundle budget) is untouched. The registry is an object literal indexed by a constant rather than a function call on purpose: Rollup sees through it to the English table, so a route that imports a copy module without reading it still leaves it out. A call, even one marked pure, made every route with a rating badge load the whole career copy (about 13 KB gzip). Where one English table reuses another's words (career's `common.level` is the kit's), it reads the other module's English table (`kitTextEn`); a translation reuses its own. The seam cost 0.4 KB gzip in the entry (106.7 → 107.1 KB) and at most 0.8 KB on any route's static load (MatchBody 242.0 → 242.8 KB); the hub's usable load grew 1.4 KB (287.9 → 289.3 KB, 67 files) because the preseason copy now has its own chunk, which in turn took 25 KB off the Preseason page (221.1 → 196.3 KB static), no longer tied to the market screens through `honoursUi.ordinal`.
+
+**Helpers.** Screens never build a formatter or pick a word form themselves:
+
+| Helper                                          | Use                                                                                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `format(template, params)`                      | Fill `{name}` placeholders (re-exported from `src/i18n/index.ts`).                                                         |
+| `plural(count, forms, params?)`                 | Pick the form for `count` with `Intl.PluralRules` and fill `{count}` and `params`. `pluralForm` returns the unfilled form. |
+| `plurals({ one, other, … })`                    | Declare a copy entry as plural forms (CLDR categories `zero`, `one`, `two`, `few`, `many`, `other`; `other` required).     |
+| `ordinal(n)`                                    | "1st", "22nd", from the language's ordinal rules.                                                                          |
+| `formatNumber(n, options?)`, `formatInteger(n)` | Grouped numbers ("12,500"); options as `Intl.NumberFormat`'s.                                                              |
+| `formatMoney(amount)`                           | Credits, rounded: "12,500 Cr".                                                                                             |
+| `formatDate(value, options?)`                   | Real-world dates and times (release dates). Game dates use `formatGameDate` in `i18n/calendar.ts`.                         |
+| `formatList(items, type?)`                      | Names in running text: "A and B", "A, B and C".                                                                            |
+
+Formatters are cached per option set. The ESLint rule in `eslint.config.js` rejects a literal locale (`'en'`, `` `en` ``, `['en-GB']`) passed to an `Intl` constructor or a `toLocale…String` call anywhere but `locale.ts`, in `src`, `tests`, `e2e` and `scripts`. The save slots' timestamp deliberately keeps the browser's own date format (`Intl.DateTimeFormat(undefined, …)`).
+
+**Writing copy.** A count's wording is a `plurals` entry, never a `xOne`/`x` pair chosen with `=== 1`; keep `{count}` in a form when the layout draws the count apart (`pluralForm` splits around it). A sentence is one template with placeholders, never pieces joined in code: the Continue preview, the wage hint in talks, the report maps' labels and tallies, the morale chart label, the hub description with the recovery prompt and the offer buttons' accessible names were rewritten this way. `tests/locale.test.ts` pins representative English output of the helpers and templates against the code they replaced.
+
+**What remains for a translation** (none of it changes English output):
+
+- Clause placeholders: some templates take a phrase another template produced, such as the wage hint's `{wage}` and `{agent}` clauses or the Continue preview's `{action}`, a priority label lower-cased with `lowerFirst`. A language whose grammar needs to inflect those phrases would need whole-sentence variants.
+- Lists and labels joined in code with `·`, `, ` or `→` (fixture and club metadata, attribute lists, the training plan's ` · mentor session`, the Gallery colours label) and value pairs such as `{cols.ga} 2/1 · {cols.xp} +40` on the profile's match history.
+- Two-count labels without plural forms (`Pass map: {attempts} attempts, {completed} completed`, `{seconds} seconds of play`) read "1 attempts" at a count of one; they need a form per count or a rewording.
+- Tournament and season names built as `{name} {year}`, and the award name with its month in brackets (`honoursUi.tsx`).
+- The patch notes (`i18n/patchNotes.ts`) stay English, like the CHANGELOG they generate; game dates use abbreviated English month and weekday names from `i18n/calendar.ts`.
+
+**Adding a language:**
+
+1. Add it to `LOCALES` in `locale.ts` with its formatting tag, currency template and ordinal forms. The build now fails in every copy module until it provides the new table.
+2. Write each module's table beside the English one (or in a sibling file the module imports) and add it to the module's registry object: `{ en: careerTextEn, es: careerTextEs }`. Plural entries may use the categories the language needs.
+3. Choose the language before the copy modules evaluate: make `LOCALE` read the player's setting (stored with the preferences) and reload the page when it changes. Once `LOCALE` is no longer a constant, every language's copy ships in each module's chunk, and the registry lookups can no longer be resolved at build time; check `scripts/check-bundle.mjs` and, if the cost matters, build one bundle per language with `LOCALE` defined at build time.
+4. Translate the strings that are not copy modules: `index.html`'s title and share tags, the web app manifest, and the release notes if wanted.
+
+## Bundle budget
+
+`scripts/check-bundle.mjs` runs with `npm run build` and gives every route in `src/App.tsx` (plus the match body, `MatchBody`) two figures, both with a hard budget of 300 KB gzip and a warning from 285 KB (a GitHub annotation in CI):
+
+- **Static**: the shell (entry) and the route chunk with their static imports, the code needed before the route can render.
+- **Usable**: static plus the dynamic imports the shell and the route request during their first render and initial effects, for a returning player opening the address with a save, each with its own static imports. The shell always requests Framer Motion's features and the service-worker registration; routes that read a save request the save system (`persistence/api.ts`); career pages draw the shell portrait; the hub requests its body and ambitions card; the match body requests the pitch component. These are declared per route (`FIRST_RENDER`) and checked against the build manifest: each must be a dynamic import of code already in the route's set, so a refactor that drops or renames one fails the build until the list is updated. The Pixi renderer is excluded: the pitch requests it once the match screen is up. The workers a usable route starts (the persistence worker) are reported beside it and not budgeted. `node scripts/check-bundle.mjs --list <route>` prints a route's files.
+
+The method was checked against Chromium: a cold load of `/career?save=1` (HTTP cache cleared, service worker blocked, the `populated` performance fixture) fetched the same 66 main-thread files, 288.0 KB, as the hub's usable set, and 72 files, 408.3 KB, before step 2.8, again equal to the usable set computed for that build. The build also fails if Dexie appears in a main-thread chunk, if Pixi's WebGPU or canvas renderer is built, or if Pixi's environment bundles are precached.
+
+Release 1.0 step 2.8 (25 October 2026), gzip KB:
+
+| Route            | Static before | Static after | Usable before | Usable after |
+| ---------------- | ------------: | -----------: | ------------: | -----------: |
+| Menu             |         130.2 |        130.4 |         300.3 |        162.5 |
+| Gallery          |         125.1 |        125.3 |         144.1 |        144.3 |
+| Saves            |         109.0 |        108.8 |         299.8 |        161.5 |
+| Settings         |         114.9 |        115.0 |         133.9 |        134.0 |
+| World            |         165.9 |        165.0 |         325.5 |        194.6 |
+| EditMode         |         171.2 |        171.3 |         333.9 |        198.1 |
+| Match (no world) |         122.5 |        120.7 |         141.5 |        139.7 |
+| MatchBody        |         299.9 |        242.0 |         395.7 |        272.2 |
+| CareerNew        |         208.3 |        207.0 |         339.0 |        231.3 |
+| CareerHub        |         160.0 |        160.4 |         408.3 |        288.0 |
+| CareerProfile    |         176.6 |        175.9 |         339.6 |        202.6 |
+| CareerSkills     |         191.3 |        190.0 |         349.1 |        214.9 |
+| CareerTraining   |         201.0 |        200.0 |         345.5 |        222.8 |
+| CareerTransfers  |         224.9 |        223.6 |         363.3 |        246.4 |
+| CareerAgent      |         198.1 |        198.5 |         348.2 |        221.8 |
+| CareerInbox      |         219.0 |        217.9 |         362.7 |        240.7 |
+| CareerCalendar   |         224.5 |        223.4 |         368.2 |        246.2 |
+| CareerClub       |         220.4 |        220.3 |         357.6 |        243.7 |
+| CareerMedia      |         210.6 |        210.4 |         351.9 |        233.8 |
+| CareerRival      |         210.5 |        210.4 |         351.9 |        233.7 |
+| CareerLifestyle  |         214.3 |        214.7 |         360.9 |        235.6 |
+| CareerWardrobe   |         217.4 |        217.9 |         363.9 |        238.6 |
+| CareerNational   |         218.1 |        217.0 |         362.3 |        240.3 |
+| CareerPreseason  |         222.3 |        221.1 |         366.0 |        244.0 |
+| CareerTrophies   |         230.3 |        228.7 |         366.4 |        250.1 |
+| CareerChronicle  |         219.4 |        218.3 |         362.0 |        241.7 |
+| CareerMoments    |         218.6 |        217.5 |         361.2 |        240.8 |
+| CareerLegacy     |         222.9 |        221.9 |         365.6 |        245.2 |
+| MomentViewer     |         124.6 |        124.6 |         143.6 |        143.6 |
+| WhatsNew         |         117.1 |        117.2 |         136.1 |        136.2 |
+| Privacy          |         109.5 |        109.7 |         128.5 |        128.6 |
+
+The entry stays at 106.7 KB gzip (311.9 KB). A cold hub load fetched 73 JavaScript files, 547.6 KB (72 main-thread files, 408.3 KB, and the 139.3 KB persistence worker) before, and 67 files, 427.7 KB (66 main-thread files, 288.0 KB, and the 139.7 KB worker) after. The precache fell from 163 entries (3,763 KiB) to 160 (3,450 KiB). The hub's usable figure is the one above the warning; it is the next route to trim.
+
+What moved: the match screen builds its setup from `engine/career/matchSetup.ts` instead of the commit path, so it no longer bundles the world simulation, the name catalogues or the squad-number backfill; the report's headlines and reactions (`i18n/matchReport.ts`) and its heat, pass and shot maps travel with the lazily loaded report (`match/pitchKit.tsx` keeps the kit colours and markings the live pitch needs); the live match takes the celebration names and squad-role names from small i18n modules; the guided tour and its copy load only while a track is unfinished (`ui/TutorialLoader.tsx`); the save system's main-thread half is a worker client (Persistence and tab ownership); and the pitch starts Pixi's `WebGLRenderer` directly with `manageImports: false` (`pitchScene.ts`), so Pixi's WebGPU and canvas renderers are not built and its unused environment bundles are left out of the precache.
 
 ## Verification
 
-Tests cover foundation reproducibility, save migrations/round trips/ownership, world generation, schedule/table conservation, cups, weekly AI changes, JSON resume and promotion rollover. Match tests replay complete sessions, validate conserved statistics and simulate 10,000 matches for goals/home advantage/upsets. Worker tests cover acknowledgement ordering, failures and cancellation during startup/yield/lock cleanup. Browser flows exercise real workers, world backup/import/restoration, full-season rollover, match decisions/refresh/report, large-text layouts and offline resources. Builds enforce 300 KB initial JavaScript gzip for every route and reject eager Pixi loading. Tutorial and audio retain their later milestone scope.
+Tests cover foundation reproducibility, save migrations/round trips/ownership, world generation, schedule/table conservation, cups, weekly AI changes, JSON resume and promotion rollover. Match tests replay complete sessions, validate conserved statistics and simulate 10,000 matches for goals/home advantage/upsets. Worker tests cover acknowledgement ordering, failures and cancellation during startup/yield/lock cleanup. Browser flows exercise real workers, world backup/import/restoration, full-season rollover, match decisions/refresh/report, large-text layouts and offline resources. Builds enforce the bundle budget for every route (see Bundle budget) and reject eager Pixi loading, Dexie on the main thread and unused Pixi renderers. Lint is type-aware: a promise is awaited, returned, or handed off with `void` only once its rejection is handled (`no-floating-promises`, `no-misused-promises`). `npm run knip` (`knip.jsonc`) fails CI on unused files, exports and dependencies, and `npm audit --omit=dev --audit-level=high` on a known vulnerability in what ships. Tutorial and audio retain their later milestone scope.
 
 Team selection (`src/engine/selection/`): `formations.ts` catalogues the four formations' slots (position, line, role and shape point); `lineup.ts` picks a club's eleven for a formation, valuing each player in a slot by ability and positional fit; `world.ts` applies it per world (`selectionVersion`) for background results, career selection, club level and the dressing room, and match setups carry both managers' formations. Match motion takes shape and set-piece roles from the slots. Coaching (`src/engine/career/coaching.ts`) keeps the latest key decisions from each recorded match in `career.coaching`, derives advice and a season goal offer each time they are shown, and stores only an accepted goal and past results.
 
@@ -1493,7 +1690,37 @@ Long careers are checked by `scripts/soak-career.ts`, which plays seeded nationa
 
 ## Interactive match sessions
 
-The pure match engine exposes createMatchSetup, createMatchSession, applyMatchCommand and validateMatchSession. Its supplementary contracts are kept in src/engine/match/types.ts:
+The pure match engine exposes createMatchSetup, createMatchSession, applyMatchCommand and validateMatchSession. `src/engine/match/index.ts` is only the barrel; the engine is split by concern (release 1.0, Phase 5, review K7). The barrel is `core.ts` plus the decision chains (`chains.ts`, which register with `chainRuntime.ts` as they load): workers, the career, persistence and tests import it and play whole matches synchronously. The Matchday screen's first-render code imports `core.ts`, fetches the chains with a match-22 session (`loadChains`) and holds a command until they are in (release 1.0 X1a; 3.0 KB gzip off its usable load).
+
+| Module             | Responsibility                                                                                                                                                                                                                                                                    |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup.ts`         | `createMatchSetup` (squads, formations, the current engine's flags), `createMatchSession` (line-ups, strengths, moment minutes, weather, kick-off), `OutdatedMatchSessionError`                                                                                                   |
+| `commands.ts`      | `applyMatchCommand`: copies the state, logs the command and plays it: a minute advanced (fatigue, the player's substitution, cards, a key moment or the minute's play), a choice and the rest of its minute, the half-time talk, the substitution response and the captain's call |
+| `minute.ts`        | A minute's background shots and goals and routine passes, momentum, half time and full time                                                                                                                                                                                       |
+| `moments.ts`       | Opening a key moment: the situation drawn, its decision context, framing and choices                                                                                                                                                                                              |
+| `reads.ts`         | Match-22's reads of the play: drawn (or from a matchup) per moment, the odds each bears on, the marked man, and the scene nudged to show them                                                                                                                                     |
+| `situations22.ts`  | Match-22's catalogue beside match-21's `situations.ts`: new situations, skill mechanics (`UNLOCKS_22`), weights; `readTable.ts` holds the reads                                                                                                                                   |
+| `value.ts`         | `expectedImpact`, alone so the career screens that judge recorded choices stay small                                                                                                                                                                                              |
+| `targets.ts`       | Where a moment happens and where each choice goes (spot, pass receivers, choice targets)                                                                                                                                                                                          |
+| `resolve.ts`       | Resolving a choice: the roll, the events, statistics and rating credit it leads to                                                                                                                                                                                                |
+| `events.ts`        | The event log: commentary keys, events, shots with expected goals, goals, finishers                                                                                                                                                                                               |
+| `commentary.ts`    | Which line an event logs in match-22: variants per family, context lines, missed shots, narration variants                                                                                                                                                                        |
+| `passage.ts`       | Storing a choreographed passage: motion, snapshot, narration, bookkeeping, highlights                                                                                                                                                                                             |
+| `rates.ts`         | Expected goals after tactics and dismissals, moment shares, possession                                                                                                                                                                                                            |
+| `cards.ts`         | Cards shown in the session and players sent off (the draws are in `discipline.ts`)                                                                                                                                                                                                |
+| `substitutions.ts` | The managers' changes                                                                                                                                                                                                                                                             |
+| `extraTime.ts`     | Extra time, the shootout kick and the shootout's tallies (`sessionPenalties`)                                                                                                                                                                                                     |
+| `stoppage.ts`      | Stoppage time (match-22): the board at each period's end and the clock in added time                                                                                                                                                                                              |
+| `bench.ts`         | Coming off the bench (match-22), changes left per side, a keeper sent off replaced                                                                                                                                                                                                |
+| `injuries.ts`      | In-match injuries (match-22): the others forced off, the career player's knock and its answer                                                                                                                                                                                     |
+| `shootout.ts`      | The match-22 shootout, kick by kick                                                                                                                                                                                                                                               |
+| `touchline.ts`     | Touchline decisions (match-22): half-time talk, captain's calls, the substitution answer, the headless player's answers                                                                                                                                                           |
+| `report.ts`        | Rating parts as they build up, and the full-time report                                                                                                                                                                                                                           |
+| `lineup.ts`        | Line-ups, the matchday bench and bench replacements                                                                                                                                                                                                                               |
+| `shared.ts`        | Helpers every module uses: the selected side, role position and played slot, who is on the pitch                                                                                                                                                                                  |
+| `replay.ts`        | `validateMatchSession`: the engine check and the full replay (shape validators are in `validation.ts`)                                                                                                                                                                            |
+
+Its supplementary contracts are kept in src/engine/match/types.ts:
 
 ```typescript
 import type {
@@ -1565,11 +1792,11 @@ export interface MatchSession {
 
 The match slice stores an immutable session. Browser timeouts dispatch compact advance commands after the displayed passage can finish; decision, half-time, substitution and captain prompts require explicit commands. Skip uses the same transitions in a bounded loop. A session stores its initial tactics, seed, frozen squads and complete command log, so refresh and import replay exactly. UI playback speed and Pixi interpolation are presentation state, never sporting state. Visibility loss and open dialogs pause playback. A friendly's source world remains frozen until it finishes or is cleared; its report does not alter scheduled competition results.
 
-The lazy Pitch route imports PixiJS only when rendered. The engine supplies each passage of play as keyframes (`state.motion`, see `engine/match/motion.ts`); a ticker plays them with `screens/match/playback.ts`. Live minutes use a base rate of 18 sporting seconds per real second and a 2.2-second progression interval; decision build-ups and outcomes use a slower rate of 6 with a 4.2-second cap. Action-specific minimum durations keep quick shots and passes visible before the overall cap compresses the passage. Player runs use time-aware monotone Hermite interpolation, preventing overshoot at stops and treating restarts as discontinuities. The renderer draws the ball beside its carrier, adds short flight trails, lofted shadows and arrival cues, and starts a goal celebration once the ball reaches the net. New passages start from the positions and carrier on screen. Pause and visibility loss freeze the animation clock. `pitchArt.ts` shares geometry and kit-number contrast with the SVG fallback; labels are rasterized at 32 pixels and scaled down rather than enlarged from tiny text. ResizeObserver adjusts canvas and stage scale; cleanup handles asynchronous initialization, unmount and context loss. The SVG fallback animates with the same sampler through `useSvgPlayback`, with reduced motion showing the final frame. Simulation-only presentation renders commentary and decisions without constructing the pitch. Reports use SVG to visualize actual recorded positions, passes and shots.
+The lazy Pitch route imports PixiJS only when rendered. The engine supplies each passage of play as keyframes (`state.motion`, see `engine/match/motion.ts`); a ticker plays them with `screens/match/playback.ts`. Live minutes take 2.2 seconds at 1× and each passage plays at the rate that fills its minute (`screens/match/pace.ts`: its sporting length over 2.2 s, within 1.5–18×, about 3.7× for a median minute), so the next passage arrives as one ends and the pitch never stands still between minutes (release 1.0, step 5.1). A passage clock (`usePlayClock`) counts only while the pitch moves, so pausing and resuming continue the minute instead of restarting it. A minute with a goal plays its earlier play quickly, then the last three beats, the shot and the celebration at decision pace, and holds 2.6 s for the GOAL banner (`GoalBanner.tsx`, lazy) before play goes on; until the ball is in, the scoreboard, commentary and announcement keep the goal back. The goal's run-in can be replayed on the pitch (`PitchScene.replay`, R). Decision build-ups and outcomes use a slower rate of 6 with a 4.2-second cap. Simulation-only mode jumps from moment to moment, stopping briefly at each goal. The speed is a device preference (`ptg-match`). Action-specific minimum durations keep quick shots and passes visible before the overall cap compresses the passage. Player runs use time-aware monotone Hermite interpolation, preventing overshoot at stops and treating restarts as discontinuities. The renderer draws the ball beside its carrier, adds short flight trails, lofted shadows and arrival cues, and starts a goal celebration once the ball reaches the net. New passages start from the positions and carrier on screen. Pause and visibility loss freeze the animation clock. `pitchArt.ts` shares geometry and kit-number contrast with the SVG fallback; labels are rasterized at 32 pixels and scaled down rather than enlarged from tiny text. ResizeObserver adjusts canvas and stage scale; cleanup handles asynchronous initialization, unmount and context loss. The SVG fallback animates with the same sampler through `useSvgPlayback`, with reduced motion showing the final frame. Simulation-only presentation renders commentary and decisions without constructing the pitch. Reports use SVG to visualize actual recorded positions, passes and shots.
 
 A key moment is `screens/match/DecisionPanel.tsx`, rendered once: beside the pitch (top of the right column) from 951 px wide, after the pitch on narrower screens, where it opens with a cropped `SvgPitch` drawing of the moment. Focus moves to the first choice with `preventScroll`, and the screen then scrolls the pitch and decision (or, on phones, the decision) into view. The guided tour places action steps inline (`data-tour-slot`) on phones and keeps its floating card off the focused control elsewhere; the update/offline notice waits while a key moment is open.
 
-File schema v5 added optional WorldState.matchSession; v6 versions it by match engine. Match state is validated by finite bounded setup checks, legal commands and exact deterministic replay; its team/player snapshots must match the saved world. For minute checkpoints the browser sends the session, preferences, world id and expected revision. The persistence worker validates the session by replay, checks ownership, revision and world id against the slot metadata, and writes only the metadata and `matches` records atomically. The world graph is neither transferred nor rewritten. World transfers still use bounded batches. Full-time explicitly flushes autosave before displaying the saved indicator.
+File schema v5 added optional WorldState.matchSession; v6 versions it by match engine. Match state is validated by finite bounded setup checks, legal commands and exact deterministic replay; its team/player snapshots must match the saved world. A slot stores a session as its setup, opening tactics and commands plus a little derived progress (`persistence/matchRecord.ts`, release 1.0 step 3.5), about the size of the setup, never the state (which grew from 64 to 342 KB by full time). For minute checkpoints the browser sends that, with preferences, world id and expected revision, as one message; the persistence worker checks its shape (no replay), ownership, revision, world id and season, and writes only the metadata and `matches` records atomically. A load or an import replays it to the full session and validates it as before; a session stored whole by an earlier release reads as it is. The world graph is neither transferred nor rewritten. Full-time explicitly flushes autosave before displaying the saved indicator.
 
 ## Career player (milestone 4)
 
@@ -1773,4 +2000,4 @@ Balance pass A (October 2026): `playerAbility` in `src/engine/strength.ts` is po
 
 Balance pass C: `src/engine/world/transfers.ts` runs the AI market from `simulateWeek` on the lifecycle weeks (`lifecycleWeeks`); `updateReputations` runs in `archiveSeason`; `selectLineup` takes a seed and a rotation range for background elevens; `injureParticipants` in `finalize.ts` sets `Player.injuryWeeks`; `Manager.appointed` dates sackings' grace period; `MatchSetup.strengthBonus` carries the managers' strength into interactive matches so played and simulated fixtures agree. `scripts/world-profile.ts` measures the world over seasons and checks its gates.
 
-Connected systems, phase 0: `CareerStyle.experiences` records when each experience was last taken, for its cooldown (schema 18, a no-op migration). `MatchSetup.slotMoments` makes key moments follow the selected player's formation slot (`playedSlot` in `src/engine/match/index.ts`, engine `match-11`); `engineFor(setup)` derives the engine from the setup, so `match-10` sessions keep replaying. `INBOX_KINDS` in `src/persistence/marketValidation.ts` must list every message kind that has copy in an i18n `messages` table; `tests/market.test.ts` checks the two agree.
+Connected systems, phase 0: `CareerStyle.experiences` records when each experience was last taken, for its cooldown (schema 18, a no-op migration). `MatchSetup.slotMoments` makes key moments follow the selected player's formation slot (`playedSlot` in `src/engine/match/index.ts`, engine `match-11`); `engineFor(setup)` derived the engine from the setup, so `match-10` sessions kept replaying (until the 1.0 compatibility cut, which kept only the current engine: `isCurrentSetup`). `INBOX_KINDS` in `src/persistence/marketValidation.ts` must list every message kind that has copy in an i18n `messages` table; `tests/market.test.ts` checks the two agree.

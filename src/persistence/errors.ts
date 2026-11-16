@@ -4,14 +4,12 @@
  */
 export class SaveError extends Error {
   constructor(
-    public readonly code: 'invalid' | 'future' | 'conflict' | 'locked' | 'large' | 'busy',
+    /** `quota`: the device's storage for the game is full (step 4.6). */
+    public readonly code: 'invalid' | 'future' | 'conflict' | 'locked' | 'large' | 'busy' | 'quota',
   ) {
     super(code);
   }
 }
-/** An update was requested while an unsaved world is open. */
-export class UnsavedWorldError extends Error {}
-
 export function errorCode(error: unknown): string {
   return error instanceof SaveError
     ? error.code

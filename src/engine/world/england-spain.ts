@@ -1,4 +1,4 @@
-﻿import type { League, Standing, Tier, World } from '../../model/domain';
+﻿import type { League, Tier, World } from '../../model/domain';
 import {
   eligibleTable,
   leaguesAt,
@@ -282,8 +282,4 @@ export function advanceSpain(world: World, countryId: string): boolean {
       );
   }
   return Boolean(topWinner && thirdWinners && fourthWinners && survivalDone);
-}
-
-export function standingsPoints(rows: Standing[], rank: number): number {
-  return rows[rank - 1]!.points;
 }

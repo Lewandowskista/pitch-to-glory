@@ -1,14 +1,12 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCareerFixture } from '../src/engine/career/matches';
 import { acceptGoal } from '../src/engine/career/coaching';
 import { acceptPromise, currentPromise, promiseWeek } from '../src/engine/career/stories/promise';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { World } from '../src/model/domain';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import { expect, nationalCareer, skipTutorial, test } from './support';
 
 /**
  * Phase 6: the manager's six-week challenge in the browser, from the offer through acceptance
@@ -16,31 +14,7 @@ import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
  */
 const saves = new Map<string, string>();
 function career(): World {
-  const base = generateWorld('stories-journey', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'stories-journey')[0]!;
-  let world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'stories-journey',
-  );
+  let world = nationalCareer('stories-journey');
   world = acceptGoal(world);
   // This week's match played: Continue is the next action.
   for (let pending = pendingCareerFixture(world); pending; pending = pendingCareerFixture(world))
@@ -80,17 +54,6 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 });
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 async function importSave(page: Page, name: string) {
   await page.goto('/saves');

@@ -1,53 +1,14 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise } from './support';
-import { generateWorld } from '../src/engine/world/generate';
-import { createCareer, trialOffers } from '../src/engine/career/create';
+import type { Page } from '@playwright/test';
+import { careerPreMatch, expect, matchState, nationalCareer, test } from './support';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 
 // No skipTutorial here: these journeys are about the tutorial.
-test.beforeEach(async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
-});
 test.use({ actionTimeout: 15000 });
 
 let cached: string | undefined;
 function freshCareer(): string {
   if (cached) return cached;
-  const base = generateWorld('onboarding-browser', { format: 'legacy' });
-  const trial = trialOffers(base, 'country:0', 'onboarding-browser')[0]!;
-  const world = createCareer(
-    base,
-    {
-      name: 'Robin Vale',
-      avatar: {
-        face: 1,
-        skin: 2,
-        hair: 3,
-        hairColor: 4,
-        facialHair: 0,
-        eyebrows: 1,
-        eyes: 2,
-        accessory: 3,
-      },
-      nationalityId: 'country:0',
-      position: 'ST',
-      foot: 'left',
-      age: 17,
-      archetype: 'finisher',
-    },
-    trial.id,
-    'onboarding-browser',
-  );
+  const world = nationalCareer('onboarding-browser');
   cached = JSON.stringify(
     createSave(1, 'First week', {
       kind: 'world',
@@ -69,7 +30,11 @@ async function importCareer(page: Page) {
       mimeType: 'application/json',
       buffer: Buffer.from(freshCareer()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('First week');
+  // A national save takes several seconds to import on a slow CI runner: wait for the import.
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 120000 });
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('First week', {
+    timeout: 30000,
+  });
 }
 const tutorialSeen = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('ptg-preferences') ?? '{}').tutorial);
@@ -79,7 +44,8 @@ test('guides the first week and the first match, and replays from Settings', asy
   await importCareer(page);
   await page.goto('/career?save=1');
   const tour = page.getByRole('dialog', { name: 'Your first fixture' });
-  await expect(tour).toBeVisible();
+  // The hub and the tour load lazily after the save: slower on CI runners.
+  await expect(tour).toBeVisible({ timeout: 30000 });
   await expect(tour).toContainText('Step 1 of 7');
   await expect(page.getByRole('heading', { name: 'Your first fixture' })).toBeFocused();
   await expect(page.locator('[data-tour="next-match"]')).toHaveAttribute('data-tour-active', '');
@@ -118,24 +84,53 @@ test('guides the first week and the first match, and replays from Settings', asy
   await page.getByTestId('tutorial').getByRole('button', { name: 'Got it' }).click();
   await expect(page.getByTestId('tutorial')).toHaveCount(0);
 
-  // The first match: tactics, kick-off (an action), controls, a key moment chosen with a key.
+  // The first match: tactics, kick-off (an action), the ticker, a decision chosen with a key.
   await page.locator('[data-tour="continue"]').click();
-  await page.getByRole('button', { name: /pre-match briefing/ }).click();
+  await careerPreMatch(page);
   await expect(page.getByTestId('tutorial')).toContainText('Before kick-off');
   await page.getByTestId('tutorial').getByRole('button', { name: 'Next' }).click();
   await expect(page.getByTestId('tutorial')).toContainText('Do this to continue.');
   await page.locator('[data-tour="kickoff"]').click();
-  await expect(page.getByTestId('tutorial')).toContainText('Controlling the match');
+  await expect(page.getByTestId('tutorial')).toContainText('The ticker');
   await page.getByTestId('tutorial').getByRole('button', { name: 'Next' }).click();
-  await expect(page.getByTestId('tutorial')).toContainText('Follow the game');
-  await page
-    .locator('[data-tour="controls"]')
-    .getByRole('button', { name: /Next key moment/i })
-    .click();
+  // Skip to the first decision card (and on through any goal clip before it).
+  const skip = page.locator('[data-tour="controls"]').getByRole('button', {
+    name: 'Skip to next moment',
+  });
+  await expect
+    .poll(
+      async () => {
+        if (await page.locator('.reel-card').isVisible()) return true;
+        await skip.click({ timeout: 2000 }).catch(() => undefined);
+        return false;
+      },
+      { timeout: 120000, intervals: [300] },
+    )
+    .toBe(true);
   await expect(page.getByTestId('tutorial')).toContainText('A key moment');
-  await page.locator('[data-tour="decision"] button[data-choice]').first().focus();
+  await expect(page.locator('[data-tour="decision"] button[data-choice]').first()).toBeFocused();
+  // The card ignores keys for its first 300 ms.
+  await page.waitForTimeout(320);
   await page.keyboard.press('1');
-  await expect(page.getByTestId('tutorial')).toContainText('Every result is explained');
+  // The outcome step follows once the chain is over and the ticker runs again: answer its
+  // remaining steps the same way.
+  const state = matchState(page);
+  const outcome = page.getByTestId('tutorial').getByText('Every result is explained');
+  await expect
+    .poll(
+      async () => {
+        if (await outcome.isVisible()) return true;
+        if ((await state.getAttribute('data-beat')) === 'card') {
+          const moment = await state.getAttribute('data-moment');
+          await page.waitForTimeout(320);
+          await page.keyboard.press('1');
+          await expect(state).not.toHaveAttribute('data-moment', moment ?? '');
+        }
+        return false;
+      },
+      { timeout: 60000, intervals: [300] },
+    )
+    .toBe(true);
   await page.getByTestId('tutorial').getByRole('button', { name: 'Got it' }).click();
   await expect(page.getByTestId('tutorial')).toHaveCount(0);
   expect(await tutorialSeen(page)).toEqual({ week: true, match: true });
@@ -200,9 +195,9 @@ test('lo-fi loop plays after a gesture and pauses independently of other channel
     browserName === 'webkit' && process.platform === 'win32',
     'Windows WebKit exposes no AudioContext and rejects PCM WAV with media error 4; playback requires Linux/macOS WebKit or real Safari.',
   );
-  // The first play renders the 100-second loop in a worker, which takes well over the
-  // default 30 seconds on a busy CI runner; the test's own limit must allow for it.
-  test.setTimeout(150000);
+  // The first play downloads and decodes the 100-second loop (pre-rendered since 1.0); decoding
+  // can still be slow on a busy CI runner.
+  test.setTimeout(90000);
   await page.goto('/settings');
   expect(
     await page.evaluate(() => Boolean((window as unknown as { Howler?: unknown }).Howler)),
@@ -238,11 +233,14 @@ test('lo-fi loop plays after a gesture and pauses independently of other channel
     });
   // The loop must render and load everywhere.
   await expect.poll(musicState, { timeout: 90000 }).toMatch(/^playing$|\D(9\d|\d{3})s loaded/);
-  let state = await musicState();
-  for (let wait = 0; state !== 'playing' && wait < 40; wait++) {
-    await page.waitForTimeout(250);
-    state = await musicState();
-  }
+  // Then up to ten seconds to start: a runner without an audio device never does (below).
+  const state = await expect
+    .poll(musicState, { timeout: 10000 })
+    .toBe('playing')
+    .then(
+      () => 'playing',
+      () => musicState(),
+    );
   test.skip(
     state.startsWith('context suspended') && Boolean(process.env.CI),
     `The CI runner has no audio output device, so the browser keeps its audio context suspended after the gesture; the loop rendered and loaded (${state}).`,

@@ -4,113 +4,43 @@ import type {
   Fixture,
   Injury,
   Objective,
-  Tactics,
   World,
 } from '../../model/domain';
-import { matchDecisions, recordDecisions } from './coaching';
+import { recordDecisions } from './coaching';
+import { matchDecisions } from './decisionSamples';
 import { adjustRelationship } from './market/records';
-import { chemistry } from './social/dressing';
 import { assetEffects } from './lifestyle/catalogue';
 import { FORMATION_SLOTS, type Formation } from '../selection/formations';
 import { CONFIG } from '../config';
-import { createRng } from '../rng';
+import { createRng, type Rng } from '../rng';
 import {
   applyMatchCommand,
   createMatchSession,
-  createMatchSetup,
   rolePosition,
+  rules22,
+  touchlinePolicy,
   validateMatchSession,
   type MatchCommand,
   type MatchSession,
-  type MatchSetup,
 } from '../match';
-import { expectedImpact } from '../match/decisions';
-import { performanceFame, performanceXp } from '../match/rewards';
-import { rolesForPosition } from '../match/roles';
+import { expectedImpact } from '../match/value';
+import { performanceFame, performanceXp, rewardScale } from '../match/rewards';
 import { commitPlayedFixture, type PlayedFixture } from '../world/simulate';
 import { recordEvent } from '../world/events';
 import { matchExposure } from '../world/finalize';
-import { isKnockoutFixture } from '../world/continental';
-import { suspendedFor, type FixtureCard } from '../world/discipline';
+import type { FixtureCard } from '../world/discipline';
 import { addXp } from './progression';
 import { injure, injuryFactor, revealHidden } from './training';
-import { fixtureImportance } from './fixtures';
 import { accrueMatchBonuses } from './market/moves';
+import { noteDropped } from './market/week';
 import { socialMatch } from './social/week';
 import { celebrationFame } from './lifestyle/week';
 import { honoursMatch } from './honours/week';
-import { careerMatchSeed } from './objectives';
+import { careerMatchSetup, defaultTactics } from './matchSetup';
 export * from './fixtures';
-export { careerMatchSeed, previewObjectives } from './objectives';
+export { careerMatchSetup, defaultTactics } from './matchSetup';
 
 const C = CONFIG.career;
-
-/** Match setup for a scheduled fixture, seeded by the fixture so a replay is identical. */
-export function careerMatchSetup(world: World, fixture: Fixture): MatchSetup {
-  return createMatchSetup(
-    world,
-    fixture.homeId,
-    fixture.awayId,
-    world.career!.playerId,
-    careerMatchSeed(world, fixture),
-    {
-      neutral: Boolean(fixture.neutral),
-      fixture: {
-        id: fixture.id,
-        competitionId: fixture.competitionId,
-        importance: fixtureImportance(world, fixture),
-        ...shootoutLeadOf(world, fixture),
-      },
-      chemistry: Math.round(chemistry(world)),
-      captain: world.career!.captaincy?.clubId === world.players[world.career!.playerId]!.clubId,
-      // A week's training spent on the opponent softens their style (match-19).
-      // So does a scouting analyst, every match (review phase 4).
-      prepared:
-        world.career!.training.sessions.some((session) => session.focus === 'opponent') ||
-        assetEffects(world.career!.style?.assets ?? []).scouting,
-      // Players banned in this fixture's scope sit it out (the discipline phase).
-      suspended: [fixture.homeId, fixture.awayId].flatMap((id) =>
-        suspendedFor(world, world.clubs[id]!, fixture),
-      ),
-    },
-  );
-}
-/**
- * For a match that, level on aggregate at full time, goes to extra time and penalties: the
- * home side's aggregate lead from earlier legs (0 for a single match). A league game, a group
- * game or a tie settled by ranking has none.
- */
-export function shootoutLeadOf(
-  world: World,
-  fixture: Fixture,
-): { shootoutLead?: number; extraTimeLead?: number } {
-  const tie = fixture.tieId ? world.pyramid?.ties[fixture.tieId] : undefined;
-  if (tie) {
-    if (fixture.id !== tie.fixtureIds.at(-1)) return {};
-    if (tie.drawRule === 'higher-rank') return {};
-    let lead = 0;
-    for (const id of tie.fixtureIds) {
-      if (id === fixture.id) continue;
-      const leg = world.fixtures[id]!;
-      const score = world.results[id]?.score;
-      if (!score) return {};
-      lead += leg.homeId === fixture.homeId ? score[0] - score[1] : score[1] - score[0];
-    }
-    // As the background resolves it (finalize.ts): extra time unless the rule is penalties
-    // alone, then penalties unless ranking decides after extra time.
-    if (tie.drawRule === 'higher-rank-after-extra-time') return { extraTimeLead: lead };
-    if (tie.drawRule === 'penalties') return { shootoutLead: lead };
-    return { shootoutLead: lead, extraTimeLead: lead };
-  }
-  return isKnockoutFixture(world, fixture) ? { shootoutLead: 0 } : {};
-}
-/** The opening tactics: the first role for the job the setup gives the player (match-17). */
-export function defaultTactics(world: World, setup?: MatchSetup): Tactics {
-  const position = setup
-    ? rolePosition(setup)
-    : world.players[world.career!.playerId]!.primaryPosition;
-  return { role: rolesForPosition(position)[0]!, risk: 'balanced', mentality: 'balanced' };
-}
 
 /**
  * The career player's finalized match, own side first: what the report shows and what every
@@ -198,33 +128,41 @@ export function commitCareerMatch(
         event.playerId,
         event.playerId === playerId ? state.selectedPlayerMinutes : event.minute,
       );
+  // Match-22 (release 1.0 step 5.4): the career player's minutes are the session's count, the
+  // minute they came off the bench included; one who came on and went off again still played.
+  const r22 = rules22(session.setup);
+  const benchOn = r22 ? state.bench?.on : undefined;
+  if (benchOn !== undefined) off.set(playerId, benchOn + state.selectedPlayerMinutes);
   const minutes = (club: { playerIds: string[] }, starterIds: string[]) => {
     const members = new Set(club.playerIds);
     const result: Record<string, number> = {};
     for (const id of initial)
       if (members.has(id)) result[id] = Math.min(90, sentOff.get(id) ?? off.get(id) ?? 90);
-    for (const id of starterIds)
+    // Match-22: everyone who came on appeared, also one who went off again (injured, or for
+    // a keeper sent off), the career player off the bench among them.
+    const appeared = r22
+      ? [...new Set([...starterIds, ...[...on.keys()].filter((id) => members.has(id))])]
+      : starterIds;
+    for (const id of appeared)
       if (!kickoff.has(id)) {
         const from = on.get(id) ?? state.selectedPlayerMinutes;
         // A substitute sent off plays from coming on until the card.
-        result[id] = Math.max(1, Math.min(90, sentOff.get(id) ?? 90) - from);
+        result[id] = Math.max(1, Math.min(90, sentOff.get(id) ?? off.get(id) ?? 90) - from);
       }
     return result;
   };
-  const cards: FixtureCard[] | undefined = session.setup.discipline
-    ? state.match.events.flatMap((event) =>
-        event.kind === 'card' && event.card && event.playerId
-          ? [
-              {
-                playerId: event.playerId,
-                teamId: event.teamId,
-                minute: Math.max(1, event.minute),
-                card: event.card,
-              },
-            ]
-          : [],
-      )
-    : undefined;
+  const cards: FixtureCard[] = state.match.events.flatMap((event) =>
+    event.kind === 'card' && event.card && event.playerId
+      ? [
+          {
+            playerId: event.playerId,
+            teamId: event.teamId,
+            minute: Math.max(1, event.minute),
+            card: event.card,
+          },
+        ]
+      : [],
+  );
   const onPitch = (lineup: { starterIds: string[]; sentOffIds?: string[] }) =>
     lineup.starterIds.filter((id) => !lineup.sentOffIds?.includes(id));
   // Regulation is everything to 90 minutes; extra time played in the session (match-18) is
@@ -251,7 +189,7 @@ export function commitCareerMatch(
     },
     onPitch: { home: onPitch(state.match.home), away: onPitch(state.match.away) },
     selected: { playerId, rating: state.report.rating },
-    ...(cards ? { cards } : {}),
+    cards,
     ...(state.shootout
       ? {
           shootout: {
@@ -274,8 +212,20 @@ export function commitCareerMatch(
     ...(state.penalties
       ? { penalties: [state.penalties[0], state.penalties[1]] as [number, number] }
       : {}),
+    // Match-22: the players forced off injured in the session, for the world's injury table.
+    ...(r22
+      ? {
+          injuries: (state.injuries ?? []).map((injury) => ({
+            playerId: injury.playerId,
+            kind: injury.kind,
+          })),
+        }
+      : {}),
   };
   const finalized = commitPlayedFixture(world, fixture.id, played);
+  // Match-22: an unused substitute's match is the club's result alone.
+  if (benchOn === undefined && r22 && state.bench)
+    return unusedSubstitute(world, session, fixture, finalized, ownHome);
   const result = world.results[fixture.id]!;
   const own = ownHome ? 0 : 1;
   const ownSide = <T>(pair: [T, T]): [T, T] => [pair[own]!, pair[1 - own]!];
@@ -293,21 +243,30 @@ export function commitCareerMatch(
             : 0
           : objective.progress,
   }));
-  const minutesPlayed = me.minutes + me.extraTimeMinutes;
-  const performance = performanceXp({
-    minutes: minutesPlayed,
-    rating: me.rating,
-    goals: me.goals,
-    assists: me.assists,
-    objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
-  });
+  // Match-22 counts the career player's minutes in the session, extra time included.
+  const minutesPlayed = r22 ? state.selectedPlayerMinutes : me.minutes + me.extraTimeMinutes;
+  const performance = performanceXp(
+    {
+      minutes: minutesPlayed,
+      rating: me.rating,
+      goals: me.goals,
+      assists: me.assists,
+      objectives: objectives.filter((objective) => objective.progress >= objective.target).length,
+    },
+    rewardScale(session),
+  );
   // The same terms as the report's fame, from the finalized contributions.
   const backLine = ['GK', 'CB', 'LB', 'RB'].includes(rolePosition(session.setup));
   // A dismissal (match-16) costs fame and the clean sheet's, as the report shows.
   const dismissed = state.sentOff;
   const fame =
-    performanceFame(me.rating, me.goals, me.assists, backLine && conceded === 0 && !dismissed) -
-    (dismissed ? CONFIG.match.cards.fame : 0);
+    performanceFame(
+      me.rating,
+      me.goals,
+      me.assists,
+      backLine && conceded === 0 && !dismissed,
+      rewardScale(session),
+    ) - (dismissed ? CONFIG.match.cards.fame : 0);
   const opponentId = ownHome ? fixture.awayId : fixture.homeId;
   const outcome =
     result.winnerId === player.clubId ? 'win' : result.winnerId === opponentId ? 'loss' : 'draw';
@@ -361,9 +320,15 @@ export function commitCareerMatch(
     tackles: state.stats.tackles,
     ...(state.report.cards?.yellow ? { yellowCards: state.report.cards.yellow } : {}),
     ...(dismissed ? { sentOff: { ...dismissed } } : {}),
+    ...(benchOn !== undefined ? { cameOn: benchOn } : {}),
   };
   career.matches.push(record);
   recordDecisions(career, decisions);
+  // The drought director (X1a): matches in a row without a positive chain.
+  if (state.chains?.length)
+    career.chainDrought = state.chains.some((chain) => chain.positive)
+      ? 0
+      : (career.chainDrought ?? 0) + 1;
   // The half-time talk and the response to a substitution reach the manager.
   if (session.state.managerTrustDelta)
     adjustRelationship(
@@ -374,18 +339,24 @@ export function commitCareerMatch(
     );
   learnSlot(session, player, minutesPlayed);
   accrueMatchBonuses(world, record.goals, record.cleanSheet);
-  socialMatch(world, record, fixture);
+  socialMatch(world, record, fixture, rewardScale(session));
   const signature = celebrationFame(world, record.goals, importance);
   honoursMatch(world, session, record, importance);
   careerNews(world, player, record);
-  if (career.market.selection.season === world.date.season) career.market.selection.selected++;
+  // Starting on the bench is a matchday dropped from the eleven (match-22), even after coming on.
+  if (career.market.selection.season === world.date.season) {
+    if (r22 && state.bench) noteDropped(world, fixture);
+    else career.market.selection.selected++;
+  }
   if (career.matches.length > C.historyLimit)
     career.matches.splice(0, career.matches.length - C.historyLimit);
-  // Knocks and re-injury after a rushed return.
+  // Knocks and re-injury after a rushed return: rolled in the session on match-22 (an injury
+  // there, or a knock aggravated by playing on), after the match on earlier engines.
   const rng = createRng(`${world.seed}:career:match:${fixture.id}`);
   let injury: Injury | null = null;
   const exposure = matchExposure(minutesPlayed);
-  if (career.reinjury && rng.next() < career.reinjury.risk * exposure)
+  if (r22) injury = sessionInjury(world, session, rng);
+  else if (career.reinjury && rng.next() < career.reinjury.risk * exposure)
     injury = injure(world, 'match', rng, career.reinjury.kind);
   else if (
     rng.next() <
@@ -407,6 +378,87 @@ export function commitCareerMatch(
     extraTimeAssists: me.extraTimeAssists,
   };
   return { record, final, previousLevel, levelsGained, injury, celebrationFame: signature };
+}
+
+/**
+ * The career player's injury from a match-22 session: a serious knock, or one aggravated by
+ * playing on, becomes an injury of its type in the career's system (its weeks drawn there).
+ */
+export function sessionInjury(world: World, session: MatchSession, rng: Rng): Injury | null {
+  const knock = session.state.knock;
+  if (!knock || (!knock.serious && !knock.aggravated)) return null;
+  return injure(world, 'match', rng, knock.kind);
+}
+
+/**
+ * A match the career player spent on the bench (match-22): the club's result is recorded, the
+ * matchday counts as dropped, and the manager hears any half-time request; no appearance, XP,
+ * fame or rating, and the report says so.
+ */
+function unusedSubstitute(
+  world: World,
+  session: MatchSession,
+  fixture: Fixture,
+  finalized: ReturnType<typeof commitPlayedFixture>,
+  ownHome: boolean,
+): CareerMatchOutcome {
+  const career = world.career!;
+  const player = world.players[career.playerId]!;
+  const result = world.results[fixture.id]!;
+  const own = ownHome ? 0 : 1;
+  const ownSide = <T>(pair: [T, T]): [T, T] => [pair[own]!, pair[1 - own]!];
+  const opponentId = ownHome ? fixture.awayId : fixture.homeId;
+  if (session.state.managerTrustDelta)
+    adjustRelationship(
+      world,
+      'manager',
+      world.clubs[player.clubId!]!.managerId,
+      session.state.managerTrustDelta,
+    );
+  if (career.market.selection.season === world.date.season) noteDropped(world, fixture);
+  const record: CareerMatchRecord = {
+    fixtureId: fixture.id,
+    season: world.date.season,
+    week: world.date.week,
+    competitionId: fixture.competitionId,
+    opponentId,
+    home: ownHome,
+    score: [result.score[own]!, result.score[1 - own]!],
+    result:
+      result.winnerId === player.clubId ? 'win' : result.winnerId === opponentId ? 'loss' : 'draw',
+    ...(result.penalties
+      ? { decided: 'penalties' as const }
+      : result.extraTime
+        ? { decided: 'extra-time' as const }
+        : {}),
+    minutes: 0,
+    rating: 0,
+    goals: 0,
+    assists: 0,
+    cleanSheet: result.score[1 - own] === 0,
+    xp: 0,
+    auto: false,
+  };
+  return {
+    record,
+    final: {
+      score: ownSide(finalized.score),
+      regulation: ownSide(finalized.regulation),
+      extraTime: finalized.extraTime && ownSide(finalized.extraTime),
+      penalties: finalized.penalties && ownSide(finalized.penalties),
+      xp: 0,
+      fame: 0,
+      rating: 0,
+      objectives: session.state.report!.objectives,
+      extraTimeMinutes: 0,
+      extraTimeGoals: 0,
+      extraTimeAssists: 0,
+    },
+    previousLevel: career.level,
+    levelsGained: 0,
+    injury: null,
+    celebrationFame: 0,
+  };
 }
 
 /**
@@ -453,6 +505,9 @@ function learnSlot(session: MatchSession, player: Player, minutes: number): void
 export function autoPlayCommand(session: MatchSession): MatchCommand {
   const s = session.state;
   if (s.match.status === 'preview') return { type: 'kickoff' };
+  // Match-22: every touchline answer has a context where it is the best one.
+  const touchline = rules22(session.setup) ? touchlinePolicy(session) : null;
+  if (touchline) return touchline;
   if (s.match.status === 'halftime') return { type: 'halftime', response: 'motivate' };
   if (s.substitutionDecisionPending) return { type: 'substitution', response: 'accept' };
   if (s.captainDecisionPending) {
@@ -471,7 +526,10 @@ export function autoPlayCommand(session: MatchSession): MatchCommand {
       .map((choice) => ({ choice, net: expectedImpact(choice).net }))
       .sort((a, b) => b.net - a.net || (a.choice.id < b.choice.id ? -1 : 1));
     const best = ranked[0]!.net;
-    const margin = CONFIG.match.autoPlayMargin;
+    // Match-22's reads make the best call matter: only near-equal calls are drawn between.
+    const margin = rules22(session.setup)
+      ? CONFIG.match.moments22.autoPlayMargin
+      : CONFIG.match.autoPlayMargin;
     const near = ranked.filter((entry) => entry.net >= best - margin);
     const pick = createRng(`${session.setup.seed}:auto:${s.currentMoment.id}`).int(
       0,

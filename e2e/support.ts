@@ -1,4 +1,83 @@
-import type { ConsoleMessage, Page } from '@playwright/test';
+import { expect, test as base, type ConsoleMessage, type Page } from '@playwright/test';
+import type { World } from '../src/model/domain';
+import { generateWorld } from '../src/engine/world/generate';
+import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
+import { existsSync, readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { gunzipSync, gzipSync } from 'node:zlib';
+import { buildNationalCareer, playNationalCareer } from '../tests/support/fixtures';
+import { fixtureDirectory, fixturePath, writeFixture } from '../tests/support/store';
+
+/** The career player of the journeys: an English 17-year-old striker. */
+export const JOURNEY_DRAFT: CareerDraft = {
+  name: 'Robin Vale',
+  avatar: {
+    face: 1,
+    skin: 2,
+    hair: 3,
+    hairColor: 4,
+    facialHair: 0,
+    eyebrows: 1,
+    eyes: 2,
+    accessory: 3,
+  },
+  nationalityId: 'country:0',
+  position: 'ST',
+  foot: 'left',
+  age: 17,
+  archetype: 'finisher',
+};
+/**
+ * A career as a new player gets one: a national world, the only format the game creates, with
+ * the career at the first trial club its nationality offers (release 1.0 plan, step 2.1). It
+ * takes about a second here, and its save (about 40 MB) a few seconds to import in a browser.
+ */
+export function nationalCareer(seed: string, draft: Partial<CareerDraft> = {}): World {
+  const base = generateWorld(seed);
+  const full = { ...JOURNEY_DRAFT, ...draft };
+  const trial = trialOffers(base, full.nationalityId, seed)[0]!;
+  return createCareer(base, full, trial.id, seed);
+}
+/** A file for `setInputFiles`, given as a buffer (at most 50 MB). */
+export interface BackupPayload {
+  name: string;
+  mimeType: string;
+  buffer: Buffer;
+}
+/**
+ * A save as the game exports it since 1.0 (step 3.7): a gzip backup, passed to `setInputFiles`
+ * as a buffer. Compressed, a national world after a played season (over 50 MB as JSON) fits the
+ * buffer limit, so no file is written; importing it exercises the gzip path in every browser.
+ */
+export function backupFile(name: string, json: string): BackupPayload {
+  return {
+    name: `${name}.json.gz`,
+    mimeType: 'application/gzip',
+    buffer: gzipSync(json, { level: 1 }),
+  };
+}
+/**
+ * A downloaded backup's JSON: gzip (an export since 1.0), or plain JSON where the browser could
+ * not compress. Told apart by the gzip magic bytes, as the game does.
+ */
+export async function readBackup(path: string): Promise<string> {
+  const bytes = await readFile(path);
+  return (bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes) : bytes).toString('utf8');
+}
+/**
+ * The unit tests' shared national career after its first season, before the rollover
+ * (tests/support/world.ts): read from their cache for these sources, or played here (about a
+ * minute) and cached for the next journey.
+ */
+export function nationalCareerSeason(): World {
+  const dir = fixtureDirectory();
+  const path = fixturePath(dir, 'career-season');
+  if (!existsSync(path))
+    playNationalCareer(buildNationalCareer(), (name, world) =>
+      writeFixture(dir, name, JSON.stringify(world)),
+    );
+  return JSON.parse(readFileSync(path, 'utf8')) as World;
+}
 
 /**
  * Mark the guided tour as seen on this device, so journeys that are not about the tutorial
@@ -51,9 +130,9 @@ const ABORTED_LOAD = new RegExp(
     'ServiceWorker intercepted the request and encountered an unexpected error',
   ].join('|'),
 );
-export const isAbortedLoad = (text: string): boolean => ABORTED_LOAD.test(text);
+const isAbortedLoad = (text: string): boolean => ABORTED_LOAD.test(text);
 
-export function isBrowserNoise(message: ConsoleMessage): boolean {
+function isBrowserNoise(message: ConsoleMessage): boolean {
   const { url } = message.location();
   return (
     isAbortedLoad(message.text()) ||
@@ -63,6 +142,65 @@ export function isBrowserNoise(message: ConsoleMessage): boolean {
     /\{file: "chrome:\/\/juggler\//.test(message.text()) ||
     message.text().startsWith('[JavaScript Error: "NS_BINDING_ABORTED"')
   );
+}
+
+/**
+ * The journeys' `test` and `expect`. Every test's page fails it on a console error, an uncaught
+ * exception or an unhandled promise rejection (AGENTS.md §11), apart from the browser noise
+ * above; the check runs when the test ends, after its own hooks. `runtimeErrors` is what has
+ * been collected so far, for a journey that wants to look at it sooner.
+ */
+export const test = base.extend<{ runtimeErrors: string[] }>({
+  runtimeErrors: [
+    async ({ page }, use) => {
+      const errors: string[] = [];
+      page.on('pageerror', (error) => {
+        if (!isAbortedLoad(error.message)) errors.push(error.message);
+      });
+      page.on('console', (message) => {
+        if (message.type() === 'error' && !isBrowserNoise(message))
+          errors.push(`${message.text()} (${message.location().url || 'no location'})`);
+      });
+      // An unhandled rejection becomes an uncaught error, which every engine reports.
+      await page.addInitScript(() => {
+        window.addEventListener('unhandledrejection', (event) => {
+          throw new Error(`Unhandled rejection: ${String(event.reason)}`);
+        });
+      });
+      await use(errors);
+      expect(errors, 'console errors, uncaught exceptions and unhandled rejections').toEqual([]);
+    },
+    { auto: true },
+  ],
+});
+export { expect };
+
+/**
+ * Wait until the page has stopped moving: no finite CSS or Web Animation running (Framer Motion
+ * runs its transitions as Web Animations) and every scroll position the same a frame later.
+ * For a layout measurement or a screenshot right after something changed, instead of a sleep.
+ */
+export async function settled(page: Page): Promise<void> {
+  await page.waitForFunction(async () => {
+    const moving = () =>
+      document
+        .getAnimations()
+        .some(
+          (animation) =>
+            animation.playState === 'running' &&
+            Number.isFinite(Number(animation.effect?.getComputedTiming().endTime ?? 0)),
+        );
+    const scrolls = () => {
+      const positions = [window.scrollX, window.scrollY];
+      for (const element of document.querySelectorAll('*'))
+        if (element.scrollTop || element.scrollLeft)
+          positions.push(element.scrollTop, element.scrollLeft);
+      return positions.join();
+    };
+    const before = scrolls();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return !moving() && scrolls() === before;
+  });
 }
 
 /** The career group each page tab belongs to (src/screens/career/navigation.ts). */
@@ -120,4 +258,138 @@ export async function openCareerPage(page: Page, name: string): Promise<void> {
         .click();
   }
   await tabs.getByRole('link', { name: tabName(name) }).click();
+}
+
+/**
+ * Wait for a recorded match's XP and close the level-up moment if the match brought one
+ * (release 1.0, step 5.1): it is modal, so journeys that go on from the report close it first.
+ * Returns whether it was shown.
+ */
+export async function recordedReport(page: Page): Promise<boolean> {
+  await expect(page.getByTestId('career-xp')).toContainText('XP earned', { timeout: 60000 });
+  // The moment opens in an effect after the XP is drawn.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  const moment = page.getByTestId('level-up');
+  if (!(await moment.isVisible())) return false;
+  await page.keyboard.press('Escape');
+  await expect(moment).toHaveCount(0);
+  return true;
+}
+
+/** The match screen's state: `data-status`, `data-minute` and the reel's `data-beat`. */
+export const matchState = (page: Page) => page.getByTestId('match-state');
+/**
+ * The touchline's answers, the first (the manager's default) of whichever is asking: half-time,
+ * a knock, being substituted, the captain's call.
+ */
+const CALLS = [
+  '[data-testid="halftime-talk"] button',
+  '[data-testid="injury-decision"] button',
+  '[data-testid="substitution-talk"] button',
+  '.match-captain-options button',
+].join(', ');
+/**
+ * Play the live reel (release 1.0, X1b) to full time: Space skips the ticker and each clip to
+ * its outcome, a key answers each decision card once its first choice has focus (after the
+ * card's 300 ms guard), and the default answer goes to every touchline call. Returns the
+ * decision steps answered. `onCard` runs at each card, before it is answered.
+ */
+export async function playReel(
+  page: Page,
+  {
+    key = '1',
+    skip = true,
+    onCard,
+  }: { key?: string; skip?: boolean; onCard?: () => Promise<void> } = {},
+): Promise<number> {
+  const state = matchState(page);
+  let decisions = 0;
+  for (let turns = 0; turns < 600; turns++) {
+    const status = await state.getAttribute('data-status');
+    // A quickly recorded result can clear the session (and so the status) before this sees
+    // full time: the report is there either way.
+    if (status === 'finished' || (await page.getByTestId('final-result').isVisible()))
+      return decisions;
+    const beat = await state.getAttribute('data-beat');
+    const card = page.locator('.reel-card');
+    if (beat === 'card' && (await card.isVisible())) {
+      await expect(card.locator('button[data-choice]').first()).toBeFocused();
+      await onCard?.();
+      const momentId = await state.getAttribute('data-moment');
+      await page.waitForTimeout(320);
+      await page.keyboard.press(key);
+      decisions++;
+      // The card goes, or the chain's next step replaces it.
+      await expect(state).not.toHaveAttribute('data-moment', momentId ?? '');
+      continue;
+    }
+    const call = page.locator(CALLS).first();
+    if ((beat === 'wait' || status === 'halftime') && (await call.isVisible())) {
+      await call.click();
+      continue;
+    }
+    if (skip && beat !== 'wait' && beat !== 'idle') await page.keyboard.press('Space');
+    await page.waitForTimeout(120);
+  }
+  throw new Error('The match did not reach full time');
+}
+/** Import a backup into slot 1 and open the match screen. */
+export async function importToMatch(page: Page, backup: string | BackupPayload): Promise<void> {
+  await page.goto('/saves');
+  await page
+    .locator('.slot-card')
+    .first()
+    .getByLabel('Import backup — Slot 1')
+    .setInputFiles(backup);
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 60000 });
+  await page.goto('/match?save=1');
+}
+/**
+ * Wait for the pending career fixture's pre-match screen: Matchday prepares a club fixture on
+ * arrival, while a nation's match still waits for "Go to the pre-match briefing".
+ */
+export async function careerPreMatch(page: Page): Promise<void> {
+  const state = matchState(page);
+  const briefing = page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true });
+  await expect
+    .poll(
+      async () =>
+        (await state.getAttribute('data-status')) === 'preview' || (await briefing.isVisible()),
+      { timeout: 120000 },
+    )
+    .toBe(true);
+  // A club fixture's card can show for a moment before it is prepared: never wait on it.
+  if ((await state.getAttribute('data-status')) !== 'preview')
+    await briefing.click({ timeout: 3000 }).catch(() => undefined);
+  await expect(state).toHaveAttribute('data-status', 'preview', { timeout: 30000 });
+}
+/** Kick off the pending career fixture and play it to full time (see `playReel`). */
+export async function playCareerMatch(
+  page: Page,
+  options?: Parameters<typeof playReel>[1],
+): Promise<number> {
+  await careerPreMatch(page);
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  await expect(matchState(page)).not.toHaveAttribute('data-status', 'preview');
+  return playReel(page, options);
+}
+/**
+ * Hold the reel where it is, as hiding the tab does, so a journey can measure or capture the
+ * live screen; `resumeReel` plays on.
+ */
+export async function holdReel(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(page.getByTestId('reel-paused')).toHaveAttribute('data-paused', 'true');
+}
+export async function resumeReel(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+  });
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.getByTestId('reel-paused')).not.toHaveAttribute('data-paused', 'true');
 }

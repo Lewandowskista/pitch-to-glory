@@ -22,15 +22,25 @@ import {
 import { buildFeed } from '../src/screens/match/feed';
 
 /**
- * The tactical camera (redesign phase 5b) derives who it shows from a key moment's frame for
- * sessions from engines before match-15, which name no cast: these tests pin that fallback on
- * real moments of the earlier engine path. The engine's own cast and targets (phase 6) are
- * tested in match-cast.test.ts.
+ * The tactical camera (redesign phase 5b) derives who it shows from a key moment's frame when a
+ * moment names no cast (engines before match-15 named none; the current engine names one
+ * whenever its passage has a cast): these tests pin that fallback on real moments with the
+ * engine's cast and targets taken off. The engine's own cast and targets (phase 6) are tested
+ * in match-cast.test.ts.
  */
 const world = generateWorld('match-cam', { format: 'legacy' });
 const clubs = Object.values(world.clubs).slice(0, 2);
 const tactics = { role: 'balanced', risk: 'balanced', mentality: 'balanced' } as const;
 
+/** A moment without the engine's cast and targets: the camera falls back to its derivation. */
+function uncast(moment: KeyMoment): KeyMoment {
+  const { cast: _cast, zone: _zone, ...rest } = structuredClone(moment);
+  void [_cast, _zone];
+  return {
+    ...rest,
+    choices: rest.choices.map(({ target: _target, ...choice }) => (void _target, choice)),
+  };
+}
 /** Every key moment of a match for a player in a position, with the session it opened in. */
 function moments(position: Position, seed: string) {
   const [home, away] = clubs as [(typeof clubs)[number], (typeof clubs)[number]];
@@ -38,12 +48,11 @@ function moments(position: Position, seed: string) {
     home.playerIds.find((pid) => world.players[pid]!.primaryPosition === position) ??
     home.playerIds[0]!;
   const setup = createMatchSetup(world, home.id, away.id, id, seed);
-  // The engine before the cast (match-13 rules): the camera falls back to its derivation.
-  delete setup.occasions;
   let session: MatchSession = createMatchSession(setup, tactics);
   const found: { session: MatchSession; moment: KeyMoment }[] = [];
   for (let turn = 0; turn < 400 && session.state.match.status !== 'finished'; turn++) {
-    if (session.state.currentMoment) found.push({ session, moment: session.state.currentMoment });
+    if (session.state.currentMoment)
+      found.push({ session, moment: uncast(session.state.currentMoment) });
     session = applyMatchCommand(session, autoPlayCommand(session));
   }
   return { found, final: session };

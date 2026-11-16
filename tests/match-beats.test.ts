@@ -41,15 +41,7 @@ function setupAt(position: Position, seed: string, index: number): MatchSetup {
   const [home, away] = index % 2 ? [clubs[1]!, clubs[0]!] : [clubs[0]!, clubs[1]!];
   const club = clubs[0]!;
   const ids = club.playerIds.filter((id) => world.players[id]!.primaryPosition === position);
-  const setup = createMatchSetup(world, home.id, away.id, ids[index % ids.length]!, seed);
-  if (index === 3) {
-    // The legacy 4-3-3 path annotates the same way.
-    delete setup.formations;
-    delete setup.slotMoments;
-    delete setup.dramaMoments;
-    delete setup.occasions;
-  }
-  return setup;
+  return createMatchSetup(world, home.id, away.id, ids[index % ids.length]!, seed);
 }
 function play(setup: MatchSetup) {
   let session = createMatchSession(setup, tactics);
@@ -216,7 +208,9 @@ describe('match choreography beats', { timeout: 120000 }, () => {
         checked++;
       }
     }
-    expect(checked).toBeGreaterThan(200);
+    // Match-22's decision chains (X1a): four to six a match, one outcome passage each (a lead-in
+    // that comes off opens the next step without one), where key moments had eight to twelve.
+    expect(checked).toBeGreaterThan(100);
   });
 });
 
@@ -315,7 +309,9 @@ describe('match bookkeeping stats', { timeout: 120000 }, () => {
   it('records the rating at the end of every minute', () => {
     for (const { session } of matches) {
       const line = session.state.ratingByMinute;
-      expect(line).toHaveLength(90);
+      // Added minutes are played minutes too (match-22).
+      const added = (session.state.stoppage ?? []).reduce((sum, board) => sum + board.minutes, 0);
+      expect(line).toHaveLength(90 + added);
       expect(line.every((value) => value >= 3 && value <= 10)).toBe(true);
     }
   });
@@ -329,9 +325,10 @@ describe('match bookkeeping stats', { timeout: 120000 }, () => {
   it('treats sessions saved before the annotations as outdated', () => {
     const { session } = matches[0]!;
     expect(session.engine).toBe(MATCH_ENGINE_VERSION);
-    expect(MATCH_ENGINE_VERSION).toBe('match-21');
-    // A session saved by match-14 is outdated and restarts from its seed; so is one claiming
-    // match-15 to match-18 for a setup on the current engine's rules.
+    expect(MATCH_ENGINE_VERSION).toBe('match-22');
+    // A session saved by an earlier engine is outdated and restarts from its seed
+    // (docs/COMPATIBILITY.md). A match-21 session replays only from a setup without `rules22`,
+    // so a match-22 session claiming match-21 is outdated too.
     for (const engine of [
       'match-14',
       'match-15',
@@ -340,16 +337,15 @@ describe('match bookkeeping stats', { timeout: 120000 }, () => {
       'match-18',
       'match-19',
       'match-20',
+      'match-21',
     ]) {
       const previous = JSON.parse(JSON.stringify(session));
       previous.engine = engine;
       expect(() => validateMatchSession(previous)).toThrow(OutdatedMatchSessionError);
     }
-    const legacy = matches.find((m) => !m.session.setup.formations)!.session;
-    for (const saved of [session, legacy]) {
-      const before = JSON.parse(JSON.stringify(saved));
-      delete before.state.stats.xg;
-      expect(() => validateMatchSession(before)).toThrow(OutdatedMatchSessionError);
-    }
+    // So is one without the bookkeeping (from before match-14).
+    const before = JSON.parse(JSON.stringify(session));
+    delete before.state.stats.xg;
+    expect(() => validateMatchSession(before)).toThrow(OutdatedMatchSessionError);
   });
 });

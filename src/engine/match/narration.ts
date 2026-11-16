@@ -1,6 +1,7 @@
 import type { Beat, BeatKind, PitchFlank, Point, ReplayFrame } from '../../model/domain';
 import { createRng } from '../rng';
-import type { MatchMotion, MatchSession, NarrationLine } from './types';
+import { rules22, type MatchMotion, type MatchSession, type NarrationLine } from './types';
+import { narrationVariant } from './commentary';
 
 /**
  * Narration (redesign step M3, engine match-14): after a passage is choreographed, its beats
@@ -15,7 +16,10 @@ import type { MatchMotion, MatchSession, NarrationLine } from './types';
  * UI puts names in) and plain descriptors: `flank`, `zone`, `post`, `pattern`.
  */
 
-/** Every narration family; each has `NARRATION_VARIANTS` lines (`match.narration.<family>.<n>`). */
+/**
+ * Every narration family (`match.narration.<family>.<n>`): `NARRATION_VARIANTS` lines each in
+ * match-21, and `narrationVariants(family)` in match-22 (commentary.ts).
+ */
 export const NARRATION_FAMILIES = [
   'cross.header.near',
   'cross.header.far',
@@ -197,14 +201,20 @@ export function narrate(
 
   const rng = createRng(`${session.setup.seed}:narration:${minute}:${kind}:${start}`);
   const lines: NarrationLine[] = [];
-  const emit = (candidate: Candidate) =>
+  const current = rules22(session.setup);
+  const emit = (candidate: Candidate) => {
+    // match-21 draws the variant here; match-22 draws it all the same (so the narrated moves stay
+    // those of match-21) and cycles through the family's own variants instead (commentary.ts).
+    const drawn = rng.int(0, NARRATION_VARIANTS - 1);
+    const variant = current ? narrationVariant(session, candidate.family, lines) : drawn;
     lines.push({
       minute,
       frame: candidate.frame,
-      key: `match.narration.${candidate.family}.${rng.int(0, NARRATION_VARIANTS - 1)}`,
+      key: `match.narration.${candidate.family}.${variant}`,
       params: candidate.params,
       ...(candidate.eventId ? { eventId: candidate.eventId } : {}),
     });
+  };
   let filler = false;
   for (let index = 1; index < frames.length;) {
     const pattern = beatAt(index)?.pattern;

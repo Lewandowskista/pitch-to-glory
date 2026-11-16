@@ -1,396 +1,221 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import type { Page } from '@playwright/test';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { expect, importToMatch, matchState, playReel, skipTutorial, test } from './support';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
+import { sessionBeforeGoal } from './matchSessions';
 
+/**
+ * The live match as a highlights reel (release 1.0, X1b; docs/EXPERIENCE-REDESIGN-1.0.md
+ * 1.2–1.5): the one-screen pre-match, the ticker with its one control, decision chains on the
+ * card, the inline outcome beat, every goal as a clip, Watch highlights, Simulate, the Match
+ * log, pausing, the stills fallback and the report's moment tiles. `REEL_SHOTS=<dir>` saves the
+ * screenshots at 390 × 844.
+ */
+const SHOTS = process.env.REEL_SHOTS;
+const PHONE = { width: 390, height: 844 };
 let backupPath: string;
-let fatiguedBackupPath: string;
-let longNamesBackupPath: string;
+let goalBackupPath: string;
 test.beforeAll(async ({ browserName }, workerInfo) => {
-  const world = generateWorld('match-browser', { format: 'legacy' });
-  const save = createSave(1, 'Matchday test', {
-    kind: 'world',
+  const world = generateWorld('match-browser');
+  const payload = {
+    kind: 'world' as const,
     world,
     gallery: { seed: 'match-browser', generation: 0 },
     settings: DEFAULT_SETTINGS,
-  });
+  };
   await mkdir('artifacts', { recursive: true });
   backupPath = `artifacts/match-start-${browserName}-${workerInfo.workerIndex}.json`;
-  await writeFile(backupPath, JSON.stringify(save));
-  const tired = structuredClone(world);
-  for (const player of Object.values(tired.players)) {
-    player.fatigue = 95;
-    player.attributes.leadership = player.primaryPosition === 'ST' ? 99 : 40;
-  }
-  fatiguedBackupPath = `artifacts/match-tired-${browserName}-${workerInfo.workerIndex}.json`;
+  await writeFile(backupPath, JSON.stringify(createSave(1, 'Matchday test', payload)));
+  // A friendly one minute before a goal in open play.
+  goalBackupPath = `artifacts/match-goal-${browserName}-${workerInfo.workerIndex}.json`;
   await writeFile(
-    fatiguedBackupPath,
+    goalBackupPath,
     JSON.stringify(
-      createSave(1, 'Captain match', { ...save.payload, kind: 'world', world: tired }),
+      createSave(1, 'Goal match', { ...payload, matchSession: sessionBeforeGoal(world) }),
     ),
-  );
-  // Ordinary but long club names, which the scoreboard once broke mid-word (review U2).
-  const named = structuredClone(world);
-  Object.values(named.clubs).forEach((club, index) => {
-    club.name = index % 2 ? 'Matlock Albion' : 'Featherstonehaugh Rovers';
-  });
-  longNamesBackupPath = `artifacts/match-names-${browserName}-${workerInfo.workerIndex}.json`;
-  await writeFile(
-    longNamesBackupPath,
-    JSON.stringify(createSave(1, 'Long names', { ...save.payload, kind: 'world', world: named })),
   );
 });
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
 });
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
-});
-async function prepare(page: Page, keeper = false, tired = false, backup?: string) {
-  await page.goto('/saves');
-  await page
-    .locator('.slot-card')
-    .nth(0)
-    .getByLabel('Import backup — Slot 1')
-    .setInputFiles(backup ?? (tired ? fatiguedBackupPath : backupPath));
-  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
-  await page
-    .getByRole('navigation')
-    .first()
-    .getByRole('link', { name: 'Matchday', exact: true })
-    .click();
+test.use({ actionTimeout: 15000 });
+
+async function shot(page: Page, name: string) {
+  if (!SHOTS) return;
+  await mkdir(SHOTS, { recursive: true });
+  await page.screenshot({ path: `${SHOTS}/${name}.png` });
+}
+/** A friendly prepared for the first striker, at the pre-match screen. */
+async function prepare(page: Page) {
+  await importToMatch(page, backupPath);
   const select = page.getByRole('combobox', { name: 'Your footballer', exact: true });
-  await expect(select).toBeVisible();
-  await expect(select.locator('option')).toHaveCount(22);
+  await expect(select).toBeVisible({ timeout: 30000 });
   const player = await select
     .locator('option')
     .evaluateAll(
-      (options, position) =>
+      (options) =>
         (
-          options.find((option) => option.textContent?.endsWith(position)) as
+          options.find((option) => option.textContent?.endsWith('ST')) as
             HTMLOptionElement | undefined
         )?.value,
-      keeper ? 'GK' : 'ST',
     );
-  expect(player).toBeTruthy();
   await select.selectOption(player!);
   await page.getByRole('button', { name: 'Prepare match', exact: true }).click();
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'preview');
+  await expect(matchState(page)).toHaveAttribute('data-status', 'preview');
 }
-async function pause(page: Page) {
-  const control = page.getByRole('button', { name: 'Pause', exact: true });
-  if (await control.isVisible()) await control.click();
-}
-async function finish(page: Page) {
-  for (let turns = 0; turns < 45; turns++) {
-    const status = await page.getByTestId('match-state').getAttribute('data-status');
-    if (status === 'finished') return;
-    if (status === 'decision') await page.locator('.match-choices button').first().click();
-    else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team/ }).click();
-    else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible())
-      await page.getByRole('button', { name: /Accept the change/ }).click();
-    else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
-      await page.getByRole('button', { name: /Keep the team composed/ }).click();
-    else {
-      await pause(page);
-      await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-    }
+/** Skip through the ticker until the reel shows `beat`. */
+async function skipTo(page: Page, beat: string) {
+  const state = matchState(page);
+  for (let turns = 0; turns < 200; turns++) {
+    const now = await state.getAttribute('data-beat');
+    if (now === beat) return;
+    if (now === 'wait') await page.locator('.reel-main section button').first().click();
+    else if (now === 'ticker') await page.keyboard.press('Space');
+    await page.waitForTimeout(150);
   }
-  throw new Error('Match failed to reach full-time within bounded decisions');
+  throw new Error(`The reel never reached ${beat}`);
 }
-test('plays a saved match through keyboard decisions, refresh, half-time and the report', async ({
+const words = (text: string) => text.split(/\s+/).filter((token) => /\p{L}/u.test(token)).length;
+
+test('pre-match is one screen, and Kick off starts the reel', async ({ page }) => {
+  test.setTimeout(90000);
+  await page.setViewportSize(PHONE);
+  await prepare(page);
+  const pre = page.getByTestId('pre-match');
+  await expect(pre.getByTestId('pre-match-objective')).toHaveCount(1);
+  await expect(pre.locator('.reel-role summary')).toContainText('Your role');
+  await expect(pre.locator('.reel-details')).not.toHaveAttribute('open', '');
+  const kickoff = page.getByRole('button', { name: 'Kick off', exact: true });
+  await expect(kickoff).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('button', { name: 'Watch highlights' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Simulate' })).toBeVisible();
+  await shot(page, 'pre-match');
+  await kickoff.click();
+  await expect(matchState(page)).toHaveAttribute('data-status', 'live');
+  await expect(page.getByTestId('ticker')).toBeVisible();
+  // One control, and no playback speeds.
+  await expect(page.getByRole('button', { name: 'Skip to next moment' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^[124]×$/ })).toHaveCount(0);
+  await expect(page.locator('.reel-wave')).toBeVisible();
+  await page.waitForTimeout(1500);
+  await shot(page, 'ticker');
+});
+
+test('plays decision chains on the card to the report, and a refresh keeps the step', async ({
   page,
-  browserName,
 }) => {
-  test.setTimeout(120000);
+  test.setTimeout(240000);
+  await page.setViewportSize(PHONE);
   await prepare(page);
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  await pause(page);
-  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
-  // A new key moment is announced politely and focus moves to its first choice.
-  await expect(page.getByTestId('live-updates')).toContainText('Key moment');
-  await expect(page.locator('.match-choices button').first()).toBeFocused();
-  await expect(page.locator('.match-choice-hint').first()).toContainText('Uses');
-  const minute = await page.getByTestId('match-state').getAttribute('data-minute');
-  await expect(page.locator('.save-indicator')).toHaveText('All changes saved', { timeout: 30000 });
+  await skipTo(page, 'card');
+  const card = page.locator('.reel-card');
+  await expect(card.locator('button[data-choice]').first()).toBeFocused();
+  // The card and the clip fit one screen: header within 12 words, options within 20.
+  expect(words((await card.locator('.reel-card-header').textContent())!)).toBeLessThanOrEqual(12);
+  const box = (await card.boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(PHONE.height);
+  await expect(page.getByTestId('clip-stage')).toBeInViewport();
+  await expect(card.locator('button[data-choice]').first()).toContainText(/\d+%/);
+  await shot(page, 'chain-step');
+  // "Why?" holds the factors; Escape closes it and never chooses.
+  await card.getByRole('button', { name: 'Why?' }).click();
+  await expect(card.locator('.reel-why-panel')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(card.locator('.reel-why-panel')).toHaveCount(0);
+  await expect(matchState(page)).toHaveAttribute('data-status', 'decision');
+  // A refresh brings back the same step.
+  const momentId = await matchState(page).getAttribute('data-moment');
   await page.reload();
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision', {
-    timeout: 30000,
-  });
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-minute', minute!);
-  await page.locator('.match-choices button').first().focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(page.locator('.match-choices button').nth(1)).toBeFocused();
+  await expect(page.locator('.reel-card')).toBeVisible({ timeout: 30000 });
+  await expect(matchState(page)).toHaveAttribute('data-moment', momentId!);
+  await expect(page.locator('.reel-card button[data-choice]').first()).toBeFocused();
+  await page.waitForTimeout(320);
   await page.keyboard.press('1');
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'live');
-  await expect(page.locator('.match-outcome')).toContainText('Relevant attribute');
-  await expect(page.locator('.match-outcome')).toContainText('Opposition quality');
-  await expect(page.locator('.match-outcome')).toContainText('Fatigue');
-  await page.screenshot({ path: `artifacts/match-live-${browserName}.png`, fullPage: true });
-  await finish(page);
-  await expect(page.getByRole('heading', { name: 'Your match report', exact: true })).toBeVisible();
-  await expect(page.getByRole('img', { name: /^Movement heatmap:/ })).toBeVisible();
-  await expect(page.getByRole('img', { name: /^Pass map:/ })).toBeVisible();
-  await expect(page.getByRole('img', { name: /^Shot map:/ })).toBeVisible();
-  await expect(page.locator('.save-indicator')).toHaveText('All changes saved', { timeout: 30000 });
-  await page.reload();
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'finished', {
-    timeout: 30000,
-  });
-  await expect(page.locator('.match-rewards')).toHaveCSS('opacity', '1');
-  await page.screenshot({ path: `artifacts/match-report-${browserName}.png`, fullPage: true });
-  await page
-    .getByRole('navigation')
-    .first()
-    .getByRole('link', { name: 'Saved games', exact: true })
-    .click();
-  const download = page.waitForEvent('download');
-  await page.locator('.slot-card').first().getByRole('button', { name: 'Export backup' }).click();
-  const saved = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
-  expect(saved.schemaVersion).toBe(22);
-  expect(saved.payload.matchSession.state.match.status).toBe('finished');
-  expect(
-    saved.payload.matchSession.commands.some(
-      (command: { type: string }) => command.type === 'halftime',
-    ),
-  ).toBe(true);
-  expect(saved.payload.world.results).toEqual({});
+  // The outcome is a beat on the clip: a mark and one cause line, then play moves on by itself.
+  const beat = page.getByTestId('outcome-beat');
+  await expect(beat).toBeVisible({ timeout: 10000 });
+  await expect(beat).toContainText(/\d+%/);
+  await shot(page, 'outcome-beat');
+  await expect(beat).toHaveCount(0, { timeout: 10000 });
+  const answered = await playReel(page);
+  expect(answered).toBeGreaterThan(0);
+  // The report leads with the score and one tile per chain; a tile replays its clips.
+  await expect(page.getByTestId('final-result')).toBeVisible();
+  const tiles = page.getByTestId('moment-tile');
+  expect(await tiles.count()).toBeGreaterThan(0);
+  await page.waitForTimeout(800);
+  await shot(page, 'report');
+  await tiles.first().click();
+  await expect(page.getByTestId('moment-replay')).toBeVisible();
 });
-test('keeper decisions work in simulation-only mode with large mobile text', async ({
-  page,
-  browserName,
-}) => {
-  test.setTimeout(120000);
-  await prepare(page, true);
-  await page
-    .getByRole('navigation')
-    .first()
-    .getByRole('link', { name: 'Settings', exact: true })
-    .click();
-  await page.getByRole('switch', { name: 'Simulation only', exact: true }).check();
-  await page.getByRole('radio', { name: 'Dark', exact: true }).check();
-  await page.getByLabel('Text size', { exact: true }).focus();
-  await page.keyboard.press('End');
-  await page
-    .getByRole('navigation')
-    .first()
-    .getByRole('link', { name: 'Matchday', exact: true })
-    .click();
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  await pause(page);
-  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-  // Keeper situations are seeded: a shot, a one-on-one, a cross, distribution or a penalty.
-  // Each is framed in one of several sentences, so the keeper's choices identify it.
-  await expect(page.locator('#decision-heading')).not.toBeEmpty();
-  await expect(page.locator('.match-choices button').first()).toHaveText(
-    /Catch and hold|Parry|Rush off|Stay on your line|Come and claim|Punch|Roll it out|Kick it long|Read the taker|Stay big/,
-  );
-  expect(await page.locator('.match-choices button').count()).toBeGreaterThanOrEqual(2);
-  await expect(page.locator('canvas')).toHaveCount(0);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
-    true,
-  );
-  await page.screenshot({ path: `artifacts/match-mobile-${browserName}.png`, fullPage: true });
-  await finish(page);
-  await expect(page.getByRole('heading', { name: 'Your match report', exact: true })).toBeVisible();
-});
-test('the scoreboard keeps long club names whole beside the clock at 1440 × 900', async ({
-  page,
-}) => {
+
+test('every goal is seen: a clip, then the GOAL banner and the score', async ({ page }) => {
   test.setTimeout(90000);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await prepare(page, false, false, longNamesBackupPath);
-  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  await pause(page);
-  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
-  // Each chance says what it is a chance of ("79% to score").
-  await expect(page.locator('.match-choice-chance').first()).toHaveText(
-    /^\d+% to (score|complete|get through|stop the attack|keep it out|get there first)$/,
-  );
-  const names = page.locator('.match-scoreboard .match-team-text strong');
-  await expect(names).toHaveText([
-    /^(Featherstonehaugh Rovers|Matlock Albion)$/,
-    /^(Featherstonehaugh Rovers|Matlock Albion)$/,
-  ]);
-  const layout = await page.evaluate(() => {
-    const box = (element: Element | null) => element!.getBoundingClientRect();
-    const overlaps = (a: DOMRect, b: DOMRect) =>
-      a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-    // A word broken across lines has client rects on more than one line.
-    const broken: string[] = [];
-    const shown: boolean[] = [];
-    for (const name of document.querySelectorAll('.match-scoreboard .match-team-text strong')) {
-      shown.push(box(name).width > 40);
-      const walker = document.createTreeWalker(name, NodeFilter.SHOW_TEXT);
-      for (let node = walker.nextNode(); node; node = walker.nextNode())
-        for (const word of node.textContent!.matchAll(/\S+/g)) {
-          const range = document.createRange();
-          range.setStart(node, word.index!);
-          range.setEnd(node, word.index! + word[0].length);
-          const lines = new Set(
-            [...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)),
-          );
-          if (lines.size > 1) broken.push(word[0]);
-        }
-    }
-    const state = box(document.querySelector('.match-clock-state'));
-    return {
-      broken,
-      shown,
-      overlap: [...document.querySelectorAll('.match-scoreboard .match-team')].some((team) =>
-        overlaps(state, box(team)),
-      ),
-    };
-  });
-  expect(layout.broken).toEqual([]);
-  expect(layout.shown).toEqual([true, true]);
-  expect(layout.overlap).toBe(false);
+  await page.setViewportSize(PHONE);
+  await importToMatch(page, goalBackupPath);
+  const state = matchState(page);
+  await expect(state).toHaveAttribute('data-status', 'live', { timeout: 30000 });
+  const before = await page.locator('.match-score-value').innerText();
+  await expect(state).toHaveAttribute('data-beat', 'clip', { timeout: 15000 });
+  // The board keeps the goal back until it goes in on the pitch.
+  expect(await page.locator('.match-score-value').innerText()).toBe(before);
+  await page.waitForTimeout(1800);
+  await shot(page, 'goal');
+  await expect(state).toHaveAttribute('data-beat', 'banner', { timeout: 10000 });
+  await expect(page.locator('.match-score-value')).not.toHaveText(before);
 });
-test('playback pauses when hidden and the pitch survives resize and context loss', async ({
-  page,
-  browserName,
-}) => {
+
+test('Watch highlights plays the reel with no decisions to make', async ({ page }) => {
+  test.setTimeout(200000);
+  await prepare(page);
+  await page.getByRole('button', { name: 'Watch highlights' }).click();
+  const started = Date.now();
+  const state = matchState(page);
+  await expect(state).toHaveAttribute('data-mode', 'watch');
+  // No input at all but the touchline's calls, answered as the manager would.
+  await expect(state).toHaveAttribute('data-status', 'finished', { timeout: 180000 });
+  await expect(page.getByTestId('final-result')).toBeVisible();
+  // About a minute (a headless browser runs the clips a little slower than a phone).
+  expect(Date.now() - started).toBeLessThan(100000);
+});
+
+test('Simulate goes straight to the report', async ({ page }) => {
   test.setTimeout(90000);
   await prepare(page);
+  await page.getByRole('button', { name: 'Simulate' }).click();
+  await expect(page.getByTestId('final-result')).toBeVisible({ timeout: 30000 });
+  await expect(matchState(page)).toHaveAttribute('data-status', 'finished');
+});
+
+test('the Match log is a sheet Back closes; hiding the tab pauses; reduced motion draws stills', async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await prepare(page);
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  await pause(page);
-  await page.locator('main').focus();
-  await page.keyboard.press('Space');
-  await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Match log' }).click();
+  await expect(page.getByTestId('match-log')).toBeVisible();
+  await expect(page).toHaveURL(/log=1/);
+  await page.goBack();
+  await expect(page.getByTestId('match-log')).toHaveCount(0);
+  // Hidden, the reel holds; Space plays on.
   await page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
-  const minute = await page.getByTestId('match-state').getAttribute('data-minute');
-  await page.waitForTimeout(1200);
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-minute', minute!);
+  await expect(page.getByTestId('reel-paused')).toHaveAttribute('data-paused', 'true');
+  const minute = await matchState(page).getAttribute('data-minute');
+  await page.waitForTimeout(1500);
+  await expect(matchState(page)).toHaveAttribute('data-minute', minute!);
   await page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', {
-      configurable: true,
-      get: () => 'visible',
-    });
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
-    document.dispatchEvent(new Event('visibilitychange'));
   });
-  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
-  await page.setViewportSize({ width: 760, height: 900 });
-  if (browserName === 'chromium') {
-    await expect(page.locator('canvas')).toHaveCount(1, { timeout: 20000 });
-    await page
-      .locator('canvas')
-      .evaluate((canvas) =>
-        canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true })),
-      );
-    await expect(
-      page.getByText('Using the accessible pitch view.', { exact: false }),
-    ).toBeVisible();
-  }
-  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
-});
-test('pausing freezes pitch movement and resuming continues the action', async ({
-  page,
-  browserName,
-}) => {
-  test.setTimeout(90000);
-  await prepare(page);
-  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
   await page.getByRole('button', { name: 'Play', exact: true }).click();
-  await expect(page.getByTestId('match-state')).not.toHaveAttribute('data-minute', '0');
-  await pause(page);
-  const pitch = page.locator('.match-pitch-panel figure').first();
-  await expect(pitch).toBeVisible();
-  if (browserName === 'chromium') await expect(pitch.locator('canvas')).toHaveCount(1);
-  const frozen = await pitch.screenshot();
-  await page.waitForTimeout(350);
-  expect((await pitch.screenshot()).equals(frozen)).toBe(true);
-  await page.getByRole('button', { name: 'Play', exact: true }).click();
-  await expect(async () => expect((await pitch.screenshot()).equals(frozen)).toBe(false)).toPass({
-    timeout: 8000,
-  });
-});
-
-test('the vector fallback animates decisions and respects reduced motion', async ({ page }) => {
-  test.setTimeout(90000);
-  await prepare(page);
-  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  const canvas = page.locator('.match-pitch-panel canvas');
-  await expect
-    .poll(
-      async () =>
-        (await canvas.count()) > 0 ||
-        (await page.getByText('Using the accessible pitch view.', { exact: false }).isVisible()),
-      { timeout: 20000 },
-    )
-    .toBe(true);
-  if (await canvas.count())
-    await canvas.evaluate((node) =>
-      node.dispatchEvent(new Event('webglcontextlost', { cancelable: true })),
-    );
-  await expect(page.getByText('Using the accessible pitch view.', { exact: false })).toBeVisible();
-  const pitch = page.locator('.match-pitch-panel svg').first();
-  await expect(pitch.locator('text')).toHaveCount(22);
-  for (const number of await pitch.locator('text').all())
-    await expect(number).toHaveAttribute('text-anchor', 'middle');
-  const start = await pitch.screenshot();
-  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-  await expect(async () => expect((await pitch.screenshot()).equals(start)).toBe(false)).toPass({
-    timeout: 5000,
-  });
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForTimeout(150);
-  const still = await pitch.screenshot();
-  await page.waitForTimeout(350);
-  expect((await pitch.screenshot()).equals(still)).toBe(true);
-});
-
-test('captain and substitution responses stop skip before completing the match', async ({
-  page,
-}) => {
-  test.setTimeout(120000);
-  await prepare(page, false, true);
-  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  await pause(page);
-  let captain = false;
-  let substitution = false;
-  for (let turns = 0; turns < 45; turns++) {
-    const status = await page.getByTestId('match-state').getAttribute('data-status');
-    if (status === 'finished') break;
-    if (status === 'decision') await page.locator('.match-choices button').first().click();
-    else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team/ }).click();
-    else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible()) {
-      captain = true;
-      await expect(
-        page.getByRole('button', { name: 'Next key moment', exact: true }),
-      ).toBeDisabled();
-      await page.getByRole('button', { name: /Keep the team composed/ }).click();
-    } else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible()) {
-      substitution = true;
-      await expect(page.getByTestId('match-state')).toHaveAttribute('data-minute', '65');
-      await expect(
-        page.getByRole('button', { name: 'Next key moment', exact: true }),
-      ).toBeDisabled();
-      await page.getByRole('button', { name: /Encourage your teammates/ }).click();
-    } else await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-  }
-  expect(captain).toBe(true);
-  expect(substitution).toBe(true);
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'finished');
-  await expect(page.getByRole('heading', { name: 'Your match report', exact: true })).toBeVisible();
+  await expect(page.getByTestId('reel-paused')).not.toHaveAttribute('data-paused', 'true');
+  // With reduced motion a clip is drawn as stills.
+  await skipTo(page, 'card');
+  await expect(page.locator('.reel-still')).toBeVisible();
 });

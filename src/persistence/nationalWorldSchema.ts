@@ -5,6 +5,8 @@ import { portugueseSurvivalBonus } from '../engine/world/postseason';
 import {
   array,
   date,
+  DETAILED_HISTORY_LIMIT,
+  HISTORY_LIMIT,
   id,
   ids,
   map,
@@ -16,6 +18,7 @@ import {
   requireValue,
   standings,
   text,
+  validateCompactSummary,
   validateEntities,
 } from './worldValidation';
 import { validateCareer } from './careerValidation';
@@ -843,7 +846,9 @@ export function validateNationalWorld(value: unknown): World {
       }
     }
   }
-  const history = array(w.history, 100);
+  // One summary a season, in order: retention keeps the last seasons in full and compacts the
+  // older ones to their titles (engine/world/retention.ts).
+  const history = array(w.history, HISTORY_LIMIT);
   if (w.phase === 'complete')
     requireValue(
       pyramid.stage === 'resolved' &&
@@ -851,6 +856,7 @@ export function validateNationalWorld(value: unknown): World {
         object(history.at(-1)).season === current.season,
     );
   let previousYear = 0;
+  let detailed = 0;
   for (const summaryValue of history) {
     const summary = object(summaryValue);
     number(summary.season, 1800, Number(season.year), true);
@@ -859,6 +865,27 @@ export function validateNationalWorld(value: unknown): World {
         (w.phase === 'complete' || Number(summary.season) < Number(current.season)),
     );
     previousYear = Number(summary.season);
+    if (summary.compact !== undefined) {
+      validateCompactSummary(summary, {
+        leagues,
+        clubs,
+        competitions,
+        leagueCount: claimedLeagues.size,
+        cupCount: claimedCups.size,
+        current: Number(current.season),
+      });
+      for (const [divisionId, entryValue] of Object.entries(
+        object(summary.divisionChampions ?? {}),
+      )) {
+        requireValue(Object.hasOwn(QUALIFYING_DIVISIONS, divisionId));
+        const entry = object(entryValue);
+        id(entry.competitionId);
+        requireValue(String(entry.competitionId).includes(`:${String(summary.season)}:`));
+        ref(entry.clubId, clubs);
+      }
+      continue;
+    }
+    requireValue(++detailed <= DETAILED_HISTORY_LIMIT);
     const tables = object(summary.tables);
     requireValue(Object.keys(tables).length === claimedLeagues.size);
     for (const [key, rowsValue] of Object.entries(tables)) {
@@ -1033,11 +1060,15 @@ export function validateNationalWorld(value: unknown): World {
       if (typeof v === 'number') number(v, -1e12);
       else requireValue(typeof v === 'string' && v.length <= 200);
   }
-  // A trophy may name a phase or tie of an earlier, archived season.
+  // A trophy may name a phase or tie of an earlier, archived season: a compacted season keeps
+  // the ones that decided a title (its division champions).
   const archivedDeciders = new Set(
     history.flatMap((summary) => [
       ...Object.keys(object(object(summary).phases ?? {})),
       ...Object.keys(object(object(summary).ties ?? {})),
+      ...Object.values(object(object(summary).divisionChampions ?? {})).map((entry) =>
+        String(object(entry).competitionId),
+      ),
     ]),
   );
   for (const trophyValue of array(w.trophies, 10000)) {

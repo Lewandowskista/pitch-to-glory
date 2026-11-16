@@ -1,3 +1,11 @@
+import { covers } from './coverage';
+import type {
+  CareerFinances,
+  CareerMarket,
+  CareerMove,
+  Contract,
+  TransferOffer,
+} from '../model/domain';
 import type { ContractTerms, Player } from '../model/domain';
 import { CONFIG } from '../engine/config';
 import { validTerms } from '../engine/career/market/offers';
@@ -344,3 +352,68 @@ export function validateMarket(w: Record<string, unknown>): void {
     if (message.deadline !== undefined) date(message.deadline);
   }
 }
+/** The career's market record (step 4.9: every field of `CareerMarket`, checked by `tests/validator-coverage.test.ts`). */
+export const MARKET_FIELDS = covers<CareerMarket>('career.market', {
+  agentId: true,
+  agentChanged: true,
+  lastAdvice: true,
+  finances: true,
+  pendingBonuses: true,
+  transferRequest: true,
+  loanRequest: true,
+  renewalAskAfter: true,
+  selection: true,
+  registeredFrom: true,
+  moves: true,
+  sequence: true,
+});
+/** The career's finances (step 4.9). */
+export const FINANCES_FIELDS = covers<CareerFinances>('career.market.finances', {
+  cash: true,
+  lifetimeEarnings: true,
+  agentFees: true,
+  lastPay: true,
+});
+/** The career's moves (step 4.9). */
+export const MOVE_FIELDS = covers<CareerMove>('career.market.moves.*', {
+  date: true,
+  kind: true,
+  fromClubId: true,
+  toClubId: true,
+  fee: true,
+  weeklyWage: true,
+});
+/** Every offer (step 4.9). */
+export const OFFER_FIELDS = covers<TransferOffer>('offers.*', {
+  id: true,
+  kind: true,
+  clubId: true,
+  parentClubId: true,
+  playerId: true,
+  created: true,
+  expires: true,
+  fee: true,
+  bids: true,
+  releaseClauseTriggered: true,
+  loan: true,
+  status: true,
+  negotiationId: true,
+});
+/** Every contract (step 4.9). */
+export const CONTRACT_FIELDS = covers<Contract>('contracts.*', {
+  id: true,
+  playerId: true,
+  clubId: true,
+  start: true,
+  end: true,
+  weeklyWage: true,
+  role: true,
+  appearanceBonus: true,
+  goalBonus: true,
+  cleanSheetBonus: true,
+  releaseClause: true,
+  sellOnPercent: true,
+  sellOnClubId: true,
+  loyaltyBonus: true,
+  optionTaken: true,
+});

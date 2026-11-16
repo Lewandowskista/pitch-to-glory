@@ -6,20 +6,19 @@ import {
   applyMatchCommand,
   createMatchSession,
   createMatchSetup,
-  engineFor,
+  isCurrentSetup,
   situationWeights,
   validateMatchSession,
-  MATCH_ENGINE_VERSION,
   SITUATIONS,
-  SLOT_MATCH_ENGINE,
-  DRAMA_MATCH_ENGINE,
-  ROLE_MATCH_ENGINE,
   type MatchSession,
   type MatchSetup,
 } from '../src/engine/match';
 import { HEADLINE_KINDS, HEADLINE_VARIANTS, headlineKind } from '../src/engine/match/headlines';
-import { hasMatchLabel, matchFormat, matchLabel, situationText } from '../src/i18n/match';
+import { hasMatchLabel, matchFormat, situationText } from '../src/i18n/match';
+import { hasCommentaryLabel } from '../src/i18n/commentary';
+import { hasReportLabel, reportLabel } from '../src/i18n/matchReport';
 import type { MatchEvent, Position } from '../src/model/domain';
+import { onEngine } from './support/engines';
 
 /**
  * Key moments that follow the game (engine match-12): late moments in close games, set pieces
@@ -49,37 +48,22 @@ describe('key moments that follow the game', () => {
   const played = (['ST', 'AM', 'CB', 'GK'] as Position[]).flatMap((position) =>
     Array.from({ length: 60 }, (_, index) => {
       const setup = setupFor(position, `drama:${position}:${index}`, index);
-      const legacy = structuredClone(setup);
-      delete legacy.dramaMoments;
-      return {
-        position,
-        drama: play(createMatchSession(setup, tactics)),
-        before: play(createMatchSession(legacy, tactics)),
-      };
+      return { position, drama: play(createMatchSession(setup, tactics)) };
+    }),
+  );
+  // The late moment, the drama odds and the chained shot are match-12/13 rules: match-22 plays
+  // them as decision chains (X1a; tests/match-chains.test.ts), match-21 keeps them.
+  const classic = (['ST', 'AM', 'CB', 'GK'] as Position[]).flatMap((position) =>
+    Array.from({ length: 60 }, (_, index) => {
+      const setup = onEngine(setupFor(position, `drama:${position}:${index}`, index), 'match-21');
+      return { position, drama: play(createMatchSession(setup, tactics)) };
     }),
   );
 
-  it('replay sessions saved before as they were, without the new situations', () => {
+  it('replay exactly', () => {
     const setup = setupFor('ST', 'drama:replay');
     expect(setup.dramaMoments).toBe(true);
-    expect(engineFor(setup)).toBe(MATCH_ENGINE_VERSION);
-    const legacy = structuredClone(setup);
-    delete legacy.dramaMoments;
-    expect(engineFor(legacy)).toBe(SLOT_MATCH_ENGINE);
-    let session = createMatchSession(legacy, tactics);
-    expect(session.engine).toBe(SLOT_MATCH_ENGINE);
-    session = applyMatchCommand(session, { type: 'kickoff' });
-    expect(validateMatchSession(structuredClone(session))).toEqual(session);
-    expect(() =>
-      validateMatchSession({ ...structuredClone(session), engine: MATCH_ENGINE_VERSION }),
-    ).toThrow();
-    for (const { before } of played) {
-      for (const moment of before.state.match.keyMoments) {
-        expect(DRAMA).not.toContain(moment.situationId);
-        expect(moment.situationKey).toBe(`match.situation.${moment.situationId}`);
-      }
-      expect(validateMatchSession(structuredClone(before))).toEqual(before);
-    }
+    expect(isCurrentSetup(setup)).toBe(true);
     for (const { drama } of played.slice(0, 20))
       expect(validateMatchSession(structuredClone(drama))).toEqual(drama);
   });
@@ -87,7 +71,7 @@ describe('key moments that follow the game', () => {
   it('keep the last moment for the closing minutes when the game is close', () => {
     let close = 0,
       lateWhenClose = 0;
-    for (const { drama } of played) {
+    for (const { drama } of classic) {
       const s = drama.state;
       // Substituted or sent off (match-16): no moments after leaving.
       if (s.substituted || s.sentOff) continue;
@@ -126,24 +110,23 @@ describe('key moments that follow the game', () => {
       state: { minute: 30, margin: -2 },
     });
     expect(early).toEqual(at(0));
-    // Without the drama engine the pool is the one sessions saved before used.
+    // Without `drama` the pool is open play only (set pieces add to it in `shares`).
     expect(situationWeights('ST', 'balanced').some((w) => w.situation.drama)).toBe(false);
   });
 
   it('keep the goals a match expects, wherever they now come from', () => {
-    const mean = (key: 'drama' | 'before') =>
+    const mean =
       played.reduce((sum, entry) => {
-        const score = entry[key].state.match.score;
+        const score = entry.drama.state.match.score;
         return sum + score[0] + score[1];
       }, 0) / played.length;
-    expect(Math.abs(mean('drama') - mean('before'))).toBeLessThan(0.25);
-    expect(mean('drama')).toBeGreaterThan(2.2);
-    expect(mean('drama')).toBeLessThan(3.2);
+    expect(mean).toBeGreaterThan(2.2);
+    expect(mean).toBeLessThan(3.2);
   });
 
   it('offer set pieces and last-ditch moments with stated odds that come true', () => {
     const seen: Record<string, { n: number; stated: number; actual: number }> = {};
-    for (const { drama } of played)
+    for (const { drama } of classic)
       for (const moment of drama.state.match.keyMoments) {
         if (!DRAMA.includes(moment.situationId)) continue;
         const outcome = drama.state.match.events.find(
@@ -212,22 +195,22 @@ describe('key moments that follow the game', () => {
       expect(hasMatchLabel(`match.pressure.${kind}`)).toBe(true);
     for (const kind of ['late-equaliser', 'late-winner'])
       for (let variant = 0; variant < CONFIG.match.commentaryVariants; variant++)
-        expect(hasMatchLabel(`match.commentary.${kind}.${variant}`)).toBe(true);
+        expect(hasCommentaryLabel(`match.commentary.${kind}.${variant}`)).toBe(true);
   });
 
   it('write a headline and reactions that match the result', () => {
     for (const kind of HEADLINE_KINDS)
       for (let variant = 0; variant < HEADLINE_VARIANTS; variant++)
-        expect(hasMatchLabel(`match.headline.${kind}.${variant}`)).toBe(true);
+        expect(hasReportLabel(`match.headline.${kind}.${variant}`)).toBe(true);
     for (const who of ['manager', 'fans'])
       for (const result of ['win', 'draw', 'loss'])
         for (const performance of ['star', 'solid', 'poor'])
-          expect(hasMatchLabel(`match.reaction.${who}.${result}.${performance}`)).toBe(true);
+          expect(hasReportLabel(`match.reaction.${who}.${result}.${performance}`)).toBe(true);
     // A dismissal (match-16): the manager reacts to the card, the fans to the result.
     for (const reason of ['second-yellow', 'straight-red'])
-      expect(hasMatchLabel(`match.reaction.manager.sent-off.${reason}`)).toBe(true);
+      expect(hasReportLabel(`match.reaction.manager.sent-off.${reason}`)).toBe(true);
     for (const result of ['win', 'draw', 'loss'])
-      expect(hasMatchLabel(`match.reaction.fans.sent-off.${result}`)).toBe(true);
+      expect(hasReportLabel(`match.reaction.fans.sent-off.${result}`)).toBe(true);
     const losing = ['scorer-loss', 'thrashed', 'nightmare', 'strong-loss', 'loss'];
     const winning = ['late-winner', 'scorer-win', 'rout', 'strong-win', 'win'];
     const kinds = new Set<string>();
@@ -248,7 +231,7 @@ describe('key moments that follow the game', () => {
         expect(s.managerReactionKey.split('.')[3]).toBe(result);
         expect(s.fanReactionKey.split('.')[3]).toBe(result);
       }
-      const text = matchFormat(matchLabel(s.report!.headlineId), s.report!.headlineParams ?? {});
+      const text = matchFormat(reportLabel(s.report!.headlineId), s.report!.headlineParams ?? {});
       expect(text).not.toMatch(/[{}]/);
       expect(s.report!.headlineParams?.player).toBe(
         drama.setup.players[drama.setup.selectedPlayerId]!.name,
@@ -260,7 +243,7 @@ describe('key moments that follow the game', () => {
 
   it('chain a beaten defender into the shot it made, one frame a minute', () => {
     let chains = 0;
-    for (const { drama, position } of played) {
+    for (const { drama, position } of classic) {
       const moments = drama.state.match.keyMoments;
       moments.forEach((moment, index) => {
         if (moment.follows !== 'chain') return;
@@ -277,26 +260,21 @@ describe('key moments that follow the game', () => {
         const choice = before.choices.find((c) => c.id === outcome.input.choiceId)!;
         expect(moment.budget.for).toBe(choice.stakes.successGoal);
       });
-      expect(drama.state.frames).toHaveLength(91);
+      // One frame a played minute, added time included (match-22), and the kick-off.
+      const added = (drama.state.stoppage ?? []).reduce((sum, board) => sum + board.minutes, 0);
+      expect(drama.state.frames).toHaveLength(91 + added);
     }
     expect(chains).toBeGreaterThan(5);
   });
 
-  it('replay sessions from the engine before big occasions as they were', () => {
-    const setup = setupFor('ST', 'drama:occasions');
-    expect(setup.occasions).toBe(true);
-    const earlier = structuredClone(setup);
-    delete earlier.occasions;
-    expect(engineFor(earlier)).toBe(DRAMA_MATCH_ENGINE);
-    const session = play(createMatchSession(earlier, tactics));
-    expect(session.state.match.keyMoments.some((m) => m.follows)).toBe(false);
-    expect(validateMatchSession(structuredClone(session))).toEqual(session);
-  });
-
+  // Match-21's single kick (match-13); match-22 plays a whole shootout (match-occasions.test.ts).
   it('ask a level knockout for the shootout kick, without touching the score', () => {
     let shootouts = 0;
     for (let index = 0; index < 80 && shootouts < 3; index++) {
-      const setup = setupFor(index % 2 ? 'GK' : 'ST', `shootout:${index}`, index);
+      const setup = onEngine(
+        setupFor(index % 2 ? 'GK' : 'ST', `shootout:${index}`, index),
+        'match-21',
+      );
       setup.fixture = {
         id: `cup:${index}`,
         competitionId: 'cup',
@@ -327,8 +305,10 @@ describe('key moments that follow the game', () => {
     let extra = 0;
     let shootouts = 0;
     for (let index = 0; index < 120 && (extra < 4 || shootouts < 1); index++) {
-      const setup = setupFor(index % 2 ? 'GK' : 'ST', `extra:${index}`, index);
-      expect(engineFor(setup)).toBe(MATCH_ENGINE_VERSION);
+      const current = setupFor(index % 2 ? 'GK' : 'ST', `extra:${index}`, index);
+      expect(isCurrentSetup(current)).toBe(true);
+      // Match-21's extra time and single kick; match-22's in match-occasions.test.ts.
+      const setup = onEngine(current, 'match-21');
       setup.fixture = {
         id: `tie:${index}`,
         competitionId: 'cup',
@@ -347,9 +327,10 @@ describe('key moments that follow the game', () => {
       extra++;
       expect(s.regulation[0]).toBe(s.regulation[1]);
       expect(s.match.minute).toBe(120);
-      expect(s.match.events.some((e) => e.commentaryKey === 'match.commentary.extra-time')).toBe(
-        true,
-      );
+      // match-21 logs the single line, match-22 one of its variants (step 5.5).
+      expect(
+        s.match.events.some((e) => e.commentaryKey.startsWith('match.commentary.extra-time')),
+      ).toBe(true);
       if (!s.substituted && !s.sentOff)
         expect(s.match.keyMoments.some((m) => m.minute > 90 && !m.follows)).toBe(true);
       const level = s.match.score[0] === s.match.score[1];
@@ -365,26 +346,6 @@ describe('key moments that follow the game', () => {
     expect(extra).toBeGreaterThan(0);
   }, 120000);
 
-  it('keep the match-17 path: the kick at 90, extra time simulated later', () => {
-    for (let index = 0; index < 60; index++) {
-      const setup = setupFor('ST', `extra:${index}`, index);
-      delete setup.extraTimePlay;
-      expect(engineFor(setup)).toBe(ROLE_MATCH_ENGINE);
-      setup.fixture = {
-        id: `tie:${index}`,
-        competitionId: 'cup',
-        importance: 1.15,
-        shootoutLead: 0,
-        extraTimeLead: 0,
-      };
-      const s = play(createMatchSession(setup, tactics)).state;
-      expect(s.regulation).toBeUndefined();
-      expect(s.penalties).toBeUndefined();
-      expect(s.match.minute).toBe(90);
-      if (s.shootout) return;
-    }
-  }, 60000);
-
   it('write a final’s headline from its result', () => {
     for (let index = 0; index < 20; index++) {
       const setup = setupFor('ST', `final:${index}`, index);
@@ -394,8 +355,8 @@ describe('key moments that follow the game', () => {
       const margin = s.match.score[own]! - s.match.score[1 - own]!;
       const kind = s.headlineKey.split('.')[2]!;
       if (margin > 0) expect(['final-won', 'late-winner', 'hat-trick']).toContain(kind);
-      if (margin < 0) expect(kind).toBe('final-lost');
-      expect(hasMatchLabel(s.headlineKey)).toBe(true);
+      if (margin < 0) expect(['final-lost', 'sent-off']).toContain(kind);
+      expect(hasReportLabel(s.headlineKey)).toBe(true);
     }
   });
 

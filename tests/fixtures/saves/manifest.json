@@ -1,0 +1,124 @@
+{
+  "fixtures": [
+    {
+      "file": "v0.3.0-legacy-match.json.br",
+      "release": "0.3.0",
+      "commit": "55a7f1d",
+      "seed": "golden-0.3.0",
+      "format": "legacy",
+      "position": "ST",
+      "archetype": "finisher",
+      "made": "2026-10-25",
+      "schemaVersion": 22,
+      "world": {
+        "season": 2026,
+        "week": 21,
+        "phase": "active"
+      },
+      "match": {
+        "engine": "match-16",
+        "minute": 30,
+        "commands": 34,
+        "momentPending": true
+      },
+      "sha256": "84364a1088e433c42965c64342f8536d20c145dce5e4f4ff2f388c14d2366fc2",
+      "bytes": 568446,
+      "command": "node --import tsx scripts/make-golden-save.ts --root <v0.3.0 tree> --commit 55a7f1d --out tests/fixtures/saves/v0.3.0-legacy-match.json.br --format legacy --week 21 --match 30 --position ST --archetype finisher"
+    },
+    {
+      "file": "v0.3.0-match.json.br",
+      "release": "0.3.0",
+      "commit": "55a7f1d",
+      "seed": "golden-0.3.0",
+      "format": "national",
+      "position": "ST",
+      "archetype": "finisher",
+      "made": "2026-10-25",
+      "schemaVersion": 22,
+      "world": {
+        "season": 2026,
+        "week": 21,
+        "phase": "active"
+      },
+      "match": {
+        "engine": "match-16",
+        "minute": 32,
+        "commands": 37,
+        "momentPending": true
+      },
+      "sha256": "5a440870b44d2b228220a01287f84e1712385cbabbd7e0cca8097d93d0db3353",
+      "bytes": 2915480,
+      "command": "node --import tsx scripts/make-golden-save.ts --root <v0.3.0 tree> --commit 55a7f1d --out tests/fixtures/saves/v0.3.0-match.json.br --week 21 --match 30 --position ST --archetype finisher"
+    },
+    {
+      "file": "v0.8.0-match.json.br",
+      "release": "0.8.0",
+      "commit": "e27de73",
+      "seed": "golden-0.8.0",
+      "format": "national",
+      "position": "CM",
+      "archetype": "box-to-box",
+      "made": "2026-10-25",
+      "schemaVersion": 22,
+      "world": {
+        "season": 2026,
+        "week": 21,
+        "phase": "active"
+      },
+      "match": {
+        "engine": "match-20",
+        "minute": 43,
+        "commands": 47,
+        "momentPending": true
+      },
+      "sha256": "6756278f9e65d45dc5e08abc8122beab38a54550f13aeb6160e203e20c4b53ea",
+      "bytes": 2917349,
+      "command": "node --import tsx scripts/make-golden-save.ts --root <v0.8.0 tree> --commit e27de73 --out tests/fixtures/saves/v0.8.0-match.json.br --week 21 --match 30 --position CM --archetype box-to-box"
+    },
+    {
+      "file": "v0.9.1-match.json.br",
+      "release": "0.9.1",
+      "commit": "70704ac",
+      "seed": "golden-0.9.1",
+      "format": "national",
+      "position": "GK",
+      "archetype": "shot-stopper",
+      "made": "2026-10-25",
+      "schemaVersion": 22,
+      "world": {
+        "season": 2026,
+        "week": 21,
+        "phase": "active"
+      },
+      "match": {
+        "engine": "match-21",
+        "minute": 40,
+        "commands": 44,
+        "momentPending": true
+      },
+      "sha256": "2d78a751d350ae42f1d67d395a4943bc7de9ca0d4a51eaed962bce47c7d4e861",
+      "bytes": 2916535,
+      "command": "node --import tsx scripts/make-golden-save.ts --root <v0.9.1 tree> --commit 70704ac --out tests/fixtures/saves/v0.9.1-match.json.br --week 21 --match 30 --position GK --archetype shot-stopper"
+    },
+    {
+      "file": "v0.9.1-season.json.br",
+      "release": "0.9.1",
+      "commit": "70704ac",
+      "seed": "golden-0.9.1",
+      "format": "national",
+      "position": "CB",
+      "archetype": "destroyer",
+      "made": "2026-10-25",
+      "schemaVersion": 22,
+      "world": {
+        "season": 2027,
+        "week": 20,
+        "phase": "active"
+      },
+      "match": null,
+      "sha256": "2937eb3390c0b3e0d3d16078cd36ec33d93b12ef0dbb6b31c36aa7f847786ada",
+      "bytes": 3510841,
+      "command": "node --import tsx scripts/make-golden-save.ts --root <v0.9.1 tree> --commit 70704ac --out tests/fixtures/saves/v0.9.1-season.json.br --week 20 --seasons 1 --position CB --archetype destroyer"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import type {
 import { promiseRollover, promiseWeek } from '../stories/promise';
 import { storiesWeek } from '../stories/storylets';
 import { createRng } from '../../rng';
+import type { RewardScale } from '../../match/rewards';
 import { adjustRelationship, postMessage } from '../market/records';
 import { currentRole, relationshipValue } from '../market/rules';
 import {
@@ -79,17 +80,25 @@ export function moraleParts(world: World): Record<MoralePart, number> {
 /**
  * Manager trust, fan affection and the dressing room react to a match the player played;
  * a meeting with the rival's club counts in the rivalry. Called from the single commit path.
+ * A match on engine match-22 (`scale`, release 1.0 step 5.3) is judged on its compressed
+ * ratings' bands, which keep the share of great, good and poor matches.
  */
-export function socialMatch(world: World, record: CareerMatchRecord, fixture: Fixture): void {
+export function socialMatch(
+  world: World,
+  record: CareerMatchRecord,
+  fixture: Fixture,
+  scale: RewardScale = null,
+): void {
   if (!world.career?.social) return;
   const P = S.performance;
+  const bands = scale ? P.ratings22 : P;
   const club = careerClub(world);
   const band =
-    record.rating >= P.greatRating
+    record.rating >= bands.greatRating
       ? 'great'
-      : record.rating >= P.goodRating
+      : record.rating >= bands.goodRating
         ? 'good'
-        : record.rating < P.poorRating
+        : record.rating < bands.poorRating
           ? 'poor'
           : null;
   if (band) {
@@ -111,8 +120,9 @@ export function socialMatch(world: World, record: CareerMatchRecord, fixture: Fi
     delete world.career.social.stance;
   }
   const C = S.cliques;
-  if (record.rating >= C.goodRating) adjustCliques(world, C.performance);
-  else if (record.rating < C.poorRating) adjustCliques(world, -C.performance);
+  const clique = scale ? C.ratings22 : C;
+  if (record.rating >= clique.goodRating) adjustCliques(world, C.performance);
+  else if (record.rating < clique.poorRating) adjustCliques(world, -C.performance);
   recordHeadToHead(world, fixture);
 }
 

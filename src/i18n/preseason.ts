@@ -1,5 +1,6 @@
+import { LOCALE, type Translations } from './locale';
 /** Preseason copy (review phase 5, step 5.3): the briefing, ambitions and late-career steps. */
-export const preseasonText = {
+const preseasonTextEn = {
   title: 'Preseason',
   pageBody:
     'A new season. What the manager expects, where you stand for a place, and what you want from it.',
@@ -71,3 +72,6 @@ export const preseasonText = {
     youth: 'youth player',
   },
 };
+export const preseasonText = (
+  { en: preseasonTextEn } satisfies Translations<typeof preseasonTextEn>
+)[LOCALE];

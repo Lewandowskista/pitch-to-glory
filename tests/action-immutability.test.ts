@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { World } from '../src/model/domain';
 import { createRng } from '../src/engine/rng';
-import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers, type CareerDraft } from '../src/engine/career/create';
 import { applyLifestyleAction, makeSponsorOffer, priceOf } from '../src/engine/career/lifestyle';
 import { LIFESTYLE_BY_ID } from '../src/engine/career/lifestyle/catalogue';
@@ -9,6 +8,7 @@ import { applyMarketAction } from '../src/engine/career/market/actions';
 import { applySocialAction } from '../src/engine/career/social/actions';
 import { openPress, rivalOf } from '../src/engine/career/social';
 import { applyHonoursAction } from '../src/engine/career/honours/actions';
+import { nationalWorld } from './support/world';
 
 /**
  * Every public action family promises structural sharing: it copies what it changes and
@@ -53,7 +53,7 @@ const draft: CareerDraft = {
 };
 let career: World;
 beforeAll(() => {
-  const base = generateWorld('immutability-tests', { format: 'legacy' });
+  const base = nationalWorld();
   const trial = trialOffers(base, 'country:0', 'immutability-tests')[0]!;
   career = createCareer(base, draft, trial.id, 'immutability-tests');
 });

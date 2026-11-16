@@ -108,11 +108,8 @@ export const CONFIG = {
       formFrom: 55,
       form: 0.05,
     },
-    /**
-     * Cosmetic yellow cards (engine match-15): each side is booked in a minute with this
-     * chance (about 3.6 a match), the player weighted base + aggression × a + tackling × t.
-     */
-    discipline: { perTeamPerMinute: 0.02, base: 20, aggression: 1, tackling: 0.5 },
+    /** Who a card is shown to: weighted base + aggression × a + tackling × t. */
+    discipline: { base: 20, aggression: 1, tackling: 0.5 },
     /**
      * Full discipline (engine match-16; docs/MATCH-BALANCING.md "Full discipline"). Each side
      * is shown a card in a minute with `perTeamPerMinute`; the player is drawn among its
@@ -159,6 +156,17 @@ export const CONFIG = {
         'track-runner': { foul: 0.07, straight: 0.04 },
         jockey: { foul: 0.02, straight: 0.02 },
         'drop-off': { foul: 0.02, straight: 0.02 },
+        // Engine match-22 (step 5.2): the new defending choices. A professional foul is a foul
+        // whenever it succeeds (`foulOnSuccess`); its straight-red share follows the cover read
+        // (`moments22.professionalFoul`).
+        'professional-foul': { foul: 1, straight: 0.1 },
+        'chase-back': { foul: 0.08, straight: 0.06 },
+        'engage-carrier': { foul: 0.1, straight: 0.04 },
+        'block-cross': { foul: 0.06, straight: 0.03 },
+        'man-mark': { foul: 0.05, straight: 0.02 },
+        'press-carry': { foul: 0.12, straight: 0.05 },
+        // Decision chains (X1a): pressing the carrier fails into a foul, a card with this chance.
+        'position-press': { foul: 0.12, straight: 0.03 },
       } as Record<string, { foul: number; straight: number }>,
       aggression: 0.012,
       tackling: 0.008,
@@ -169,6 +177,13 @@ export const CONFIG = {
     /** Background shot → goal conversion, and created-chance goal probability per recorded shot. */
     shotConversion: 0.12,
     chanceConversion: 0.3,
+    /**
+     * Shots (engine match-22, release 1.0 step 5.3). The background converts `conversion` of its
+     * shots, so it shoots more for the same goals. The player's own missed shot keeps the ending
+     * its commentary line names, but hits the woodwork with `woodwork` (others' misses: see
+     * `missedShot`).
+     */
+    shots22: { conversion: 0.088, woodwork: 0.04 },
     passPerMinute: 0.48,
     routinePass: { base: 0.68, passing: 0.002, fatigue: 0.0008, minimum: 0.4, maximum: 0.96 },
     /**
@@ -267,8 +282,6 @@ export const CONFIG = {
     },
     /** Odds multipliers 1 + effect for technical/direct choices; pitch below `pitchGood`. */
     conditions: {
-      technical: { clear: 0, rain: -0.06, wind: 0, snow: -0.1 },
-      direct: { clear: 0, rain: -0.02, wind: -0.08, snow: -0.05 },
       pitchGood: 70,
       pitchSlope: 0.004,
       /**
@@ -301,9 +314,97 @@ export const CONFIG = {
       minimum: 3,
       maximum: 10,
     },
+    /**
+     * The rating from engine match-22 (release 1.0 step 5.3; docs/MATCH-BALANCING.md "Rating
+     * (match-22)"). Every key moment is measured against what the reference player was expected
+     * to make of it, so a rating centres on `base` in every position whatever the mix of
+     * moments:
+     *
+     * - decision: `decision[family] × (success − reference odds)`, to the choice's family
+     *   (defending and keeping weigh more: their value is mostly in the decision itself);
+     * - as they happen: goals and assists (each further one in a match × `repeat` of the one
+     *   before; a hat-trick's third goal adds `hatTrick`), saves and stops (`stop × danger ÷
+     *   reference odds`, the odds at least `stopFloor`, the credit at most `stopCap`) and
+     *   errors (`error` a goal conceded from the moment);
+     * - par: at each moment, minus what the reference player would earn there on average:
+     *   goal × expected own goals + assist × expected assists (both × `repeat` as above) +
+     *   reference odds × a stop's credit + error × expected goals conceded. The hat-trick bonus
+     *   is left out (rare, and a striker on two goals is not marked down for every chance).
+     *
+     * Each of these is × √(`moments` ÷ the match's planned moments), at least `fewest`, so a
+     * busy match is not a wider one. The team's result is ± `result`; a clean sheet adds
+     * `cleanSheet` for keepers, defenders and (match-22) defensive midfielders. The sum's
+     * distance below `base` counts × `lean[0]` and above it × `lean[1]`, so a poor match is
+     * rarely a disaster and a great one stands out; beyond the `knees` the rating moves at
+     * `beyond` of the rate (a soft limit at each end), then is bounded to minimum–maximum.
+     */
+    rating22: {
+      base: 6.63,
+      moments: 10,
+      fewest: 6,
+      /** Decision chains (X1a): the planned steps a credit is measured against. */
+      chainSteps: 12,
+      decision: {
+        shooting: 0.2,
+        passing: 0.35,
+        dribbling: 0.36,
+        defending: 0.35,
+        goalkeeping: 0.3,
+      },
+      goal: 0.9,
+      assist: 0.85,
+      repeat: 0.55,
+      hatTrick: 1.2,
+      stop: 0.9,
+      stopFloor: 0.3,
+      stopCap: 0.85,
+      error: -0.4,
+      result: 0.2,
+      cleanSheet: 0.25,
+      lean: [0.8, 1.15] as const,
+      knees: [5.6, 9.2] as const,
+      beyond: [0.5, 0.6] as const,
+      /** A manager's tactical substitution looks at a rating below this (match-21: 6). */
+      substituteBelow: 6.3,
+      minimum: 3,
+      maximum: 10,
+    },
     momentum: { decay: 0.85, shot: 4, goal: 12, success: 3, failure: 2, minimum: 5, maximum: 95 },
     possession: { strengthSlope: 0.45, mentality: 3, momentum: 0.08, minimum: 30, maximum: 70 },
+    /**
+     * Possession from engine match-22 (step 5.3): the match-21 terms, plus the home side's
+     * `home` points (not at a neutral venue), each side's playing style (`styles`, the home
+     * side's less the away side's), the game plan of the day (± `spread`, a triangular draw on
+     * its own stream) and the score: a side ahead sits deeper, `lead` points a goal, at most
+     * `leadCap` goals.
+     */
+    possession22: {
+      home: 2.5,
+      styles: { possession: 6, press: 2, balanced: 0, direct: -3, counter: -5 } as Record<
+        string,
+        number
+      >,
+      spread: 18,
+      lead: 2,
+      leadCap: 3,
+      minimum: 25,
+      maximum: 75,
+    },
     commentaryVariants: 3,
+    /**
+     * How a shot outside the player's own choices that does not go in is missed (match-22,
+     * release 1.0 step 5.5): the commentary names it and the pitch draws it. Relative weights.
+     * Step 5.3 moved them to real bands, about a quarter of misses on target (held, parried)
+     * and so 30–40% of all shots, and added the woodwork (`stats.woodwork`).
+     */
+    missedShot: {
+      held: 0.17,
+      parried: 0.09,
+      wide: 0.24,
+      over: 0.16,
+      blocked: 0.3,
+      woodwork: 0.04,
+    },
     /**
      * Moments that follow the game (engine match-12). The last moment is placed at
      * `lateDecisionMinute`: within `closeMargin` it comes in the closing minutes, otherwise
@@ -321,8 +422,333 @@ export const CONFIG = {
       /** Set pieces raise a taker's attacking share by their weight, up to this factor. */
       setPieceShareCap: 1.3,
     },
+    /**
+     * Choices that decide matches (engine match-22, release 1.0 step 5.2; docs/MATCH-BALANCING.md
+     * "Reads, situations and mechanics"). The read tables and the new situations are catalogue
+     * data in `match/situations22.ts`; the scalars are here.
+     */
+    moments22: {
+      /** Framing sentences per situation (the shootout keeps its three). */
+      situationVariants: 5,
+      /**
+       * Fraction of own [attack] and opposition [defence] expected goals replaced by the
+       * player's key moments, replacing `shares` × `defending` (match-20, match-21): more of a
+       * match passes through the player's decisions, the striker's share unchanged.
+       */
+      shares: {
+        ST: [0.37, 0.05],
+        LW: [0.5, 0.08],
+        RW: [0.5, 0.08],
+        AM: [0.36, 0.07],
+        CM: [0.32, 0.16],
+        DM: [0.12, 0.48],
+        CB: [0.08, 0.6],
+        LB: [0.12, 0.55],
+        RB: [0.12, 0.55],
+        GK: [0.06, 0.82],
+      } as Record<string, readonly [number, number]>,
+      /** Auto-play draws only between choices this close to the best (`autoPlayMargin` before). */
+      autoPlayMargin: 0.004,
+      /**
+       * A matchup read (pace: pace + acceleration; aerial: heading + jumping + strength, each
+       * averaged) is "ahead" when the player's mean beats the direct opponent's by more than
+       * `margin` points, "behind" below −margin, else level (no factor).
+       */
+      matchupMargin: 5,
+      /**
+       * Clutch (review C13): its odds apply only to a clutch moment — from `fromMinute` with the
+       * game within `closeMargin` goals, or in a fixture of importance `importance` or more —
+       * and then to every choice, × `odds` (a named factor), instead of four shots at any time.
+       */
+      clutch: { fromMinute: 75, closeMargin: 1, importance: 1.25, odds: 1.15 },
+      /**
+       * The marked man (review C17): when the player's ability exceeds both the match level and
+       * the opposition's mean by more than `threshold`, opponents double-mark them. Shots and
+       * dribbles × (1 − e), passes to a teammate × (1 + e × `passShare`), and clean chances in
+       * the box come up × (1 − e × `boxChance`), where e = min(`maximum`, excess × `slope`).
+       * From `relaxFromMinute`, an opposition chasing the game marks × `relax` as tightly.
+       */
+      marked: {
+        threshold: 8,
+        slope: 0.025,
+        maximum: 0.3,
+        passShare: 0.5,
+        boxChance: 1,
+        relaxFromMinute: 60,
+        relax: 0.5,
+      },
+      /** The straight-red share of a professional foul by the cover read (last man: a red). */
+      professionalFoul: { covered: 0.04, alone: 0.12 },
+    },
+    /**
+     * Decision chains (engine match-22, release 1.0 X1a; docs/MATCH-BALANCING.md "Decision
+     * chains"). A match's key moments are 4–6 chains of two or three linked decisions in one
+     * phase of play: a read, an action and a finish. The catalogue (lead-in steps, what each
+     * option stages for the next step, the finishes' options) is data in `match/chainTable.ts`;
+     * the scalars are here.
+     */
+    chains: {
+      /**
+       * Chains a match by the position played: [fewest, most], drawn with `extreme` at either
+       * end and the middle otherwise (an even range: either value at even odds). A big match
+       * (importance of at least `bigMatch`) adds one, demanding the ball at half-time one.
+       */
+      counts: {
+        ST: [4, 6],
+        LW: [5, 5],
+        RW: [5, 5],
+        AM: [5, 5],
+        CM: [5, 5],
+        DM: [4, 5],
+        LB: [4, 5],
+        RB: [4, 5],
+        CB: [4, 4],
+        GK: [4, 4],
+      } as Record<string, readonly [number, number]>,
+      extreme: 0.2,
+      bigMatch: 1.25,
+      /** Off the bench: chains in the time left. */
+      bench: [2, 3] as const,
+      /** Demanding the ball at half-time: chains added to the second half. */
+      demand: 1,
+      /** Touchline interrupts (a knock, a substitution, the captain's call) a match. */
+      interrupts: 1,
+      /** A chain has three steps with this chance (set pieces and a keeper's build have two). */
+      threeSteps: 0.35,
+      /**
+       * Fraction of own [attack] and opposition [defence] expected goals that passes through
+       * the player's chains (replacing `moments22.shares`): fewer, bigger moments carry more of
+       * a match.
+       */
+      shares: {
+        ST: [0.37, 0.05],
+        LW: [0.5, 0.08],
+        RW: [0.5, 0.08],
+        AM: [0.36, 0.07],
+        CM: [0.32, 0.16],
+        DM: [0.12, 0.55],
+        CB: [0.08, 0.72],
+        LB: [0.12, 0.63],
+        RB: [0.12, 0.63],
+        GK: [0.06, 0.9],
+      } as Record<string, readonly [number, number]>,
+      /**
+       * A fixed reach by the chain's family: defending and keeping finishes face the same danger
+       * whoever gets there (1); a set piece's read never ends its chain (1). An attacking or
+       * build-up finish is worth the chain's budget ÷ each lead-in's reference reach before it
+       * (its chance times the edge it leaves, over its options and read; `match/chains.ts`), so
+       * the chain realises its budget at the reference (a flat 0.75 before the calibration fix:
+       * 0.64–0.73 measured, and the chains lost the player's side about a tenth of a goal).
+       */
+      reach: { defence: 1, keeper: 1, 'set-piece': 1 } as Record<string, number | undefined>,
+      /**
+       * What a failed lead-in step leads to, in expected goals: a break the other way
+       * (`counter`), a set piece won (`foulWon`), the ball lost deep (`lostDeep`); being beaten
+       * (`beaten`) concedes the finish's danger × this, a foul given away (`foul`, with its
+       * card risk) the danger × this, at least a counter's.
+       */
+      consequences: { counter: 0.15, foulWon: 0.035, foul: 1.3, lostDeep: 0.05, beaten: 1.3 },
+      /** The most a chain's budget carries either way (expected goals). */
+      maximumBudget: 0.85,
+      /**
+       * A defending or keeping chain's danger × this: getting goal-side and setting your feet
+       * take some of it away, so a chain played well concedes about what a key moment did.
+       */
+      danger: 1.3,
+      /**
+       * A lead-in that fails into a foul won (a set piece) is credited as this much of a success
+       * in the rating's decision credit: the move stopped, but something came of it.
+       */
+      foulWonCredit: 0.5,
+      /** Bands of an option's chance (`OutcomeBand`): likely at `likely` or more, even from `even`. */
+      bands: { likely: 0.65, even: 0.4 },
+      /**
+       * The honest director. Hero beat: a chain between `hero.from` and `hero.to` is the hero's;
+       * when it opens and no chain before it was worth `hero.prize` (expected goals for an
+       * attacker, danger for a defender or keeper), its finish is drawn among the situations
+       * worth that much, at least `hero.prize`, and it has three steps. Close-game climax: at
+       * `climax.decide`, within `climax.margin` goals, the last chain moves to a minute in
+       * `climax.minutes` (or, with `climax.addedChance`, one of the first `climax.addedMinutes`
+       * of added time) and has three steps. Drought: the first and the hero chains start in the
+       * hero's situations. Debut: the first chain comes by `debutBy`.
+       */
+      hero: { from: 46, to: 60, prize: 0.25 },
+      climax: {
+        decide: 75,
+        margin: 1,
+        minutes: [82, 89] as const,
+        addedChance: 0.3,
+        addedMinutes: 3,
+      },
+      debutBy: 15,
+      /** A match's career drought: this many matches without a positive chain. */
+      droughtMatches: 3,
+      /** Rating involvement: √(`rating22.chainSteps` ÷ planned steps), planned steps = chains × this. */
+      meanSteps: 2.45,
+      /** Framing sentences per lead-in step. */
+      leadInVariants: 3,
+    },
     /** Simulated career matches pick among choices within this many expected goals of the best. */
     autoPlayMargin: 0.02,
+    /**
+     * The value hint beside each key-moment choice (release 1.0, step 5.1; presentation only):
+     * choices within `tie` expected goals of the best are "best value", those `costly` or more
+     * below it are "costly", the rest "even". A moment whose choices all lie within `tie` of
+     * each other shows every choice as even.
+     */
+    valueHint: { tie: 0.002, costly: 0.01 },
+    /**
+     * The occasions (release 1.0 step 5.4, engine match-22 only; docs/MATCH-BALANCING.md "The
+     * occasions"). Every value here is read under `rules22` alone, so match-21 sessions replay.
+     */
+    occasions: {
+      /**
+       * Stoppage time. At the end of each period the board shows N = base + goals × `goal` +
+       * substitutions × `substitution` + cards × `card` + injuries × `injury` + a uniform
+       * draw below `jitter` (`${seed}:added:${minute}`), rounded and kept within the period's
+       * band; the second half's band stretches to `long.upTo` with `long.chance`. The minute's
+       * background goal rate is expected goals ÷ `matchMinutes` (90 plus the mean added time),
+       * so goals per match hold while added minutes are played.
+       */
+      stoppage: {
+        periods: {
+          45: { base: 0.7, band: [1, 4] },
+          90: { base: 2.6, band: [3, 7] },
+          105: { base: 0, band: [0, 2] },
+          120: { base: 0.6, band: [1, 3] },
+        } as Record<number, { base: number; band: readonly [number, number] }>,
+        goal: 0.45,
+        substitution: 0.2,
+        card: 0.2,
+        injury: 0.9,
+        jitter: 1.6,
+        long: { chance: 0.04, upTo: 10 },
+        matchMinutes: 98.3,
+        /**
+         * The last key moment of a close game (placed at minute 80) lands in second-half added
+         * time with this chance, in one of its first `lateAddedMinutes` minutes.
+         */
+        lateAddedChance: 0.3,
+        lateAddedMinutes: 3,
+      },
+      /**
+       * Coming off the bench (review M7). A career player left out of the eleven starts on the
+       * bench; from `from` to `to` (and again in extra time, to `extraTo`) the manager brings
+       * them on each minute with hazard base[role] × ramp(minute) × score × form × fatigue ×
+       * asked. Ramp rises linearly from `ramp[0]` at `from` to `ramp[1]` at `peak`, then eases
+       * to `ramp[2]` at `to`. Score: chasing the game, an attacker × `chasing.attack` and a
+       * defender × `chasing.defence`; protecting a lead, an attacker × `leading.attack` and a
+       * defender × `leading.defence`. Form × (1 + (form − 50) × `form`); fatigue ×
+       * (1 − fatigue × `fatigue`); asking at half-time × `asked`. A keeper on the bench comes
+       * on only when the starting keeper is injured. Once on, `moments` key moments between
+       * two minutes after coming on and the 89th.
+       */
+      bench: {
+        from: 55,
+        to: 80,
+        extraTo: 105,
+        peak: 68,
+        base: { key: 0.09, rotation: 0.05, backup: 0.03, youth: 0.02 } as Record<string, number>,
+        ramp: [0.5, 1.4, 0.9] as const,
+        chasing: { attack: 1.6, defence: 0.6 },
+        leading: { attack: 0.8, defence: 1.4 },
+        form: 0.012,
+        fatigue: 0.008,
+        asked: 1.5,
+        /** Asking to come on at half-time costs this much trust. */
+        askTrust: -2,
+        moments: [2, 4] as const,
+        /** "Warming up" shows from this minute while on the bench (presentation). */
+        warmFrom: 50,
+      },
+      /**
+       * In-match injuries (review M12). Each side's players on the pitch are forced off with a
+       * per-minute hazard of `aiPerNinety` ÷ 90 × (0.5 + injury proneness / 100) × (1 + fatigue
+       * ÷ `fatigueWeight`) each, drawn per side per minute (`${seed}:injury:…`), replaced from the
+       * bench while changes remain. The career player takes a knock with `knock` ÷ 90 a minute ×
+       * their injury factor (and a rushed return's risk ÷ 90); a share `serious` of knocks is an
+       * injury that ends their match, the rest ask "play on or come off". Playing on adds
+       * `playOn.fatigue` fatigue and an aggravation hazard of `playOn.aggravate` a minute, which
+       * turns the knock into an injury and ends their match; coming off ends it at once, unhurt.
+       */
+      injuries: {
+        aiPerNinety: 0.012,
+        fatigueWeight: 50,
+        knock: 0.035,
+        serious: 0.25,
+        playOn: { fatigue: 20, aggravate: 0.01 },
+        /** Keepers are booked too: their card weight × `keeperCard`. */
+        keeperCard: 0.3,
+      },
+      /** One more change for each side in extra time (modern rules), at `extraSub.from`–`to`. */
+      extraSub: { chance: 0.75, from: 91, to: 110 },
+      /**
+       * The shootout: five kicks a side, then sudden death. A kick goes in with base + (taker
+       * − 60) × `taker` − (keeper − 60) × `keeper`, less `pressure` for a kick that can lose
+       * the shootout, within the bounds. Taker: mean of finishing, composure and set pieces;
+       * keeper: mean of reflexes, diving and one-on-ones. The career player, on the pitch, takes
+       * one of the first five kicks (their rank among the takers, at most fifth) or, in goal,
+       * faces every kick.
+       */
+      shootout: {
+        rounds: 5,
+        base: 0.76,
+        taker: 0.004,
+        keeper: 0.003,
+        pressure: 0.04,
+        minimum: 0.55,
+        maximum: 0.92,
+      },
+      /**
+       * Touchline decisions (review M13). Half-time: motivating lifts momentum by
+       * `motivate.momentum` × the score's factor and the second half's odds by `motivate.odds`
+       * (`oddsAhead` when ahead), with `motivate.trust`. Asking for a role is refused with
+       * `role.base` − (trust − 50) × `role.trust` + `role.against` when the request runs
+       * against the score (more attack when ahead, more caution when behind), within the
+       * bounds; refused, it costs `role.refusedTrust` and odds × `role.refusedOdds`. Demanding
+       * the ball costs `demand.trust`, `demand.earned` with a first-half rating of at least
+       * `demand.rating`, `demand.poor` below `demand.poorRating`. The captain calls the tone at
+       * the second half's start, after conceding and at `captain.lateMinute` in a close game, at
+       * most `captain.maximum` times, `captain.gap` minutes apart. Accepting a substitution
+       * earns `substitution.acceptTrust`; rallying the side as you go off scales its expected
+       * goals by `substitution.rally.own` and the opposition's by `rally.against` for the rest
+       * of the match instead. Demanding the ball raises the attacking share × `demand.share`
+       * and adds `demand.moments` key moments, one in each 15 minutes from `demand.from`.
+       */
+      touchline: {
+        motivate: {
+          momentum: 8,
+          behind: 1.25,
+          level: 1,
+          ahead: 0.4,
+          odds: 1.03,
+          oddsAhead: 1.005,
+          trust: 1,
+        },
+        role: {
+          base: 0.3,
+          trust: 0.008,
+          against: 0.25,
+          minimum: 0.05,
+          maximum: 0.85,
+          refusedTrust: -1,
+          refusedOdds: 0.98,
+        },
+        demand: {
+          trust: -2,
+          earned: 0,
+          rating: 7,
+          poor: -4,
+          poorRating: 6.2,
+          share: 1.35,
+          moments: 2,
+          from: 50,
+        },
+        bench: { momentum: 0.5 },
+        captain: { lateMinute: 80, maximum: 3, gap: 10, lastMinute: 88 },
+        substitution: { acceptTrust: 1, rally: { own: 1.3, against: 0.85 } },
+      },
+    },
     xp: {
       perMinute: 0.5,
       ratingThreshold: 5.5,
@@ -332,6 +758,30 @@ export const CONFIG = {
       perObjective: 15,
     },
     fame: { ratingThreshold: 6.3, perRating: 3, perGoal: 1.5, perAssist: 1, perCleanSheet: 1.5 },
+    /**
+     * XP and fame from a match-22 rating (release 1.0 step 5.3); minutes, goals, assists,
+     * objectives and clean sheets pay as in `xp` and `fame`. The compressed scale moves the
+     * rating term: per rating point above `ratingThreshold`, `perRating` × the weight of the
+     * position played (`position`). The weights keep each position's XP a match (median and
+     * mean over the match profile) within 5% of match-21's, where keepers' and defenders'
+     * ratings ran high, and fame within 8%; over all positions both stay where they were.
+     */
+    rewards22: {
+      xp: { ratingThreshold: 5.2, perRating: 45 },
+      fame: { ratingThreshold: 6.2, perRating: 3.75 },
+      position: {
+        GK: 1.3,
+        CB: 1.21,
+        LB: 1,
+        RB: 1,
+        DM: 0.9,
+        CM: 0.78,
+        AM: 0.78,
+        LW: 0.78,
+        RW: 0.78,
+        ST: 0.85,
+      } as Record<string, number>,
+    },
     /** Personal objectives: a rating target and one drawn for the position each match. */
     objectives: {
       rating: 7,
@@ -341,6 +791,12 @@ export const CONFIG = {
       tackles: { defender: 3, midfield: 2 },
       saves: 5,
       shots: { striker: 5, other: 3 },
+      /**
+       * Decision chains (match-22, X1a) set one objective, with targets for a match of four to
+       * six chains: fewer of the player's own shots, tackles and saves than a match of key
+       * moments had.
+       */
+      chains: { tackles: { defender: 1, midfield: 1 }, saves: 2, shots: { striker: 2, other: 1 } },
     },
   },
   /** Career player progression (milestone 4). See docs/BALANCING.md. */
@@ -669,6 +1125,8 @@ export const CONFIG = {
       ] as const,
     },
     historyLimit: 2000,
+    /** A new career starts its first this many fixtures, whatever the selection (release 1.0 X1a). */
+    debutStarts: 2,
     /** Contracts, agents, transfers and loans (milestone 5). See docs/BALANCING.md. */
     market: {
       /**
@@ -917,6 +1375,8 @@ export const CONFIG = {
         moodPull: 0.3,
         goodRating: 7.5,
         poorRating: 5.5,
+        /** The same bands on engine match-22's ratings (release 1.0 step 5.3). */
+        ratings22: { goodRating: 7.25, poorRating: 6.05 },
         performance: 1.5,
         transferRequest: -8,
         seniorsTransferRequest: -4,
@@ -942,6 +1402,11 @@ export const CONFIG = {
         greatRating: 7.5,
         goodRating: 6.8,
         poorRating: 5.5,
+        /**
+         * The bands on engine match-22's compressed ratings (release 1.0 step 5.3), keeping
+         * the shares of the match profile's matches: 27% great, 45% good or better, 21% poor.
+         */
+        ratings22: { greatRating: 7.25, goodRating: 6.65, poorRating: 6.05 },
         trust: { great: 2, good: 1, poor: -2 },
         fans: { great: 2, good: 1, poor: -1.5, goal: 1 },
       },
@@ -1139,10 +1604,12 @@ export const CONFIG = {
         /** Awards kept before the oldest ones nobody's career names are dropped. */
         recordLimit: 400,
         /**
-         * The most a save may hold: careers' awards are never dropped, so generations add to
-         * the record limit.
+         * The most a save may hold. Careers' awards and Golden Balls are never dropped, so they
+         * add to the record limit: at most a Golden Ball and 20 career awards a season (12 months,
+         * three awards in each of two leagues, young player, Golden Ball), 4,600 after 200
+         * seasons in the worst case; about 5 a season in practice (retention, step 3.6).
          */
-        maxRecords: 2000,
+        maxRecords: 5000,
         fame: { month: 3, season: 6, goldenBall: 25, shortlist: 5 },
       },
       /**
@@ -1164,6 +1631,11 @@ export const CONFIG = {
         wonderProbability: 0.2,
         greatSave: 0.35,
         defensiveMinute: 70,
+        /**
+         * The best positive decision chain (release 1.0 X1b) of a match that saved no other
+         * Moment, by how it ended (a goal first), then by the longest odds of its steps.
+         */
+        chainOrder: ['goal', 'assist', 'stop', 'chance', 'won'] as readonly string[],
       },
       /** Hall of Fame score. */
       /**
@@ -1234,6 +1706,13 @@ export const CONFIG = {
       /** Retired former teammates may become managers. */
       formerTeammateManager: 0.4,
       chronicleLimit: 600,
+      /**
+       * The most legacies a save holds. A career lasts at least 14 seasons (from 18 at the
+       * latest to optional retirement at 32), so 50 take 700 seasons. Chronicle entries and
+       * Moments are bounded per career, so a save holds at most this many careers' worth plus
+       * the current one's.
+       */
+      legacyLimit: 50,
     },
   },
   gallery: { clubs: 15, players: 12, ages: [17, 28, 42] as const },
@@ -1242,6 +1721,16 @@ export const CONFIG = {
     transportYieldMs: 8,
     transportWideKeys: 64,
     transportNarrowKeys: 16,
+    /**
+     * Weekly checkpoints the world worker may run ahead of storage (release 1.0 step 3.3): it
+     * waits before simulating further while this many are still being written. A crash loses
+     * at most these weeks, never a committed one.
+     */
+    maxUncommittedWeeks: 2,
+    /** Longest slice of the UI thread spent decoding a published world before yielding. */
+    decodeSliceMs: 8,
+    /** A world change smaller than this is sent to the world worker as patches. */
+    maxSyncPatches: 20000,
   },
   /** Team selection (Phase 5.1): one formation-aware eleven for every match. */
   selection: {
@@ -1278,18 +1767,64 @@ export const CONFIG = {
     familiarity: { natural: 90, accomplished: 55 },
   },
   saves: {
-    schemaVersion: 22,
+    schemaVersion: 23,
     slotCount: 3,
+    /**
+     * The largest save a backup can hold, as uncompressed JSON (release 1.0 step 3.7): an import
+     * refuses more, whether the file is plain or gzip, and an export refuses to write a backup
+     * that could not be imported again.
+     */
     maxFileBytes: 128 * 1024 * 1024,
+    /** The largest gzip backup file read at all, before decompressing it. */
+    maxCompressedFileBytes: 64 * 1024 * 1024,
+    /** An export of more JSON than this succeeds with a warning that it nears the limit. */
+    warnExportBytes: 100 * 1024 * 1024,
     autosaveDelayMs: 450,
     leaseDurationMs: 30000,
     heartbeatMs: 5000,
+    /**
+     * UI changes stored as patches beside the world (release 1.0 step 3.4) before the next
+     * whole write: at most this many, of at most this many characters of JSON.
+     */
+    maxWorldPatches: 2000,
+    maxPatchBytes: 512 * 1024,
+    /**
+     * Persistence watchdog (step 4.5, S9): a request without a reply in this long restarts the
+     * persistence worker and fails with `storage`. Leases answer quickly; a load, import or
+     * export of a 100 MB save on a slow phone can take a minute.
+     */
+    leaseTimeoutMs: 20000,
+    requestTimeoutMs: 180000,
+    /**
+     * Storage preflight (step 4.6): a whole write needs this much more than its own bytes free,
+     * by `navigator.storage.estimate()`, or it fails with `quota` before it starts.
+     */
+    quotaMarginBytes: 4 * 1024 * 1024,
+    /**
+     * Rotating backups inside IndexedDB (step 4.3), per slot: `season`, written after the first
+     * whole write in a new season (or of another world), and `day`, taken after the first load
+     * of a calendar day that passed every check. A third, `salvage`, keeps the stored records a
+     * salvage load had to set parts aside from (step 4.4). Stored gzip-compressed where the
+     * browser can. A backup is skipped (and the reason recorded) unless, after it, at least
+     * `minFreeBytes` and `reserveWorlds` times the world's size stay free for the saves
+     * themselves.
+     */
+    backups: {
+      minFreeBytes: 64 * 1024 * 1024,
+      reserveWorlds: 2,
+    },
   },
   accessibility: {
     minFontScale: 0.85,
     maxFontScale: 1.3,
     /** Smallest CIELAB difference (CIE76) between shirt colours for every kind of vision. */
     kitClash: 22,
+    /**
+     * Smallest CIE76 difference between a team's colour and a surface it is drawn on (the pitch,
+     * a card, the scoreboard) for every kind of vision; below it the colour gets an outline there,
+     * or another colour of its kit on the pitch when it vanishes even with typical vision.
+     */
+    surfaceClash: 15,
   },
   world: {
     nationalWeeksPerSeason: 60,
@@ -1375,6 +1910,26 @@ export const CONFIG = {
       readmissionRetirementAge: 37,
       /** Seasons of world events kept in the live graph (current plus previous). */
       eventSeasonsKept: 2,
+    },
+    /**
+     * Retention (release plan step 3.6): what a long world keeps, applied at every season start
+     * (`engine/world/retention.ts`) and once to older saves when they load. See BALANCING.md,
+     * "Retention".
+     */
+    retention: {
+      /**
+       * Seasons whose summaries keep full tables, movements and play-offs; older seasons keep
+       * their champions, division champions and cup winners. A season's full detail costs about
+       * 240 KB of save; fifteen covers a whole career at the top and a generation of the World
+       * archive for about 3.6 MB.
+       */
+      historySeasons: 15,
+      /**
+       * Archived players kept by Hall of Fame score beyond everyone the world still names. The
+       * others leave the archive and only their scores stay (`WorldArchive.pruned`), so every
+       * rank stays exact. About 370 bytes each: 1.9 MB at most.
+       */
+      archiveTop: 5000,
     },
     generation: {
       reputationCeiling: 99,

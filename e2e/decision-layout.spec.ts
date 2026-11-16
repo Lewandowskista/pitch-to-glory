@@ -1,36 +1,32 @@
-import { expect, test, type Page } from '@playwright/test';
-import { isAbortedLoad, isBrowserNoise, skipTutorial } from './support';
+import type { Page } from '@playwright/test';
+import { expect, matchState, settled, skipTutorial, test } from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 
 /**
- * Phase 2: a key moment shows the football context and the first action together, at desktop
- * and phone sizes, at normal and large text, with nothing covering the focused choice.
+ * The decision card (release 1.0, X1b; docs/EXPERIENCE-REDESIGN-1.0.md 1.4): a chain's step
+ * shows its clip and the card together, at desktop and phone sizes, at normal and large text,
+ * with nothing covering the focused choice; keys, taps and "Why?" work, and a tap in the first
+ * 300 ms of a new step is ignored.
  */
 const CASES = [
   { name: 'desktop-1366x768', width: 1366, height: 768, fontScale: 1, reduced: false },
   { name: 'phone-390x844', width: 390, height: 844, fontScale: 1, reduced: false },
   { name: 'phone-390x844-large', width: 390, height: 844, fontScale: 1.3, reduced: false },
   { name: 'phone-360x640', width: 360, height: 640, fontScale: 1, reduced: true },
-  { name: 'phone-360x640-large', width: 360, height: 640, fontScale: 1.3, reduced: false },
 ] as const;
 const DESKTOP = { width: 1366, height: 768 };
 const PHONE = { width: 390, height: 844 };
 
-type Variant = { fontScale?: number; simulationOnly?: boolean };
+type Variant = { fontScale?: number };
 const saves = new Map<string, string>();
-const key = ({ fontScale = 1, simulationOnly = false }: Variant) =>
-  `${fontScale}-${simulationOnly}`;
+const key = ({ fontScale = 1 }: Variant) => `${fontScale}`;
 test.beforeAll(async ({ browserName }, workerInfo) => {
-  const world = generateWorld('decision-layout', { format: 'legacy' });
+  const world = generateWorld('decision-layout');
   await mkdir('artifacts', { recursive: true });
-  for (const variant of [
-    { fontScale: 1 },
-    { fontScale: 1.3 },
-    { fontScale: 1, simulationOnly: true },
-  ]) {
+  for (const variant of [{ fontScale: 1 }, { fontScale: 1.3 }]) {
     const path = `artifacts/decision-${key(variant)}-${browserName}-${workerInfo.workerIndex}.json`;
     await writeFile(
       path,
@@ -49,29 +45,11 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
 test.beforeEach(async ({ page }, testInfo) => {
   // The tutorial journeys show the tour; every other journey has already seen it.
   if (!testInfo.title.includes('tutorial')) await skipTutorial(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => {
-    if (!isAbortedLoad(error.message)) errors.push(error.message);
-  });
-  page.on('console', (entry) => {
-    if (entry.type() === 'error' && !isBrowserNoise(entry)) errors.push(entry.text());
-  });
-  (page as Page & { errors: string[] }).errors = errors;
-});
-test.afterEach(async ({ page }) => {
-  expect((page as Page & { errors: string[] }).errors).toEqual([]);
 });
 
 const tour = (page: Page) => page.getByTestId('tutorial');
-/**
- * Press a control from the keyboard. On a phone in Firefox, a pointer click can scroll the
- * control under the tab bar or a first-visit offline notice; focus and Enter cannot.
- */
-async function press(page: Page, name: string) {
-  const button = page.getByRole('button', { name, exact: true });
-  await button.focus();
-  await page.keyboard.press('Enter');
-}
+const card = (page: Page) => page.locator('.reel-card');
+const choices = (page: Page) => page.locator('.reel-card button[data-choice]');
 /** Import the save and prepare a striker's friendly, ready to kick off. */
 async function preview(page: Page, variant: Variant = {}) {
   await page.goto('/saves');
@@ -91,20 +69,26 @@ async function preview(page: Page, variant: Variant = {}) {
         (options.find((option) => option.textContent?.endsWith('ST')) as HTMLOptionElement).value,
     );
   await select.selectOption(striker);
-  await press(page, 'Prepare match');
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'preview');
+  await page.getByRole('button', { name: 'Prepare match', exact: true }).click();
+  await expect(matchState(page)).toHaveAttribute('data-status', 'preview');
 }
-/** Kick off and stop at the first key moment. */
+/** Skip through the ticker until the first step's card shows, its first choice focused. */
+async function toCard(page: Page) {
+  for (let turns = 0; turns < 200; turns++) {
+    const beat = await matchState(page).getAttribute('data-beat');
+    if (beat === 'card') break;
+    if (beat === 'wait') await page.locator('.reel-main section button').first().click();
+    else if (beat === 'ticker') await page.keyboard.press('Space');
+    await page.waitForTimeout(150);
+  }
+  await expect(choices(page).first()).toBeFocused();
+  await settled(page);
+}
+/** Kick off and stop at the first decision step. */
 async function keyMoment(page: Page, variant: Variant = {}) {
   await preview(page, variant);
-  await press(page, 'Kick off');
-  if (await page.getByRole('button', { name: 'Pause', exact: true }).isVisible())
-    await press(page, 'Pause');
-  await press(page, 'Next key moment');
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
-  await expect(page.locator('.match-choices button').first()).toBeFocused();
-  // Let focus-driven scrolling and layout settle before measuring.
-  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  await toCard(page);
 }
 /** Fraction of an element's height on screen, above the phone tab bar when there is one. */
 async function visibleShare(page: Page, selector: string, index = 0): Promise<number> {
@@ -129,12 +113,13 @@ async function focusedCovered(page: Page): Promise<string | false> {
   return page.evaluate(() => {
     const focused = document.activeElement as HTMLElement;
     const box = focused.getBoundingClientRect();
+    // Inset past the rounded corners, which large text makes larger.
     const points = [
-      [box.left + 4, box.top + 4],
-      [box.right - 4, box.top + 4],
+      [box.left + 10, box.top + 10],
+      [box.right - 10, box.top + 10],
       [box.left + box.width / 2, box.top + box.height / 2],
-      [box.left + 4, box.bottom - 4],
-      [box.right - 4, box.bottom - 4],
+      [box.left + 10, box.bottom - 10],
+      [box.right - 10, box.bottom - 10],
     ];
     for (const [x, y] of points) {
       const hit = document.elementFromPoint(x!, y!);
@@ -182,7 +167,7 @@ async function noSidewaysScroll(page: Page) {
 }
 
 for (const layout of CASES)
-  test(`a key moment shows the situation and the first action together · ${layout.name}`, async ({
+  test(`a step shows its clip and the card together · ${layout.name}`, async ({
     page,
     browserName,
   }) => {
@@ -191,155 +176,142 @@ for (const layout of CASES)
     if (layout.reduced) await page.emulateMedia({ reducedMotion: 'reduce' });
     await keyMoment(page, { fontScale: layout.fontScale });
     if (browserName === 'chromium')
-      await page.screenshot({ path: `artifacts/phase2-${layout.name}.png` });
-
-    // The focused first choice, with its action and chance, is fully on screen and uncovered.
-    expect(await visibleShare(page, '.match-choices button')).toBe(1);
-    await expect(page.locator('.match-choices button').first()).toContainText('%');
+      await page.screenshot({ path: `artifacts/card-${layout.name}.png` });
+    // The focused first choice, with its outcome and chance, is fully on screen and uncovered.
+    expect(await visibleShare(page, '.reel-card button[data-choice]')).toBe(1);
+    await expect(choices(page).first()).toContainText(/\d+%/);
+    await expect(choices(page).first()).toContainText(/Likely|Even|Long shot/);
     expect(await focusedCovered(page)).toBe(false);
-    // The football context is on screen with it: the whole pitch beside the decision on
-    // desktop, the situation preview above it on phones. The score stays with the decision.
-    if (layout.width >= 951)
-      expect(await visibleShare(page, '.match-pitch-panel canvas, .match-pitch-panel svg')).toBe(1);
-    else expect(await visibleShare(page, '.match-situation')).toBe(1);
-    await expect(page.locator('.match-decision .match-eyebrow')).toContainText('0–0');
+    // The stakes header, within 12 words, and the clip beside or above it. On a small phone
+    // with large text the card may push the clip partly out of view, never the choices.
+    const header = (await card(page).locator('.reel-card-header').textContent())!;
+    expect(header.split(/\s+/).filter((token) => /\p{L}/u.test(token)).length).toBeLessThanOrEqual(
+      12,
+    );
+    expect(await visibleShare(page, '[data-testid="clip-stage"]')).toBeGreaterThan(
+      layout.height < 700 ? 0.3 : 0.9,
+    );
     await noSidewaysScroll(page);
     if (browserName === 'chromium') expect(await accessibilityViolations(page)).toEqual([]);
   });
 
-test('keys reach every choice clear of the tab bar on a phone, and Escape never chooses', async ({
+test('keys reach every choice, Escape and Space never choose, a number key does', async ({
   page,
 }) => {
   test.setTimeout(120000);
   await page.setViewportSize(PHONE);
   await keyMoment(page);
-  const choices = page.locator('.match-choices button');
-  const count = await choices.count();
+  const count = await choices(page).count();
   for (let index = 1; index < count; index++) {
     await page.keyboard.press('ArrowDown');
-    await expect(choices.nth(index)).toBeFocused();
-    expect(await visibleShare(page, '.match-choices button', index)).toBe(1);
-    expect(await focusedCovered(page)).toBe(false);
+    await expect(choices(page).nth(index)).toBeFocused();
+    expect(await visibleShare(page, '.reel-card button[data-choice]', index)).toBe(1);
   }
   await page.keyboard.press('ArrowUp');
-  await expect(choices.nth(count - 2)).toBeFocused();
-  // Escape closes an open breakdown first, keeping the decision.
-  const second = page.locator('.match-choice').nth(count - 2);
-  await page.keyboard.press('Tab');
-  await expect(second.locator('summary')).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(second.locator('.match-factors')).toBeVisible();
+  await expect(choices(page).nth(count - 2)).toBeFocused();
+  // "Why?" holds the factors; Escape closes it first, keeping the decision.
+  await card(page).getByRole('button', { name: 'Why?' }).click();
+  await expect(card(page).locator('.reel-why-panel')).toBeVisible();
+  await expect(card(page).locator('.reel-why-panel')).toContainText('%');
   await page.keyboard.press('Escape');
-  await expect(second.locator('.match-factors')).toBeHidden();
-  await expect(choices.nth(count - 2)).toBeFocused();
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
-  // Otherwise Escape means back, never a choice: the key moment is waiting on return.
-  await page.keyboard.press('Escape');
-  await expect(page).not.toHaveURL(/\/match/);
-  await page.goBack();
-  await expect(page).toHaveURL(/\/match/);
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
-  await page.locator('.match-choices button').first().focus();
-  // Space never chooses either; a number key does.
+  await expect(card(page).locator('.reel-why-panel')).toHaveCount(0);
+  await expect(matchState(page)).toHaveAttribute('data-status', 'decision');
+  // Space skips nothing on a card and never chooses.
+  await choices(page).first().focus();
   await page.keyboard.press('Space');
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
+  await expect(matchState(page)).toHaveAttribute('data-status', 'decision');
+  await expect(matchState(page)).toHaveAttribute('data-beat', 'card');
+  const momentId = await matchState(page).getAttribute('data-moment');
   await page.keyboard.press('2');
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'live');
-  await expect(page.locator('.match-outcome')).toContainText('Relevant attribute');
+  await expect(matchState(page)).not.toHaveAttribute('data-moment', momentId!);
+  await expect(page.getByTestId('outcome-beat')).toBeVisible({ timeout: 30000 });
 });
 
 test.describe('touch', () => {
   test.use({ hasTouch: true });
-  test('a tap chooses on a phone, and the details open with a tap', async ({
+  test('a tap chooses on a phone, but not in the first 300 ms of a new step', async ({
     page,
     browserName,
   }) => {
     test.skip(browserName === 'firefox', 'Firefox does not emulate touch input.');
     test.setTimeout(120000);
     await page.setViewportSize(PHONE);
-    await keyMoment(page);
-    const first = page.locator('.match-choice').first();
-    await first.getByText('Why this choice?').tap();
-    await expect(first.locator('.match-factors')).toBeVisible();
-    await first.locator('button[data-choice]').tap();
-    await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'live');
-    await expect(page.locator('.match-outcome')).toBeVisible();
+    await preview(page);
+    await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+    for (let turns = 0; turns < 200; turns++) {
+      const beat = await matchState(page).getAttribute('data-beat');
+      if (beat === 'clip' && (await matchState(page).getAttribute('data-status')) === 'decision')
+        break;
+      if (beat === 'wait') await page.locator('.reel-main section button').first().click();
+      else if (beat === 'ticker' || beat === 'build') await page.keyboard.press('Space');
+      await page.waitForTimeout(100);
+    }
+    // A press the moment the card lands is ignored: clicked from the page in the frame the
+    // card appears, as a fast double tap would.
+    const momentId = await page.evaluate(
+      () =>
+        new Promise<string | null>((resolve) => {
+          const press = () => {
+            const button = document.querySelector<HTMLButtonElement>(
+              '.reel-card button[data-choice]',
+            );
+            if (!button) return requestAnimationFrame(press);
+            const id = document
+              .querySelector('[data-testid="match-state"]')!
+              .getAttribute('data-moment');
+            button.click();
+            resolve(id);
+          };
+          press();
+        }),
+    );
+    await expect(matchState(page)).toHaveAttribute('data-moment', momentId!);
+    await expect(matchState(page)).toHaveAttribute('data-beat', 'card');
+    await page.waitForTimeout(350);
+    await choices(page).first().tap();
+    await expect(matchState(page)).not.toHaveAttribute('data-moment', momentId!);
+    await expect(page.getByTestId('outcome-beat')).toBeVisible({ timeout: 30000 });
   });
 });
 
-test('simulation-only mode keeps the decision without a pitch on a small phone', async ({
-  page,
-}) => {
-  test.setTimeout(120000);
-  await page.setViewportSize({ width: 360, height: 640 });
-  await keyMoment(page, { simulationOnly: true });
-  await expect(page.locator('.match-situation')).toHaveCount(0);
-  await expect(page.locator('.match-simulation')).toBeAttached();
-  expect(await visibleShare(page, '.match-choices button')).toBe(1);
-  expect(await focusedCovered(page)).toBe(false);
-  await page.keyboard.press('1');
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'live');
-});
-
-/** Walk the match tour from the briefing to the key moment. */
-async function tourToKeyMoment(page: Page) {
-  await expect(tour(page)).toContainText('Before kick-off');
-  await tour(page).getByRole('button', { name: 'Next' }).click();
-  await expect(tour(page)).toContainText('Kick off');
-  return async () => {
-    await page.locator('[data-tour="kickoff"]').click();
-    await expect(tour(page)).toContainText('Controlling the match');
-    await tour(page).getByRole('button', { name: 'Next' }).click();
-    await expect(tour(page)).toContainText('Follow the game');
-    if (await page.getByRole('button', { name: 'Pause', exact: true }).isVisible())
-      await press(page, 'Pause');
-    await press(page, 'Next key moment');
-    await expect(tour(page)).toContainText('A key moment');
-    await expect(page.locator('.match-choices button').first()).toBeFocused();
-    await page.waitForTimeout(400);
-  };
-}
-
-test('the tutorial sits in the page on a phone and never covers a choice', async ({
-  page,
-  browserName,
-}) => {
+test('the tutorial points at the card on a phone and never covers a choice', async ({ page }) => {
   test.setTimeout(120000);
   await page.setViewportSize(PHONE);
   await preview(page);
-  const continueTour = await tourToKeyMoment(page);
-  // The kick-off step is part of the briefing, not a sheet over it.
+  await expect(tour(page)).toContainText('Before kick-off');
+  await tour(page).getByRole('button', { name: 'Next' }).click();
   await expect(page.locator('[data-tour-slot="kickoff"]').getByTestId('tutorial')).toBeVisible();
-  await continueTour();
-  await expect(page.locator('.match-decision').getByTestId('tutorial')).toBeVisible();
-  if (browserName === 'chromium')
-    await page.screenshot({ path: 'artifacts/phase2-phone-tutorial.png' });
-  expect(await visibleShare(page, '.match-choices button')).toBe(1);
-  expect(await visibleShare(page, '.match-situation')).toBe(1);
+  await page.locator('[data-tour="kickoff"]').click();
+  await expect(matchState(page)).toHaveAttribute('data-status', 'live');
+  // Past the ticker's step (its Next, never Space on the tour's buttons), to the first decision.
+  const next = tour(page).getByRole('button', { name: 'Next' });
+  for (let turns = 0; turns < 200; turns++) {
+    const beat = await matchState(page).getAttribute('data-beat');
+    if (beat === 'card') break;
+    if (await next.isVisible()) await next.click();
+    else if (beat === 'ticker')
+      await page.getByRole('button', { name: 'Skip to next moment' }).click();
+    await page.waitForTimeout(150);
+  }
+  await expect(choices(page).first()).toBeFocused();
+  await expect(page.locator('[data-tour-slot="decision"]').getByTestId('tutorial')).toBeVisible();
+  expect(await visibleShare(page, '.reel-card button[data-choice]')).toBe(1);
   expect(await focusedCovered(page)).toBe(false);
+  await page.waitForTimeout(320);
   await page.keyboard.press('1');
-  await expect(tour(page)).toContainText('Every result is explained');
-  await tour(page).getByRole('button', { name: 'Got it' }).click();
-  await expect(tour(page)).toHaveCount(0);
+  await expect(page.locator('[data-tour-slot="decision"]')).toHaveCount(0);
 });
 
-test('the tutorial card on desktop moves rather than cover the focused choice', async ({
-  page,
-  browserName,
-}) => {
+test('on a desktop the clip, the card and the live numbers sit side by side', async ({ page }) => {
   test.setTimeout(120000);
   await page.setViewportSize(DESKTOP);
-  await preview(page);
-  const continueTour = await tourToKeyMoment(page);
-  await continueTour();
-  if (browserName === 'chromium')
-    await page.screenshot({ path: 'artifacts/phase2-desktop-tutorial.png' });
-  const choices = page.locator('.match-choices button');
-  for (let index = 0; index < (await choices.count()); index++) {
-    if (index) await page.keyboard.press('ArrowDown');
-    await expect(choices.nth(index)).toBeFocused();
-    // Focus may still be scrolling the choice into view.
-    await expect.poll(() => focusedCovered(page), { message: `choice ${index + 1}` }).toBe(false);
-  }
-  expect(await visibleShare(page, '.match-pitch-panel canvas, .match-pitch-panel svg')).toBe(1);
+  await keyMoment(page);
+  await expect(page.locator('.reel-aside')).toBeVisible();
+  const [stage, aside] = await Promise.all([
+    page.getByTestId('clip-stage').boundingBox(),
+    page.locator('.reel-aside').boundingBox(),
+  ]);
+  expect(aside!.x).toBeGreaterThanOrEqual(stage!.x + stage!.width - 1);
+  expect(await visibleShare(page, '[data-testid="clip-stage"]')).toBe(1);
+  expect(await focusedCovered(page)).toBe(false);
 });

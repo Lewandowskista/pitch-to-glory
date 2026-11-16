@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react';
 import type { Avatar, Club, Player, World } from '../../model/domain';
 import { format, t } from '../../i18n';
+import { formatInteger, formatMoney } from '../../i18n/locale';
 import { Artwork } from '../../ui/Artwork';
 import { Icon } from '../../ui/Icon';
 import { Chip, Disclosure, OverallBadge, cx } from '../../ui/kit';
 import { foundedYear, renderCrest } from '../../engine/assets/crest';
 import { renderKit } from '../../engine/assets/kit';
+import { keeperAttributesOf } from '../../engine/keeping';
 import { clubDress, renderAvatar, type AvatarDress } from '../../engine/assets/avatar';
 import { kitArt } from '../../ui/kitArt';
 import { overallRating } from '../../engine/strength';
 import { StrainNote } from '../career/financeUi';
 
-const integer = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
 /** Rows shown before "Show all players"; the selected player always stays in view. */
 const SQUAD_PREVIEW = 8;
 /** The same overall rating the career screens show (position-weighted, not a plain mean). */
@@ -49,7 +50,6 @@ export function ClubInspector({
   const dress = useMemo(() => clubDress(club), [club]);
   const player = squad.find((player) => player.id === selectedPlayer) ?? squad[0]!;
   const age = (player: Player) => world.date.season - player.birthSeason;
-  const money = (value: number) => format(t.world.money, { amount: integer.format(value) });
   const crest = useMemo(() => renderCrest(club.crest, { founded }), [club.crest, founded]);
   const cultures: string[] = [
     club.youthFocus >= 60 && t.world.youth,
@@ -107,7 +107,7 @@ export function ClubInspector({
           <dd className="font-bold break-words">
             {club.stadium.name}
             <small className="block text-xs font-medium text-muted">
-              {format(t.world.capacity, { count: integer.format(club.stadium.capacity) })}
+              {format(t.world.capacity, { count: formatInteger(club.stadium.capacity) })}
             </small>
           </dd>
         </div>
@@ -158,7 +158,7 @@ export function ClubInspector({
               className="flex items-start justify-between gap-4 border-b border-line py-2.5 last:border-b-0"
             >
               <dt className="text-muted">{label}</dt>
-              <dd className="text-right font-semibold tabular-nums">{money(value)}</dd>
+              <dd className="text-right font-semibold tabular-nums">{formatMoney(value)}</dd>
             </div>
           ))}
         </dl>
@@ -329,10 +329,13 @@ function PlayerInspect({
   const groups: [string, readonly string[]][] = [
     ...ATTRIBUTE_GROUPS.map(([key, keys]) => [t.world[key], keys] as [string, readonly string[]]),
     ...(player.primaryPosition === 'GK'
-      ? [[t.world.keeper, Object.keys(player.keeperAttributes)] as [string, string[]]]
+      ? [[t.world.keeper, Object.keys(keeperAttributesOf(player))] as [string, string[]]]
       : []),
   ];
-  const attributes: Record<string, number> = { ...player.attributes, ...player.keeperAttributes };
+  const attributes: Record<string, number> = {
+    ...player.attributes,
+    ...keeperAttributesOf(player),
+  };
   const tiles = [
     [t.world.potential, player.potential, true],
     [t.world.fitness, player.fitness, false],
