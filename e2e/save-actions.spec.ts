@@ -273,13 +273,17 @@ test('a slot that will not load is restored from its automatic backup', async ({
   await expect(page.locator('.notice')).toHaveText('Save loaded.', { timeout: 30000 });
 });
 
-/** Stands in for the persistence worker's storage estimate; the page switches it to full. */
+/**
+ * Makes the persistence worker's IndexedDB refuse writes as a full disk does; the page switches
+ * it to full. (A low storage estimate alone never refuses a save: WebKit's overstates usage.)
+ */
 const FULL_STORAGE_STUB = [
   'let full = false;',
   "new BroadcastChannel('e2e-storage').onmessage = (event) => { full = event.data === 'full'; };",
-  'const estimate = StorageManager.prototype.estimate;',
-  'StorageManager.prototype.estimate = function () {',
-  '  return full ? Promise.resolve({ usage: 1e9 - 1024, quota: 1e9 }) : estimate.call(this);',
+  'const put = IDBObjectStore.prototype.put;',
+  'IDBObjectStore.prototype.put = function (...args) {',
+  "  if (full) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');",
+  '  return put.apply(this, args);',
   '};',
 ].join('\n');
 
