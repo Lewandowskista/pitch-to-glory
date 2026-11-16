@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, nationalCareer, test } from './support';
+import { careerPreMatch, expect, matchState, nationalCareer, test } from './support';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 
 // No skipTutorial here: these journeys are about the tutorial.
@@ -79,24 +79,53 @@ test('guides the first week and the first match, and replays from Settings', asy
   await page.getByTestId('tutorial').getByRole('button', { name: 'Got it' }).click();
   await expect(page.getByTestId('tutorial')).toHaveCount(0);
 
-  // The first match: tactics, kick-off (an action), controls, a key moment chosen with a key.
+  // The first match: tactics, kick-off (an action), the ticker, a decision chosen with a key.
   await page.locator('[data-tour="continue"]').click();
-  await page.getByRole('button', { name: /pre-match briefing/ }).click();
+  await careerPreMatch(page);
   await expect(page.getByTestId('tutorial')).toContainText('Before kick-off');
   await page.getByTestId('tutorial').getByRole('button', { name: 'Next' }).click();
   await expect(page.getByTestId('tutorial')).toContainText('Do this to continue.');
   await page.locator('[data-tour="kickoff"]').click();
-  await expect(page.getByTestId('tutorial')).toContainText('Controlling the match');
+  await expect(page.getByTestId('tutorial')).toContainText('The ticker');
   await page.getByTestId('tutorial').getByRole('button', { name: 'Next' }).click();
-  await expect(page.getByTestId('tutorial')).toContainText('Follow the game');
-  await page
-    .locator('[data-tour="controls"]')
-    .getByRole('button', { name: /Next key moment/i })
-    .click();
+  // Skip to the first decision card (and on through any goal clip before it).
+  const skip = page.locator('[data-tour="controls"]').getByRole('button', {
+    name: 'Skip to next moment',
+  });
+  await expect
+    .poll(
+      async () => {
+        if (await page.locator('.reel-card').isVisible()) return true;
+        await skip.click({ timeout: 2000 }).catch(() => undefined);
+        return false;
+      },
+      { timeout: 120000, intervals: [300] },
+    )
+    .toBe(true);
   await expect(page.getByTestId('tutorial')).toContainText('A key moment');
-  await page.locator('[data-tour="decision"] button[data-choice]').first().focus();
+  await expect(page.locator('[data-tour="decision"] button[data-choice]').first()).toBeFocused();
+  // The card ignores keys for its first 300 ms.
+  await page.waitForTimeout(320);
   await page.keyboard.press('1');
-  await expect(page.getByTestId('tutorial')).toContainText('Every result is explained');
+  // The outcome step follows once the chain is over and the ticker runs again: answer its
+  // remaining steps the same way.
+  const state = matchState(page);
+  const outcome = page.getByTestId('tutorial').getByText('Every result is explained');
+  await expect
+    .poll(
+      async () => {
+        if (await outcome.isVisible()) return true;
+        if ((await state.getAttribute('data-beat')) === 'card') {
+          const moment = await state.getAttribute('data-moment');
+          await page.waitForTimeout(320);
+          await page.keyboard.press('1');
+          await expect(state).not.toHaveAttribute('data-moment', moment ?? '');
+        }
+        return false;
+      },
+      { timeout: 60000, intervals: [300] },
+    )
+    .toBe(true);
   await page.getByTestId('tutorial').getByRole('button', { name: 'Got it' }).click();
   await expect(page.getByTestId('tutorial')).toHaveCount(0);
   expect(await tutorialSeen(page)).toEqual({ week: true, match: true });
