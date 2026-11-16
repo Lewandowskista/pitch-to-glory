@@ -19,6 +19,8 @@
     "e2e/**/*.ts",
     "*.ts",
   ],
+  // Agent worktrees and other local checkouts under .claude/ are not part of the project.
+  "ignore": [".claude/**"],
   // A module's helper exported for its tests or for clarity is not dead while the module uses it.
   "ignoreExportsUsedInFile": true,
   // The accessibility journeys inject node_modules/axe-core/axe.min.js by path.
