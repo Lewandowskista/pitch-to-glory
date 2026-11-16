@@ -6,7 +6,8 @@ import type {
   Objective,
   World,
 } from '../../model/domain';
-import { matchDecisions, recordDecisions } from './coaching';
+import { recordDecisions } from './coaching';
+import { matchDecisions } from './decisionSamples';
 import { adjustRelationship } from './market/records';
 import { assetEffects } from './lifestyle/catalogue';
 import { FORMATION_SLOTS, type Formation } from '../selection/formations';
