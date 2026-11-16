@@ -346,16 +346,13 @@ describe('restore from a backup (step 4.3)', () => {
 });
 
 describe('storage preflight and quota errors (step 4.6)', () => {
-  it('refuses a whole write that the estimate says will not fit, before writing', async () => {
+  it('never refuses a save on the estimate alone (WebKit counts space already freed)', async () => {
     const { db, repo } = setup({ free: 1 * MiB });
-    await expect(writeWorld(repo, careerWorld(), null, true)).rejects.toMatchObject({
-      code: 'quota',
-    });
-    await expect(repo.write(careerSave(), null)).rejects.toMatchObject({ code: 'quota' });
-    expect(await db.saves.count()).toBe(0);
+    await writeWorld(repo, careerWorld(), null, true);
+    expect(await db.saves.count()).toBe(1);
   });
 
-  it('lets backups give way, oldest first, so they never fail a save', async () => {
+  it('lets backups give way, oldest first, when the browser refuses a save', async () => {
     const { db, repo, scheduler, state } = setup({ free: null });
     await repo.write(careerSave(careerWorld(), 1), null);
     await repo.write(careerSave(careerWorld(), 2), null);
@@ -366,9 +363,19 @@ describe('storage preflight and quota errors (step 4.6)', () => {
     // Backups count as used: the world fits only once the oldest (slot 1's) is gone.
     const newer = backedUp.find((entry) => entry.slot === 2)!;
     state.free = size + CONFIG.saves.quotaMarginBytes + newer.stored + 1;
+    vi.spyOn(db.worlds, 'put').mockRejectedValueOnce(
+      new DOMException('full', 'QuotaExceededError'),
+    );
     const saved = await writeWorld(repo, careerWorld(), 1);
     expect(saved.revision).toBe(2);
     expect((await infos(db)).map((entry) => entry.slot)).toEqual([2]);
+  });
+
+  it('reports quota when the browser refuses a save and no backup can give way', async () => {
+    const { db, repo } = setup({ free: null });
+    vi.spyOn(db.worlds, 'put').mockRejectedValue(new DOMException('full', 'QuotaExceededError'));
+    await expect(writeWorld(repo, careerWorld(), null, true)).rejects.toSatisfy(isQuotaError);
+    expect(await db.saves.count()).toBe(0);
   });
 
   it('maps IndexedDB’s QuotaExceededError to quota, also inside an aborted transaction', async () => {

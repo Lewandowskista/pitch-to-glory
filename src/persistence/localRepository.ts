@@ -25,7 +25,7 @@ import { compactSession, storedSession, type StoredMatchSession } from './matchR
 import { SAVE_DATABASE } from './database';
 import { applyWorldPatches, patchSize, validPatches, type WorldPatch } from '../workers/worldPatch';
 import { decodeWorldBytes, encodeWorld } from '../workers/worldCodec';
-import { assertSpaceFor, browserEstimate, type Estimator } from './storage';
+import { browserEstimate, isQuotaError, type Estimator } from './storage';
 import {
   SlotBackups,
   slotBackupIds,
@@ -322,15 +322,18 @@ export class LocalSaveRepository {
     return this.options.backups?.backups ?? new SlotBackups(this.db, this.estimate);
   }
   /**
-   * Storage preflight (step 4.6): `quota` when the estimate says `bytes` would not fit. Backups
-   * give way first, oldest first, so they never cause a save to fail.
+   * Storage (step 4.6): a whole write goes ahead whatever the estimate says, because WebKit's
+   * estimate keeps counting space IndexedDB has already freed (a season of weekly autosaves
+   * read as a full disk and stopped the season). When the browser does refuse a write, backups
+   * give way, oldest first, and the write runs once more, so backups never cause a save to
+   * fail; otherwise the refusal stands and reaches the tab as `quota`.
    */
-  private async preflight(bytes: number): Promise<void> {
+  private async withRoom<T>(bytes: number | null, write: () => Promise<T>): Promise<T> {
     try {
-      await assertSpaceFor(bytes, this.estimate);
+      return await write();
     } catch (error) {
-      if (!(error instanceof SaveError) || !(await this.backupStore.release(bytes))) throw error;
-      await assertSpaceFor(bytes, this.estimate);
+      if (!bytes || !isQuotaError(error) || !(await this.backupStore.release(bytes))) throw error;
+      return write();
     }
   }
   /**
@@ -592,38 +595,39 @@ export class LocalSaveRepository {
   private async store(save: AppSave, expectedRevision: number | null): Promise<AppSave> {
     // Encoded before the transaction: IndexedDB transactions close while a task runs long.
     const bytes = save.payload.kind === 'world' ? worldBytes(save.payload.world) : null;
-    if (bytes) await this.preflight(bytes.length);
     let snapshot = null as SlotSnapshot | null;
-    const result = await this.db.transaction(
-      'rw',
-      [this.db.saves, this.db.worlds, this.db.matches, this.db.leases],
-      async () => {
-        await this.assertOwnership(save.slot);
-        const previous = await this.db.saves.get(save.slot);
-        // An empty slot and an unreadable record both have revision null.
-        if (revisionOf(previous) !== expectedRevision) throw new SaveError('conflict');
-        const stored: AppSave = {
-          ...save,
-          engineVersion: ENGINE_VERSION,
-          revision: (revisionOf(previous) ?? 0) + 1,
-        };
-        const meta = metaFor(stored);
-        const session =
-          stored.payload.kind === 'world' && stored.payload.matchSession
-            ? compactSession(stored.payload.matchSession)
-            : null;
-        await this.db.saves.put(meta);
-        if (stored.payload.kind === 'world') {
-          await this.db.worlds.put({ slot: stored.slot, bytes: bytes! });
-          if (session) await this.db.matches.put({ slot: stored.slot, session });
-          else await this.db.matches.delete(stored.slot);
-        } else {
-          await this.db.worlds.delete(stored.slot);
-          await this.db.matches.delete(stored.slot);
-        }
-        snapshot = { meta, bytes, match: session };
-        return stored;
-      },
+    const result = await this.withRoom(bytes?.length ?? null, () =>
+      this.db.transaction(
+        'rw',
+        [this.db.saves, this.db.worlds, this.db.matches, this.db.leases],
+        async () => {
+          await this.assertOwnership(save.slot);
+          const previous = await this.db.saves.get(save.slot);
+          // An empty slot and an unreadable record both have revision null.
+          if (revisionOf(previous) !== expectedRevision) throw new SaveError('conflict');
+          const stored: AppSave = {
+            ...save,
+            engineVersion: ENGINE_VERSION,
+            revision: (revisionOf(previous) ?? 0) + 1,
+          };
+          const meta = metaFor(stored);
+          const session =
+            stored.payload.kind === 'world' && stored.payload.matchSession
+              ? compactSession(stored.payload.matchSession)
+              : null;
+          await this.db.saves.put(meta);
+          if (stored.payload.kind === 'world') {
+            await this.db.worlds.put({ slot: stored.slot, bytes: bytes! });
+            if (session) await this.db.matches.put({ slot: stored.slot, session });
+            else await this.db.matches.delete(stored.slot);
+          } else {
+            await this.db.worlds.delete(stored.slot);
+            await this.db.matches.delete(stored.slot);
+          }
+          snapshot = { meta, bytes, match: session };
+          return stored;
+        },
+      ),
     );
     // Committed: the season's backup follows, off the save queue, when due (step 4.3).
     if (snapshot) this.options.backups?.schedule(snapshot, 'season');
@@ -666,47 +670,48 @@ export class LocalSaveRepository {
       throw new SaveError('invalid');
     if (bytes.length > CONFIG.saves.maxFileBytes) throw new SaveError('large');
     const session = value.matchSession ? storedSession(value.matchSession) : null;
-    await this.preflight(bytes.length);
     let written = null as SaveMeta | null;
-    const receipt = await this.db.transaction(
-      'rw',
-      [this.db.saves, this.db.worlds, this.db.matches, this.db.leases],
-      async () => {
-        await this.assertOwnership(value.slot);
-        const previous = await this.db.saves.get(value.slot);
-        if (revisionOf(previous) !== expectedRevision) throw new SaveError('conflict');
-        if (
-          !value.replace &&
-          (!isSplit(previous) ||
-            previous.kind !== 'world' ||
-            previous.world?.worldId !== value.worldId)
-        )
-          throw new SaveError('invalid');
-        const createdAt =
-          isSplit(previous) && !value.replace ? previous.createdAt : value.createdAt;
-        const meta: SaveMeta = {
-          layout: 2,
-          format: 'pitch-to-glory',
-          schemaVersion: CONFIG.saves.schemaVersion,
-          engineVersion: ENGINE_VERSION,
-          slot: value.slot,
-          name: value.name,
-          createdAt,
-          // A device clock behind the save's creation never stores a time before it.
-          updatedAt: notBefore(value.updatedAt, createdAt),
-          revision: (revisionOf(previous) ?? 0) + 1,
-          kind: 'world',
-          gallery: foundation.gallery,
-          settings: foundation.settings,
-          world: value.summary,
-        };
-        await this.db.saves.put(meta);
-        await this.db.worlds.put({ slot: value.slot, bytes });
-        if (session) await this.db.matches.put({ slot: value.slot, session });
-        else await this.db.matches.delete(value.slot);
-        written = meta;
-        return receiptOf(meta);
-      },
+    const receipt = await this.withRoom(bytes.length, () =>
+      this.db.transaction(
+        'rw',
+        [this.db.saves, this.db.worlds, this.db.matches, this.db.leases],
+        async () => {
+          await this.assertOwnership(value.slot);
+          const previous = await this.db.saves.get(value.slot);
+          if (revisionOf(previous) !== expectedRevision) throw new SaveError('conflict');
+          if (
+            !value.replace &&
+            (!isSplit(previous) ||
+              previous.kind !== 'world' ||
+              previous.world?.worldId !== value.worldId)
+          )
+            throw new SaveError('invalid');
+          const createdAt =
+            isSplit(previous) && !value.replace ? previous.createdAt : value.createdAt;
+          const meta: SaveMeta = {
+            layout: 2,
+            format: 'pitch-to-glory',
+            schemaVersion: CONFIG.saves.schemaVersion,
+            engineVersion: ENGINE_VERSION,
+            slot: value.slot,
+            name: value.name,
+            createdAt,
+            // A device clock behind the save's creation never stores a time before it.
+            updatedAt: notBefore(value.updatedAt, createdAt),
+            revision: (revisionOf(previous) ?? 0) + 1,
+            kind: 'world',
+            gallery: foundation.gallery,
+            settings: foundation.settings,
+            world: value.summary,
+          };
+          await this.db.saves.put(meta);
+          await this.db.worlds.put({ slot: value.slot, bytes });
+          if (session) await this.db.matches.put({ slot: value.slot, session });
+          else await this.db.matches.delete(value.slot);
+          written = meta;
+          return receiptOf(meta);
+        },
+      ),
     );
     // Committed: the season's backup follows, off the save queue, when due (step 4.3).
     if (written) this.options.backups?.schedule({ meta: written, bytes, match: session }, 'season');
@@ -815,29 +820,30 @@ export class LocalSaveRepository {
     const bytes = await unpackWorld(data);
     const records = recordsOf(slot, data, bytes);
     const loaded = await this.evaluate(records, async () => recordsOf(slot, data, bytes));
-    if (bytes) await this.preflight(bytes.length);
-    const restored = await this.db.transaction(
-      'rw',
-      [this.db.saves, this.db.worlds, this.db.matches, this.db.leases],
-      async () => {
-        await this.assertOwnership(slot);
-        const previous = await this.db.saves.get(slot);
-        if (revisionOf(previous) !== expectedRevision) throw new SaveError('conflict');
-        const revision = Math.max(revisionOf(previous) ?? 0, data.meta.revision) + 1;
-        const meta: SaveMeta = {
-          ...data.meta,
-          slot,
-          revision,
-          // A device clock behind the save's creation never stores a time before it.
-          updatedAt: notBefore(new Date().toISOString(), data.meta.createdAt),
-        };
-        await this.db.saves.put(meta);
-        if (records.world) await this.db.worlds.put(records.world);
-        else await this.db.worlds.delete(slot);
-        if (records.match) await this.db.matches.put(records.match);
-        else await this.db.matches.delete(slot);
-        return meta;
-      },
+    const restored = await this.withRoom(bytes?.length ?? null, () =>
+      this.db.transaction(
+        'rw',
+        [this.db.saves, this.db.worlds, this.db.matches, this.db.leases],
+        async () => {
+          await this.assertOwnership(slot);
+          const previous = await this.db.saves.get(slot);
+          if (revisionOf(previous) !== expectedRevision) throw new SaveError('conflict');
+          const revision = Math.max(revisionOf(previous) ?? 0, data.meta.revision) + 1;
+          const meta: SaveMeta = {
+            ...data.meta,
+            slot,
+            revision,
+            // A device clock behind the save's creation never stores a time before it.
+            updatedAt: notBefore(new Date().toISOString(), data.meta.createdAt),
+          };
+          await this.db.saves.put(meta);
+          if (records.world) await this.db.worlds.put(records.world);
+          else await this.db.worlds.delete(slot);
+          if (records.match) await this.db.matches.put(records.match);
+          else await this.db.matches.delete(slot);
+          return meta;
+        },
+      ),
     );
     return { ...loaded, revision: restored.revision, updatedAt: restored.updatedAt };
   }

@@ -1,10 +1,10 @@
-import { CONFIG } from '../engine/config';
 import { SaveError } from './errors';
 
 /**
  * How full the device's storage is, for the persistence worker (release 1.0 steps 4.3 and 4.6):
- * the storage preflight before a whole write, the space check before a backup, and the
- * mapping of IndexedDB's quota errors. `navigator.storage.estimate()` is available in workers;
+ * the space check before a backup, making room for a save the browser refused, and the
+ * mapping of IndexedDB's quota errors. WebKit's estimate counts space IndexedDB has already
+ * freed, so it never refuses a save on its own. `navigator.storage.estimate()` is available in workers;
  * where it is missing or fails, nothing is known (`null`) and writes go ahead, as before.
  */
 export interface StorageEstimate {
@@ -34,15 +34,6 @@ export const browserEstimate: Estimator = async () => {
 export async function freeBytes(estimate: Estimator): Promise<number | null> {
   const value = await estimate();
   return value ? Math.max(0, value.quota - value.usage) : null;
-}
-/**
- * Storage preflight (step 4.6): refuse a whole write of `bytes` with `quota` when the estimate
- * says it would not fit with `CONFIG.saves.quotaMarginBytes` to spare, instead of starting a
- * transaction the browser will abort.
- */
-export async function assertSpaceFor(bytes: number, estimate: Estimator): Promise<void> {
-  const free = await freeBytes(estimate);
-  if (free !== null && free < bytes + CONFIG.saves.quotaMarginBytes) throw new SaveError('quota');
 }
 /**
  * Whether an error is the browser refusing to store more: a `QuotaExceededError` DOMException,

@@ -241,9 +241,9 @@ export class SlotBackups {
     });
   }
   /**
-   * Make room for a save (step 4.6): delete backups, oldest first, until `bytes` fit with the
-   * quota margin, so backups never stand between the player and a save. Returns whether any
-   * were deleted.
+   * Make room for a save the browser refused (step 4.6): delete backups, oldest first, until the
+   * estimate says `bytes` fit with the quota margin (all of them when it says nothing), so
+   * backups never stand between the player and a save. Returns whether any were deleted.
    */
   async release(bytes: number): Promise<boolean> {
     const entries = (await this.db.backups.toArray())
@@ -252,7 +252,7 @@ export class SlotBackups {
     let released = false;
     for (const entry of entries) {
       const free = await freeBytes(this.estimate);
-      if (free === null || free >= bytes + CONFIG.saves.quotaMarginBytes) break;
+      if (free !== null && free >= bytes + CONFIG.saves.quotaMarginBytes) break;
       await this.db.transaction('rw', this.db.backups, this.db.backupData, async () => {
         await this.db.backups.delete(entry.id);
         await this.db.backupData.delete(entry.id);
