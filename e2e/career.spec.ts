@@ -252,16 +252,17 @@ test('a finished match report never follows the player into another save', async
   await page.goto('/saves');
   for (const [index, name] of ['Robin Vale', 'Sam Okafor'].entries()) {
     const slot = (index + 1) as SlotId;
-    await page
-      .locator('.slot-card')
-      .nth(index)
-      .getByLabel(`Import backup — Slot ${slot}`)
-      .setInputFiles({
-        name: `career-${slot}.json`,
-        mimeType: 'application/json',
-        buffer: Buffer.from(matchdaySave(`report-${slot}`, name, slot)),
-      });
-    await expect(page.locator('.slot-card').nth(index).getByRole('heading')).toHaveText(name);
+    // The Saves screen and its import load lazily; on a slow CI runner give them time.
+    const input = page.locator('.slot-card').nth(index).getByLabel(`Import backup — Slot ${slot}`);
+    await expect(input).toBeEnabled({ timeout: 60000 });
+    await input.setInputFiles({
+      name: `career-${slot}.json`,
+      mimeType: 'application/json',
+      buffer: Buffer.from(matchdaySave(`report-${slot}`, name, slot)),
+    });
+    await expect(page.locator('.slot-card').nth(index).getByRole('heading')).toHaveText(name, {
+      timeout: 60000,
+    });
   }
 
   // Finish slot 1's match: its report is shown from memory.

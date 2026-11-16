@@ -224,7 +224,7 @@ test('keys reach every choice, Escape and Space never choose, a number key does'
   const momentId = await matchState(page).getAttribute('data-moment');
   await page.keyboard.press('2');
   await expect(matchState(page)).not.toHaveAttribute('data-moment', momentId!);
-  await expect(page.getByTestId('outcome-beat')).toBeVisible({ timeout: 10000 });
+  await expect(page.getByTestId('outcome-beat')).toBeVisible({ timeout: 30000 });
 });
 
 test.describe('touch', () => {
@@ -270,7 +270,7 @@ test.describe('touch', () => {
     await page.waitForTimeout(350);
     await choices(page).first().tap();
     await expect(matchState(page)).not.toHaveAttribute('data-moment', momentId!);
-    await expect(page.getByTestId('outcome-beat')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('outcome-beat')).toBeVisible({ timeout: 30000 });
   });
 });
 

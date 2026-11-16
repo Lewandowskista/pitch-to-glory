@@ -37,9 +37,11 @@ test.beforeAll(async ({ browserName }, workerInfo) => {
     trialOffers(base, 'country:0', seed)[0]!.id,
     seed,
   );
-  // A couple of played weeks: the inbox has messages to open.
-  for (let week = 0; week < 2; week++)
+  // Play on until the inbox has a message to open (a new career starts its first fixtures, so
+  // the first weeks can pass without one).
+  for (let week = 0; week < 2 || (world.inbox.length === 0 && week < 12); week++)
     world = advanceCareerWeek(world, { inPlace: true, autoPlay: true }).world;
+  if (world.inbox.length === 0) throw new Error('No inbox message after 12 weeks');
   backup = `artifacts/layout-${browserName}-${workerInfo.workerIndex}.json`;
   await mkdir('artifacts', { recursive: true });
   await writeFile(

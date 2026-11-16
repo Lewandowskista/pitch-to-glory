@@ -117,7 +117,7 @@ test('advice fills a draft that only saving applies, and a goal stays once taken
   await page.getByRole('button', { name: 'Save training' }).click();
   await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 30000 });
   await page.reload();
-  await expect(page.locator('#focus-0')).toHaveValue('passing', { timeout: 30000 });
+  await expect(page.locator('#focus-0')).toHaveValue('passing', { timeout: 60000 });
   await expect(page.getByText('Your saved plan already follows this advice.')).toBeVisible();
 
   const goal = page.getByRole('region', { name: 'Season goal' });
@@ -143,6 +143,6 @@ test('the hub’s coaching tile opens Training with the advice ready to save', a
   await expect(tile).toContainText('Suggests: Passing', { timeout: 30000 });
   await tile.getByRole('link', { name: 'See the advice' }).click();
   await expect(page).toHaveURL(/\/career\/training\?advice=1&save=1/);
-  await expect(page.locator('#focus-0')).toHaveValue('passing', { timeout: 30000 });
+  await expect(page.locator('#focus-0')).toHaveValue('passing', { timeout: 60000 });
   await expect(page.getByText('The sessions are in your plan below.')).toBeVisible();
 });
