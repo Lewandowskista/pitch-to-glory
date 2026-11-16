@@ -3,6 +3,7 @@ import {
   expect,
   nationalCareer,
   openCareerPage,
+  playCareerMatch,
   recordedReport,
   skipTutorial,
   test,
@@ -18,43 +19,8 @@ test.beforeEach(async ({ page }) => {
 
 test.use({ actionTimeout: 15000 });
 
-const state = (page: Page) => page.getByTestId('match-state');
-
-/** Play a prepared career fixture from kickoff to full time, using skip and number keys. */
-async function playMatch(page: Page) {
-  await page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }).click();
-  await expect(state(page)).toHaveAttribute('data-status', 'preview');
-  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  for (let turns = 0; turns < 120; turns++) {
-    const status = await state(page).getAttribute('data-status');
-    if (status === 'finished') return;
-    if (status === 'decision') {
-      // The first choice takes focus; number keys pick a choice.
-      await expect(page.locator('.match-choices button').first()).toBeFocused();
-      await page.keyboard.press('1');
-      await expect(state(page)).not.toHaveAttribute('data-status', 'decision');
-    } else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team|Lift the side/ }).click();
-    else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible())
-      await page.getByRole('button', { name: /Accept the change/ }).click();
-    else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
-      await page.getByRole('button', { name: /Keep the team composed/ }).click();
-    // A knock (match-22): play on.
-    else if (await page.getByRole('button', { name: /^Play on/ }).isVisible())
-      await page.getByRole('button', { name: /^Play on/ }).click();
-    else {
-      const pause = page.getByRole('button', { name: 'Pause', exact: true });
-      if (await pause.isVisible()) await pause.click();
-      // The match can reach a decision or a prompt between reading the state and clicking,
-      // which disables the button: try briefly, then read the state again.
-      await page
-        .getByRole('button', { name: 'Next key moment', exact: true })
-        .click({ timeout: 3000 })
-        .catch(() => {});
-    }
-  }
-  throw new Error('Career match did not reach full time');
-}
+/** The pre-match screen's Kick off: the next fixture is prepared and waiting. */
+const kickoff = (page: Page) => page.getByRole('button', { name: 'Kick off', exact: true });
 
 /** Advance to the next matchday once the hub allows it: it waits while a save or match is in flight. */
 async function continueWeek(page: Page): Promise<void> {
@@ -157,7 +123,7 @@ test('creates a career, plays matchdays, develops the player and restores the hu
   await expect(page).toHaveURL(/\/match/);
   let levelled = false;
   for (let match = 0; match < 6 && !levelled; match++) {
-    await playMatch(page);
+    await playCareerMatch(page);
     // Full time records the result once and shows the XP it granted.
     await expect(page.getByTestId('career-xp')).toBeVisible({ timeout: 60000 });
     await expect(page.getByTestId('career-xp')).toContainText('XP earned');
@@ -167,14 +133,8 @@ test('creates a career, plays matchdays, develops the player and restores the hu
     // A second fixture the same week (a cup tie) comes first; otherwise the week moves on.
     const next = page.getByRole('button', { name: 'Your next fixture', exact: true });
     if (await next.isVisible()) await next.click();
-    else
-      await untilMatchday(
-        page,
-        page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }),
-      );
-    await expect(
-      page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }),
-    ).toBeVisible({ timeout: 120000 });
+    else await untilMatchday(page, kickoff(page));
+    await expect(kickoff(page)).toBeVisible({ timeout: 120000 });
   }
   expect(levelled).toBe(true);
   await expect(page.getByTestId('level-up')).toContainText('Level up!');
@@ -306,7 +266,7 @@ test('a finished match report never follows the player into another save', async
 
   // Finish slot 1's match: its report is shown from memory.
   await page.goto('/match?save=1');
-  await playMatch(page);
+  await playCareerMatch(page);
   await recordedReport(page);
   // The recorded report shows the finalized result.
   await expect(page.getByTestId('final-result')).toContainText('Final result');
@@ -327,8 +287,6 @@ test('a finished match report never follows the player into another save', async
   await expect(page.locator('.notice')).toHaveText('Save loaded.');
   await expect(page.locator('.slot-card').nth(1)).toContainText('Sam Okafor');
   await shell.getByRole('link', { name: 'Matchday' }).click();
-  await expect(
-    page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }),
-  ).toBeVisible({ timeout: 30000 });
+  await expect(kickoff(page)).toBeVisible({ timeout: 30000 });
   await expect(page.getByTestId('career-xp')).toHaveCount(0);
 });

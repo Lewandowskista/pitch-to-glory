@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import {
   expect,
   nationalCareer,
+  playCareerMatch,
   recordedReport,
   settled,
   skipTutorial,
@@ -196,38 +197,12 @@ function matchdaySave(): string {
   );
 }
 
-/** Play the prepared career fixture to full time, choosing the first option each time. */
+/** Play the career fixture to full time, choosing the first option each time. */
 async function playMatch(page: Page) {
-  const state = page.getByTestId('match-state');
-  await page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }).click();
-  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  for (let turns = 0; turns < 120; turns++) {
-    const status = await state.getAttribute('data-status');
-    if (status === 'finished') return;
-    if (status === 'decision') {
-      // The invitation never covers a key moment's choices.
-      await expect(page.getByRole('heading', { name: 'Help shape the game' })).toHaveCount(0);
-      await page.locator('.match-choices button').first().click();
-      await expect(state).not.toHaveAttribute('data-status', 'decision');
-    } else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team|Lift the side/ }).click();
-    else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible())
-      await page.getByRole('button', { name: /Accept the change/ }).click();
-    else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
-      await page.getByRole('button', { name: /Keep the team composed/ }).click();
-    // A knock (match-22): play on.
-    else if (await page.getByRole('button', { name: /^Play on/ }).isVisible())
-      await page.getByRole('button', { name: /^Play on/ }).click();
-    else {
-      const pause = page.getByRole('button', { name: 'Pause', exact: true });
-      if (await pause.isVisible()) await pause.click();
-      await page
-        .getByRole('button', { name: 'Next key moment', exact: true })
-        .click({ timeout: 3000 })
-        .catch(() => {});
-    }
-  }
-  throw new Error('Career match did not reach full time');
+  await playCareerMatch(page, {
+    // The invitation never covers a decision card.
+    onCard: () => expect(page.getByRole('heading', { name: 'Help shape the game' })).toHaveCount(0),
+  });
 }
 
 test('a first finished match brings the funnel, the decisions and one invitation', async ({
