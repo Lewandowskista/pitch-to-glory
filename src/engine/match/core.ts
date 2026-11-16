@@ -47,12 +47,14 @@ export { canComeOff } from './injuries';
 export { shootoutTally, shootoutWinner } from './shootout';
 export {
   demandTrust,
+  halftimeChoice,
   motivateLift,
   ownMargin,
   requestableRoles,
   roleAgainstScore,
   roleRefusal,
   touchlinePolicy,
+  type HalftimeAnswer,
 } from './touchline';
 export { onBench } from './shared';
 export { validateMatchSession } from './replay';

@@ -1631,6 +1631,11 @@ export const CONFIG = {
         wonderProbability: 0.2,
         greatSave: 0.35,
         defensiveMinute: 70,
+        /**
+         * The best positive decision chain (release 1.0 X1b) of a match that saved no other
+         * Moment, by how it ended (a goal first), then by the longest odds of its steps.
+         */
+        chainOrder: ['goal', 'assist', 'stop', 'chance', 'won'] as readonly string[],
       },
       /** Hall of Fame score. */
       /**

@@ -1,5 +1,5 @@
 import type { Hex, MatchEvent, Moment, Point, ReplayFrame, World } from '../../../model/domain';
-import type { MatchSession } from '../../match/types';
+import type { ChainSummary, MatchSession } from '../../match/types';
 import { CONFIG } from '../../config';
 import { nextId } from '../market/records';
 import { today } from '../market/rules';
@@ -254,8 +254,47 @@ export function captureMoments(world: World, session: MatchSession, importance: 
     if (event.kind !== 'goal' || event.assistId !== career.playerId) continue;
     if (importance >= 1.5 || decisive.has(event)) save(event, 'assist', 'shot');
   }
+  // Otherwise the match's best chain (release 1.0 X1b): every match leaves its best play.
+  if (!saved.length) {
+    const best = bestChain(state.chains ?? []);
+    const steps = new Set(
+      state.match.keyMoments.filter((moment) => moment.chainId === best?.id).map((m) => m.id),
+    );
+    const decisive = [...state.match.events]
+      .reverse()
+      .find(
+        (event) =>
+          event.playerId === career.playerId &&
+          event.outcome &&
+          steps.has(event.outcome.input.momentId),
+      );
+    if (decisive)
+      save(
+        decisive,
+        'chain',
+        decisive.kind === 'save' ? 'save' : decisive.kind === 'tackle' ? 'tackle' : 'shot',
+      );
+  }
   trimMoments(world, career.playerId);
   return saved;
+}
+
+/** The best positive chain: by how it ended (`chainOrder`), then the longest odds overcome. */
+export function bestChain(chains: readonly ChainSummary[]): ChainSummary | null {
+  const rank = (chain: ChainSummary) => MO.chainOrder.indexOf(chain.outcome);
+  const odds = (chain: ChainSummary) =>
+    chain.results.reduce((product, step) => product * step.probability, 1);
+  let best: ChainSummary | null = null;
+  for (const chain of chains) {
+    if (!chain.positive || rank(chain) < 0) continue;
+    if (
+      !best ||
+      rank(chain) < rank(best) ||
+      (rank(chain) === rank(best) && odds(chain) < odds(best))
+    )
+      best = chain;
+  }
+  return best;
 }
 
 /**
@@ -266,7 +305,12 @@ export function captureMoments(world: World, session: MatchSession, importance: 
 export function trimMoments(world: World, playerId: string): void {
   const mine = world.moments.filter((moment) => moment.playerId === playerId);
   if (mine.length <= MO.limit) return;
-  const drop = new Set(mine.slice(0, mine.length - MO.limit).map((moment) => moment.id));
+  // A match's best chain goes before the rarer Moments, oldest first.
+  const order = [
+    ...mine.filter((moment) => moment.kind === 'chain'),
+    ...mine.filter((moment) => moment.kind !== 'chain'),
+  ];
+  const drop = new Set(order.slice(0, mine.length - MO.limit).map((moment) => moment.id));
   world.moments = world.moments.filter((moment) => !drop.has(moment.id));
   world.chronicle = world.chronicle.map((entry) =>
     entry.momentId && drop.has(entry.momentId) ? { ...entry, momentId: null } : entry,

@@ -1,19 +1,18 @@
-import { useId, useMemo } from 'react';
-import type { DecisionOutcome, ProbabilityFactor, World } from '../../model/domain';
-import { plural } from '../../i18n/locale';
+import { useEffect, useId, useMemo, useRef } from 'react';
+import type { World } from '../../model/domain';
 import type { MatchSession } from '../../engine/match';
 import { renderAvatar } from '../../engine/assets/avatar';
-import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
+import { matchText as m, matchFormat } from '../../i18n/match';
+import { reelText as r } from '../../i18n/reel';
 import { Artwork } from '../../ui/Artwork';
-import { cx } from '../../ui/kit';
-import { Factors, strongest, verdictOf } from './Shared';
 import { selectedSide, surname } from './cam';
 
 /*
- * What interrupts live play: the half-time talk, the captain's call, a substitution, a dismissal
- * and a decision's outcome. Loaded with the match session (release 1.0 step 5.4, to keep the live
- * screen's first load within its budget) rather than with the page; each shows only at its
- * moment, by which time it has arrived.
+ * What interrupts live play: the half-time talk, the captain's call, a substitution and a
+ * dismissal, as compact cards in the reel (release 1.0, X1b). Loaded with the match session
+ * (step 5.4, to keep the live screen's first load within its budget) rather than with the page;
+ * each shows only at its moment, by which time it has arrived. A decision's outcome is no longer
+ * a panel: it is the reel's inline beat.
  */
 const u = m.ui;
 
@@ -42,17 +41,21 @@ export function HalfTimePanel({
   const id = useId();
   const own = selectedSide(setup) === 0 ? setup.home : setup.away;
   const manager = world?.managers[world.clubs[own.id]?.managerId ?? ''];
-  const icons = {
-    motivate: 'M4 10V14H7L13 18V6L7 10ZM16 9Q18 12 16 15M18.5 7Q22 12 18.5 17',
-    role: 'M4 8H17M13 4L17 8L13 12M20 16H7M11 12L7 16L11 20',
-    complain: 'M5 21V4M5 4H17L14 8L17 12H5',
-  } as const;
+  const first = useRef<HTMLButtonElement>(null);
+  // The manager's pick is pre-selected: focused, so Enter answers with it.
+  useEffect(() => {
+    first.current?.focus({ preventScroll: true });
+  }, []);
   return (
-    <section className="match-panel match-interrupt" aria-labelledby={`${id}-ht`}>
+    <section
+      className="reel-interrupt is-halftime"
+      aria-labelledby={`${id}-ht`}
+      data-testid="halftime-talk"
+    >
       <div className="match-interrupt-head">
         <ManagerFace world={world} clubId={own.id} />
         <div className="min-w-0">
-          <p className="match-interrupt-meta">
+          <p className="reel-interrupt-meta">
             <span className="match-pill">{m.halftime}</span>
             {matchFormat(u.halftimeMeta, {
               home: setup.home.name,
@@ -62,45 +65,30 @@ export function HalfTimePanel({
             })}
             {manager ? ` · ${manager.name}` : ''}
           </p>
-          <h2 id={`${id}-ht`} className="match-interrupt-title">
+          <h2 id={`${id}-ht`} className="reel-interrupt-title">
             {m.managerTalk}
           </h2>
         </div>
       </div>
-      <div className="match-talk">
-        {(['motivate', 'role', 'complain'] as const).map((response) => (
+      <div className="reel-interrupt-options">
+        {(['motivate', 'complain'] as const).map((response, index) => (
           <button
             type="button"
-            className={`match-talk-option is-${response}`}
+            className="reel-interrupt-option"
             key={response}
+            ref={index === 0 ? first : undefined}
+            data-default={index === 0 ? '' : undefined}
             onClick={() => onTalk(response)}
           >
-            <span className="match-talk-icon" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24">
-                <path
-                  d={icons[response]}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
             <strong>
-              {response === 'role' ? m.roleTalk : response === 'complain' ? m.demand : m[response]}
+              {response === 'complain' ? m.demand : m[response]}
+              {index === 0 && <span className="reel-pick">{r.halftime.pick}</span>}
             </strong>
-            <span>
-              {response === 'role'
-                ? m.roleBody
-                : response === 'motivate'
-                  ? m.motivateBody
-                  : m.demandBody}
-            </span>
+            <span>{response === 'motivate' ? m.motivateBody : m.demandBody}</span>
           </button>
         ))}
       </div>
-      <p className="match-card-note">{u.halftimeNote}</p>
+      <p className="reel-interrupt-note">{r.halftime.resume}</p>
     </section>
   );
 }
@@ -269,133 +257,6 @@ export function SentOffPanel({ session }: { session: MatchSession }) {
       </div>
       <p>{u.sentOffBody}</p>
       {setup.fixture && <p className="match-card-note">{u.sentOffBan}</p>}
-    </section>
-  );
-}
-
-/**
- * After a decision: success or not, the roll against the chance, every signed factor summing
- * to that chance, the biggest help or drag, and "Continue play" (nothing counts down).
- */
-export function OutcomePanel({
-  outcome,
-  minute,
-  choice,
-  onContinue,
-}: {
-  outcome: DecisionOutcome;
-  minute: number;
-  choice: string;
-  onContinue: () => void;
-}) {
-  const id = useId();
-  const chance = outcome.probability * 100;
-  const roll = outcome.roll * 100;
-  const verdict = verdictOf(outcome.probability, outcome.success);
-  const key = outcome.success ? strongest(outcome.factors, 1) : strongest(outcome.factors, -1);
-  const shown = (factor: ProbabilityFactor) => Number((factor.contribution * 100).toFixed(1)) !== 0;
-  const moved = outcome.factors.filter(shown);
-  const still = outcome.factors.filter((factor) => !shown(factor));
-  return (
-    <section
-      className={cx('match-panel match-outcome', outcome.success ? 'is-success' : 'is-miss')}
-      role="status"
-      data-tour="outcome"
-      aria-labelledby={`${id}-outcome`}
-    >
-      <div className="match-outcome-head">
-        <span className="match-outcome-icon" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24">
-            <path
-              d={outcome.success ? 'M5 12L10 17L19 7' : 'M6 6L18 18M18 6L6 18'}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-        <div className="min-w-0">
-          <p className="match-interrupt-meta">{matchFormat(u.outcomeChose, { minute, choice })}</p>
-          <h2 id={`${id}-outcome`} className="match-outcome-title">
-            {outcome.success ? m.succeeded : m.failed}
-          </h2>
-        </div>
-      </div>
-      <div className="match-roll">
-        <div className="match-roll-track" aria-hidden="true">
-          <span className="match-roll-zone" style={{ width: `${chance}%` }} />
-          <span className="match-roll-label is-zone">
-            {matchFormat(u.successZone, { chance: chance.toFixed(1) })}
-          </span>
-          <span className="match-roll-label is-miss">{u.miss}</span>
-          <span
-            className="match-roll-marker"
-            style={{ left: `${Math.min(99, Math.max(1, roll))}%` }}
-          >
-            <span>{matchFormat(u.rollTag, { roll: roll.toFixed(1) })}</span>
-          </span>
-        </div>
-        <p className="match-roll-line">
-          {matchFormat(m.roll, { probability: chance.toFixed(1), roll: roll.toFixed(1) })}
-        </p>
-        <p className="sr-only">
-          {matchFormat(outcome.success ? u.rollInside : u.rollOutside, {
-            roll: roll.toFixed(1),
-            chance: chance.toFixed(1),
-          })}
-        </p>
-        <p className="match-card-note">{u.rollExplain}</p>
-      </div>
-      {verdict && <p className="match-verdict">{verdict}</p>}
-      {outcome.booking && (
-        // A failed defending choice's booking roll (match-16), on its own stream.
-        <p className="match-booking-roll">
-          <span
-            className={cx(
-              'match-card-chip',
-              !outcome.booking.card && 'is-none',
-              outcome.booking.card && outcome.booking.card !== 'yellow' && 'is-red',
-            )}
-            aria-hidden="true"
-          />
-          {matchFormat(u.bookingRoll, {
-            roll: (outcome.booking.roll * 100).toFixed(1),
-            chance: (outcome.booking.foul * 100).toFixed(1),
-            result: u.bookingResults[outcome.booking.card ?? 'none'],
-          })}
-        </p>
-      )}
-      <div>
-        <h3 className="match-factors-title">{m.factors}</h3>
-        {/* What moved the chance; the factors that moved nothing fold away (review U13). */}
-        <Factors factors={moved} total={outcome.probability} />
-        {still.length > 0 && (
-          <details className="match-factors-more">
-            <summary>{plural(still.length, u.zeroFactors)}</summary>
-            <Factors factors={still} />
-          </details>
-        )}
-      </div>
-      {key && (
-        <p className="match-key-factor">
-          {matchFormat(outcome.success ? u.biggestHelp : u.biggestDrag, {
-            factor: matchLabel(key.labelKey),
-          })}
-        </p>
-      )}
-      <div className="match-outcome-actions">
-        <button type="button" className="button" onClick={onContinue}>
-          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 4L19 12L7 20Z" fill="currentColor" />
-          </svg>
-          {u.continuePlay}
-        </button>
-        <span className="match-card-note">
-          {m.returnToPlay} <kbd>Space</kbd>
-        </span>
-      </div>
     </section>
   );
 }

@@ -377,7 +377,7 @@ const matchTextEn = {
     addedMinute: '{minute}+{added}′',
     addedLabel: 'Added time',
     captainMeta: 'Captain · {minute}′ · {score}',
-    captainNote: 'Play and “Next key moment” resume after your call.',
+    captainNote: 'Play resumes after your call.',
     substitutionMeta: '{minute}′ · {name} off',
     substitutionBoard: 'Substitution board: number {number} off',
     substitutionBoardOn: 'Substitution board: number {number} off, number {incoming} on',

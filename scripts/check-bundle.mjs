@@ -75,7 +75,8 @@ const FIRST_RENDER = {
   World: [SAVES],
   EditMode: [SAVES],
   Match: [], // no world and no save: the page only points to the World screen
-  MatchBody: [SAVES, PORTRAIT, 'src/screens/match/Pitch.tsx'],
+  // A returning player's live match: the reel and its touchline panels (X1b).
+  MatchBody: [SAVES, PORTRAIT, 'src/screens/match/reel/ReelScreen.tsx'],
   'career/CareerNew': [SAVES],
   'career/CareerHub': [
     ...CAREER,

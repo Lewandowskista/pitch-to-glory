@@ -370,8 +370,9 @@ export const en = {
     motion: 'Reduced motion',
     motionBody:
       'Keep transitions still and movement minimal. Your device preference is always respected.',
-    simulation: 'Simulation only',
-    simulationBody: 'Read match commentary and make decisions without the animated pitch.',
+    simulation: 'Watch highlights by default',
+    simulationBody:
+      'Matches open with Watch highlights first: the reel in about a minute, with your decisions made for you. Kick off is still there to play them yourself.',
     backups: 'Backup reminders',
     backupsBody: 'Show a reminder to download a backup when an in-game season finishes.',
     reset: 'Restore defaults',

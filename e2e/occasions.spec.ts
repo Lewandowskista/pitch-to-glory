@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { expect, skipTutorial, test } from './support';
+import { expect, playReel, skipTutorial, test } from './support';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { MatchSession } from '../src/engine/match';
@@ -14,7 +14,7 @@ import {
 
 /**
  * The occasions of a match-22 session on the match screen (release 1.0 step 5.4): the half-time
- * role choice, stoppage time, a knock's decision, coming off the bench, and the shootout as the
+ * card, stoppage time, a knock's decision, coming off the bench, and the shootout as the
  * taker and as the keeper. Each test opens a friendly saved at that point.
  */
 const backups = new Map<string, string>();
@@ -62,31 +62,32 @@ async function open(page: Page, name: string) {
 }
 const state = (page: Page) => page.getByTestId('match-state');
 
-test('half-time: choose the role to ask for, and see the manager’s answer', async ({ page }) => {
+test('half-time is one manager card with two answers, the manager’s pick first', async ({
+  page,
+}) => {
   test.setTimeout(90000);
   await open(page, 'halftime');
   await expect(state(page)).toHaveAttribute('data-status', 'halftime');
   const talk = page.getByTestId('halftime-talk');
-  await expect(talk).toContainText('Motivate the team');
-  await expect(talk).toContainText('Demand the ball');
-  await expect(talk).toContainText(/says no \d+(\.\d)?% of the time/);
-  const role = page.getByTestId('halftime-role');
-  const options = await role.locator('option').allTextContents();
-  expect(options.length).toBeGreaterThanOrEqual(2);
-  await role.selectOption({ label: options[1]! });
-  await page.getByRole('button', { name: `Ask for ${options[1]}` }).click();
+  const options = talk.locator('button');
+  await expect(options).toHaveCount(2);
+  await expect(options.first()).toHaveAttribute('data-default', '');
+  await expect(options.first()).toContainText(/Motivate the team|Lift the side/);
+  await expect(options.first()).toBeFocused();
+  // The other answer, and the manager's reply.
+  const other = (await options.nth(1).innerText()).split('\n')[0]!;
+  await options.nth(1).click();
   await expect(state(page)).toHaveAttribute('data-status', 'live');
-  await expect(page.getByTestId('role-result')).toContainText(/The manager (agreed|said no)/);
+  if (/^Ask for /.test(other))
+    await expect(page.getByTestId('role-result')).toContainText(/The manager (agreed|said no)/);
 });
 
 test('stoppage time: the board goes up and the clock reads 45+1′', async ({ page }) => {
   test.setTimeout(90000);
   await open(page, 'board');
   await expect(state(page)).toHaveAttribute('data-minute', '45');
-  await expect(page.locator('.match-clock-added')).toHaveText(/Added time\s*\+\d/);
-  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.getByTestId('added-time-board')).toHaveText(/\+\d/);
   await expect(page.locator('.match-clock-minute')).toHaveText('45+1′', { timeout: 10000 });
-  await expect(page.locator('.match-commentary')).toContainText(/\+\d/);
 });
 
 test('a knock: play on or come off', async ({ page }) => {
@@ -94,11 +95,14 @@ test('a knock: play on or come off', async ({ page }) => {
   await open(page, 'knock');
   const panel = page.getByTestId('injury-decision');
   await expect(panel).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Next key moment', exact: true })).toBeDisabled();
   await expect(panel).toContainText(/Fatigue \+\d+/);
+  // Nothing moves on until it is answered.
+  const minute = await state(page).getAttribute('data-minute');
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(800);
+  await expect(state(page)).toHaveAttribute('data-minute', minute!);
   await panel.getByRole('button', { name: /Come off/ }).click();
   await expect(page.getByTestId('injury-result')).toContainText('as a precaution');
-  await expect(page.getByRole('button', { name: 'Next key moment', exact: true })).toBeEnabled();
 });
 
 test('coming off the bench: warming up, then on', async ({ page }) => {
@@ -107,9 +111,15 @@ test('coming off the bench: warming up, then on', async ({ page }) => {
   const bench = page.getByTestId('bench-panel');
   await expect(bench).toContainText('On the bench');
   await expect(bench).toContainText('Warming up');
-  await page.getByRole('button', { name: '4×' }).click();
-  await page.getByRole('button', { name: 'Play', exact: true }).click();
-  await expect(page.getByTestId('bench-on')).toContainText('You are on!', { timeout: 60000 });
+  // Skip through the ticker until the manager sends the player on.
+  const on = page.getByTestId('bench-on');
+  for (let turns = 0; turns < 200 && !(await on.isVisible()); turns++) {
+    const beat = await state(page).getAttribute('data-beat');
+    if (beat === 'ticker' || beat === 'clip' || beat === 'banner')
+      await page.keyboard.press('Space');
+    await page.waitForTimeout(150);
+  }
+  await expect(on).toContainText('You are on!');
 });
 
 for (const role of ['taker', 'keeper'] as const)
@@ -122,16 +132,8 @@ for (const role of ['taker', 'keeper'] as const)
     const board = page.getByTestId('shootout-board');
     await expect(board).toBeVisible();
     await expect(board).toContainText('Penalty shootout');
-    await page.locator('.match-choices button').first().click();
-    await expect(state(page)).toHaveAttribute('data-status', /live|finished/);
     // Play the shootout out, choosing at every save or kick of the player's.
-    for (let turn = 0; turn < 40; turn++) {
-      const status = await state(page).getAttribute('data-status');
-      if (status === 'finished') break;
-      if (status === 'decision') await page.locator('.match-choices button').first().click();
-      else await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-    }
-    await expect(state(page)).toHaveAttribute('data-status', 'finished');
+    await playReel(page);
     await expect(
       page.getByRole('heading', { name: 'Your match report', exact: true }),
     ).toBeVisible();

@@ -238,7 +238,10 @@ export function Shell() {
         path: groupHome(entry),
         label: entry.label,
         icon: entry.icon,
-        current: group?.id === entry.id,
+        // Matchday is reached from the hub: it belongs to Overview, never to More (X1b).
+        current:
+          group?.id === entry.id ||
+          (entry.id === 'overview' && /^\/match(\/|$)/.test(location.pathname)),
         count: entry.id === 'overview' ? unread : 0,
       }))
     : [home, careerItem, matchItem, worldItem].map((item) => ({

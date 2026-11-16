@@ -378,6 +378,7 @@ export function validateHonours(w: Record<string, unknown>): void {
       'penalty-save',
       'last-ditch',
       'shootout',
+      'chain',
     ]);
     number(moment.minute, 1, 130, true);
     text(moment.scorerName);

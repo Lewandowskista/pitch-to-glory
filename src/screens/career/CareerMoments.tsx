@@ -34,6 +34,7 @@ const MOMENT_KINDS = [
   'great-save',
   'last-ditch',
   'assist',
+  'chain',
 ] as const;
 const MOMENT_GLYPH: Record<Moment['kind'], GlyphName> = {
   winner: 'ball',
@@ -46,6 +47,7 @@ const MOMENT_GLYPH: Record<Moment['kind'], GlyphName> = {
   'great-save': 'glove',
   'last-ditch': 'shield',
   assist: 'boot',
+  chain: 'star',
 };
 /** Rare kinds wear gold; the rest the accent. */
 const GOLD_KINDS = new Set<Moment['kind']>(['wonder', 'final', 'shootout', 'penalty-save']);

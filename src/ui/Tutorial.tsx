@@ -46,6 +46,7 @@ export function Tutorial({
   const update = useAppStore((s) => s.updateSettings);
   const reduced = useReducedMotion() || useAppStore.getState().settings.reducedMotion;
   const [index, setIndex] = useState(0);
+  const [arrived, setArrived] = useState(0);
   const card = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | 'sheet' | null>(null);
@@ -91,6 +92,15 @@ export function Tutorial({
       document.querySelectorAll<HTMLElement>(`[data-tour="${step.target}"]`),
     ).find((element) => element.getClientRects().length > 0);
     target?.setAttribute('data-tour-active', '');
+    // A target still loading (a lazily loaded panel): placed again once it is in the page.
+    const observer = target
+      ? null
+      : new MutationObserver(() => {
+          if (!document.querySelector(`[data-tour="${step.target}"]`)) return;
+          observer?.disconnect();
+          setArrived((count) => count + 1);
+        });
+    observer?.observe(document.body, { childList: true, subtree: true });
     const inline =
       step.action && window.matchMedia(PHONE).matches
         ? document.querySelector<HTMLElement>(`[data-tour-slot="${step.target}"]`)
@@ -160,13 +170,14 @@ export function Tutorial({
     window.addEventListener('scroll', place, true);
     document.addEventListener('focusin', focusin);
     return () => {
+      observer?.disconnect();
       cancelAnimationFrame(frame);
       target?.removeAttribute('data-tour-active');
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
       document.removeEventListener('focusin', focusin);
     };
-  }, [active, applies, step?.target, index, reduced]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, applies, step?.target, index, reduced, arrived]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reading steps take focus so keyboard and screen-reader users start there; action steps
   // leave focus on the page, where the action is.

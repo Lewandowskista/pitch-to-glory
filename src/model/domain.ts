@@ -1481,7 +1481,9 @@ export interface Moment {
     | 'great-save'
     | 'penalty-save'
     | 'last-ditch'
-    | 'shootout';
+    | 'shootout'
+    // Release 1.0 X1b: the best decision chain of a match that saved nothing else.
+    | 'chain';
   minute: number;
   scorerName: string;
   home: { name: string; color: Hex };

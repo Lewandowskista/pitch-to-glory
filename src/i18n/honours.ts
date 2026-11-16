@@ -350,6 +350,7 @@ const honoursTextEn = {
       'great-save': 'a long-odds save in the last twenty minutes, with the game in the balance',
       'last-ditch': 'a goal-line clearance or last-ditch block',
       assist: 'setting up a late winner or equaliser, or a goal in a final',
+      chain: 'otherwise, the best of your decision chains in a match',
     },
     play: 'Go to Matchday',
     kinds: {
@@ -363,6 +364,7 @@ const honoursTextEn = {
       'great-save': 'Big save',
       'last-ditch': 'Last-ditch',
       assist: 'Decisive assist',
+      chain: 'Best moment',
     },
     replay: 'Replay',
     pause: 'Pause',
