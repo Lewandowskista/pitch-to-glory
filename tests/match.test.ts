@@ -75,6 +75,11 @@ describe('deterministic personal match', () => {
         // Match-22 (step 5.2).
         'sweeping',
         'back-pass',
+        // Decision chains (match-22, X1a): a keeper's lead-in steps.
+        'chain-set',
+        'chain-angle',
+        'chain-collect',
+        'chain-taker',
       ]).toContain(moment.situationId);
     expect(final.state.match.events.some((e) => e.kind === 'save')).toBe(true);
     for (const event of final.state.match.events.filter((e) => e.outcome)) {
