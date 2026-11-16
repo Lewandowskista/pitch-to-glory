@@ -190,6 +190,34 @@ interface ChainCast {
 // clip renderer draws a step from the same frames the replay uses, filtered to the cast.
 ```
 
+**As built (X1a, 16 November 2026).** The shape is as above, with these names and additions
+(`src/engine/match/types.ts`, `src/model/domain.ts`):
+
+- `MatchState.decisionChain?: ChainState` (not `chain`: match-13's follow-up already uses that
+  name) and `MatchState.chains?: ChainSummary[]`; both absent on match-21. Also
+  `director?: { hero?, climax?, heroDone? }` and `interrupts?: number`.
+- `KeyMoment.chainCast` (not `cast`: match-15's `MomentCast` keeps that name), with `chainId`,
+  `step` and `steps` as specified.
+- `ChainSummary` adds `steps` and `prize`. `ChainState` adds engine fields the screen may ignore:
+  `path` (each step's situation, finish last), `budget`, `opponents`, `staged` (the edge the last
+  step left, `{ id: 'edge', state }`) and `value`.
+- `MatchEvent` gains `chainId` and `chainOutcome` (on `chain-end`).
+- Each option (`DecisionChoice`) gains `outcome` (`match.outcome.<id>`, "Goal {chance}%"),
+  `band` (`likely` ≥ 65%, `even` 40–64%, `long` < 40%) and `ifFailed`
+  (`match.chain.failure.<id>`, "If not: they break").
+- `ChainState.stakes.key` is `match.chain.stakes.<kind>`, `.hero.<kind>` or
+  `.climax.<level|ahead|behind>`, params `minute`, `added?`, `for`, `against`, `prize` (percent).
+  `ChainStepResult.cause.key` is `match.chain.cause.<success|failure>[-odds]` with `factor` (a
+  factor's label key) and `chance`.
+- A lead-in step that comes off opens the next step in the same command, with its scene passage
+  (`replace` keeps one frame a minute); a chain's last step (or a failed lead-in) plays the
+  outcome passage as any key moment did.
+- `MatchSetup.drought` (pre-match card: `match.director.drought`) and `MatchSetup.debut`.
+- Half-time: `halftimeChoice(session)` (`match/touchline.ts`) returns the two options, the
+  manager's default first; the engine still accepts the three responses.
+- Copy for every new key is in `src/i18n/momentsCopy.ts` (`chainCopy`, loaded with the
+  commentary off the first render) and `src/i18n/commentary.ts` (`chain-*` families).
+
 ### 1.6 The storyboard (striker, about 2:50, 12 taps)
 
 | Time      | Beat                           | Taps |
