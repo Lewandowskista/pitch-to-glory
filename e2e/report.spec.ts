@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test';
-import { backupFile, expect, nationalCareer, skipTutorial, test } from './support';
+import {
+  backupFile,
+  expect,
+  matchState,
+  nationalCareer,
+  playReel,
+  skipTutorial,
+  test,
+} from './support';
 import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -7,10 +15,11 @@ import { levelStart, xpToNext } from '../src/engine/career/progression';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 
 /**
- * The match report (release 1.0, step 5.1): one stable layout from full time to the recorded
- * result, the score, rating and XP on the first screen, a sticky next action, no sideways
- * scroll on phones, every key moment in the recap, and the level-up as a keyboard-operable
- * moment.
+ * The match report (release 1.0, step 5.1 and X1b): one stable layout from full time to the
+ * recorded result, the score, rating and XP on the first screen, a sticky next action, one tile
+ * per chain, no sideways scroll on phones, every decision in the recap, and the level-up as a
+ * keyboard-operable moment that never blocks the sticky bar, shown once even after reopening
+ * the app.
  */
 test.beforeEach(async ({ page }) => {
   await skipTutorial(page);
@@ -36,7 +45,7 @@ function matchdaySave(seed: string, nearLevel: boolean) {
   );
 }
 
-const state = (page: Page) => page.getByTestId('match-state');
+const state = matchState;
 
 const axeSource = readFileSync('node_modules/axe-core/axe.min.js', 'utf8');
 /** Serious and critical WCAG 2.1 AA violations on the page (as e2e/accessibility.spec.ts). */
@@ -65,6 +74,7 @@ async function violations(page: Page): Promise<string[]> {
   });
 }
 
+/** Import a career at its matchday: Matchday prepares the fixture and opens the pre-match. */
 async function importAndBrief(page: Page, seed: string, nearLevel = false) {
   await page.goto('/saves');
   await page
@@ -74,41 +84,13 @@ async function importAndBrief(page: Page, seed: string, nearLevel = false) {
     .setInputFiles(matchdaySave(seed, nearLevel));
   await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 60000 });
   await page.goto('/match?save=1');
-  await page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }).click();
-  await expect(state(page)).toHaveAttribute('data-status', 'preview');
+  await expect(state(page)).toHaveAttribute('data-status', 'preview', { timeout: 30000 });
 }
 
-/** Play to full time with skip and number keys; returns the key moments answered. */
+/** Kick off and play the reel to full time; returns the decision steps answered. */
 async function playToFullTime(page: Page): Promise<number> {
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  let decisions = 0;
-  for (let turns = 0; turns < 150; turns++) {
-    const status = await state(page).getAttribute('data-status');
-    if (status === 'finished') return decisions;
-    if (status === 'decision') {
-      await expect(page.locator('.match-choices button').first()).toBeFocused();
-      await page.keyboard.press('1');
-      await expect(state(page)).not.toHaveAttribute('data-status', 'decision');
-      decisions++;
-    } else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team|Lift the side/ }).click();
-    else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible())
-      await page.getByRole('button', { name: /Accept the change/ }).click();
-    else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
-      await page.getByRole('button', { name: /Keep the team composed/ }).click();
-    // A knock (match-22): play on.
-    else if (await page.getByRole('button', { name: /^Play on/ }).isVisible())
-      await page.getByRole('button', { name: /^Play on/ }).click();
-    else {
-      const pause = page.getByRole('button', { name: 'Pause', exact: true });
-      if (await pause.isVisible()) await pause.click();
-      await page
-        .getByRole('button', { name: 'Next key moment', exact: true })
-        .click({ timeout: 3000 })
-        .catch(() => {});
-    }
-  }
-  throw new Error('The match did not reach full time');
+  return playReel(page);
 }
 
 /** Where the report's landmarks sit on the page (document coordinates). */
@@ -203,7 +185,9 @@ test('the report keeps one layout, leads with the result and recaps every moment
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
   await expect(next).toBeInViewport();
 
-  // Every key moment answered, in order, with the choice made and its chance.
+  // One tile per chain, led by how it ended.
+  expect(await page.getByTestId('moment-tile').count()).toBeGreaterThan(0);
+  // Every decision answered, in order, with the choice made and its chance.
   const recap = page.getByTestId('moment-recap');
   await expect(recap).toHaveCount(decisions);
   if (decisions > 0) {
@@ -262,8 +246,11 @@ test('a level-up is a moment of its own, shown once and keyboard-operable', asyn
   await expect(moment).toContainText('Level up!');
   await expect(moment).toContainText('You reached level 2.');
   await expect(moment).toContainText('+5 attribute points to spend');
-  // The report behind it did not move.
+  // The report behind it did not move, and its sticky bar stays usable.
   expect(await landmarks(page)).toEqual(before);
+  const bar = await page.locator('.match-whats-next').boundingBox();
+  const card = await moment.boundingBox();
+  expect(card!.y + card!.height).toBeLessThanOrEqual(bar!.y + 1);
   // Focus starts on the way to spend the points and stays inside the moment.
   const spend = moment.getByRole('link', { name: 'Spend points' });
   await expect(spend).toBeFocused();
@@ -297,4 +284,34 @@ test('a level-up is a moment of its own, shown once and keyboard-operable', asyn
   await expect(page.getByTestId('career-xp')).toContainText('XP earned');
   await page.waitForTimeout(500);
   await expect(moment).toHaveCount(0);
+  // Reopening the app shows the same report, without the level-up again, and the bottom bar
+  // marks Overview (Matchday's home), never More.
+  await page.reload();
+  await expect(report).toBeVisible({ timeout: 30000 });
+  await page.waitForTimeout(800);
+  await expect(moment).toHaveCount(0);
+  const bottom = page.locator('.bottom-nav');
+  await expect(bottom.locator('[aria-current="page"]')).toContainText('Overview');
+  await expect(bottom.getByRole('button', { name: 'More' })).not.toHaveClass(/active/);
+});
+
+test('a report kept on the device is cleared once the week moves on', async ({ page }) => {
+  test.setTimeout(300000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await importAndBrief(page, 'report-stale');
+  await page.getByRole('button', { name: 'Simulate' }).click();
+  await expect(page.getByTestId('career-xp')).toContainText('XP earned', { timeout: 60000 });
+  const next = page.getByRole('button', { name: /Continue to next matchday|Your next fixture/ });
+  await expect(next).toBeEnabled({ timeout: 60000 });
+  await next.click();
+  await expect(page.getByTestId('match-report')).toHaveCount(0, { timeout: 60000 });
+  // Back on Matchday after the week moved on: the next fixture, never last week's report.
+  await page.goto('/match?save=1');
+  await expect(state(page)).toHaveAttribute('data-status', /preview|selection/, {
+    timeout: 60000,
+  });
+  await expect(page.getByTestId('match-report')).toHaveCount(0);
+  await page.reload();
+  await page.waitForTimeout(1500);
+  await expect(page.getByTestId('match-report')).toHaveCount(0);
 });

@@ -277,3 +277,61 @@ export async function recordedReport(page: Page): Promise<boolean> {
   await expect(moment).toHaveCount(0);
   return true;
 }
+
+/** The match screen's state: `data-status`, `data-minute` and the reel's `data-beat`. */
+export const matchState = (page: Page) => page.getByTestId('match-state');
+/**
+ * The touchline's answers, the first (the manager's default) of whichever is asking: half-time,
+ * a knock, being substituted, the captain's call.
+ */
+const CALLS = [
+  '[data-testid="halftime-talk"] button',
+  '[data-testid="injury-decision"] button',
+  '[data-testid="substitution-talk"] button',
+  '.match-captain-options button',
+].join(', ');
+/**
+ * Play the live reel (release 1.0, X1b) to full time: Space skips the ticker and each clip to
+ * its outcome, a key answers each decision card once its first choice has focus (after the
+ * card's 300 ms guard), and the default answer goes to every touchline call. Returns the
+ * decision steps answered.
+ */
+export async function playReel(page: Page, { key = '1', skip = true } = {}): Promise<number> {
+  const state = matchState(page);
+  let decisions = 0;
+  for (let turns = 0; turns < 600; turns++) {
+    const status = await state.getAttribute('data-status');
+    if (status === 'finished') return decisions;
+    const beat = await state.getAttribute('data-beat');
+    const card = page.locator('.reel-card');
+    if (beat === 'card' && (await card.isVisible())) {
+      await expect(card.locator('button[data-choice]').first()).toBeFocused();
+      const momentId = await state.getAttribute('data-moment');
+      await page.waitForTimeout(320);
+      await page.keyboard.press(key);
+      decisions++;
+      // The card goes, or the chain's next step replaces it.
+      await expect(state).not.toHaveAttribute('data-moment', momentId ?? '');
+      continue;
+    }
+    const call = page.locator(CALLS).first();
+    if ((beat === 'wait' || status === 'halftime') && (await call.isVisible())) {
+      await call.click();
+      continue;
+    }
+    if (skip && beat !== 'wait' && beat !== 'idle') await page.keyboard.press('Space');
+    await page.waitForTimeout(120);
+  }
+  throw new Error('The match did not reach full time');
+}
+/** Import a backup into slot 1 and open the match screen. */
+export async function importToMatch(page: Page, backup: string | BackupPayload): Promise<void> {
+  await page.goto('/saves');
+  await page
+    .locator('.slot-card')
+    .first()
+    .getByLabel('Import backup — Slot 1')
+    .setInputFiles(backup);
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 60000 });
+  await page.goto('/match?save=1');
+}
