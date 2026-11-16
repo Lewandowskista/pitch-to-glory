@@ -323,6 +323,11 @@ export function commitCareerMatch(
   };
   career.matches.push(record);
   recordDecisions(career, decisions);
+  // The drought director (X1a): matches in a row without a positive chain.
+  if (state.chains?.length)
+    career.chainDrought = state.chains.some((chain) => chain.positive)
+      ? 0
+      : (career.chainDrought ?? 0) + 1;
   // The half-time talk and the response to a substitution reach the manager.
   if (session.state.managerTrustDelta)
     adjustRelationship(
