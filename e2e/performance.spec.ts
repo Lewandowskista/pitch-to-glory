@@ -3,7 +3,7 @@ import { cpus, totalmem } from 'node:os';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
-import { skipTutorial } from './support';
+import { careerPreMatch, skipTutorial } from './support';
 import { attachWorkers, samplePeak, traceThreads, type ThreadTime } from './threads';
 
 /**
@@ -345,7 +345,7 @@ for (const fixture of FIXTURES)
 
       // The live pitch: frame pacing over six seconds of play at normal speed.
       await page.getByRole('link', { name: 'Play matchday' }).click();
-      await page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }).click();
+      await careerPreMatch(page);
       await page.getByRole('button', { name: 'Kick off', exact: true }).click();
       // A second of play first: the measurement is of steady play, not of kick-off.
       await page.waitForTimeout(1000);
