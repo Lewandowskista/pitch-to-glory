@@ -2,43 +2,67 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { m as motion } from 'framer-motion';
 import type { CareerMatchOutcome } from '../../engine/career/matches';
-import { CONFIG } from '../../engine/config';
 import { format, plural } from '../../i18n/locale';
 import { reportCopy as r } from '../../i18n/matchReport';
+import { platform } from '../../platform';
 import { audio } from '../../audio';
 
-/** Level-ups already celebrated in this tab: each is shown once, however often the report is. */
-const celebrated = new Set<string>();
+/** Level-ups this device has shown, kept so a reopened app never shows one again. */
+const SEEN_LIMIT = 30;
+function seenLevelUps(): string[] {
+  const stored = platform.readPreferences('match') as { levelUps?: unknown } | null;
+  return Array.isArray(stored?.levelUps)
+    ? stored.levelUps.filter((key): key is string => typeof key === 'string')
+    : [];
+}
+/** Whether this level-up has been shown on this device (after a refresh or a reopen too). */
+export const levelUpSeen = (key: string) => seenLevelUps().includes(key);
+/** Remember a level-up as shown on this device. */
+export function rememberLevelUp(key: string): void {
+  const stored = platform.readPreferences('match');
+  const base = stored && typeof stored === 'object' ? stored : {};
+  const levelUps = [...seenLevelUps().filter((entry) => entry !== key), key].slice(-SEEN_LIMIT);
+  platform.writePreferences({ ...base, levelUps }, 'match');
+}
+/** The key a level-up is remembered by: the match and the level it started from. */
+export const levelUpKey = (outcome: CareerMatchOutcome) =>
+  `${outcome.record.season}:${outcome.record.fixtureId}:${outcome.previousLevel}`;
 
 /**
- * The level-up as a real moment (release 1.0, step 5.1): a modal card over the report with the
- * new level, the points it brought and the way to spend them. Shown once per level-up; Escape,
- * the close button and a click outside close it, and focus returns where it was. Reduced
+ * The level-up as a real moment (release 1.0, step 5.1): a card over the report with the new
+ * level, the points still to spend and the way to spend them. Shown once per level-up on this
+ * device, remembered across reopening the app (release 1.0, X1b: it came back after a reopen,
+ * still offering points already spent). It is not modal, so the report's sticky bar under it
+ * stays live; Escape and the close button close it, and focus returns where it was. Reduced
  * motion keeps the card and drops the movement.
  */
 export function LevelUpMoment({
   outcome,
   progress,
+  points,
+  skillPoints,
   reduced,
 }: {
   outcome: CareerMatchOutcome;
   /** Progress into the new level, when the career is at it. */
   progress: { into: number; needed: number } | null;
+  /** Attribute and skill points the career has left to spend now. */
+  points: number;
+  skillPoints: number;
   reduced: boolean;
 }) {
-  const key = `${outcome.record.season}:${outcome.record.fixtureId}:${outcome.previousLevel}`;
-  const [open, setOpen] = useState(() => outcome.levelsGained > 0 && !celebrated.has(key));
-  // The card animates once the dialog is open: animations started on a closed dialog stall.
+  const key = levelUpKey(outcome);
+  const [open, setOpen] = useState(() => outcome.levelsGained > 0 && !levelUpSeen(key));
   const [shown, setShown] = useState(false);
   const ref = useRef<HTMLDialogElement>(null);
-  const spend = useRef<HTMLAnchorElement>(null);
+  const first = useRef<HTMLAnchorElement | HTMLButtonElement | null>(null);
   const id = useId();
   useEffect(() => {
     const dialog = ref.current;
     if (!open || !dialog) return;
-    celebrated.add(key);
+    rememberLevelUp(key);
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open) dialog.show();
     setShown(true);
     audio.play('levelUp');
     return () => {
@@ -46,14 +70,11 @@ export function LevelUpMoment({
       if (previous?.isConnected) previous.focus({ preventScroll: true });
     };
   }, [open, key]);
-  // Focus starts on the way to spend the points, once they are drawn.
   useEffect(() => {
-    if (shown) spend.current?.focus();
+    if (shown) first.current?.focus();
   }, [shown]);
   if (!open) return null;
   const level = outcome.previousLevel + outcome.levelsGained;
-  const attribute = outcome.levelsGained * CONFIG.career.attributePointsPerLevel;
-  const skill = outcome.levelsGained * CONFIG.career.skillPointsPerLevel;
   const close = () => setOpen(false);
   return (
     <dialog
@@ -62,11 +83,9 @@ export function LevelUpMoment({
       className="match-level-up-dialog"
       aria-labelledby={`${id}-title`}
       aria-describedby={`${id}-body`}
-      // Escape closes here and stops, so the shell's Escape shortcut never adds a "back".
       onKeyDown={(event) => {
         if (event.key === 'Tab') {
-          // Focus stays in the moment and moves through all its actions in order, wrapping at
-          // either end (Safari's Tab otherwise skips links and would leave the dialog).
+          // Focus moves through the card's actions in order, wrapping at either end.
           const actions = Array.from(
             event.currentTarget.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'),
           );
@@ -86,9 +105,6 @@ export function LevelUpMoment({
       onCancel={(event) => {
         event.preventDefault();
         close();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) close();
       }}
     >
       {shown && (
@@ -138,8 +154,9 @@ export function LevelUpMoment({
           </h2>
           <div id={`${id}-body`} className="relative grid gap-1 text-center">
             <p className="text-lg font-extrabold">{format(r.levelUp.body, { level })}</p>
-            <p className="font-bold">{plural(attribute, r.levelUp.attribute)}</p>
-            {skill > 0 && <p className="font-bold">{plural(skill, r.levelUp.skill)}</p>}
+            {/* Only what is still there to spend: never points already spent. */}
+            {points > 0 && <p className="font-bold">{plural(points, r.levelUp.attribute)}</p>}
+            {skillPoints > 0 && <p className="font-bold">{plural(skillPoints, r.levelUp.skill)}</p>}
           </div>
           {progress && progress.needed > 0 && (
             <div className="relative grid gap-1.5">
@@ -158,15 +175,36 @@ export function LevelUpMoment({
             </div>
           )}
           <div className="relative flex flex-wrap justify-center gap-2">
-            <Link ref={spend} className="match-level-up-link is-solid" to="/career/profile">
-              {r.levelUp.spend}
-            </Link>
-            {skill > 0 && (
-              <Link className="match-level-up-link" to="/career/skills">
+            {points > 0 && (
+              <Link
+                ref={(node) => {
+                  if (node) first.current = node;
+                }}
+                className="match-level-up-link is-solid"
+                to="/career/profile"
+              >
+                {r.levelUp.spend}
+              </Link>
+            )}
+            {skillPoints > 0 && (
+              <Link
+                ref={(node) => {
+                  if (node && !points) first.current = node;
+                }}
+                className="match-level-up-link"
+                to="/career/skills"
+              >
                 {r.levelUp.skills}
               </Link>
             )}
-            <button type="button" className="match-level-up-link" onClick={close}>
+            <button
+              type="button"
+              ref={(node) => {
+                if (node && !points && !skillPoints) first.current = node;
+              }}
+              className="match-level-up-link"
+              onClick={close}
+            >
               {r.levelUp.close}
             </button>
           </div>

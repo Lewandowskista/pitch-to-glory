@@ -6,6 +6,7 @@ import type { SlotId, World } from '../../model/domain';
 import { compactSession, type StoredMatchSession } from '../../persistence/matchRecord';
 import { platform, type DeviceRecord } from '../../platform';
 import { reportFor, useAppStore, type AppStore } from '../../store';
+import { pendingCareerFixture } from '../../engine/career/fixtures';
 
 /**
  * The last career match report of each save slot, kept on this device beside the saves (release
@@ -35,6 +36,26 @@ export function reportRecord(state: Pick<AppStore, 'careerResult' | 'world'>): R
     session: compactSession(result.session),
     outcome: result.outcome,
   };
+}
+
+/**
+ * Whether a device record is for a match the career has moved on from (release 1.0, X1b: after
+ * reopening the app, Play matchday showed last week's report): the week has advanced since it
+ * was played, or a new fixture is waiting. Such a record is cleared, never shown.
+ */
+export function staleReport(text: string | null, world: World): boolean {
+  if (!text || !world.career) return false;
+  try {
+    const record = (JSON.parse(text) as Partial<ReportRecord>).outcome?.record;
+    if (!record) return true;
+    return (
+      record.season !== world.date.season ||
+      record.week !== world.date.week ||
+      Boolean(pendingCareerFixture(world))
+    );
+  } catch {
+    return true;
+  }
 }
 
 /**
@@ -103,6 +124,10 @@ export function useRestoredReport(world: World | null, slot: SlotId | null, idle
     if (tried.current === key) return;
     tried.current = key;
     const text = platform.readRecord(reportKey(slot));
+    if (staleReport(text, world)) {
+      platform.writeRecord(reportKey(slot), null);
+      return;
+    }
     if (!text) return;
     // Replaying a match-22 session plays its decision chains, which load with the match.
     void loadChains()

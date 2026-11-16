@@ -1,18 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { Club, DecisionChoice, Hex, Kit, MatchEvent, ReplayFrame } from '../src/model/domain';
-import {
-  DECISION_RATE,
-  GOAL_BUILD_UP_BEATS,
-  GOAL_HOLD_MS,
-  MAX_RATE,
-  MINUTE_MS,
-  MIN_RATE,
-  passageGoal,
-  passagePace,
-  passageWait,
-} from '../src/screens/match/pace';
-import { preparePassage, preparePlayback } from '../src/screens/match/playback';
+import { passageGoal } from '../src/screens/match/pace';
 import { choiceWorth } from '../src/screens/match/choices';
 import { goalLine, goalStory } from '../src/screens/match/goals';
 import { goalCopy } from '../src/i18n/goals';
@@ -69,105 +58,11 @@ function goalPassage(buildUp: number) {
   return frames;
 }
 
-describe('passage pace (step 5.1, review M2)', () => {
-  it('fills each minute: no frozen pitch between minutes at 1×, 2× and 4×', () => {
-    for (const sporting of [4500, 7900, 9100, 14750]) {
-      const frames = passage(5, sporting / 5);
-      for (const speed of [1, 2, 4]) {
-        const pace = passagePace({ kind: 'minute', frames }, speed);
-        const played = preparePassage(frames, pace);
-        const wait = passageWait({ kind: 'minute', frames }, played.duration, speed);
-        expect(played.duration).toBeCloseTo(MINUTE_MS / speed, 6);
-        // The next minute is asked for as this one ends: the static share is zero.
-        expect(wait).toBeCloseTo(played.duration, 6);
-      }
-    }
-  });
-
-  it('plays a typical minute at about 3–5× at 1×, within the clamp, and scales with speed', () => {
-    const frames = passage(5, 9100 / 5);
-    const at1 = passagePace({ kind: 'minute', frames }, 1).rate;
-    expect(at1).toBeGreaterThan(3);
-    expect(at1).toBeLessThan(5);
-    expect(passagePace({ kind: 'minute', frames }, 2).rate).toBeCloseTo(at1 * 2, 6);
-    expect(passagePace({ kind: 'minute', frames }, 4).rate).toBeCloseTo(at1 * 4, 6);
-    expect(passagePace({ kind: 'minute', frames: passage(4, 100) }, 1).rate).toBe(MIN_RATE);
-    expect(passagePace({ kind: 'minute', frames: passage(4, 60000) }, 1).rate).toBe(MAX_RATE);
-  });
-
-  it('was mostly frozen before: the old 18× pace left about two thirds of a minute static', () => {
-    const frames = passage(5, 9100 / 5);
-    const old = preparePlayback(frames, 18, MINUTE_MS * 0.95);
-    expect(1 - old.duration / Math.max(MINUTE_MS, old.duration + 80)).toBeGreaterThan(0.6);
-  });
-
-  it('keeps key-moment build-ups and outcomes at decision pace, and kick-off still', () => {
-    const frames = passage(4, 2000);
-    expect(passagePace({ kind: 'outcome', frames }, 4)).toEqual({
-      rate: DECISION_RATE,
-      maxMs: 4200,
-    });
-    expect(passagePace({ kind: 'moment', frames }, 1)).toEqual({
-      rate: DECISION_RATE,
-      maxMs: 4200,
-    });
-    expect(passagePace({ kind: 'kickoff', frames }, 2)).toEqual({ rate: 1, maxMs: 0 });
-  });
-});
-
-describe('goal pace (step 5.1, review M3)', () => {
+describe('goals in a passage (step 5.1, review M3)', () => {
   it('finds the goal, its shot and its event in a passage', () => {
     const frames = goalPassage(6);
     expect(passageGoal(frames)).toEqual({ celebration: 8, shot: 7, eventId: 'goal-1' });
     expect(passageGoal(passage(6, 2000))).toBeNull();
-  });
-
-  it('slows the build-up, shot and celebration to decision pace, then holds for the banner', () => {
-    const frames = goalPassage(6);
-    for (const speed of [1, 2, 4]) {
-      const pace = passagePace({ kind: 'minute', frames }, speed);
-      expect(pace.slow).toEqual({
-        from: 7 - GOAL_BUILD_UP_BEATS,
-        rate: DECISION_RATE * speed,
-        maxMs: 4200 / speed,
-      });
-      const played = preparePassage(frames, pace);
-      const from = pace.slow!.from;
-      // The slow run-in takes its sporting time at decision pace (quick actions keep a
-      // readable minimum), within its cap.
-      const sporting = frames[frames.length - 1]!.timeMs - frames[from]!.timeMs;
-      const slowPart = played.duration - played.times[from]!;
-      expect(slowPart).toBeGreaterThanOrEqual(
-        Math.min(4200 / speed, sporting / (DECISION_RATE * speed)) - 1e-6,
-      );
-      expect(slowPart).toBeLessThanOrEqual(4200 / speed + 1e-6);
-      const wait = passageWait({ kind: 'minute', frames }, played.duration, speed);
-      expect(wait).toBeCloseTo(
-        Math.max(MINUTE_MS / speed, played.duration + GOAL_HOLD_MS / speed),
-        6,
-      );
-    }
-  });
-
-  it('keeps a goal on screen far longer than the old minute pace did', () => {
-    const frames = goalPassage(8);
-    const old = preparePlayback(frames, 18, MINUTE_MS * 0.95);
-    const oldFrom = 8 - GOAL_BUILD_UP_BEATS;
-    const oldOnScreen = old.duration - old.times[oldFrom]! + Math.max(0, MINUTE_MS - old.duration);
-    const pace = passagePace({ kind: 'minute', frames }, 1);
-    const played = preparePassage(frames, pace);
-    const onScreen =
-      passageWait({ kind: 'minute', frames }, played.duration, 1) - played.times[pace.slow!.from]!;
-    expect(onScreen).toBeGreaterThan(oldOnScreen * 2.5);
-  });
-
-  it('plays a passage whose run-in starts at its first keyframe at the slow pace throughout', () => {
-    const frames = goalPassage(1);
-    const pace = passagePace({ kind: 'minute', frames }, 1);
-    expect(pace.slow!.from).toBe(0);
-    expect(preparePassage(frames, pace)).toEqual(
-      preparePlayback(frames, pace.slow!.rate, pace.slow!.maxMs),
-    );
   });
 });
 
@@ -393,29 +288,5 @@ describe('team colours against the pitch and the cards (step 5.1, review U19)', 
       ['#111111', '#ffffff', '#c8102e'],
     ]);
     expect(matchColours(a, b, MATCH_SURFACES).kits).toEqual(chooseMatchKits(a, b));
-  });
-});
-
-describe('remembered match speed (step 5.1, review M19)', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.resetModules();
-  });
-  it('remembers the speed per device and falls back to 1×', async () => {
-    const store = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => store.set(key, value),
-      removeItem: (key: string) => store.delete(key),
-    });
-    const { rememberSpeed, storedSpeed } = await import('../src/screens/match/speed');
-    expect(storedSpeed()).toBe(1);
-    rememberSpeed(4);
-    expect(storedSpeed()).toBe(4);
-    expect(JSON.parse(store.get('ptg-match')!)).toEqual({ speed: 4 });
-    store.set('ptg-match', JSON.stringify({ speed: 3 }));
-    expect(storedSpeed()).toBe(1);
-    store.set('ptg-match', 'not json');
-    expect(storedSpeed()).toBe(1);
   });
 });

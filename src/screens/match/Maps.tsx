@@ -5,7 +5,7 @@ import { PitchMarkings } from './pitchKit';
 import { pitchCopy as copy } from '../../i18n/pitch';
 import { matchFormat } from '../../i18n/match';
 import { pitchArt } from './pitchArt';
-import { HEAT_COLUMNS, HEAT_ROWS, attacksRightAt } from '../../engine/match';
+import { HEAT_COLUMNS, HEAT_ROWS, attacksRightAt } from '../../engine/match/core';
 
 const x = (value: number) => 8 + Math.max(0, Math.min(100, value));
 const y = (value: number) => 8 + Math.max(0, Math.min(100, value)) * 0.64;

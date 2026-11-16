@@ -7,27 +7,26 @@ import {
   type MatchSession,
   type Tactics,
 } from '../../engine/match/core';
-import { useId, useMemo, type ReactNode } from 'react';
+import { useId, useMemo, useRef, type ReactNode } from 'react';
 import { pitchStateFor, renderPitch, renderWeather } from '../../engine/assets/conditions';
 import { renderAvatar } from '../../engine/assets/avatar';
-import { overallRating } from '../../engine/strength';
 import { Artwork } from '../../ui/Artwork';
 import { FORMATION_SLOTS, formationOf } from '../../engine/selection/formations';
 import { slotFit } from '../../engine/selection/lineup';
 import { selectionText as s } from '../../i18n/selection';
 import { matchText as m, matchFormat, matchLabel } from '../../i18n/match';
+import { reelText as r } from '../../i18n/reel';
 import { useAppStore } from '../../store';
 import { Chip, cx } from '../../ui/kit';
 import { Icon } from '../../ui/Icon';
 import type { Club, Hex, Lineup, Objective } from '../../model/domain';
-
-type MatchObjectiveKind = Objective['kind'];
-import { ClubBadge, FootballerAvatar } from './Shared';
+import { ClubBadge } from './Shared';
 import { kitAppearance } from './pitchKit';
 import { kitNumberColor } from './pitchArt';
 
+type MatchObjectiveKind = Objective['kind'];
 const u = m.ui;
-/** Icons for the objective rows, by kind. */
+/** Icons for the objective, by kind. */
 const OBJECTIVE_ICON: Record<MatchObjectiveKind, string> = {
   goals: 'M12 3A9 9 0 1 0 12 21A9 9 0 1 0 12 3ZM12 8L15.5 10.5L14.2 14.5H9.8L8.5 10.5Z',
   assists: 'M4 12H16M12 6L18 12L12 18',
@@ -38,6 +37,12 @@ const OBJECTIVE_ICON: Record<MatchObjectiveKind, string> = {
   saves: 'M6 12C6 7 9 4 12 4S18 7 18 12V20H6Z',
   shots: 'M4 20L20 4M13 4H20V11',
 };
+const FORM_TONE = {
+  win: 'bg-gold text-on-gold',
+  draw: 'bg-surface-soft text-ink',
+  loss: 'bg-danger-soft text-danger',
+} as const;
+export type FormResult = keyof typeof FORM_TONE;
 
 /** One personal setting as a row of radio segments (keyboard: arrows move, Space picks). */
 function Segments<T extends string>({
@@ -100,7 +105,6 @@ function LineupPitch({
   club: Club;
   lineup: Lineup;
   colour: Hex;
-  /** The colour would vanish into the grass: a light ring (review U19). */
   edge?: boolean;
   players: MatchSession['setup']['players'];
   selectedId: string;
@@ -130,7 +134,6 @@ function LineupPitch({
           <path d="M138.4 0V165H541.6V0M248.4 0V55H431.6V0" />
           <path d="M138.4 1050V885H541.6V1050M248.4 1050V995H431.6V1050" />
         </g>
-        <path d="M340 -26L326 -8H354Z" fill="#fff7e4" fillOpacity="0.8" />
         {lineup.starterIds.map((id, slot) => {
           const post = posts[slot];
           if (!post) return null;
@@ -172,43 +175,57 @@ function LineupPitch({
 }
 
 /**
- * The pre-match briefing (redesign phase 5b): your footballer, the conditions, the manager's
- * instructions and your objectives; your approach with the kick-off; then both elevens on a
- * formation pitch with squad numbers, slots and the bench behind a disclosure.
+ * Pre-match on one screen (docs/EXPERIENCE-REDESIGN-1.0.md §1.5): the opponent and form, a
+ * stakes line, one objective, your role with the manager's pick, the drought director's line
+ * when it applies, and Kick off — which starts play. Watch highlights and Simulate sit beside
+ * it. Weather, the line-ups, mentality and risk are behind "Details".
  */
 export function Preview({
   session,
   onTactics,
   onKickoff,
+  onWatch,
+  onSimulate,
   onNewFixture,
-  note,
   selection,
   stake,
+  form,
+  competition,
+  simulating = false,
+  watchFirst = false,
 }: {
   session: MatchSession;
-  /** Replaces the friendly-match explanation (career fixtures). */
-  note?: string;
   /** Why the career player is starting, for a career fixture. */
   selection?: ReactNode;
-  /** What the career fixture is about, above the footballer. */
+  /** What the career fixture is about. */
   stake?: ReactNode;
+  /** The player's club's last results, oldest first. */
+  form?: readonly FormResult[];
+  competition: string;
   onTactics: (tactics: Tactics) => void;
   onKickoff: () => void;
+  onWatch: () => void;
+  onSimulate: () => void;
   /** Friendlies: back to the fixture form. */
   onNewFixture?: () => void;
+  simulating?: boolean;
+  /** The settings ask for highlights by default: Watch highlights leads. */
+  watchFirst?: boolean;
 }) {
   const { setup, state } = session;
   const world = useAppStore((store) => store.world);
   const player = setup.players[setup.selectedPlayerId]!;
   const ownClub = setup.home.playerIds.includes(player.id) ? setup.home : setup.away;
+  const opponent = ownClub.id === setup.home.id ? setup.away : setup.home;
   const manager = world?.managers[world.clubs[ownClub.id]?.managerId ?? ''];
   const managerSvg = useMemo(
     () => (manager ? renderAvatar(manager.avatar, manager.age) : null),
     [manager],
   );
-  // The job this match gives them (match-17): their starting slot, else the primary position.
   const position = rolePosition(setup);
   const roleIds = rolesForPosition(position);
+  // The manager's pick is the role a career match starts with (defaultTactics).
+  const pick = useRef(roleIds[0]!).current;
   const family = positionFamily(position);
   const instruction =
     family === 'keeper'
@@ -218,17 +235,14 @@ export function Preview({
         : ['CM', 'AM'].includes(position)
           ? 'midfield'
           : 'attack';
-  // The opposition's way of playing and what it means for this match (match-19).
-  const opponentClub = ownClub.id === setup.home.id ? setup.away : setup.home;
   const matchup =
-    opponentClub.playingStyle !== 'balanced'
-      ? matchFormat(matchLabel(`match.matchup.${opponentClub.playingStyle}`), {
-          opponent: opponentClub.name,
+    opponent.playingStyle !== 'balanced'
+      ? matchFormat(matchLabel(`match.matchup.${opponent.playingStyle}`), {
+          opponent: opponent.name,
         })
       : null;
   const signed = (value: number) =>
     `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(Math.round(value * 100))}%`;
-  // How hard it rains, blows or snows and the pitch's state are separate factors (match-15).
   const intensity = state.match.weatherIntensity ?? 'steady';
   const pitch =
     state.match.pitchState ??
@@ -244,55 +258,164 @@ export function Preview({
   );
   const pitchIcon = useMemo(() => renderPitch(pitch), [pitch]);
   const kits = kitAppearance(setup.home, setup.away);
-  const age = setup.season - player.birthSeason;
   const tactics = state.match.tactics;
+  const objective = state.match.objectives[0];
+  const id = useId();
+  const watch = (
+    <button
+      type="button"
+      className={cx('button', watchFirst ? 'play button-lg' : 'secondary')}
+      disabled={simulating}
+      onClick={onWatch}
+      title={r.prematch.watchHint}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 6H21V18H3ZM10 9V15L15 12Z" fill="currentColor" />
+      </svg>
+      {r.prematch.watch}
+    </button>
+  );
   return (
-    <div className="match-preview">
-      <div className="match-preview-top">
-        <section className="match-panel match-briefing" aria-labelledby="briefing-heading">
-          {stake}
-          <div className="match-briefing-player">
-            <FootballerAvatar
-              player={player}
-              season={setup.season}
-              home={setup.home}
-              away={setup.away}
-              className="match-briefing-avatar"
-            />
-            <div className="min-w-0 flex-1">
-              <h2 id="briefing-heading" className="match-eyebrow">
-                {u.beforeKickoff}
-              </h2>
-              <p className="match-briefing-name">
-                <span>{player.name}</span>
-                {state.captain && (
-                  <span className="match-captain-chip">
-                    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M4 9H20V15H4Z" fill="none" stroke="currentColor" strokeWidth="2" />
-                    </svg>
-                    {m.captain}
-                  </span>
-                )}
-              </p>
-              <p className="match-card-note">
-                {matchFormat(u.footballerLine, {
-                  position,
-                  age,
-                  club: ownClub.name,
-                })}
-              </p>
-            </div>
-            <dl className="match-tiles is-pair">
-              <div>
-                <dt>{u.overall}</dt>
-                <dd>{overallRating(player)}</dd>
-              </div>
-              <div>
-                <dt>{u.fatigueTile}</dt>
-                <dd>{Math.round(player.fatigue)}%</dd>
-              </div>
-            </dl>
+    <section className="reel-prematch" aria-labelledby={`${id}-title`} data-testid="pre-match">
+      <div className="reel-prematch-hero">
+        <p className="reel-prematch-eyebrow">
+          <span id={`${id}-title`}>{r.prematch.title}</span>
+          <span aria-hidden="true"> · </span>
+          <span>{competition}</span>
+        </p>
+        <div className="reel-prematch-teams">
+          <div className="reel-prematch-side">
+            <ClubBadge club={ownClub} className="reel-prematch-crest" />
+            <strong>{ownClub.name}</strong>
+            {form && form.length > 0 && (
+              <span
+                className="reel-form"
+                role="img"
+                aria-label={`${r.prematch.form}: ${form.join(', ')}`}
+              >
+                {form.map((result, index) => (
+                  <span key={index} className={FORM_TONE[result]} />
+                ))}
+              </span>
+            )}
           </div>
+          <span className="reel-prematch-v" aria-hidden="true">
+            {r.prematch.versus}
+          </span>
+          <div className="reel-prematch-side">
+            <ClubBadge club={opponent} className="reel-prematch-crest" />
+            <strong>{opponent.name}</strong>
+            <span className="match-card-note">
+              {opponent.id === setup.home.id ? u.home : setup.neutral ? u.neutral : u.away}
+            </span>
+          </div>
+        </div>
+        {stake}
+        {/* The drought director (X1a): better starting situations, said openly. */}
+        {setup.drought && (
+          <p className="reel-drought" data-testid="drought-line">
+            {r.prematch.drought}
+          </p>
+        )}
+      </div>
+      <div className="reel-prematch-facts">
+        {objective && (
+          <p className="reel-fact" data-testid="pre-match-objective">
+            <span className="reel-fact-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path
+                  d={OBJECTIVE_ICON[objective.kind]}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1">
+              <small>{r.prematch.objective}</small>
+              <strong>
+                {m.objectiveNames[objective.kind]}
+                {(objective.kind === 'goals' && objective.target <= 1) ||
+                objective.kind === 'clean-sheet'
+                  ? ''
+                  : ` · ${objective.target}${objective.kind === 'passing' ? '%' : ''}`}
+              </strong>
+            </span>
+          </p>
+        )}
+        <details className="reel-role" data-tour="tactics">
+          <summary className="reel-fact">
+            <span className="reel-fact-icon" aria-hidden="true">
+              <Icon name="player" className="h-[18px] w-[18px]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <small>{r.prematch.role}</small>
+              <strong>
+                {m.roles[tactics.role as keyof typeof m.roles] ?? tactics.role}
+                {tactics.role === pick && (
+                  <span className="reel-role-pick"> · {r.prematch.roleDefault}</span>
+                )}
+              </strong>
+            </span>
+            <span className="reel-role-change">{r.prematch.roleChange}</span>
+          </summary>
+          <Segments
+            name="match-role"
+            legend={m.role}
+            hint={u.roleHint}
+            value={tactics.role}
+            columns={2}
+            options={roleIds.map((role) => ({
+              value: role,
+              label: m.roles[role as keyof typeof m.roles] ?? role,
+            }))}
+            onChange={(role) => onTactics({ ...tactics, role })}
+          />
+        </details>
+      </div>
+      <div className="reel-prematch-actions">
+        {watchFirst && watch}
+        <button
+          type="button"
+          className={cx('button button-lg match-kickoff', watchFirst ? 'secondary' : 'play')}
+          data-tour="kickoff"
+          disabled={simulating}
+          onClick={onKickoff}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 4L19 12L7 20Z" fill="currentColor" />
+          </svg>
+          {r.prematch.kickoff}
+        </button>
+        <div className="reel-prematch-secondary">
+          {!watchFirst && watch}
+          <button
+            type="button"
+            className="button secondary"
+            disabled={simulating}
+            aria-busy={simulating || undefined}
+            onClick={onSimulate}
+            title={r.prematch.simulateHint}
+          >
+            {simulating ? r.prematch.simulating : r.prematch.simulate}
+          </button>
+        </div>
+        <div data-tour-slot="kickoff" />
+        {simulating && (
+          <p className="match-card-note" role="status">
+            {r.prematch.simulating}
+          </p>
+        )}
+      </div>
+      <details className="reel-details">
+        <summary>
+          <span>{r.prematch.details}</span>
+          <span className="match-card-note">{r.prematch.detailsHint}</span>
+          <Icon name="chevron" className="h-4 w-4" />
+        </summary>
+        <div className="reel-details-body">
           <div className="match-conditions">
             <div className="is-weather">
               <Artwork svg={weatherIcon} alt="" className="h-9 w-9 shrink-0" />
@@ -310,12 +433,10 @@ export function Preview({
               <div>
                 <span>{m.pitch}</span>
                 <strong>
-                  {intensity
-                    ? matchFormat(m.pitchLine, {
-                        state: m.pitchNames[pitch],
-                        value: state.match.pitchCondition,
-                      })
-                    : matchFormat(m.pitchValue, { value: state.match.pitchCondition })}
+                  {matchFormat(m.pitchLine, {
+                    state: m.pitchNames[pitch],
+                    value: state.match.pitchCondition,
+                  })}
                 </strong>
               </div>
             </div>
@@ -338,72 +459,23 @@ export function Preview({
               </div>
             </div>
           </div>
-          <div className="match-briefing-columns">
-            <div>
-              <h3>{m.instructions}</h3>
-              <figure className="match-instructions">
-                {managerSvg && manager && (
-                  <Artwork svg={managerSvg} alt="" className="match-manager-face" />
-                )}
-                <div className="min-w-0">
-                  <blockquote>“{matchLabel(`match.instructions.${instruction}`)}”</blockquote>
-                  {manager && (
-                    <figcaption>{matchFormat(u.managerLine, { name: manager.name })}</figcaption>
-                  )}
-                </div>
-              </figure>
-              {matchup && (
-                <p className="match-card-note" data-testid="matchup">
-                  <strong>{u.matchup}</strong> {matchup}
-                  {setup.prepared && <> {u.prepared}</>}
-                </p>
+          <figure className="match-instructions">
+            {managerSvg && manager && (
+              <Artwork svg={managerSvg} alt="" className="match-manager-face" />
+            )}
+            <div className="min-w-0">
+              <blockquote>“{matchLabel(`match.instructions.${instruction}`)}”</blockquote>
+              {manager && (
+                <figcaption>{matchFormat(u.managerLine, { name: manager.name })}</figcaption>
               )}
             </div>
-            <div>
-              <h3>{m.objectives}</h3>
-              <ul className="match-objectives">
-                {state.match.objectives.map((objective) => (
-                  <li key={objective.id}>
-                    <span className="match-objective-icon" aria-hidden="true">
-                      <svg width="16" height="16" viewBox="0 0 24 24">
-                        <path
-                          d={OBJECTIVE_ICON[objective.kind]}
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </span>
-                    <span className="flex-1">{m.objectiveNames[objective.kind]}</span>
-                    <strong>
-                      {objective.target}
-                      {objective.kind === 'passing' ? '%' : ''}
-                    </strong>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </section>
-        <section
-          className="match-panel match-approach"
-          data-tour="tactics"
-          aria-labelledby="approach-heading"
-        >
-          <h2 id="approach-heading" className="match-card-title is-display">
-            {m.tactics}
-          </h2>
-          <Segments
-            name="match-role"
-            legend={m.role}
-            hint={u.roleHint}
-            value={tactics.role}
-            columns={2}
-            options={roleIds.map((role) => ({ value: role, label: m.roles[role] ?? role }))}
-            onChange={(role) => onTactics({ ...tactics, role })}
-          />
+          </figure>
+          {matchup && (
+            <p className="match-card-note" data-testid="matchup">
+              <strong>{u.matchup}</strong> {matchup}
+              {setup.prepared && <> {u.prepared}</>}
+            </p>
+          )}
           <Segments
             name="match-risk"
             legend={m.risk}
@@ -428,113 +500,81 @@ export function Preview({
             }))}
             onChange={(mentality) => onTactics({ ...tactics, mentality })}
           />
-          <button
-            type="button"
-            className="button play button-lg match-kickoff"
-            data-tour="kickoff"
-            onClick={onKickoff}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M7 4L19 12L7 20Z" fill="currentColor" />
-            </svg>
-            {m.kickoff}
-          </button>
-          {/* On phones the tour's kick-off step appears here, in the page. */}
-          <div data-tour-slot="kickoff" />
-          <p className="match-card-note">{note ?? m.friendlyBody}</p>
-          {onNewFixture && (
-            <button
-              type="button"
-              className="button secondary match-new-fixture"
-              onClick={onNewFixture}
-            >
-              <Icon name="arrow" className="h-4 w-4 -scale-x-100" />
-              {m.newFixture}
-            </button>
-          )}
           {selection}
-        </section>
-      </div>
-      <div className="match-lineups">
-        {[setup.home, setup.away].map((club, index) => {
-          const lineup = index === 0 ? state.match.home : state.match.away;
-          // Earlier sessions fielded 4-3-3 in the same slot order.
-          const posts = FORMATION_SLOTS[formationOf(lineup.formation)];
-          const own = club.id === ownClub.id;
-          return (
-            <section key={club.id} className="match-panel" aria-label={club.name}>
-              <div className="match-lineup-title">
-                <ClubBadge club={club} />
-                <div className="min-w-0 flex-1">
-                  <span className="match-eyebrow">
-                    {matchFormat(index === 0 ? u.homeClub : u.awayClub, {
-                      formation: lineup.formation,
-                    })}
-                  </span>
-                  <h2>{club.name}</h2>
-                </div>
-                <Chip tone={own ? 'gold-soft' : 'info'}>{own ? u.yourClub : u.opponent}</Chip>
-              </div>
-              <div className="match-lineup-body">
-                <LineupPitch
-                  club={club}
-                  lineup={lineup}
-                  colour={index === 0 ? kits.home : kits.away}
-                  edge={(index === 0 ? kits.edge.home : kits.edge.away).pitch}
-                  players={setup.players}
-                  selectedId={player.id}
-                />
-                <div className="min-w-0 flex-1">
-                  <h3>{m.lineup}</h3>
-                  <ol className="match-lineup">
-                    {lineup.starterIds.map((id, slot) => {
-                      const starter = setup.players[id]!;
-                      const position = posts[slot]?.position ?? starter.primaryPosition;
-                      const fit = slotFit(starter, position);
-                      return (
-                        <li key={id} className={id === player.id ? 'selected' : ''}>
-                          <span className="match-lineup-position">{position}</span>
-                          <span className="match-lineup-number">
-                            <span className="sr-only">{m.shirtNumber} </span>
-                            {starter.squadNumber}
-                          </span>
-                          <strong>{starter.name}</strong>
-                          {id === player.id && <small className="is-you">{m.selected}</small>}
-                          {fit < 100 && (
-                            <small>
-                              {fit > 0 ? matchFormat(s.slot.secondary, { fit }) : s.slot.unfamiliar}
-                            </small>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ol>
-                  <details className="match-bench">
-                    <summary>
-                      {m.bench} ({lineup.benchIds.length})
-                      <Icon name="chevron" className="h-4 w-4" />
-                    </summary>
-                    <ul className="match-lineup">
-                      {lineup.benchIds.map((id) => (
-                        <li key={id}>
-                          <span className="match-lineup-position">
-                            {setup.players[id]!.primaryPosition}
-                          </span>
-                          <span className="match-lineup-number">
-                            <span className="sr-only">{m.shirtNumber} </span>
-                            {setup.players[id]!.squadNumber}
-                          </span>
-                          <span>{setup.players[id]!.name}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                </div>
-              </div>
-            </section>
-          );
-        })}
-      </div>
-    </div>
+          <div className="match-lineups">
+            {[setup.home, setup.away].map((club, index) => {
+              const lineup = index === 0 ? state.match.home : state.match.away;
+              const posts = FORMATION_SLOTS[formationOf(lineup.formation)];
+              const own = club.id === ownClub.id;
+              return (
+                <section key={club.id} className="match-panel" aria-label={club.name}>
+                  <div className="match-lineup-title">
+                    <ClubBadge club={club} />
+                    <div className="min-w-0 flex-1">
+                      <span className="match-eyebrow">
+                        {matchFormat(index === 0 ? u.homeClub : u.awayClub, {
+                          formation: lineup.formation,
+                        })}
+                      </span>
+                      <h3>{club.name}</h3>
+                    </div>
+                    <Chip tone={own ? 'gold-soft' : 'info'}>{own ? u.yourClub : u.opponent}</Chip>
+                  </div>
+                  <div className="match-lineup-body">
+                    <LineupPitch
+                      club={club}
+                      lineup={lineup}
+                      colour={index === 0 ? kits.home : kits.away}
+                      edge={(index === 0 ? kits.edge.home : kits.edge.away).pitch}
+                      players={setup.players}
+                      selectedId={player.id}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h4>{m.lineup}</h4>
+                      <ol className="match-lineup">
+                        {lineup.starterIds.map((starterId, slot) => {
+                          const starter = setup.players[starterId]!;
+                          const slotPosition = posts[slot]?.position ?? starter.primaryPosition;
+                          const fit = slotFit(starter, slotPosition);
+                          return (
+                            <li
+                              key={starterId}
+                              className={starterId === player.id ? 'selected' : ''}
+                            >
+                              <span className="match-lineup-position">{slotPosition}</span>
+                              <span className="match-lineup-number">
+                                <span className="sr-only">{m.shirtNumber} </span>
+                                {starter.squadNumber}
+                              </span>
+                              <strong>{starter.name}</strong>
+                              {starterId === player.id && (
+                                <small className="is-you">{m.selected}</small>
+                              )}
+                              {fit < 100 && (
+                                <small>
+                                  {fit > 0
+                                    ? matchFormat(s.slot.secondary, { fit })
+                                    : s.slot.unfamiliar}
+                                </small>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      </details>
+      {onNewFixture && (
+        <button type="button" className="button secondary match-new-fixture" onClick={onNewFixture}>
+          <Icon name="arrow" className="h-4 w-4 -scale-x-100" />
+          {m.newFixture}
+        </button>
+      )}
+    </section>
   );
 }

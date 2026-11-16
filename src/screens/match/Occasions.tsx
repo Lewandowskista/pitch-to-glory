@@ -1,23 +1,25 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import type { World } from '../../model/domain';
 import {
   benchHazard,
   canComeOff,
   demandTrust,
+  halftimeChoice,
   motivateLift,
   onBench,
   ownMargin,
-  requestableRoles,
   roleAgainstScore,
   roleRefusal,
   shootoutTally,
+  type HalftimeAnswer,
   type MatchCommand,
   type MatchSession,
-} from '../../engine/match';
+} from '../../engine/match/core';
 import { CONFIG } from '../../engine/config';
 import { matchText as m, matchFormat } from '../../i18n/match';
 import { careerText as c } from '../../i18n/career';
 import { occasionsText as o } from '../../i18n/occasions';
+import { reelText as r } from '../../i18n/reel';
 import { plural } from '../../i18n/locale';
 import { cx } from '../../ui/kit';
 import { selectedSide, surname } from './cam';
@@ -40,12 +42,10 @@ export const clockLabel = (minute: number, added?: number) =>
 export function OccasionPanels({
   session,
   world,
-  simulationOnly,
   onCommand,
 }: {
   session: MatchSession;
   world: World | null;
-  simulationOnly: boolean;
   onCommand: (command: MatchCommand) => void;
 }) {
   const s = session.state;
@@ -61,36 +61,8 @@ export function OccasionPanels({
       {s.roleRequest && s.match.status === 'live' && s.match.minute <= 52 && (
         <RoleResult session={session} />
       )}
-      {/* Beside the decision (the pitch steps aside for its camera) or without the pitch. */}
-      {s.penaltyShootout && (simulationOnly || s.currentMoment) && (
-        <ShootoutBoard session={session} placement="panel" />
-      )}
-    </>
-  );
-}
-
-/** Over the live pitch: the added-time board as it goes up, and the shootout as it goes. */
-export function PitchOccasions({ session }: { session: MatchSession }) {
-  const s = session.state;
-  const board = s.stoppage?.at(-1);
-  const raised = board && board.minutes > 0 && board.at === s.match.minute && !s.added;
-  return (
-    <>
-      {raised && !s.penaltyShootout && s.match.status === 'live' && (
-        <div
-          className="absolute right-3 top-3 z-10 grid justify-items-center rounded-control bg-night px-3 py-1.5 font-display text-night-ink shadow-surface motion-safe:animate-[match-board_0.5s_ease-out]"
-          role="img"
-          aria-label={plural(board.minutes, o.stoppage.board)}
-          data-testid="added-time-board"
-        >
-          <span className="text-3xl leading-none text-gold">
-            {matchFormat(o.stoppage.chip, { minutes: board.minutes })}
-          </span>
-        </div>
-      )}
-      {s.penaltyShootout && !s.currentMoment && (
-        <ShootoutBoard session={session} placement="pitch" />
-      )}
+      {/* The shootout, kick by kick, beside the ticker and the decisions. */}
+      {s.penaltyShootout && <ShootoutBoard session={session} placement="panel" />}
     </>
   );
 }
@@ -192,7 +164,12 @@ export function ShootoutBoard({
   );
 }
 
-/** Half-time (match-22): three answers, each with what it does in this match. */
+/**
+ * Half-time (match-22, reshaped by the 1.0 reel): one manager card with two answers, the
+ * manager's pick first and focused, so Enter (or a tap) answers and the second half starts by
+ * itself. The pick is motivating the side; the other is the role the manager would most likely
+ * grant, or demanding the ball (asking to come on, from the bench). Each states its effect.
+ */
 function HalfTimeTalk({
   session,
   world,
@@ -205,8 +182,8 @@ function HalfTimeTalk({
   const { setup, state } = session;
   const id = useId();
   const benched = onBench(state);
-  const roles = benched ? [] : requestableRoles(session);
-  const [role, setRole] = useState(roles[0] ?? '');
+  // The engine's two answers, the manager's default first (X1a `halftimeChoice`).
+  const choice = halftimeChoice(session);
   const own = selectedSide(setup) === 0 ? setup.home : setup.away;
   const manager = world?.managers[world.clubs[own.id]?.managerId ?? ''];
   const T = O.touchline;
@@ -214,106 +191,95 @@ function HalfTimeTalk({
   const context = o.halftime.context[margin < 0 ? 'behind' : margin > 0 ? 'ahead' : 'level'];
   const lift = motivateLift(session).toFixed(1);
   const trust = setup.trust ?? 50;
-  const refusal = role ? roleRefusal(session, role) : 0;
-  const against = role ? roleAgainstScore(session, role) : false;
   const demand = demandTrust(state.stats.rating);
   const verdict =
     demand === T.demand.earned ? 'earned' : demand === T.demand.poor ? 'poor' : 'fair';
-  const option = 'match-talk-option grid content-start gap-1.5 text-left';
+  const first = useRef<HTMLButtonElement>(null);
+  // The manager's pick is pre-selected: focused, so Enter answers with it.
+  useEffect(() => {
+    first.current?.focus({ preventScroll: true });
+  }, []);
+  const describe = (answer: HalftimeAnswer) => {
+    const command: MatchCommand = { type: 'halftime', ...answer };
+    if (answer.response === 'motivate')
+      return {
+        key: 'motivate',
+        title: benched ? o.halftime.lift : o.halftime.motivate,
+        body: matchFormat(benched ? o.halftime.liftBody : o.halftime.motivateBody, {
+          lift,
+          context,
+          odds: (margin > 0 ? T.motivate.oddsAhead : T.motivate.odds).toFixed(3),
+          trust: T.motivate.trust,
+        }),
+        command,
+      };
+    if (answer.response === 'role' && answer.role)
+      return {
+        key: 'role',
+        title: matchFormat(o.halftime.roleSubmit, { role: roleName(answer.role) }),
+        body: matchFormat(o.halftime.roleBody, {
+          chance: percent(roleRefusal(session, answer.role)),
+          reasons: [
+            matchFormat(o.halftime.roleReasons.trust, { trust }),
+            ...(roleAgainstScore(session, answer.role) ? [o.halftime.roleReasons.against] : []),
+          ].join(', '),
+        }),
+        command,
+      };
+    return {
+      key: 'complain',
+      title: benched ? o.halftime.ask : o.halftime.demand,
+      body: benched
+        ? matchFormat(o.halftime.askBody, { trust: O.bench.askTrust })
+        : matchFormat(o.halftime.demandBody, {
+            trust: demand,
+            rating: state.stats.rating.toFixed(1),
+            verdict: o.halftime.demandVerdict[verdict],
+          }),
+      command,
+    };
+  };
+  const options = [choice.default, ...(choice.alternative ? [choice.alternative] : [])].map(
+    describe,
+  );
   return (
     <section
-      className="match-panel match-interrupt"
+      className="reel-interrupt is-halftime"
       aria-labelledby={`${id}-ht`}
       data-testid="halftime-talk"
     >
-      <div className="match-interrupt-head">
-        <div className="min-w-0">
-          <p className="match-interrupt-meta">
-            <span className="match-pill">{m.halftime}</span>
-            {matchFormat(o.halftime.meta, {
-              home: setup.home.name,
-              away: setup.away.name,
-              homeScore: state.match.score[0],
-              awayScore: state.match.score[1],
-            })}
-            {manager ? ` · ${manager.name}` : ''}
-          </p>
-          <h2 id={`${id}-ht`} className="match-interrupt-title">
-            {benched ? o.halftime.benchTitle : o.halftime.title}
-          </h2>
-        </div>
+      <p className="reel-interrupt-meta">
+        <span className="match-pill">{m.halftime}</span>
+        {matchFormat(o.halftime.meta, {
+          home: setup.home.name,
+          away: setup.away.name,
+          homeScore: state.match.score[0],
+          awayScore: state.match.score[1],
+        })}
+        {manager ? ` · ${manager.name}` : ''}
+      </p>
+      <h2 id={`${id}-ht`} className="reel-interrupt-title">
+        {benched ? o.halftime.benchTitle : o.halftime.title}
+      </h2>
+      <div className="reel-interrupt-options">
+        {options.map((option, index) => (
+          <button
+            key={option.key}
+            ref={index === 0 ? first : undefined}
+            type="button"
+            className="reel-interrupt-option"
+            data-default={index === 0 ? '' : undefined}
+            onClick={() => onCommand(option.command)}
+          >
+            <strong>
+              {option.title}
+              {index === 0 && <span className="reel-pick">{r.halftime.pick}</span>}
+            </strong>
+            <span>{option.body}</span>
+          </button>
+        ))}
       </div>
-      <div className="match-talk">
-        <button
-          type="button"
-          className={cx(option, 'is-motivate')}
-          onClick={() => onCommand({ type: 'halftime', response: 'motivate' })}
-        >
-          <strong>{benched ? o.halftime.lift : o.halftime.motivate}</strong>
-          <span>
-            {matchFormat(benched ? o.halftime.liftBody : o.halftime.motivateBody, {
-              lift,
-              context,
-              odds: (margin > 0 ? T.motivate.oddsAhead : T.motivate.odds).toFixed(3),
-              trust: T.motivate.trust,
-            })}
-          </span>
-        </button>
-        {!benched && roles.length > 0 && (
-          <div className={cx(option, 'is-role')}>
-            <strong>{o.halftime.role}</strong>
-            <label className="grid gap-1 text-sm">
-              <span>{o.halftime.roleLabel}</span>
-              <select
-                className="min-h-11 rounded-control border border-line bg-surface px-2 text-ink"
-                value={role}
-                onChange={(event) => setRole(event.target.value)}
-                data-testid="halftime-role"
-              >
-                {roles.map((entry) => (
-                  <option key={entry} value={entry}>
-                    {roleName(entry)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span>
-              {matchFormat(o.halftime.roleBody, {
-                chance: percent(refusal),
-                reasons: [
-                  matchFormat(o.halftime.roleReasons.trust, { trust }),
-                  ...(against ? [o.halftime.roleReasons.against] : []),
-                ].join(', '),
-              })}{' '}
-              {matchFormat(o.halftime.roleRefused, { odds: T.role.refusedOdds.toFixed(2) })}
-            </span>
-            <button
-              type="button"
-              className="button secondary justify-self-start"
-              onClick={() => onCommand({ type: 'halftime', response: 'role', role })}
-            >
-              {matchFormat(o.halftime.roleSubmit, { role: roleName(role) })}
-            </button>
-          </div>
-        )}
-        <button
-          type="button"
-          className={cx(option, 'is-complain')}
-          onClick={() => onCommand({ type: 'halftime', response: 'complain' })}
-        >
-          <strong>{benched ? o.halftime.ask : o.halftime.demand}</strong>
-          <span>
-            {benched
-              ? matchFormat(o.halftime.askBody, { trust: O.bench.askTrust })
-              : matchFormat(o.halftime.demandBody, {
-                  trust: demand,
-                  rating: state.stats.rating.toFixed(1),
-                  verdict: o.halftime.demandVerdict[verdict],
-                })}
-          </span>
-        </button>
-      </div>
-      <p className="match-card-note">{o.halftime.note}</p>
+      <p className="reel-interrupt-note">{r.halftime.resume}</p>
     </section>
   );
 }

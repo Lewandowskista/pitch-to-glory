@@ -1,6 +1,6 @@
-import { Suspense, lazy, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { sessionPenalties, type MatchSession } from '../../engine/match';
+import { sessionPenalties, type MatchSession } from '../../engine/match/core';
 import type { CareerMatchOutcome } from '../../engine/career/matches';
 import { levelProgress } from '../../engine/career/progression';
 import { renderAvatar } from '../../engine/assets/avatar';
@@ -22,6 +22,7 @@ import { CoachAdvice } from '../career/CoachAdvice';
 import { competitionName } from '../career/selectors';
 import { selectedSide } from './cam';
 import { LevelUpMoment } from './LevelUpMoment';
+import { ReportReel } from './reel/ReportReel';
 import { MomentsSection, StorySection } from './ReportStory';
 import { matchStory, momentRecap, pickVariant, reactionKey, xpBreakdown } from './reportData';
 // The occasions' engine lines (match-22: a shootout kick's moment in the recap).
@@ -53,6 +54,30 @@ const mark = (name: string) =>
     .replace(/[^A-Za-zÀ-ÿ]/g, '')
     .slice(0, 3)
     .toUpperCase();
+
+/**
+ * The rating rolling up from 6.0 to the match's (release 1.0, X1b: the report opens on the
+ * score and the rating), written straight to its node so nothing re-renders per frame.
+ */
+function RatingRoll({ value, reduced }: { value: number | null; reduced: boolean }) {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || value === null || reduced) return;
+    const from = Math.min(6, value);
+    const start = performance.now();
+    let frame = 0;
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / 900);
+      const eased = 1 - (1 - t) ** 3;
+      node.textContent = (from + (value - from) * eased).toFixed(1);
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [value, reduced]);
+  return <strong ref={ref}>{value === null ? '—' : value.toFixed(1)}</strong>;
+}
 
 /** One side of the final score: crest over the name (or its mark when narrow). */
 function Side({ club, own }: { club: MatchSession['setup']['home']; own: boolean }) {
@@ -258,7 +283,7 @@ export function Report({
           </div>
           <div className="match-rewards">
             <div className="is-rating">
-              <strong>{unused ? '—' : rating.toFixed(1)}</strong>
+              <RatingRoll value={unused ? null : rating} reduced={reduced} />
               <span>{m.rating}</span>
             </div>
             <div
@@ -377,6 +402,9 @@ export function Report({
           </div>
         )}
       </section>
+
+      {/* The chains, one tile each, replayable (X1b): right after the score and the rating. */}
+      <ReportReel session={session} reduced={reduced} />
 
       <div className="match-report-columns">
         <div className="match-report-column">
@@ -649,7 +677,13 @@ export function Report({
         )}
       </div>
       {outcome && outcome.levelsGained > 0 && (
-        <LevelUpMoment outcome={outcome} progress={progress} reduced={reduced} />
+        <LevelUpMoment
+          outcome={outcome}
+          progress={progress}
+          points={points}
+          skillPoints={skillPoints}
+          reduced={reduced}
+        />
       )}
     </div>
   );

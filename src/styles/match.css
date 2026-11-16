@@ -2925,10 +2925,14 @@
 }
 /* The level-up moment: a gold card over the report, in the top layer. */
 .match-level-up-dialog {
+  /* Not modal (X1b): it sits high over the report, leaving the sticky bar below it live. */
+  position: fixed;
+  inset: max(4.5rem, 8vh) 0 auto;
+  z-index: 40;
   width: min(26rem, calc(100vw - 2rem));
   max-width: none;
-  max-height: calc(100dvh - 2rem);
-  margin: auto;
+  max-height: calc(100dvh - 12rem);
+  margin: 0 auto;
   padding: 0;
   overflow: visible;
   border: 0;

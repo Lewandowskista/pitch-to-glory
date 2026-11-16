@@ -167,6 +167,20 @@ export function HubContent({
   );
   const [params] = useSearchParams();
   const { hash } = useLocation();
+  // The match screen and its clip renderer (Pixi) load while the hub is idle, so Play opens
+  // the pre-match screen at once and the first chain never waits (release 1.0, X1b).
+  useEffect(() => {
+    const prefetch = () => {
+      void import('../MatchBody').catch(() => undefined);
+      void import('../match/reel/clipScene').catch(() => undefined);
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+      const idle = window.requestIdleCallback(prefetch, { timeout: 4000 });
+      return () => window.cancelIdleCallback(idle);
+    }
+    const timer = window.setTimeout(prefetch, 2500);
+    return () => window.clearTimeout(timer);
+  }, []);
   // Links into the hub (such as a recovery choice from the priorities) bring their target into
   // view and focus its first control.
   useEffect(() => {
