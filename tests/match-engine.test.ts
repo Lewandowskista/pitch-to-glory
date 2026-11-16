@@ -173,8 +173,10 @@ describe('match engine', () => {
     }
   });
 
+  // The captain's call opening the second half is match-21's; match-22 keeps one touchline
+  // interrupt a match for a goal conceded or a close finish (X1a; tests/match-chains.test.ts).
   it('retains half-time recovery and requires captain instruction', () => {
-    const chosen = structuredClone(setup);
+    const chosen = onEngine(setup, 'match-21');
     chosen.players[chosen.selectedPlayerId]!.attributes.leadership = 99;
     let s = createMatchSession(chosen, tactics);
     while (s.state.match.status !== 'halftime') s = step(s);
@@ -240,9 +242,15 @@ describe('match engine', () => {
       expect(slotFit(setup.players[home.starterIds[index]!]!, slot.position)).toBeGreaterThan(0),
     );
     s = untilMoment(s);
-    expect(['shot-incoming', 'one-on-one', 'cross-ball', 'distribution']).toContain(
-      s.state.currentMoment!.situationId,
-    );
+    // Match-22 opens a keeper's decision chain with its read (X1a).
+    expect([
+      'shot-incoming',
+      'one-on-one',
+      'cross-ball',
+      'distribution',
+      'chain-set',
+      'chain-collect',
+    ]).toContain(s.state.currentMoment!.situationId);
     expect(finish(s).state.report).not.toBeNull();
   });
   it('conserves shots, goals and player maps', () => {
@@ -416,10 +424,12 @@ describe('decision fairness', () => {
       });
     }
   });
+  // Key moments of equal worth at the reference (match-9) are match-21's: match-22's chains make
+  // the wrong call cost (X1a; the match profile's chain gates measure it).
   it('keeps team goals within a narrow band whichever choice a 60-rated player always makes', () => {
     const rows: Record<string, number[][]> = {};
     for (const position of ['ST', 'CB', 'GK'] as const) {
-      const base = levelled(selectedAt(position));
+      const base = onEngine(levelled(selectedAt(position)), 'match-21');
       const side = sideOf(base);
       rows[position] = [0, 1, 2, 3].map((policy) => {
         let goalsFor = 0,
@@ -496,7 +506,7 @@ describe('match edge cases', () => {
     expect(s.selectedPlayerMinutes).toBe(90);
   });
   it('moves mentality one step with captain instructions', () => {
-    const chosen = structuredClone(setup);
+    const chosen = onEngine(setup, 'match-21');
     chosen.players[chosen.selectedPlayerId]!.attributes.leadership = 99;
     for (const [start, instruction, expected] of [
       ['balanced', 'push', 'attacking'],

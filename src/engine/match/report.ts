@@ -63,6 +63,11 @@ function softLimit(sum: number): number {
  * planned moments), so a busy match is not a wider one.
  */
 function momentScale(session: MatchSession): number {
+  // Decision chains (X1a): measured against the planned steps, chains × their mean length.
+  if (rules22(session.setup))
+    return squareRoot(
+      R.chainSteps / Math.max(R.fewest, session.state.momentMinutes.length * C.chains.meanSteps),
+    );
   return squareRoot(R.moments / Math.max(R.fewest, session.state.momentMinutes.length));
 }
 /**
@@ -138,7 +143,8 @@ export interface MomentPar {
 export function creditDecision(
   session: MatchSession,
   family: RatingFamily,
-  success: boolean,
+  /** A success, or (match-22, a chain's lead-in) a share of one. */
+  success: boolean | number,
   reference: number,
   par: MomentPar,
 ): void {
@@ -148,7 +154,8 @@ export function creditDecision(
     return;
   }
   const scale = momentScale(session);
-  addRating(session, family, round6(R.decision[family] * ((success ? 1 : 0) - reference) * scale));
+  const credited = typeof success === 'number' ? success : success ? 1 : 0;
+  addRating(session, family, round6(R.decision[family] * (credited - reference) * scale));
   // A stop is credited on success, so its par is the reference odds × its credit. A hat-trick's
   // bonus is left out: rare enough not to move the centre, and a striker on two goals is not
   // marked down for every chance that might have made it three.

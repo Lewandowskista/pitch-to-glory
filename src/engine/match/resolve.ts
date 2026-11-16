@@ -2,7 +2,7 @@
  * Resolving a key-moment choice: the roll against its stated odds, the events it leads to
  * (shots, goals, chances made or conceded, a booking), the statistics and the rating credit.
  */
-import type { DecisionChoice, DecisionOutcome, Position } from '../../model/domain';
+import type { DecisionChoice, DecisionOutcome, KeyMoment, Position } from '../../model/domain';
 import { createRng } from '../rng';
 import type { MatchSession } from './types';
 import { MATCH_CONFIG as C } from './tuning';
@@ -65,30 +65,7 @@ export function resolveChoice(next: MatchSession, choiceId: string): void {
     if (success) goal(next, side, p.id, template.target);
     else ownMiss(next, shot);
   } else event(next, template.event, p.clubId!, p.id, line(next, key), outcome);
-  // A failed defending choice can be a foul worth a card (match-16): its own stream, so the
-  // decision's rolls never move. A side already down `maxDismissals` men gets no more reds. A
-  // professional foul (match-22) is the foul when it succeeds.
-  if (choice.booking && success === (choice.booking.onSuccess === true)) {
-    const draw = createRng(`${setup.seed}:booking:${moment.id}:${choice.id}`);
-    const foulRoll = round6(draw.next()),
-      redRoll = draw.next();
-    const kind: Card['card'] | undefined =
-      foulRoll >= choice.booking.foul
-        ? undefined
-        : redRoll < choice.booking.straight
-          ? 'red'
-          : choice.booking.booked
-            ? 'second-yellow'
-            : 'yellow';
-    const shown =
-      kind && (kind === 'yellow' || menDown(m)[side]! < F.maxDismissals) ? kind : undefined;
-    outcome.booking = {
-      roll: foulRoll,
-      foul: choice.booking.foul,
-      ...(shown ? { card: shown } : {}),
-    };
-    if (shown) showCard(next, side, p.id, shown);
-  }
+  rollBooking(next, moment, choice, outcome, success);
   if (template.stat === 'passes') {
     s.stats.passesAttempted++;
     if (success) s.stats.passesCompleted++;
@@ -112,7 +89,9 @@ export function resolveChoice(next: MatchSession, choiceId: string): void {
     addRating(next, 'saves', stopCredit(next, danger, referenceOdds(choice, rules22(setup))));
   // A beaten defender (match-13): an attacker's successful dribble leads into the shot itself,
   // carrying the chance it made, instead of a hidden roll.
+  // Match-22's decision chains (X1a) replace it: a beaten defender is a chain's own step.
   const chainable =
+    !rules22(setup) &&
     template.event === 'dribble' &&
     template.scorer === 'self' &&
     !moment.follows &&
@@ -207,12 +186,50 @@ export function resolveChoice(next: MatchSession, choiceId: string): void {
   });
 }
 /**
+ * A failed defending choice can be a foul worth a card (match-16): its own stream, so the
+ * decision's rolls never move. A side already down `maxDismissals` men gets no more reds. A
+ * professional foul (match-22) is the foul when it succeeds. Returns the card shown, if any.
+ */
+export function rollBooking(
+  next: MatchSession,
+  moment: KeyMoment,
+  choice: DecisionChoice,
+  outcome: DecisionOutcome,
+  success: boolean,
+): Card['card'] | undefined {
+  const setup = next.setup,
+    m = next.state.match;
+  const p = setup.players[setup.selectedPlayerId]!,
+    side = selectedSide(setup);
+  if (!choice.booking || success !== (choice.booking.onSuccess === true)) return undefined;
+  const draw = createRng(`${setup.seed}:booking:${moment.id}:${choice.id}`);
+  const foulRoll = round6(draw.next()),
+    redRoll = draw.next();
+  const kind: Card['card'] | undefined =
+    foulRoll >= choice.booking.foul
+      ? undefined
+      : redRoll < choice.booking.straight
+        ? 'red'
+        : choice.booking.booked
+          ? 'second-yellow'
+          : 'yellow';
+  const shown =
+    kind && (kind === 'yellow' || menDown(m)[side]! < F.maxDismissals) ? kind : undefined;
+  outcome.booking = {
+    roll: foulRoll,
+    foul: choice.booking.foul,
+    ...(shown ? { card: shown } : {}),
+  };
+  if (shown) showCard(next, side, p.id, shown);
+  return shown;
+}
+/**
  * A choice's odds for the reference player, before attributes, form and conditions. On match-22
  * the reads count too (each read factor's multiplier, recovered from its contribution): taking
  * what the pitch offers is worth its goals, not extra rating, so a stop or success is measured
  * against what a reference player would make of the same read.
  */
-function referenceOdds(choice: DecisionChoice, reads = false): number {
+export function referenceOdds(choice: DecisionChoice, reads = false): number {
   const base =
     choice.factors.find((factor) => factor.labelKey === 'match.factor.base')?.contribution ??
     choice.probability;

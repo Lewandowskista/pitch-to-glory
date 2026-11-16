@@ -165,6 +165,8 @@ export const CONFIG = {
         'block-cross': { foul: 0.06, straight: 0.03 },
         'man-mark': { foul: 0.05, straight: 0.02 },
         'press-carry': { foul: 0.12, straight: 0.05 },
+        // Decision chains (X1a): pressing the carrier fails into a foul, a card with this chance.
+        'position-press': { foul: 0.12, straight: 0.03 },
       } as Record<string, { foul: number; straight: number }>,
       aggression: 0.012,
       tackling: 0.008,
@@ -181,7 +183,7 @@ export const CONFIG = {
      * its commentary line names, but hits the woodwork with `woodwork` (others' misses: see
      * `missedShot`).
      */
-    shots22: { conversion: 0.095, woodwork: 0.04 },
+    shots22: { conversion: 0.088, woodwork: 0.04 },
     passPerMinute: 0.48,
     routinePass: { base: 0.68, passing: 0.002, fatigue: 0.0008, minimum: 0.4, maximum: 0.96 },
     /**
@@ -340,6 +342,8 @@ export const CONFIG = {
       base: 6.63,
       moments: 10,
       fewest: 6,
+      /** Decision chains (X1a): the planned steps a credit is measured against. */
+      chainSteps: 12,
       decision: {
         shooting: 0.2,
         passing: 0.35,
@@ -475,6 +479,115 @@ export const CONFIG = {
       },
       /** The straight-red share of a professional foul by the cover read (last man: a red). */
       professionalFoul: { covered: 0.04, alone: 0.12 },
+    },
+    /**
+     * Decision chains (engine match-22, release 1.0 X1a; docs/MATCH-BALANCING.md "Decision
+     * chains"). A match's key moments are 4–6 chains of two or three linked decisions in one
+     * phase of play: a read, an action and a finish. The catalogue (lead-in steps, what each
+     * option stages for the next step, the finishes' options) is data in `match/chainTable.ts`;
+     * the scalars are here.
+     */
+    chains: {
+      /**
+       * Chains a match by the position played: [fewest, most], drawn with `extreme` at either
+       * end and the middle otherwise (an even range: either value at even odds). A big match
+       * (importance of at least `bigMatch`) adds one, demanding the ball at half-time one.
+       */
+      counts: {
+        ST: [4, 6],
+        LW: [5, 5],
+        RW: [5, 5],
+        AM: [5, 5],
+        CM: [5, 5],
+        DM: [4, 5],
+        LB: [4, 5],
+        RB: [4, 5],
+        CB: [4, 4],
+        GK: [4, 4],
+      } as Record<string, readonly [number, number]>,
+      extreme: 0.2,
+      bigMatch: 1.25,
+      /** Off the bench: chains in the time left. */
+      bench: [2, 3] as const,
+      /** Demanding the ball at half-time: chains added to the second half. */
+      demand: 1,
+      /** Touchline interrupts (a knock, a substitution, the captain's call) a match. */
+      interrupts: 1,
+      /** A chain has three steps with this chance (set pieces and a keeper's build have two). */
+      threeSteps: 0.35,
+      /**
+       * Fraction of own [attack] and opposition [defence] expected goals that passes through
+       * the player's chains (replacing `moments22.shares`): fewer, bigger moments carry more of
+       * a match.
+       */
+      shares: {
+        ST: [0.37, 0.05],
+        LW: [0.5, 0.08],
+        RW: [0.5, 0.08],
+        AM: [0.36, 0.07],
+        CM: [0.32, 0.16],
+        DM: [0.12, 0.55],
+        CB: [0.08, 0.72],
+        LB: [0.12, 0.63],
+        RB: [0.12, 0.63],
+        GK: [0.06, 0.9],
+      } as Record<string, readonly [number, number]>,
+      /**
+       * The reference player's chance of getting through a lead-in step, by the chain's family:
+       * an attacking finish is worth the chain's budget ÷ this for each lead-in step before it,
+       * so the chain realises its budget at the reference. Defending and keeping finishes face
+       * the same danger whoever gets there (1); a set piece's read never ends its chain (1).
+       */
+      reach: { attack: 0.75, build: 0.75, defence: 1, keeper: 1, 'set-piece': 1 } as Record<
+        string,
+        number
+      >,
+      /**
+       * What a failed lead-in step leads to, in expected goals: a break the other way
+       * (`counter`), a set piece won (`foulWon`), the ball lost deep (`lostDeep`); being beaten
+       * (`beaten`) concedes the finish's danger × this, a foul given away (`foul`, with its
+       * card risk) the danger × this, at least a counter's.
+       */
+      consequences: { counter: 0.15, foulWon: 0.035, foul: 1.3, lostDeep: 0.05, beaten: 1.3 },
+      /** The most a chain's budget carries either way (expected goals). */
+      maximumBudget: 0.85,
+      /**
+       * A defending or keeping chain's danger × this: getting goal-side and setting your feet
+       * take some of it away, so a chain played well concedes about what a key moment did.
+       */
+      danger: 1.3,
+      /**
+       * A lead-in that fails into a foul won (a set piece) is credited as this much of a success
+       * in the rating's decision credit: the move stopped, but something came of it.
+       */
+      foulWonCredit: 0.5,
+      /** Bands of an option's chance (`OutcomeBand`): likely at `likely` or more, even from `even`. */
+      bands: { likely: 0.65, even: 0.4 },
+      /**
+       * The honest director. Hero beat: a chain between `hero.from` and `hero.to` is the hero's;
+       * when it opens and no chain before it was worth `hero.prize` (expected goals for an
+       * attacker, danger for a defender or keeper), its finish is drawn among the situations
+       * worth that much, at least `hero.prize`, and it has three steps. Close-game climax: at
+       * `climax.decide`, within `climax.margin` goals, the last chain moves to a minute in
+       * `climax.minutes` (or, with `climax.addedChance`, one of the first `climax.addedMinutes`
+       * of added time) and has three steps. Drought: the first and the hero chains start in the
+       * hero's situations. Debut: the first chain comes by `debutBy`.
+       */
+      hero: { from: 46, to: 60, prize: 0.25 },
+      climax: {
+        decide: 75,
+        margin: 1,
+        minutes: [82, 89] as const,
+        addedChance: 0.3,
+        addedMinutes: 3,
+      },
+      debutBy: 15,
+      /** A match's career drought: this many matches without a positive chain. */
+      droughtMatches: 3,
+      /** Rating involvement: √(`rating22.chainSteps` ÷ planned steps), planned steps = chains × this. */
+      meanSteps: 2.45,
+      /** Framing sentences per lead-in step. */
+      leadInVariants: 3,
     },
     /** Simulated career matches pick among choices within this many expected goals of the best. */
     autoPlayMargin: 0.02,
@@ -679,6 +792,12 @@ export const CONFIG = {
       tackles: { defender: 3, midfield: 2 },
       saves: 5,
       shots: { striker: 5, other: 3 },
+      /**
+       * Decision chains (match-22, X1a) set one objective, with targets for a match of four to
+       * six chains: fewer of the player's own shots, tackles and saves than a match of key
+       * moments had.
+       */
+      chains: { tackles: { defender: 1, midfield: 1 }, saves: 2, shots: { striker: 2, other: 1 } },
     },
   },
   /** Career player progression (milestone 4). See docs/BALANCING.md. */
@@ -1007,6 +1126,8 @@ export const CONFIG = {
       ] as const,
     },
     historyLimit: 2000,
+    /** A new career starts its first this many fixtures, whatever the selection (release 1.0 X1a). */
+    debutStarts: 2,
     /** Contracts, agents, transfers and loans (milestone 5). See docs/BALANCING.md. */
     market: {
       /**

@@ -19,13 +19,14 @@ import { showCards } from './cards';
 import { replacement } from './lineup';
 import { managerSubstitutions } from './substitutions';
 import { momentDue, openMoment, placeLateMoment } from './moments';
+import { answerChainStep, openChain } from './chains';
 import { resolveChoice } from './resolve';
 import { resolveShootout, settleShootout } from './extraTime';
 import { tick } from './stoppage';
 import { benchCheck, changesLeft } from './bench';
 import { answerKnock, careerKnock, playerInjuries } from './injuries';
 import { playKick, resolveShootoutKick } from './shootout';
-import { askCaptain, halftimeTalk, substitutionResponse } from './touchline';
+import { halftimeTalk, interrupt, substitutionResponse } from './touchline';
 import { finish, poorRating } from './report';
 import { currentRates, shares, updatePossession } from './rates';
 import { afterMinute, simulateMinuteGoals } from './minute';
@@ -152,8 +153,14 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
       return next;
     }
     const first = m.events.length;
-    resolveChoice(next, command.choiceId);
-    const decided = m.events.length - first;
+    if (state.decisionChain) {
+      // A decision chain (match-22, X1a): a step that comes off opens the next in this minute;
+      // the chain's end plays the rest of the minute as any key moment does.
+      if (answerChainStep(next, command.choiceId) === 'continued') return next;
+    } else resolveChoice(next, command.choiceId);
+    const decided = m.events.filter(
+      (entry, index) => index >= first && entry.kind !== 'chain-end',
+    ).length;
     if (state.chain) {
       // The defender is beaten: play carries on into the shot it leads to, in the same minute.
       const goal = state.chain.goal;
@@ -181,8 +188,8 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
       state.stats.fatigue = round6(Math.max(0, state.stats.fatigue - C.halftimeRecovery));
       state.play = { side: 1, carrierId: null, restart: 'second-half' };
       m.status = 'live';
-      // The captain's first call of the second half, if they are on the pitch.
-      askCaptain(next);
+      // The captain's call no longer opens the second half (X1a): touchline interrupts are at
+      // most one a match, kept for a goal conceded or a close finish.
       return next;
     }
     if (command.role !== undefined) throw new Error('Invalid halftime response');
@@ -299,8 +306,8 @@ function advance22(next: MatchSession): void {
   managerSubstitutions(next);
   showCards(next);
   playerInjuries(next);
-  if (m.minute === C.drama.lateDecisionMinute && !state.added) placeLateMoment(next);
-  if (!offPitch(state) && momentDue(next)) openMoment(next);
+  if (m.minute === C.chains.climax.decide && !state.added) placeLateMoment(next);
+  if (!offPitch(state) && momentDue(next)) openChain(next);
   else {
     simulateMinuteGoals(next);
     applyPassage(next, 'minute', minutePassage(next, m.events.slice(first)));
@@ -353,7 +360,6 @@ function ownSubstitution(next: MatchSession): void {
   const incoming = replacement(next, current.benchIds, player);
   if (!incoming) return;
   state.substituted = true;
-  state.substitutionDecisionPending = true;
   m[team] = {
     ...current,
     starterIds: current.starterIds.map((id) => (id === player.id ? incoming : id)),
@@ -367,4 +373,7 @@ function ownSubstitution(next: MatchSession): void {
     line(next, 'match.commentary.substitution', own),
   );
   sub.receiverId = incoming;
+  // At most one touchline interrupt a match (X1a): after one, the change is accepted.
+  if (interrupt(next)) state.substitutionDecisionPending = true;
+  else substitutionResponse(next, 'accept');
 }

@@ -27,6 +27,7 @@ import {
   type Situation,
 } from './situations';
 import { ALL_SITUATIONS, COUNTER_22, POSITIONS_22, UNLOCKS_22 } from './situations22';
+import { LEAD_INS } from './chainTable';
 import { expectedImpact } from './value';
 
 const C = CONFIG.match;
@@ -279,7 +280,7 @@ export function skillEffects(traits: readonly string[], skillId: string): SkillE
   if (skillId === 'clutch') return [];
   const without = traits.filter((trait) => trait !== skillId && trait !== 'clutch');
   const effects = new Map<string, SkillEffect>();
-  for (const situation of ALL_SITUATIONS)
+  for (const situation of [...ALL_SITUATIONS, ...LEAD_INS])
     for (const template of situation.choices) {
       if (effects.has(template.id)) continue;
       const covers =

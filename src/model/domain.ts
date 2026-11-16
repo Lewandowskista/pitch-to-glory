@@ -529,6 +529,12 @@ export interface Career {
   xp: number;
   /** XP at which the current level began (schema 17); absent in older saves until migrated. */
   levelXp?: number;
+  /**
+   * Matches in a row the player took part in without a positive decision chain (release 1.0
+   * X1a, match-22): from `CONFIG.match.chains.droughtMatches` the next match's chains start in
+   * better situations (the drought director). Absent until a chain match is committed.
+   */
+  chainDrought?: number;
   attributePoints: number;
   skillPoints: number;
   skills: Id[];
@@ -1574,7 +1580,47 @@ export interface DecisionChoice {
   booking?: BookingRisk;
   /** The foot a shot, cross or carry is made with (engine match-19), and whether it is the weaker. */
   foot?: { side: 'left' | 'right'; weak: boolean };
+  /**
+   * A chain step's option (engine match-22, release 1.0 X1a): what its chance is the chance of
+   * (`match.outcome.<outcome>`: "Goal 34%"), its band by that chance, and the declared
+   * consequence of failing (`match.chain.failure.<ifFailed>`: "If blocked: they break").
+   */
+  outcome?: ChoiceOutcome;
+  band?: OutcomeBand;
+  ifFailed?: ChainFailure;
 }
+/** What a chain step's chance is the chance of (engine match-22). */
+export type ChoiceOutcome =
+  | 'goal'
+  | 'pass'
+  | 'beat'
+  | 'stop'
+  | 'save'
+  | 'control'
+  | 'turn'
+  | 'run'
+  | 'combine'
+  | 'shield'
+  | 'goal-side'
+  | 'press'
+  | 'cover'
+  | 'set'
+  | 'read';
+/** A chance's band (engine match-22): likely (65% or more), even (40–64%), a long shot (below 40%). */
+export type OutcomeBand = 'likely' | 'even' | 'long';
+/** The declared consequence of a failed chain step (engine match-22). */
+export type ChainFailure =
+  | 'lost'
+  | 'counter'
+  | 'offside'
+  | 'foul-won'
+  | 'beaten'
+  | 'foul'
+  | 'misread'
+  | 'missed'
+  | 'goal'
+  | 'shot'
+  | 'card';
 export interface KeyMoment {
   id: Id;
   minute: number;
@@ -1602,6 +1648,22 @@ export interface KeyMoment {
   /** Expected goals this moment replaces for the selected team and against it. */
   budget: { for: number; against: number };
   choices: DecisionChoice[];
+  /**
+   * A step of a decision chain (engine match-22, release 1.0 X1a): the chain, this step's
+   * 0-based index, the chain's planned length and who the step involves (section 1.7's `cast`,
+   * named apart from match-15's `cast` above). Absent on match-21.
+   */
+  chainId?: Id;
+  step?: number;
+  steps?: 2 | 3;
+  chainCast?: {
+    you: Id;
+    opponent?: Id;
+    teammates: Id[];
+    defenders: Id[];
+    keeper?: Id;
+    ghosts: Id[];
+  };
 }
 /** One read of a key moment (engine match-22): a state of the play, drawn or from a matchup. */
 export interface MomentRead {
@@ -1628,7 +1690,18 @@ export interface MatchEvent {
   id: Id;
   minute: number;
   kind:
-    'goal' | 'pass' | 'shot' | 'save' | 'dribble' | 'tackle' | 'card' | 'substitution' | 'halftime';
+    | 'goal'
+    | 'pass'
+    | 'shot'
+    | 'save'
+    | 'dribble'
+    | 'tackle'
+    | 'card'
+    | 'substitution'
+    | 'halftime'
+    // A decision chain starts and ends (engine match-22, release 1.0 X1a).
+    | 'chain-start'
+    | 'chain-end';
   playerId: Id | null;
   teamId: Id;
   point: Point;
@@ -1659,6 +1732,10 @@ export interface MatchEvent {
   card?: CardKind;
   /** In added time (engine match-22): the added minute, shown as `minute+addedTime`. */
   addedTime?: number;
+  /** On chain events (engine match-22): the chain, and on its end how it ended. */
+  chainId?: Id;
+  chainOutcome?:
+    'goal' | 'assist' | 'chance' | 'stop' | 'won' | 'lost' | 'conceded' | 'foul' | 'card';
 }
 export type CardKind = 'yellow' | 'second-yellow' | 'red';
 /** Where a shot that did not go in ended (engine match-22). */

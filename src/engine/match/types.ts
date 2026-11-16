@@ -190,6 +190,101 @@ export interface MatchSetup {
   injury?: { factor: number; reinjury?: { risk: number; kind: string } };
   /** The career player's trust with their manager (0–100; 50 when absent), match-22. */
   trust?: number;
+  /**
+   * The drought director (match-22, release 1.0 X1a): after three matches without a positive
+   * chain, this match's chains start in better situations (never better odds), and the
+   * pre-match card says so. Absent otherwise.
+   */
+  drought?: true;
+  /** A new career's first fixture (match-22): its first chain comes in the first 15 minutes. */
+  debut?: true;
+}
+/**
+ * Decision chains (match-22, release 1.0 X1a; docs/EXPERIENCE-REDESIGN-1.0.md section 1.7).
+ * A chain is two or three linked decisions in one phase of play: a read, an action and a
+ * finish. A match-21 session has none of these.
+ */
+export type ChainKind = 'attack' | 'defence' | 'set-piece' | 'keeper' | 'shootout';
+/** How a chain ended, for the ticker, the report and the drought director. */
+export type ChainOutcome =
+  'goal' | 'assist' | 'chance' | 'stop' | 'won' | 'lost' | 'conceded' | 'foul' | 'card';
+/** An i18n key with the names and numbers it refers to. */
+export interface KeyedLine {
+  key: string;
+  params: Record<string, string | number>;
+}
+/** One answered step of a chain. */
+export interface ChainStepResult {
+  step: number;
+  choiceId: string;
+  /** The chance as displayed. */
+  probability: number;
+  success: boolean;
+  /** The one-line reason: the factor that weighed most, and the chance. */
+  cause: KeyedLine;
+}
+/** The chain being played. */
+export interface ChainState {
+  /** Stable within the session: `${minute}-${index}` (`+added` in added time). */
+  id: string;
+  kind: ChainKind;
+  minute: number;
+  addedTime?: number;
+  /** The side in possession when it starts. */
+  side: 0 | 1;
+  /** Planned length. */
+  steps: 2 | 3;
+  /** 0-based index of the current step. */
+  step: number;
+  /** The stakes header line. */
+  stakes: KeyedLine;
+  /** Starting expected goals (attack) or danger (defence), for the stakes header. */
+  prize?: number;
+  /** The close-game climax. */
+  climax?: true;
+  /** The hero beat. */
+  hero?: true;
+  results: ChainStepResult[];
+  /** The situation of each step, the finish last (engine data). */
+  path: string[];
+  /** The chain's budget at the reference player: expected goals for and against. */
+  budget: { for: number; against: number };
+  /** The opponents drawn once for every step (the cast). */
+  opponents: { keeper?: string; defender?: string; attacker?: string };
+  /** The edge the last step left for the next (`{ id: 'edge', state }`). */
+  staged?: { id: string; state: string }[];
+  /** The edges so far, multiplied out: how much bigger the chance (or smaller the danger). */
+  value?: number;
+}
+/** A finished chain, as the ticker, the report and the career read it. */
+export interface ChainSummary {
+  id: string;
+  kind: ChainKind;
+  minute: number;
+  addedTime?: number;
+  outcome: ChainOutcome;
+  /** Counts toward "a positive chain": a goal, an assist, a chance, a stop or a set piece won. */
+  positive: boolean;
+  /** Planned length. */
+  steps: 2 | 3;
+  /** Its expected goals (attack) or danger (defence) at the start. */
+  prize?: number;
+  climax?: true;
+  hero?: true;
+  results: ChainStepResult[];
+}
+/** Who a chain step involves, for the clip (a cast of at most seven, and faint ghosts). */
+export interface ChainCast {
+  you: string;
+  /** The direct opponent, named on step 1. */
+  opponent?: string;
+  /** 0–2. */
+  teammates: string[];
+  /** 0–2. */
+  defenders: string[];
+  keeper?: string;
+  /** 0–4 context players, drawn faint. */
+  ghosts: string[];
 }
 export interface MatchFixture {
   id: string;
@@ -450,6 +545,19 @@ export interface MatchState {
    * (players on the pitch at the end, best takers first), and the kicks taken.
    */
   penaltyShootout?: { first: 0 | 1; order: [string[], string[]]; kicks: ShootoutKick[] };
+  /**
+   * Decision chains (match-22, X1a): the chain being played (section 1.7's `chain`, named apart
+   * from match-13's follow-up `chain` above), and those finished, in order.
+   */
+  decisionChain?: ChainState;
+  chains?: ChainSummary[];
+  /**
+   * The director's plan (match-22): the minute of the hero beat's chain, and the close game's
+   * climax (the last chain, placed late).
+   */
+  director?: { hero?: number; climax?: true; heroDone?: true };
+  /** Touchline interrupts asked so far (match-22): at most one a match. */
+  interrupts?: number;
 }
 export interface MatchSession {
   version: 1;

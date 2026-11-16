@@ -129,7 +129,7 @@ export function bringOn(session: MatchSession, outgoing?: string): boolean {
 }
 
 /**
- * Two to four key moments (`${seed}:bench:moments`) spread over the time left after coming on:
+ * Two or three chains (`${seed}:bench:moments`) spread over the time left after coming on:
  * from two minutes after to the 89th (the 119th in extra time), fewer in a short cameo.
  */
 function benchMoments(session: MatchSession): number[] {
@@ -140,7 +140,8 @@ function benchMoments(session: MatchSession): number[] {
   const span = end - first + 1;
   if (span <= 0) return [];
   const rng = createRng(`${session.setup.seed}:bench:moments`);
-  const drawn = rng.int(B.moments[0], B.moments[1]);
+  // Decision chains (X1a): two or three off the bench.
+  const drawn = rng.int(C.chains.bench[0], C.chains.bench[1]);
   const count = Math.max(1, Math.min(drawn, span < 6 ? 1 : span < 14 ? 2 : drawn));
   const minutes: number[] = [];
   for (let index = 0; index < count; index++) {

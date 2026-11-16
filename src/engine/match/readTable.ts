@@ -186,7 +186,7 @@ export const READS: Readonly<Record<string, readonly Read[]>> = {
     {
       id: 'shot',
       states: [
-        state('tame', 0.35, { hold: 1.45, parry: 0.6, 'tip-over': 0.55 }),
+        state('tame', 0.35, { hold: 1.15, parry: 0.6, 'tip-over': 0.55 }),
         state('powerful', 0.35, { hold: 0.45, parry: 1.3, 'tip-over': 1.2 }),
         state('dipping', 0.3, { hold: 0.6, parry: 0.5, 'tip-over': 1.45 }),
       ],
@@ -194,7 +194,7 @@ export const READS: Readonly<Record<string, readonly Read[]>> = {
     {
       id: 'range',
       states: [
-        state('distance', 0.5, { hold: 1.15, parry: 0.9 }),
+        state('distance', 0.5, { hold: 1.05, parry: 0.9 }),
         state('close', 0.5, { hold: 0.8, parry: 1.1 }),
       ],
     },
@@ -241,14 +241,14 @@ export const READS: Readonly<Record<string, readonly Read[]>> = {
           'long-distribution': 1.2,
           'quick-release': 1.15,
         }),
-        state('off', 0.5, { 'short-distribution': 1.3, 'long-distribution': 0.5 }),
+        state('off', 0.5, { 'short-distribution': 1.15, 'long-distribution': 0.5 }),
       ],
     },
     {
       id: 'shape',
       states: [
         state('committed', 0.35, { 'long-distribution': 1.4, 'quick-release': 1.45 }),
-        state('settled', 0.65, { 'long-distribution': 0.8, 'quick-release': 0.74 }),
+        state('settled', 0.65, { 'long-distribution': 0.9, 'quick-release': 0.74 }),
       ],
     },
   ],
@@ -283,7 +283,7 @@ export const READS: Readonly<Record<string, readonly Read[]>> = {
         state('long', 0.3, {
           'free-kick-curl': 0.39,
           'free-kick-drive': 0.62,
-          'free-kick-short': 1.25,
+          'free-kick-short': 1.05,
         }),
       ],
     },
@@ -483,6 +483,132 @@ export const READS: Readonly<Record<string, readonly Read[]>> = {
       states: [
         state('set', 0.6, { 'weak-foot-shot': 0.83, 'shift-strong': 0.89 }),
         state('off-line', 0.4, { 'weak-foot-shot': 1.2, 'weak-foot-pass': 0.83 }),
+      ],
+    },
+  ],
+  // ── Decision chains' lead-in steps (match-22, release 1.0 X1a; chainTable.ts) ───────────
+  // Each has one read, drawn when the step opens: each state favours one option and leans hard
+  // against another, so the step is a read of the play and a wrong read costs the chain.
+  'chain-receive': [
+    {
+      id: 'marker',
+      states: [
+        state('tight', 0.35, { 'receive-set': 1.25, 'receive-turn': 0.4, 'receive-run': 0.7 }),
+        state('loose', 0.35, { 'receive-turn': 1.5, 'receive-set': 0.8 }),
+        state('square', 0.3, { 'receive-run': 1.6, 'receive-turn': 0.75, 'receive-set': 0.8 }),
+      ],
+    },
+  ],
+  'chain-beat': [
+    {
+      id: 'defender',
+      states: [
+        state('goal-side', 0.35, { 'beat-combine': 1.4, 'beat-dribble': 0.4 }),
+        state('square', 0.35, { 'beat-dribble': 1.5, 'beat-shield': 0.75, 'beat-combine': 0.9 }),
+        state('lunging', 0.3, { 'beat-shield': 1.5, 'beat-combine': 0.8, 'beat-dribble': 0.7 }),
+      ],
+    },
+  ],
+  'chain-run': [
+    {
+      id: 'box-marker',
+      states: [
+        state('tight', 0.35, { 'run-hold': 1.25, 'run-near': 0.45, 'run-far': 0.85 }),
+        state('watching', 0.35, { 'run-far': 1.45, 'run-near': 1.1, 'run-hold': 0.8 }),
+        state('zonal', 0.3, { 'run-near': 1.45, 'run-far': 0.7, 'run-hold': 0.9 }),
+      ],
+    },
+  ],
+  'chain-collect': [
+    {
+      id: 'pressure',
+      states: [
+        state('closing', 0.35, { 'collect-first': 1.5, 'collect-touch': 0.6, 'collect-scan': 0.8 }),
+        state('time', 0.35, { 'collect-scan': 1.45, 'collect-first': 0.8 }),
+        state('crowded', 0.3, {
+          'collect-touch': 1.35,
+          'collect-scan': 0.75,
+          'collect-first': 0.6,
+        }),
+      ],
+    },
+  ],
+  'chain-position': [
+    {
+      id: 'attacker',
+      states: [
+        state('quick', 0.35, {
+          'position-goal-side': 1.35,
+          'position-press': 0.35,
+          'position-cover': 0.9,
+        }),
+        state('heavy', 0.35, {
+          'position-press': 1.5,
+          'position-cover': 0.7,
+          'position-goal-side': 0.9,
+        }),
+        state('passer', 0.3, {
+          'position-cover': 1.5,
+          'position-goal-side': 0.8,
+          'position-press': 0.55,
+        }),
+      ],
+    },
+  ],
+  'chain-engage': [
+    {
+      id: 'run',
+      states: [
+        state('straight', 0.35, { 'engage-show': 1.4, 'engage-delay': 0.7, 'engage-step': 0.6 }),
+        state('cutting', 0.35, { 'engage-step': 1.5, 'engage-show': 0.45 }),
+        state('waiting', 0.3, { 'engage-delay': 1.35, 'engage-step': 0.4 }),
+      ],
+    },
+  ],
+  'chain-set': [
+    {
+      id: 'threat',
+      states: [
+        state('shooter', 0.35, { 'set-line': 1.3, 'set-off': 0.38 }),
+        state('runner', 0.35, { 'set-off': 1.5, 'set-line': 0.6, 'set-near': 0.75 }),
+        state('wide', 0.3, { 'set-near': 1.5, 'set-off': 0.55 }),
+      ],
+    },
+  ],
+  'chain-angle': [
+    {
+      id: 'shape',
+      states: [
+        state('square', 0.35, { 'angle-big': 1.35, 'angle-feint': 0.45 }),
+        state('onrushing', 0.35, { 'angle-narrow': 1.45, 'angle-big': 0.6 }),
+        state('angled', 0.3, { 'angle-feint': 1.5, 'angle-narrow': 0.55 }),
+      ],
+    },
+  ],
+  'chain-spot': [
+    {
+      id: 'nerve',
+      states: [
+        state('still', 0.5, { 'spot-keeper': 1.3, 'spot-pick': 0.85 }),
+        state('restless', 0.5, { 'spot-pick': 1.2, 'spot-keeper': 0.7 }),
+      ],
+    },
+  ],
+  'chain-scan': [
+    {
+      id: 'box',
+      states: [
+        state('open', 0.5, { 'scan-near': 1.3, 'scan-far': 0.9 }),
+        state('crowded', 0.5, { 'scan-far': 1.25, 'scan-near': 0.7 }),
+      ],
+    },
+  ],
+  'chain-taker': [
+    {
+      id: 'run-up',
+      states: [
+        state('long', 0.5, { 'taker-hips': 1.3, 'taker-big': 0.85 }),
+        state('stutter', 0.5, { 'taker-big': 1.25, 'taker-hips': 0.65 }),
       ],
     },
   ],

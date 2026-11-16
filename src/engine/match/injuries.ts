@@ -16,6 +16,7 @@ import { replacement } from './lineup';
 import { bringOn, changesLeft } from './bench';
 import { currentRates, updatePossession } from './rates';
 import { addedStamp, clockKey, offPitch, onBench, onPitch, selectedSide } from './shared';
+import { interrupt } from './touchline';
 
 const I = C.occasions.injuries;
 const TYPES = CONFIG.career.injuries.types;
@@ -169,6 +170,12 @@ export function careerKnock(session: MatchSession): boolean {
     return false;
   }
   s.injuryDecisionPending = true;
+  // At most one touchline interrupt a match (X1a): after one, the physio's call is made for
+  // the player: off while a change is left, else play on.
+  if (!interrupt(session)) {
+    answerKnock(session, canComeOff(session) ? 'off' : 'play-on');
+    return false;
+  }
   return true;
 }
 

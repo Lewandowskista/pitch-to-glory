@@ -54,10 +54,12 @@ export function pickReceivers(
   session: MatchSession,
   situation: Situation,
   forced?: ForcedMoment,
+  /** A chain's step (match-22): its own stream. */
+  step?: string,
 ): Map<string, string> {
   const setup = session.setup;
   const rng = createRng(
-    `${setup.seed}:receiver:${session.state.match.minute}${forced ? `:${forced.kind}` : ''}`,
+    `${setup.seed}:receiver:${session.state.match.minute}${forced ? `:${forced.kind}` : ''}${step ? `:${step}` : ''}`,
   );
   const player = setup.players[setup.selectedPlayerId]!;
   const receivers = new Map<string, string>();

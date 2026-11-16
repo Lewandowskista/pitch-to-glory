@@ -110,10 +110,11 @@ export function halftimeTalk(
         ...s.shares,
         attack: round6(Math.min(C.decision.talk.demand.maximum, s.shares.attack * T.demand.share)),
       };
-      // More of the second half goes through the player: extra moments (`${seed}:demand`).
+      // More of the second half goes through the player: extra moments (`${seed}:demand`), one
+      // more chain (X1a).
       const rng = createRng(`${setup.seed}:demand`);
       const extra: number[] = [];
-      for (let index = 0; index < T.demand.moments; index++)
+      for (let index = 0; index < C.chains.demand; index++)
         extra.push(rng.int(T.demand.from + index * 15, T.demand.from + index * 15 + 12));
       s.momentMinutes = [...new Set([...s.momentMinutes, ...extra])].sort((a, b) => a - b);
     }
@@ -130,7 +131,7 @@ export function halftimeTalk(
     if (granted) {
       m.tactics.role = role;
       s.expectedGoals = currentRates(next, m.tactics);
-      s.shares = shares(position, role);
+      s.shares = shares(position, role, true);
       s.managerTrustDelta = 0;
       s.talkOdds = 1;
     } else {
@@ -153,9 +154,19 @@ function captainCanCall(session: MatchSession): boolean {
     (last === undefined || s.match.minute - last >= T.captain.gap)
   );
 }
-/** Ask for the captain's call (the second half's start, a goal conceded, late on). */
-export function askCaptain(session: MatchSession): void {
-  if (!captainCanCall(session)) return;
+/**
+ * A touchline interrupt (match-22, X1a): the knock, the substitution response or the captain's
+ * call, at most `chains.interrupts` a match. True, and counted, when one may still be asked.
+ */
+export function interrupt(session: MatchSession): boolean {
+  const s = session.state;
+  if ((s.interrupts ?? 0) >= C.chains.interrupts) return false;
+  s.interrupts = (s.interrupts ?? 0) + 1;
+  return true;
+}
+/** Ask for the captain's call (a goal conceded, late on), while an interrupt is left. */
+function askCaptain(session: MatchSession): void {
+  if (!captainCanCall(session) || !interrupt(session)) return;
   const s = session.state;
   s.captainDecisionPending = true;
   s.captainCalls = [...(s.captainCalls ?? []), s.match.minute];
@@ -188,6 +199,38 @@ export function substitutionResponse(next: MatchSession, response: 'accept' | 'e
   }
 }
 
+/** A half-time answer: the response and, for a role, the one asked for. */
+export type HalftimeAnswer = Pick<Extract<MatchCommand, { type: 'halftime' }>, 'response' | 'role'>;
+/**
+ * The half-time decision (X1a): two options, the manager's default first (motivate the side),
+ * and the player's alternative for the context: on the bench, asking to come on; after a good
+ * first half with the side not ahead, demanding the ball; otherwise asking for the role the
+ * score suggests (bolder behind, safer ahead, else the position's half-time role). Off the
+ * pitch, only the default.
+ */
+export function halftimeChoice(session: MatchSession): {
+  default: HalftimeAnswer;
+  alternative?: HalftimeAnswer;
+} {
+  const s = session.state;
+  const motivate: HalftimeAnswer = { response: 'motivate' };
+  if (onBench(s)) return { default: motivate, alternative: { response: 'complain' } };
+  if (offPitch(s)) return { default: motivate };
+  const margin = ownMargin(session);
+  if (margin <= 0 && s.stats.rating >= T.demand.rating)
+    return { default: motivate, alternative: { response: 'complain' } };
+  const roles = requestableRoles(session);
+  const role =
+    (margin < 0
+      ? roles.find((entry) => bold(entry))
+      : margin > 0
+        ? roles.find((entry) => CAUTIOUS.has(entry))
+        : undefined) ?? halftimeRole(rolePosition(session.setup), s.match.tactics.role);
+  return roles.includes(role)
+    ? { default: motivate, alternative: { response: 'role', role } }
+    : { default: motivate };
+}
+
 /**
  * The headless player's touchline answers on match-22 (simulated careers), each the answer the
  * context favours: at half-time, demanding the ball after a good first half when the side
@@ -201,19 +244,14 @@ export function touchlinePolicy(session: MatchSession): MatchCommand | null {
     m = s.match;
   const margin = ownMargin(session);
   if (m.status === 'halftime') {
-    if (onBench(s)) return { type: 'halftime', response: margin < 0 ? 'complain' : 'motivate' };
-    if (offPitch(s)) return { type: 'halftime', response: 'motivate' };
-    if (margin <= 0 && s.stats.rating >= T.demand.rating)
-      return { type: 'halftime', response: 'complain' };
-    const wanted =
-      margin < 0
-        ? requestableRoles(session).find((role) => bold(role))
-        : margin > 0
-          ? requestableRoles(session).find((role) => CAUTIOUS.has(role))
-          : undefined;
-    if (wanted && roleRefusal(session, wanted) < 0.5)
-      return { type: 'halftime', response: 'role', role: wanted };
-    return { type: 'halftime', response: 'motivate' };
+    // One of the two options on offer: the alternative where the context favours it.
+    const { alternative } = halftimeChoice(session);
+    const take =
+      alternative &&
+      (alternative.response === 'complain'
+        ? !onBench(s) || margin < 0
+        : margin !== 0 && roleRefusal(session, alternative.role!) < 0.5);
+    return take ? { type: 'halftime', ...alternative } : { type: 'halftime', response: 'motivate' };
   }
   if (s.substitutionDecisionPending)
     return {

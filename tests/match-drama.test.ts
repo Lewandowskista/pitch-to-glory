@@ -51,6 +51,14 @@ describe('key moments that follow the game', () => {
       return { position, drama: play(createMatchSession(setup, tactics)) };
     }),
   );
+  // The late moment, the drama odds and the chained shot are match-12/13 rules: match-22 plays
+  // them as decision chains (X1a; tests/match-chains.test.ts), match-21 keeps them.
+  const classic = (['ST', 'AM', 'CB', 'GK'] as Position[]).flatMap((position) =>
+    Array.from({ length: 60 }, (_, index) => {
+      const setup = onEngine(setupFor(position, `drama:${position}:${index}`, index), 'match-21');
+      return { position, drama: play(createMatchSession(setup, tactics)) };
+    }),
+  );
 
   it('replay exactly', () => {
     const setup = setupFor('ST', 'drama:replay');
@@ -63,7 +71,7 @@ describe('key moments that follow the game', () => {
   it('keep the last moment for the closing minutes when the game is close', () => {
     let close = 0,
       lateWhenClose = 0;
-    for (const { drama } of played) {
+    for (const { drama } of classic) {
       const s = drama.state;
       // Substituted or sent off (match-16): no moments after leaving.
       if (s.substituted || s.sentOff) continue;
@@ -118,7 +126,7 @@ describe('key moments that follow the game', () => {
 
   it('offer set pieces and last-ditch moments with stated odds that come true', () => {
     const seen: Record<string, { n: number; stated: number; actual: number }> = {};
-    for (const { drama } of played)
+    for (const { drama } of classic)
       for (const moment of drama.state.match.keyMoments) {
         if (!DRAMA.includes(moment.situationId)) continue;
         const outcome = drama.state.match.events.find(
@@ -235,7 +243,7 @@ describe('key moments that follow the game', () => {
 
   it('chain a beaten defender into the shot it made, one frame a minute', () => {
     let chains = 0;
-    for (const { drama, position } of played) {
+    for (const { drama, position } of classic) {
       const moments = drama.state.match.keyMoments;
       moments.forEach((moment, index) => {
         if (moment.follows !== 'chain') return;

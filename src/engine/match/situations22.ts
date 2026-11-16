@@ -1,5 +1,6 @@
 import type { Position } from '../../model/domain';
 import { SITUATION_BY_ID, SITUATIONS, choice, type Situation } from './situations';
+import { LEAD_INS } from './chainTable';
 
 /**
  * The 1.0 key-moment catalogue (engine match-22, release 1.0 step 5.2), beside the match-21
@@ -419,9 +420,12 @@ export const COUNTER_22: Readonly<Record<string, number>> = { 'quick-release': 0
 export const ALL_SITUATIONS: readonly Situation[] = [...SITUATIONS, ...SITUATIONS_22];
 export const SITUATION_22_BY_ID: Readonly<Record<string, Situation>> = {
   ...SITUATION_BY_ID,
-  ...Object.fromEntries(SITUATIONS_22.map((situation) => [situation.id, situation])),
+  ...Object.fromEntries(
+    // The decision chains' lead-in steps (X1a) are situations too, never drawn on their own.
+    [...SITUATIONS_22, ...LEAD_INS].map((situation) => [situation.id, situation]),
+  ),
 };
-/** A situation of either catalogue (match-21 sessions only ever name the first). */
+/** A situation of either catalogue, or a chain's lead-in step (match-21 names only the first). */
 export const situationOf = (id: string): Situation | undefined => SITUATION_22_BY_ID[id];
 /** A choice's template in a situation, skill mechanics (UNLOCKS_22) included. */
 export const templateOf = (situationId: string, choiceId: string) =>
