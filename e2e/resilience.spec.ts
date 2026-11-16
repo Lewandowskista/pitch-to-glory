@@ -2,11 +2,11 @@ import type { Page } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { generateWorld } from '../src/engine/world/generate';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { expect, skipTutorial, test } from './support';
+import { expect, matchState, skipTutorial, test } from './support';
 
 /**
- * Release 1.0 steps 4.2, 4.7 and 4.8: a failing page takes only itself down, a failing pitch
- * falls back to the SVG pitch, what went wrong is kept on the device and can be exported, and a
+ * Release 1.0 steps 4.2, 4.7 and 4.8: a failing page takes only itself down, a failing clip
+ * renderer falls back to SVG stills, what went wrong is kept on the device and can be exported, and a
  * save open in another tab can be retried. Failures are forced: through the journeys' hook for a
  * page, by refusing a chunk's download for code loads.
  */
@@ -178,32 +178,41 @@ test('a page whose code cannot download says so, and Reload fetches it again', a
   expectFailures(runtimeErrors, REFUSED_LOAD, CAUGHT);
 });
 
-test('the match carries on over the SVG pitch when the live pitch cannot load', async ({
+test('the match carries on with SVG stills when the clip renderer cannot load', async ({
   page,
   runtimeErrors,
 }) => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
+  // Refused before anything can fetch it: the hub warms the renderer up while it is idle.
+  await page.route(/\/assets\/clipScene-[\w-]+\.js$/, (route) => route.fulfill(UNAVAILABLE));
   await importSave(page);
-  await page.route(/\/assets\/Pitch-[\w-]+\.js$/, (route) => route.fulfill(UNAVAILABLE));
   await page
     .getByRole('navigation')
     .first()
     .getByRole('link', { name: 'Matchday', exact: true })
     .click();
   await page.getByRole('button', { name: 'Prepare match', exact: true }).click();
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'preview');
+  await expect(matchState(page)).toHaveAttribute('data-status', 'preview');
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  await expect(page.getByText('Using the accessible pitch view.', { exact: false })).toBeVisible({
-    timeout: 20000,
-  });
-  const pitch = page.locator('.match-pitch-panel svg').first();
-  await expect(pitch.locator('text')).toHaveCount(22);
-  await expect(page.locator('.match-pitch-panel canvas')).toHaveCount(0);
-  // The match still plays.
-  const pause = page.getByRole('button', { name: 'Pause', exact: true });
-  if (await pause.isVisible()) await pause.click();
-  await page.getByRole('button', { name: 'Next key moment', exact: true }).click();
-  await expect(page.getByTestId('match-state')).toHaveAttribute('data-status', 'decision');
+  // The match still plays: its moments are drawn as stills, and its decisions answered.
+  const state = matchState(page);
+  await expect
+    .poll(
+      async () => {
+        if ((await state.getAttribute('data-beat')) === 'card') return true;
+        await page.keyboard.press('Space');
+        return false;
+      },
+      { timeout: 60000, intervals: [300] },
+    )
+    .toBe(true);
+  await expect(page.locator('.reel-still')).toBeVisible();
+  await expect(page.locator('.reel-stage-canvas canvas')).toHaveCount(0);
+  await expect(page.locator('.reel-card button[data-choice]').first()).toBeFocused();
+  const moment = await state.getAttribute('data-moment');
+  await page.waitForTimeout(320);
+  await page.keyboard.press('1');
+  await expect(state).not.toHaveAttribute('data-moment', moment!);
   expectFailures(runtimeErrors, REFUSED_LOAD, CAUGHT);
 });
 
