@@ -72,6 +72,8 @@ function populate(world: World): World {
   const match = career.matches.at(-1)!;
   match.sentOff = { minute: 70, reason: 'straight-red' };
   match.yellowCards = 1;
+  match.decided ??= 'penalties';
+  career.chainDrought ??= 1;
   career.honours.playInternationals = true;
   // The press: a promise offered, a stance taken and routine press answered in a tone.
   const promise: ManagerPromise = {

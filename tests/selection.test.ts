@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { LEAD_IN_IDS } from '../src/engine/match/chainTable';
 import type { Player, World } from '../src/model/domain';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -310,19 +311,26 @@ describe('interactive matches', () => {
     const own = play(false);
     expect(own.length).toBeGreaterThan(0);
     for (const moment of own) {
-      expect(SITUATION_BY_ID[moment.situationId]!.positions[primary] ?? 0).toBeGreaterThan(0);
+      // A chain's lead-in step (X1a) is never drawn on its own: its finish is.
+      if (!LEAD_IN_IDS.has(moment.situationId))
+        expect(SITUATION_BY_ID[moment.situationId]!.positions[primary] ?? 0).toBeGreaterThan(0);
       expect(moment.penalised).toBe(false);
     }
     const slotted = play(true);
     expect(slotted.length).toBeGreaterThan(0);
     for (const moment of slotted) {
-      expect(SITUATION_BY_ID[moment.situationId]!.positions.CB ?? 0).toBeGreaterThan(0);
+      if (!LEAD_IN_IDS.has(moment.situationId))
+        expect(SITUATION_BY_ID[moment.situationId]!.positions.CB ?? 0).toBeGreaterThan(0);
       expect(moment.penalised).toBe(true);
     }
     // At least one moment a striker would never face in their own position.
-    expect(slotted.some((m) => !(SITUATION_BY_ID[m.situationId]!.positions[primary] ?? 0))).toBe(
-      true,
-    );
+    expect(
+      slotted.some(
+        (m) =>
+          !LEAD_IN_IDS.has(m.situationId) &&
+          !(SITUATION_BY_ID[m.situationId]!.positions[primary] ?? 0),
+      ),
+    ).toBe(true);
   }, 120000);
 
   it('refuses setups and sessions from the engines before formations and slot moments', () => {

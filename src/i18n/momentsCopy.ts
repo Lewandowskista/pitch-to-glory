@@ -224,6 +224,257 @@ const readsEn: Record<string, Record<string, string>> = {
 const copyEn = { framings: framingsEn, reads: readsEn } as const;
 const copy = ({ en: copyEn } satisfies Translations<typeof copyEn>)[LOCALE];
 
+/**
+ * Decision chains (match-22, release 1.0 X1a): the lead-in steps' options and framings, their
+ * reads and the edges they leave, what each option's chance is of, what failing it leads to,
+ * the stakes header and the one-line cause, and the drought director's pre-match line.
+ */
+const chainEn = {
+  choices: {
+    'receive-set': 'Set it',
+    'receive-turn': 'Turn your man',
+    'receive-run': 'Run in behind',
+    'beat-dribble': 'Take him on',
+    'beat-combine': 'Play a one-two',
+    'beat-shield': 'Shield it',
+    'run-near': 'Attack the near post',
+    'run-far': 'Drift to the far post',
+    'run-hold': 'Hold your run',
+    'collect-touch': 'Take a touch',
+    'collect-scan': 'Scan, then play',
+    'collect-first': 'Play it first time',
+    'position-goal-side': 'Get goal-side',
+    'position-press': 'Press him',
+    'position-cover': 'Cover the pass',
+    'engage-step': 'Step in',
+    'engage-delay': 'Hold him up',
+    'engage-show': 'Show him wide',
+    'set-line': 'Set on your line',
+    'set-off': 'Come off your line',
+    'set-near': 'Cover the near post',
+    'angle-narrow': 'Narrow the angle',
+    'angle-big': 'Stay big',
+    'angle-feint': 'Show him the near post',
+    'spot-keeper': 'Read the keeper',
+    'spot-pick': 'Pick your spot',
+    'scan-near': 'Look for the near-post run',
+    'scan-far': 'Trust the routine',
+    'taker-hips': 'Watch his hips',
+    'taker-big': 'Stay big and wait',
+  },
+  framings: {
+    'chain-receive': [
+      'The ball is played into your feet. {defender} is on your back.',
+      'A pass comes in to you. How do you take it?',
+      '{teammate} looks up and finds you between the lines.',
+    ],
+    'chain-beat': [
+      '{defender} stands between you and the goal.',
+      'One man to beat. {defender} squares up.',
+      'You have it under control. {defender} closes in.',
+    ],
+    'chain-run': [
+      'The ball is going into the box. Where is your run?',
+      'A delivery is coming. {defender} is tracking you.',
+      'Space opens in the box. Time your run.',
+    ],
+    'chain-collect': [
+      'The ball comes back to you deep in your half.',
+      'You collect it under pressure. Their press is coming.',
+      'Possession at the back. Pick your moment.',
+    ],
+    'chain-position': [
+      '{attacker} picks up the ball and runs at you.',
+      'They break. {attacker} has the ball and space.',
+      '{attacker} turns towards your goal. Get set.',
+    ],
+    'chain-engage': [
+      '{attacker} is coming at you. Your move.',
+      'You are face to face with {attacker}.',
+      '{attacker} slows, looking for a way past.',
+    ],
+    'chain-set': [
+      'Danger: {attacker} is through and heading your way.',
+      'A shot is coming. Set your feet.',
+      'They are in your box. Where do you stand?',
+    ],
+    'chain-angle': [
+      '{attacker} is bearing down on goal.',
+      'It is you against {attacker}.',
+      '{attacker} looks up. The angle is yours to take.',
+    ],
+    'chain-spot': [
+      'You place the ball. {keeper} waits.',
+      'The set piece is yours. Look at {keeper}.',
+      'A deep breath. {keeper} is on his line.',
+    ],
+    'chain-scan': [
+      'You take the corner. Look at their marking.',
+      'Bodies in the box. Find your target.',
+      'The corner is yours to deliver.',
+    ],
+    'chain-taker': [
+      'Penalty against you. Watch the taker.',
+      'Twelve yards. The taker places the ball.',
+      'It is you and the taker. Read him.',
+    ],
+  } as Record<string, readonly string[]>,
+  reads: {
+    marker: {
+      tight: 'Marker tight on you',
+      loose: 'Marker standing off',
+      square: 'Their line square',
+    },
+    defender: {
+      'goal-side': 'Defender goal-side',
+      square: 'Defender square on',
+      lunging: 'Defender diving in',
+    },
+    'box-marker': {
+      tight: 'Marked tight in the box',
+      watching: 'Marker ball-watching',
+      zonal: 'They mark zonally',
+    },
+    pressure: { crowded: 'Bodies around you' },
+    attacker: {
+      quick: 'A quick attacker',
+      heavy: 'A heavy first touch',
+      passer: 'He is looking to pass',
+    },
+    run: { straight: 'Running straight', cutting: 'Cutting inside', waiting: 'Waiting for help' },
+    threat: {
+      shooter: 'He wants to shoot',
+      runner: 'A runner in behind',
+      wide: 'It comes from wide',
+    },
+    shape: { square: 'Square on to you', onrushing: 'Running through', angled: 'On an angle' },
+    nerve: { still: 'Keeper still', restless: 'Keeper restless' },
+    box: { open: 'Space at the near post', crowded: 'Packed six-yard box' },
+    'run-up': { long: 'A long run-up', stutter: 'A stuttering run-up' },
+    edge: {
+      settled: 'Ball settled',
+      turned: 'Turned your man',
+      'in-behind': 'In behind',
+      'man-beaten': 'Your man beaten',
+      combined: 'One-two played',
+      shielded: 'Ball shielded',
+      'near-run': 'Near-post run',
+      'far-run': 'Far-post run',
+      'held-run': 'Held your run',
+      'first-touch': 'A touch to settle',
+      scanned: 'Saw the picture',
+      'first-time': 'Played first time',
+      'goal-side': 'Goal-side',
+      pressed: 'Pressed him',
+      covered: 'Pass covered',
+      'stepped-in': 'Stepped in',
+      delayed: 'Held him up',
+      'shown-wide': 'Shown wide',
+      'on-line': 'Set on your line',
+      'off-line': 'Off your line',
+      'near-covered': 'Near post covered',
+      narrowed: 'Angle narrowed',
+      'stood-big': 'Stood big',
+      feinted: 'Sold him the near post',
+      'keeper-read': 'Read the keeper',
+      'keeper-misread': 'Keeper not fooled',
+      'spot-picked': 'Spot picked',
+      'spot-doubted': 'Second thoughts',
+      'marking-read': 'Read their marking',
+      'marking-misread': 'They read it',
+      'routine-set': 'Routine on',
+      'routine-read': 'Routine read',
+      'taker-read': 'Read the taker',
+      'taker-misread': 'Taker fooled you',
+      'stayed-big': 'Stayed big',
+      'big-read': 'Taker waited you out',
+    },
+  } as Record<string, Record<string, string>>,
+  outcomes: {
+    goal: 'Goal {chance}%',
+    pass: 'Pass {chance}%',
+    beat: 'Beat him {chance}%',
+    stop: 'Stop {chance}%',
+    save: 'Save {chance}%',
+    control: 'Control {chance}%',
+    turn: 'Turn {chance}%',
+    run: 'Get there {chance}%',
+    combine: 'One-two {chance}%',
+    shield: 'Keep it {chance}%',
+    'goal-side': 'Goal-side {chance}%',
+    press: 'Win it {chance}%',
+    cover: 'Cut it out {chance}%',
+    set: 'Set {chance}%',
+    read: 'Read it {chance}%',
+  },
+  failures: {
+    lost: 'If not: ball lost',
+    counter: 'If not: they break',
+    offside: 'If not: offside',
+    'foul-won': 'If not: a free kick',
+    beaten: 'If not: he is through',
+    foul: 'If not: a foul, maybe a card',
+    misread: 'If not: they are ready',
+    missed: 'If not: it is missed',
+    goal: 'If not: a goal',
+    shot: 'If not: they shoot',
+    card: 'A card is likely',
+  },
+  stakes: {
+    attack: '{minute}′ · {for}–{against} · A chance is on',
+    defence: '{minute}′ · {for}–{against} · They are coming at you',
+    keeper: '{minute}′ · {for}–{against} · Danger in your box',
+    'set-piece': '{minute}′ · {for}–{against} · A set piece',
+    'hero.attack': '{minute}′ · {for}–{against} · Your big chance',
+    'hero.defence': '{minute}′ · {for}–{against} · Only you can stop this',
+    'hero.keeper': '{minute}′ · {for}–{against} · Only you can stop this',
+    'hero.set-piece': '{minute}′ · {for}–{against} · A set piece to decide it',
+    'climax.level': '{minute}′ · {for}–{against} · The winner is on the line',
+    'climax.ahead': '{minute}′ · {for}–{against} · Hold the lead',
+    'climax.behind': '{minute}′ · {for}–{against} · The equaliser is on the line',
+  },
+  causes: {
+    success: '{factor} · {chance}%',
+    failure: '{factor} · {chance}%',
+    'success-odds': 'It came off · {chance}%',
+    'failure-odds': 'Not this time · {chance}%',
+  },
+  drought: 'Coach: they’ll leave you more space today.',
+};
+const chain = ({ en: chainEn } satisfies Translations<typeof chainEn>)[LOCALE];
+/** The decision chains' engine keys (X1a). */
+export const chainCopy: Record<string, string> = {
+  ...Object.fromEntries(
+    Object.entries(chain.choices).map(([id, text]) => [`match.choice.${id}`, text]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(chain.framings).flatMap(([id, lines]) =>
+      lines.map((text, index) => [`match.situation.${id}.${index}`, text]),
+    ),
+  ),
+  ...Object.fromEntries(
+    Object.keys(chain.framings).map((id) => [`match.situation.${id}`, chain.framings[id]![0]!]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(chain.reads).flatMap(([read, states]) =>
+      Object.entries(states).map(([state, text]) => [`match.read.${read}.${state}`, text]),
+    ),
+  ),
+  ...Object.fromEntries(
+    Object.entries(chain.outcomes).map(([id, text]) => [`match.outcome.${id}`, text]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(chain.failures).map(([id, text]) => [`match.chain.failure.${id}`, text]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(chain.stakes).map(([id, text]) => [`match.chain.stakes.${id}`, text]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(chain.causes).map(([id, text]) => [`match.chain.cause.${id}`, text]),
+  ),
+  'match.director.drought': chain.drought,
+};
+
 /** Engine keys: `match.situation.<id>.<variant>` and `match.read.<read>.<state>`. */
 export const momentCopy: Record<string, string> = {
   ...Object.fromEntries(
@@ -238,4 +489,5 @@ export const momentCopy: Record<string, string> = {
       Object.entries(states).map(([state, text]) => [`match.read.${read}.${state}`, text]),
     ),
   ),
+  ...chainCopy,
 };

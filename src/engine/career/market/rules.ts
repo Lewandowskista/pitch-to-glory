@@ -359,8 +359,10 @@ export function careerSelection(world: World, fixture: Fixture): Selection {
     probability = 0;
   }
   const draw = createRng(`${world.seed}:selection:${fixture.id}`).next();
+  // A new career's first fixtures always start (release 1.0 X1a): no debut on the bench.
+  const debut = career.matches.length < CONFIG.career.debutStarts;
   return {
-    selected: registered && !suspended && draw < probability,
+    selected: registered && !suspended && (debut || draw < probability),
     probability,
     registered,
     suspended,

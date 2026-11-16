@@ -1,5 +1,5 @@
 import type { Fixture, Tactics, World } from '../../model/domain';
-import { createMatchSetup, rolePosition, type MatchSetup } from '../match';
+import { createMatchSetup, rolePosition, type MatchSetup } from '../match/core';
 import { rolesForPosition } from '../match/roles';
 import { isKnockoutFixture } from '../world/continental';
 import { suspendedFor } from '../world/discipline';
@@ -56,9 +56,16 @@ export function careerMatchSetup(
         : { bench: currentRole(world) }),
       injury: careerInjury(world),
       trust: managerTrust(world),
+      // The director (match-22, X1a): a debut's early chain, and better situations after a
+      // drought of positive chains.
+      ...(world.career!.matches.length === 0 ? { debut: true } : {}),
+      ...(chainDrought(world) ? { drought: true } : {}),
     },
   );
 }
+/** Whether the career is in a drought of positive chains (X1a): the next match's director. */
+export const chainDrought = (world: World): boolean =>
+  (world.career?.chainDrought ?? 0) >= CONFIG.match.chains.droughtMatches;
 /**
  * The career player's in-match injury factor (match-22): as the career's injury system has it
  * (`injuryFactor` in training.ts: fatigue, injury proneness, Iron Man and a physio), and a

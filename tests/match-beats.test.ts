@@ -208,7 +208,9 @@ describe('match choreography beats', { timeout: 120000 }, () => {
         checked++;
       }
     }
-    expect(checked).toBeGreaterThan(200);
+    // Match-22's decision chains (X1a): four to six a match, one outcome passage each (a lead-in
+    // that comes off opens the next step without one), where key moments had eight to twelve.
+    expect(checked).toBeGreaterThan(100);
   });
 });
 

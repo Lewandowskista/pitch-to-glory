@@ -17,6 +17,149 @@ import { LOCALE, type Translations } from './locale';
  * sets what the pitch draws (motion.ts, `FAILED_SHOTS`): keep a line's outcome when rewording it.
  */
 const commentaryEn: Record<string, readonly string[]> = {
+  // Decision chains (match-22, release 1.0 X1a): lead-in steps, a chain's start and end.
+  'chain-touch.success': [
+    '{player} brings it under control.',
+    '{player} sets the ball nicely.',
+    'A neat touch from {player}.',
+  ],
+  'chain-touch.failure': [
+    '{player} is crowded out.',
+    'A heavy touch from {player}, and it is gone.',
+    '{player} cannot keep hold of it.',
+  ],
+  'chain-turn.success': [
+    '{player} spins away from the defender.',
+    'What a turn from {player}!',
+    '{player} is past his man.',
+  ],
+  'chain-turn.failure': [
+    '{player} is dispossessed.',
+    'The defender nicks it off {player}.',
+    '{player} tries to turn and loses it.',
+  ],
+  'chain-run.success': [
+    '{player} times the run perfectly.',
+    '{player} is in space.',
+    'A clever run from {player}.',
+  ],
+  'chain-run.failure': [
+    '{player} mistimes the run.',
+    'The flag goes up on {player}.',
+    '{player} is picked up.',
+  ],
+  'chain-combine.success': [
+    '{player} plays the one-two and is through.',
+    'A slick exchange from {player}.',
+    'Give and go from {player}.',
+  ],
+  'chain-combine.failure': [
+    'The return pass to {player} is cut out.',
+    'The one-two breaks down.',
+    '{player} cannot get the ball back.',
+  ],
+  'chain-shield.success': [
+    '{player} holds off the challenge.',
+    '{player} shields it well.',
+    'Strong from {player}.',
+  ],
+  'chain-shield.failure': [
+    '{player} is bundled over: free kick.',
+    'Fouled! {player} wins a free kick.',
+    '{player} goes down under the challenge.',
+  ],
+  'chain-collect.success': [
+    '{player} plays out calmly.',
+    '{player} finds the next pass.',
+    'Composure from {player} at the back.',
+  ],
+  'chain-collect.failure': [
+    '{player} is caught on the ball.',
+    'They win it off {player} high up.',
+    '{player} gives it away under pressure.',
+  ],
+  'chain-hold.success': [
+    '{player} stays goal-side.',
+    'Good positioning from {player}.',
+    '{player} reads it.',
+  ],
+  'chain-hold.failure': [
+    '{player} is beaten.',
+    'They get away from {player}.',
+    '{player} is caught out.',
+  ],
+  'chain-press.success': [
+    '{player} closes him down.',
+    'A strong press from {player}.',
+    '{player} forces the error.',
+  ],
+  'chain-press.failure': [
+    '{player} dives in and gives a free kick.',
+    'Too eager from {player}: a foul.',
+    '{player} goes to ground and misses.',
+  ],
+  'chain-keeper.success': [
+    '{player} is set and ready.',
+    '{player} takes up a good position.',
+    '{player} makes himself big.',
+  ],
+  'chain-keeper.failure': [
+    '{player} is caught in no man’s land.',
+    '{player} is wrong-footed.',
+    '{player} is out of position.',
+  ],
+  'chain-read.success': [
+    '{player} reads it.',
+    '{player} has seen something.',
+    '{player} is a step ahead.',
+  ],
+  'chain-read.failure': [
+    'They are ready for {player}.',
+    '{player} guesses wrong.',
+    'No clues for {player}.',
+  ],
+  'chain-start': [
+    '{player} is in the thick of it.',
+    'Here comes {player}.',
+    'All eyes on {player}.',
+  ],
+  'chain-goal': [
+    'And {player} finishes it!',
+    '{player} makes it count.',
+    'A move finished by {player}.',
+  ],
+  'chain-assist': [
+    '{player} sets it up perfectly.',
+    'Made by {player}.',
+    '{player} with the final ball.',
+  ],
+  'chain-chance': [
+    'So close for {player}.',
+    '{player} creates a real chance.',
+    'A big moment for {player}.',
+  ],
+  'chain-stop': [
+    '{player} snuffs out the danger.',
+    'A big stop from {player}.',
+    '{player} deals with it.',
+  ],
+  'chain-won': [
+    '{player} wins something from it.',
+    'Good work from {player}.',
+    '{player} keeps it alive.',
+  ],
+  'chain-lost': ['The moment passes for {player}.', 'Nothing comes of it.', 'It breaks down.'],
+  'chain-conceded': ['And they score from it.', 'Costly for {player}.', 'They punish it.'],
+  'chain-foul': [
+    '{player} stops it with a foul.',
+    'A foul from {player} ends it.',
+    '{player} gives away a free kick.',
+  ],
+  'chain-card': [
+    '{player} goes into the book.',
+    'A card for {player}.',
+    'The referee reaches for his pocket: {player}.',
+  ],
   attempt: [
     '{player} lets fly from a promising position.',
     'A strike from {player} tests the goalkeeper.',

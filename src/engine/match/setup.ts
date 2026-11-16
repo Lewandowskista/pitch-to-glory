@@ -31,6 +31,7 @@ import { formationLineup } from './lineup';
 import { rates, shares, updatePossession } from './rates';
 import { INITIAL_RATING_PARTS } from './report';
 import { ATTACKERS, copy, rolePosition, selectedSide } from './shared';
+import { chainCount, placeHero } from './chainPlan';
 
 /** Thrown before replay when a saved session was produced by a different match engine. */
 export class OutdatedMatchSessionError extends Error {
@@ -67,6 +68,10 @@ export function createMatchSetup(
     injury?: MatchSetup['injury'];
     /** Trust with the manager, 0–100 (match-22). */
     trust?: number;
+    /** A new career's first fixture (X1a): its first chain comes early. */
+    debut?: boolean;
+    /** The drought director (X1a): this match's chains start in better situations. */
+    drought?: boolean;
   } = {},
 ): MatchSetup {
   const home = world.clubs[homeId],
@@ -107,6 +112,8 @@ export function createMatchSetup(
     ...(options.bench ? { bench: { role: options.bench } } : {}),
     ...(options.injury ? { injury: options.injury } : {}),
     ...(options.trust !== undefined ? { trust: Math.round(options.trust) } : {}),
+    ...(options.debut ? { debut: true as const } : {}),
+    ...(options.drought ? { drought: true as const } : {}),
     ...(options.suspended?.some((id) => id !== selectedPlayerId)
       ? { suspended: options.suspended.filter((id) => id !== selectedPlayerId) }
       : {}),
@@ -178,12 +185,15 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       : ATTACKERS.includes(position)
         ? C.involvement.attack
         : C.involvement.other;
-  const count = clamp(
-    C.momentBase + involvement + Math.round((selected.form - 50) / C.formStep) + rng.int(-1, 1),
-    C.minimumMoments,
-    C.maximumMoments,
-  );
-  const minutes: number[] = [];
+  // Match-22 (X1a): four to six decision chains by the position played, one more in a big match.
+  const count = rules22(setup)
+    ? chainCount(position, rng, setup.fixture?.importance ?? 1)
+    : clamp(
+        C.momentBase + involvement + Math.round((selected.form - 50) / C.formStep) + rng.int(-1, 1),
+        C.minimumMoments,
+        C.maximumMoments,
+      );
+  let minutes: number[] = [];
   // The last moment waits on the game: it is placed when the match reaches the deciding
   // minute (see `placeLateMoment`), provisionally just after it.
   for (let i = 0; i < count - 1; i++)
@@ -194,11 +204,18 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       ),
     );
   minutes.push(C.drama.routineLateMinute);
+  // Match-22 (X1a): a debut's first chain comes early; one chain in the hero's window is the
+  // hero beat's.
+  let hero: number | undefined;
+  if (rules22(setup)) {
+    if (setup.debut && minutes[0]! > C.chains.debutBy) minutes[0] = C.chains.debutBy;
+    ({ minutes, hero } = placeHero(minutes));
+  }
   // Match-22: a player on the bench has no moments until they come on (bench.ts).
   if (benched) minutes.length = 0;
   // Objectives have their own stream (match-15, decision 3), so the hub can show them before
-  // matchday.
-  const objectives = objectivesFor(setup.seed, selected, position);
+  // matchday. Match-22 sets one (X1a).
+  const objectives = objectivesFor(setup.seed, selected, position, rules22(setup));
   const consistencyShift = Math.round(
     (rng.next() * 2 - 1) * (1 - selected.hidden.consistency / 100) * C.decision.consistencySpread,
   );
@@ -291,6 +308,10 @@ export function createMatchSession(setup: MatchSetup, tactics: Tactics): MatchSe
       fanReactionKey: 'match.reaction.fans.steady',
       headlineKey: 'match.headline.steady',
       ...(benched ? { bench: {} } : {}),
+      // Decision chains (match-22, X1a): none finished yet, and the director's hero beat.
+      ...(rules22(setup)
+        ? { chains: [], ...(hero !== undefined && !benched ? { director: { hero } } : {}) }
+        : {}),
     },
   };
   updatePossession(session);

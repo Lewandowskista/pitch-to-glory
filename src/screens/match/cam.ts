@@ -1,5 +1,5 @@
 import type { KeyMoment, Point, ReplayFrame } from '../../model/domain';
-import { attacksRightAt, situationOf, templateOf, type MatchSetup } from '../../engine/match';
+import { attacksRightAt, situationOf, templateOf, type MatchSetup } from '../../engine/match/core';
 import { OFF_ANIMATION } from '../../engine/match/parked';
 
 /**

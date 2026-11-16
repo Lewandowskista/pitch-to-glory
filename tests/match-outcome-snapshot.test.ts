@@ -76,17 +76,19 @@ const PREVIOUS_SESSIONS = '3f20bccd556199d645310c63';
  * game plan and the score; more background shots, and every missed shot a result (the woodwork
  * among them), with real shares on target; on top of step 5.5's commentary. Step 5.4: added
  * time, the bench, in-match injuries, keepers' cards, the shootout and the touchline. Step 5.2:
- * reads of the play, new situations, skill mechanics and the shares through the player.
+ * reads of the play, new situations, skill mechanics and the shares through the player. X1a:
+ * decision chains (moments are chain steps), the director, one objective and one interrupt;
+ * then each lead-in's reference reach and the breaks they give away taken from the opposition.
  */
 const EXPECTED: Record<string, { hash: string; goals: number; moments: number }> = {
-  GK: { hash: 'b443f2b4c0f4eee5a8333cdf', goals: 59, moments: 241 },
-  CB: { hash: '042b4c500656819dd6710cb2', goals: 68, moments: 231 },
-  LB: { hash: '77080a03dae11014bbe62c1b', goals: 49, moments: 253 },
-  DM: { hash: '7d1315af1a492ba168568e2e', goals: 57, moments: 221 },
-  CM: { hash: '88c277d28274e6e449c691df', goals: 64, moments: 261 },
-  AM: { hash: 'f615895f9bd966f5c0b80972', goals: 70, moments: 268 },
-  RW: { hash: 'b00774b6f13bd28c2efbdfca', goals: 55, moments: 310 },
-  ST: { hash: '70432694a6e12166a849b578', goals: 79, moments: 309 },
+  GK: { hash: 'bcb712c12c5273b766c1d606', goals: 48, moments: 216 },
+  CB: { hash: '9d9a546e97e59b3b159cd35c', goals: 78, moments: 205 },
+  LB: { hash: 'c507fee76ebd8a52e3e1d6c4', goals: 57, moments: 235 },
+  DM: { hash: '9230ce2b3891d7e0247e6509', goals: 62, moments: 252 },
+  CM: { hash: 'bd32db7c63d21a7ca3fb7656', goals: 67, moments: 229 },
+  AM: { hash: '095a07cadba9957b5f911ee3', goals: 66, moments: 235 },
+  RW: { hash: '347dbcf5e8db8b59a58b3116', goals: 51, moments: 250 },
+  ST: { hash: 'f492737f19d3365b1a291d08', goals: 74, moments: 240 },
 };
 
 const world = generateWorld('match-outcome-snapshot', { format: 'legacy' });

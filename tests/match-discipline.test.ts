@@ -186,9 +186,27 @@ function hothead(seed: string): MatchSetup {
     player.attributes[key] = 20;
   return setup;
 }
-const sentOffMatches = Array.from({ length: 160 }, (_, n) => play(hothead(`hothead-${n}`))).filter(
-  (session) => session.state.sentOff,
-);
+/**
+ * The hothead also goes looking for a card: on match-22 a decision chain (X1a) offers fewer
+ * bookable choices a match than key moments did, and auto-play counts a red's cost.
+ */
+function playRecklessly(setup: MatchSetup): MatchSession {
+  let session = createMatchSession(setup, tactics);
+  while (session.state.match.status !== 'finished') {
+    const moment = session.state.currentMoment;
+    const reckless = moment?.choices.reduce((most, choice) =>
+      (choice.booking?.red ?? 0) > (most.booking?.red ?? 0) ? choice : most,
+    );
+    session = applyMatchCommand(
+      session,
+      reckless?.booking ? { type: 'choose', choiceId: reckless.id } : autoPlayCommand(session),
+    );
+  }
+  return session;
+}
+const sentOffMatches = Array.from({ length: 160 }, (_, n) =>
+  playRecklessly(hothead(`hothead-${n}`)),
+).filter((session) => session.state.sentOff);
 
 /**
  * The index of a minute's snapshot in `state.frames` (after the kick-off frame): minutes played

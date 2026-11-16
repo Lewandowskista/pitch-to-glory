@@ -60,6 +60,7 @@ export function validateCareer(w: Record<string, unknown>): void {
   // The level began at `levelXp`: no earlier than the cheapest curve ever shipped allows,
   // and it has not yet earned the next one.
   number(career.levelXp, cheapestXpForLevel(Number(career.level)), Number(career.xp), true);
+  if (career.chainDrought !== undefined) number(career.chainDrought, 0, 10000, true);
   requireValue(
     career.level === CONFIG.career.maximumLevel ||
       Number(career.xp) - Number(career.levelXp) < xpToNext(Number(career.level)),
@@ -378,6 +379,7 @@ export const CAREER_FIELDS = covers<Career>('career', {
   level: true,
   xp: true,
   levelXp: true,
+  chainDrought: true,
   attributePoints: true,
   skillPoints: true,
   skills: true,

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { applyMatchCommand, createMatchSession } from '../../engine/match';
+import { applyMatchCommand, createMatchSession, loadChains } from '../../engine/match/core';
 import { setupEngine, type MatchSession } from '../../engine/match/types';
 import type { CareerMatchOutcome } from '../../engine/career/matches';
 import type { SlotId, World } from '../../model/domain';
@@ -102,7 +102,14 @@ export function useRestoredReport(world: World | null, slot: SlotId | null, idle
     const key = `${slot}:${world.seed}:${world.date.season}:${world.date.week}:${world.career.matches.length}`;
     if (tried.current === key) return;
     tried.current = key;
-    const restored = restoreReport(platform.readRecord(reportKey(slot)), world);
-    if (restored) useAppStore.getState().setCareerResult(restored);
+    const text = platform.readRecord(reportKey(slot));
+    if (!text) return;
+    // Replaying a match-22 session plays its decision chains, which load with the match.
+    void loadChains()
+      .then(() => {
+        const restored = restoreReport(text, world);
+        if (restored && tried.current === key) useAppStore.getState().setCareerResult(restored);
+      })
+      .catch(() => undefined);
   }, [world, slot, idle]);
 }

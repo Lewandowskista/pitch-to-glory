@@ -44,7 +44,8 @@ import {
 import { ABILITY_WEIGHTS } from '../src/engine/strength';
 import { FORMATION_SLOTS, FORMATIONS } from '../src/engine/selection/formations';
 import { expectedImpact } from '../src/engine/match/decisions';
-import { situationOf } from '../src/engine/match/situations22';
+import { situationOf, templateOf } from '../src/engine/match/situations22';
+import { createRng } from '../src/engine/rng';
 import { autoPlayCommand } from '../src/engine/career/matches';
 import { motionProbe } from '../src/engine/match/motion';
 
@@ -124,6 +125,14 @@ export interface PositionProfile {
    */
   dominance?: Record<string, { n: number; best: Record<string, number> }>;
   /**
+   * Decision chains (engine match-22, release 1.0 X1a): chains a match and their planned
+   * length; how each policy's chains ended (best on the profile's setup, a random choice at
+   * every step, the worst on the specialised setup); the steps with the best policy (lead-ins
+   * and finishes, finishing shots); matches with at least one positive chain; the prizes of
+   * attacking chains; the hero beat and the climax.
+   */
+  chains?: ChainProfile;
+  /**
    * Match statistics of the best-policy matches (1.0 targets): shots and shots on target by
    * both sides, goals and goals in added time, and the home side's possession in each match.
    */
@@ -150,6 +159,25 @@ export interface PositionProfile {
   };
 }
 
+export interface ChainProfile {
+  matches: number;
+  chains: number;
+  threeSteps: number;
+  outcomes: Record<string, number>;
+  positive: { best: number; random: number; worst: number; bestShaped: number };
+  /** Chains played with each policy (the denominators of `positive`). */
+  played: { best: number; random: number; worst: number; bestShaped: number };
+  matchesWithPositive: number;
+  lead: { n: number; success: number };
+  finish: { n: number; success: number };
+  shots: { n: number; goals: number };
+  /** Attacking chains' prizes (expected goals at the start), and how many reached 0.25. */
+  prize: { n: number; sum: number; high: number };
+  /** Matches with 60 minutes or more, and those with a high-value chain (hero beat). */
+  hero: { matches: number; met: number };
+  /** Close games at 75′, and those whose last chain came from 82′ (in added time). */
+  climax: { close: number; late: number; added: number };
+}
 function argument(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
   return index >= 0 ? process.argv[index + 1] : undefined;
@@ -164,6 +192,77 @@ const worstCommand = (session: MatchSession): MatchCommand => {
   }
   return autoPlayCommand(session);
 };
+/** A random choice at every step (the "average" policy of the chain gates). */
+const randomCommand = (session: MatchSession): MatchCommand => {
+  const moment = session.state.currentMoment;
+  if (moment) {
+    const pick = createRng(`${session.setup.seed}:random:${moment.id}`).int(
+      0,
+      moment.choices.length - 1,
+    );
+    return { type: 'choose', choiceId: moment.choices[pick]!.id };
+  }
+  return autoPlayCommand(session);
+};
+/** Positive chains and chains played in a session. */
+const positives = (session: MatchSession): [number, number] => {
+  const chains = session.state.chains ?? [];
+  return [chains.filter((chain) => chain.positive).length, chains.length];
+};
+/** The close game at 75′ and where its last chain came (the climax). */
+function climaxOf(
+  session: MatchSession,
+  own: number,
+): { close: boolean; minute?: number; added: boolean } {
+  const goals = session.state.match.events.filter((e) => e.kind === 'goal' && e.minute < 75);
+  const ownId = own === 0 ? session.setup.home.id : session.setup.away.id;
+  const mine = goals.filter((e) => e.teamId === ownId).length;
+  const close = Math.abs(2 * mine - goals.length) <= 1;
+  const last = (session.state.chains ?? []).at(-1);
+  return { close, ...(last ? { minute: last.minute } : {}), added: Boolean(last?.addedTime) };
+}
+function tallyChains(profile: ChainProfile, session: MatchSession, own: number): void {
+  const s = session.state;
+  const chains = s.chains ?? [];
+  profile.matches++;
+  profile.chains += chains.length;
+  if (chains.some((chain) => chain.positive)) profile.matchesWithPositive++;
+  for (const chain of chains) {
+    if (chain.steps === 3) profile.threeSteps++;
+    profile.outcomes[chain.outcome] = (profile.outcomes[chain.outcome] ?? 0) + 1;
+    for (const result of chain.results) {
+      const finish = result.step === chain.steps - 1;
+      const bucket = finish ? profile.finish : profile.lead;
+      bucket.n++;
+      if (result.success) bucket.success++;
+      if (!finish) continue;
+      const moment = s.match.keyMoments.find(
+        (entry) => entry.chainId === chain.id && entry.step === result.step,
+      );
+      if (moment && templateOf(moment.situationId, result.choiceId)?.direct === 'for') {
+        profile.shots.n++;
+        if (result.success) profile.shots.goals++;
+      }
+    }
+    if (chain.kind === 'attack' && chain.prize !== undefined) {
+      profile.prize.n++;
+      profile.prize.sum += chain.prize;
+      if (chain.prize >= 0.25 - 1e-9) profile.prize.high++;
+    }
+  }
+  // The hero beat: 60 minutes or more on the pitch, and a chain worth 0.25 (its prize: expected
+  // goals in attack, the danger it faces in defence).
+  if (s.selectedPlayerMinutes >= 60) {
+    profile.hero.matches++;
+    if (chains.some((chain) => (chain.prize ?? 0) >= 0.25 - 1e-9)) profile.hero.met++;
+  }
+  const climax = climaxOf(session, own);
+  if (climax.close && !s.substituted && !s.sentOff) {
+    profile.climax.close++;
+    if ((climax.minute ?? 0) >= 82) profile.climax.late++;
+    if (climax.added) profile.climax.added++;
+  }
+}
 function play(session: MatchSession, command: (s: MatchSession) => MatchCommand): MatchSession {
   while (session.state.match.status !== 'finished')
     session = applyMatchCommand(session, command(session));
@@ -277,6 +376,21 @@ export function profilePosition(
   const prevented: number[] = [];
   const swing: number[] = [];
   const dominance: NonNullable<PositionProfile['dominance']> = {};
+  const chainProfile: ChainProfile = {
+    matches: 0,
+    chains: 0,
+    threeSteps: 0,
+    outcomes: {},
+    positive: { best: 0, random: 0, worst: 0, bestShaped: 0 },
+    played: { best: 0, random: 0, worst: 0, bestShaped: 0 },
+    matchesWithPositive: 0,
+    lead: { n: 0, success: 0 },
+    finish: { n: 0, success: 0 },
+    shots: { n: 0, goals: 0 },
+    prize: { n: 0, sum: 0, high: 0 },
+    hero: { matches: 0, met: 0 },
+    climax: { close: 0, late: 0, added: 0 },
+  };
   const statistics: NonNullable<PositionProfile['statistics']> = {
     matches: 0,
     shots: 0,
@@ -378,6 +492,19 @@ export function profilePosition(
     const shaped = specialise(setup, selected);
     const bestShaped = play(createMatchSession(shaped, tactics), autoPlayCommand);
     const worst = play(createMatchSession(shaped, tactics), worstCommand);
+    // Decision chains (X1a): the best policy's chains in full, and how each policy's ended.
+    const random = play(createMatchSession(setup, tactics), randomCommand);
+    tallyChains(chainProfile, best, own);
+    for (const [name, session] of [
+      ['best', best],
+      ['random', random],
+      ['worst', worst],
+      ['bestShaped', bestShaped],
+    ] as const) {
+      const [good, all] = positives(session);
+      chainProfile.positive[name] += good;
+      chainProfile.played[name] += all;
+    }
     const s = best.state;
     const report = s.report!;
     result.goals += s.stats.goals;
@@ -453,11 +580,12 @@ export function profilePosition(
     }
   }
   const round = (value: number, digits = 2) => Math.round(value * 10 ** digits) / 10 ** digits;
-  // Three matches a seed: the best policy, and the best and worst on the specialised profile.
+  // Four matches a seed: the best policy, the best and worst on the specialised profile, and a
+  // random choice at every step (X1a).
   result.cost = {
-    matchMs: round((performance.now() - started) / (3 * matches)),
-    motionMs: round(motionProbe.ms / (3 * matches)),
-    narrationMs: round(motionProbe.narrationMs / (3 * matches)),
+    matchMs: round((performance.now() - started) / (4 * matches)),
+    motionMs: round(motionProbe.ms / (4 * matches)),
+    narrationMs: round(motionProbe.narrationMs / (4 * matches)),
   };
   motionProbe.clock = null;
   result.goals = round(result.goals / matches);
@@ -523,6 +651,7 @@ export function profilePosition(
     ]),
   );
   result.statistics = statistics;
+  result.chains = chainProfile;
   result.scenarios = {
     slot: {
       own: round(mean(odds.own), 4),
@@ -753,7 +882,24 @@ export const TARGET_BANDS = {
   /** The most often one choice may be best in its situation, and the instances to judge it. */
   dominantShare: 0.6,
   dominantMinimum: 30,
-  rating: { mean: [6.5, 6.9], sd: [0.7, 1.0], nineOrMore: 0.03, fiveOrLess: 0.03 },
+  // Release 1.0 X1a (decision chains) tightens the 5.3 band (6.5–6.9, sd 0.7–1.0).
+  rating: { mean: [6.6, 6.9], sd: [0.8, 1.0], nineOrMore: 0.03, fiveOrLess: 0.03 },
+  /**
+   * Decision chains (release 1.0 X1a; docs/EXPERIENCE-REDESIGN-1.0.md 1.1): best minus worst
+   * play a chain and a match (every position); the best option's success at a lead-in step and
+   * a finishing shot's; chains ending positively with a random choice at every step ("on
+   * average"), the best and the worst play; matches with a positive chain; the striker's goals
+   * plus assists a match.
+   */
+  chains: {
+    swingPerChain: 0.12,
+    swingPerMatch: 0.6,
+    lead: [0.6, 0.75],
+    shots: [0.3, 0.5],
+    positive: { average: [0.5, 0.6], best: 0.65, worst: 0.35 },
+    matchesWithPositive: [0.85, 0.9],
+    strikerInvolvement: [0.55, 0.75],
+  },
   onTargetShare: [0.3, 0.4],
   shotsPerTeam: [11, 14],
   /** Home possession: the 10th percentile at most, the 90th at least. */
@@ -825,7 +971,7 @@ export const TARGETS: Target<PositionProfile[]>[] = [
   },
   {
     id: 'ratings',
-    name: 'ratings: per-position mean 6.5–6.9, standard deviation 0.7–1.0, ≤ 3% at 9.0+ and ≤ 3% at 5.0 or less',
+    name: 'ratings: per-position mean 6.6–6.9, standard deviation 0.8–1.0, ≤ 3% at 9.0+ and ≤ 3% at 5.0 or less',
     phase: 5,
     // Met by step 5.3 (engine match-22) on both seeds.
     asserted: true,
@@ -912,6 +1058,107 @@ export const TARGETS: Target<PositionProfile[]>[] = [
   },
 ];
 
+/** A ratio of two counts pooled over a seed's positions. */
+const pooledShare = (list: PositionProfile[], pick: (c: ChainProfile) => [number, number]) => {
+  let a = 0,
+    b = 0;
+  for (const p of list) {
+    if (!p.chains) continue;
+    const [x, y] = pick(p.chains);
+    a += x;
+    b += y;
+  }
+  return b ? a / b : Number.NaN;
+};
+const percent = (value: number) => `${(value * 100).toFixed(0)}%`;
+/**
+ * Decision chains (release 1.0 X1a). Reported: each becomes an asserted gate once a full run on
+ * both seeds meets it (docs/MATCH-BALANCING.md "Decision chains" has the latest figures).
+ */
+export const CHAIN_TARGETS: Target<PositionProfile[]>[] = [
+  {
+    id: 'chain-swing',
+    name: `chains decide: best minus worst ≥ ${TARGET_BANDS.chains.swingPerChain} goals a chain and ≥ ${TARGET_BANDS.chains.swingPerMatch} a match, every position`,
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      const measured = profiles.filter((p) => p.swing && p.chains?.chains);
+      if (!measured.length) return { met: null, value: 'no chain data' };
+      const B = TARGET_BANDS.chains;
+      const per = (p: PositionProfile) => p.swing!.mean / (p.chains!.chains / p.chains!.matches);
+      const off = measured.filter(
+        (p) => per(p) < B.swingPerChain || p.swing!.mean < B.swingPerMatch,
+      );
+      return {
+        met: off.length === 0,
+        value: bySeed(measured)
+          .map(
+            ([seed, list]) =>
+              `${seed}: ${list.map((p) => `${p.position} ${per(p).toFixed(3)}/${p.swing!.mean.toFixed(2)}`).join(', ')}`,
+          )
+          .join(' | '),
+      };
+    },
+  },
+  {
+    id: 'chain-steps',
+    name: `chain steps: the best option at a lead-in succeeds ${TARGET_BANDS.chains.lead.join('–')}, a finishing shot ${TARGET_BANDS.chains.shots.join('–')} (pooled a seed)`,
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      if (!profiles.some((p) => p.chains)) return { met: null, value: 'no chain data' };
+      const B = TARGET_BANDS.chains;
+      let met = true;
+      const parts = bySeed(profiles).map(([seed, list]) => {
+        const lead = pooledShare(list, (c) => [c.lead.success, c.lead.n]);
+        const shots = pooledShare(list, (c) => [c.shots.goals, c.shots.n]);
+        met &&= within(lead, B.lead[0], B.lead[1]) && within(shots, B.shots[0], B.shots[1]);
+        return `${seed}: lead ${percent(lead)}, shots ${percent(shots)}`;
+      });
+      return { met, value: parts.join(' | ') };
+    },
+  },
+  {
+    id: 'chain-positive',
+    name: `chains end positively ${TARGET_BANDS.chains.positive.average.join('–')} with a random choice, ≥ ${TARGET_BANDS.chains.positive.best} with the best, ≤ ${TARGET_BANDS.chains.positive.worst} with the worst; ${TARGET_BANDS.chains.matchesWithPositive.join('–')} of matches have one (pooled a seed)`,
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      if (!profiles.some((p) => p.chains)) return { met: null, value: 'no chain data' };
+      const B = TARGET_BANDS.chains;
+      let met = true;
+      const parts = bySeed(profiles).map(([seed, list]) => {
+        const random = pooledShare(list, (c) => [c.positive.random, c.played.random]);
+        const best = pooledShare(list, (c) => [c.positive.best, c.played.best]);
+        const worst = pooledShare(list, (c) => [c.positive.worst, c.played.worst]);
+        const matches = pooledShare(list, (c) => [c.matchesWithPositive, c.matches]);
+        met &&=
+          within(random, B.positive.average[0], B.positive.average[1]) &&
+          best >= B.positive.best &&
+          worst <= B.positive.worst &&
+          within(matches, B.matchesWithPositive[0], B.matchesWithPositive[1]);
+        return `${seed}: random ${percent(random)}, best ${percent(best)}, worst ${percent(worst)}, matches ${percent(matches)}`;
+      });
+      return { met, value: parts.join(' | ') };
+    },
+  },
+  {
+    id: 'striker-involvement',
+    name: `a striker's goals plus assists ${TARGET_BANDS.chains.strikerInvolvement.join('–')} a match`,
+    phase: 5,
+    asserted: false,
+    evaluate: (profiles) => {
+      const strikers = profiles.filter((p) => p.position === 'ST');
+      if (!strikers.length) return { met: null, value: 'no striker profile' };
+      const [low, high] = TARGET_BANDS.chains.strikerInvolvement;
+      return {
+        met: strikers.every((p) => within(p.goals + p.assists, low, high)),
+        value: strikers.map((p) => `${p.seed}: ${(p.goals + p.assists).toFixed(2)}`).join(' | '),
+      };
+    },
+  },
+];
+
 /** Every seed's profiles are checked on their own (review phase 6: several seeds). */
 function check(): void {
   const all = JSON.parse(readFileSync(OUT, 'utf8')) as PositionProfile[];
@@ -927,7 +1174,7 @@ function check(): void {
     }
   }
   // The 1.0 targets: reported until their phase asserts them.
-  failed += printTargets(evaluateTargets(TARGETS, all, assertAllTargets()));
+  failed += printTargets(evaluateTargets([...TARGETS, ...CHAIN_TARGETS], all, assertAllTargets()));
   if (failed) process.exitCode = 1;
 }
 

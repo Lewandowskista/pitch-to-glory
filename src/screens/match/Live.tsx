@@ -1,7 +1,7 @@
 import { useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import type { MatchEvent } from '../../model/domain';
 import type { MatchSession } from '../../engine/match';
-import { attacksRightAt, fullTime } from '../../engine/match';
+import { attacksRightAt, fullTime } from '../../engine/match/core';
 import { matchText as m, matchFormat } from '../../i18n/match';
 import { celebrationCommentary } from '../../i18n/celebrations';
 import { Icon } from '../../ui/Icon';

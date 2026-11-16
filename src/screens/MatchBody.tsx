@@ -13,13 +13,15 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore, worldBusy } from '../store';
 import {
   applyMatchCommand,
+  chainsReady,
   createMatchSession,
   createMatchSetup,
+  loadChains,
   rules22,
   type MatchCommand,
   type MatchMotion,
   type MatchSession,
-} from '../engine/match';
+} from '../engine/match/core';
 import type { SlotId } from '../model/domain';
 import { errorCode } from '../persistence/errors';
 import { persistence } from '../persistence/lazy';
@@ -37,7 +39,6 @@ import { Page } from '../ui/Page';
 import { Icon } from '../ui/Icon';
 import { FootballIllustration } from '../ui/FootballIllustration';
 import { Preview } from './match/Preview';
-import { DecisionPanel, DecisionReplay } from './match/DecisionPanel';
 import {
   CareerFixture,
   CareerNoMatch,
@@ -92,6 +93,27 @@ import { StakeLine } from './career/stakesUi';
 // The live pitch, behind its own boundary that falls back to the SVG pitch (step 4.2).
 import { SafePitch as Pitch } from './match/SafePitch';
 import { useRestoredReport } from './match/restoreReport';
+/**
+ * Whether the engine can play a command now: the decision chains (match-22) load with the match
+ * (`loadChains`), so a command that arrives before them (a fast kick-off, or a restored match
+ * played on at once) runs `retry` once they are in, or shows the match error if they fail.
+ */
+function playWhenReady(retry: () => void, setError: (error: string) => void): boolean {
+  if (chainsReady()) return true;
+  void loadWithRetry(loadChains).then(retry, () => setError(m.error));
+  return false;
+}
+/**
+ * The decision card and its replay on the tactical camera: fetched with the session, long before
+ * the first key moment, and apart from the screen's first load (the pre-match preview).
+ */
+const loadDecisions = () => import('./match/DecisionPanel');
+const DecisionPanel = lazyPage(() =>
+  loadDecisions().then((module) => ({ default: module.DecisionPanel })),
+);
+const DecisionReplay = lazyPage(() =>
+  loadDecisions().then((module) => ({ default: module.DecisionReplay })),
+);
 /** The GOAL banner: fetched once a match is under way, shown when a goal goes in. */
 const loadGoalBanner = () => import('./match/GoalBanner');
 const GoalBanner = lazyPage(loadGoalBanner);
@@ -185,6 +207,7 @@ export default function MatchBody() {
     void loadReport().catch(() => undefined);
     void loadGoalBanner().catch(() => undefined);
     void loadInterrupts().catch(() => undefined);
+    void loadDecisions().catch(() => undefined);
     // A failed fetch leaves the feed's loading note; the match itself plays on.
     void loadWithRetry(loadLines)
       .then((module) => current && setLines(module))
@@ -193,8 +216,11 @@ export default function MatchBody() {
       current = false;
     };
   }, [hasSession]);
+  // A match-22 session's decision chains, before the first command needs them (playWhenReady).
   useEffect(() => {
-    if (occasions) void loadOccasions().catch(() => undefined);
+    if (!occasions) return;
+    void loadOccasions().catch(() => undefined);
+    void loadWithRetry(loadChains).catch(() => undefined);
   }, [occasions]);
   const active = useAppStore((store) => store.activeSave);
   const settings = useAppStore((store) => store.settings);
@@ -273,6 +299,7 @@ export default function MatchBody() {
   }, [world, active, job, params, setParams, loadAttempt]);
 
   const command = useCallback((input: MatchCommand) => {
+    if (!playWhenReady(() => command(input), setError)) return;
     const current = useAppStore.getState().matchSession;
     if (!current || useAppStore.getState().worldJob) return;
     try {
@@ -297,6 +324,7 @@ export default function MatchBody() {
   }, []);
 
   const nextMoment = useCallback(() => {
+    if (!playWhenReady(() => nextMoment(), setError)) return;
     let current = useAppStore.getState().matchSession;
     if (!current || useAppStore.getState().worldJob || awaiting(current.state)) return;
     setPlaying(false);
@@ -326,6 +354,7 @@ export default function MatchBody() {
    * running the clock minute by minute (review M15); a goal stops the jump for its banner.
    */
   const jump = useCallback(() => {
+    if (!playWhenReady(() => jump(), setError)) return;
     let current = useAppStore.getState().matchSession;
     if (!current || useAppStore.getState().worldJob) return;
     const waiting = (s: MatchSession['state']) => s.match.status !== 'live' || awaiting(s);
@@ -986,14 +1015,16 @@ export default function MatchBody() {
             <div className={`match-live-layout${deciding ? ' is-deciding' : ''}`} ref={layoutRef}>
               <div className="match-live-main">
                 {deciding && (
-                  <DecisionPanel
-                    session={session}
-                    choicesRef={choicesRef}
-                    camera={camera}
-                    compact={!wide}
-                    reducedMotion={reduced}
-                    onChoose={(choiceId) => command({ type: 'choose', choiceId })}
-                  />
+                  <Suspense fallback={null}>
+                    <DecisionPanel
+                      session={session}
+                      choicesRef={choicesRef}
+                      camera={camera}
+                      compact={!wide}
+                      reducedMotion={reduced}
+                      onChoose={(choiceId) => command({ type: 'choose', choiceId })}
+                    />
+                  </Suspense>
                 )}
                 {/* What the match is waiting on comes first. */}
                 {occasions && (
@@ -1035,12 +1066,14 @@ export default function MatchBody() {
                   {state!.sentOff && <SentOffPanel session={session} />}
                 </Suspense>
                 {replaying && outcomeMoment && (
-                  <DecisionReplay
-                    session={session}
-                    moment={outcomeMoment}
-                    compact={!wide}
-                    reducedMotion={reduced}
-                  />
+                  <Suspense fallback={null}>
+                    <DecisionReplay
+                      session={session}
+                      moment={outcomeMoment}
+                      compact={!wide}
+                      reducedMotion={reduced}
+                    />
+                  </Suspense>
                 )}
                 {story && !bannerOnPitch && !simulationOnly && (
                   <Suspense fallback={null}>

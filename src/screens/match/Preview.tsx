@@ -6,7 +6,7 @@ import {
   weatherEffect,
   type MatchSession,
   type Tactics,
-} from '../../engine/match';
+} from '../../engine/match/core';
 import { useId, useMemo, type ReactNode } from 'react';
 import { pitchStateFor, renderPitch, renderWeather } from '../../engine/assets/conditions';
 import { renderAvatar } from '../../engine/assets/avatar';

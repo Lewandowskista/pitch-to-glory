@@ -746,3 +746,92 @@ The rating's par (step 5.3) counts the reads: the reference odds a moment is mea
 | ST       | 0.32 / 0.31 → 0.41 / 0.50                                | 6.77 / 6.69       | 0.50 / 0.47 → 0.49 / 0.45 |
 
 Standard errors 0.06–0.08. No dominant choice: 48 situation-seeds judged, the most dominated free kick _short_ 59%, one-on-one _stay_ 59%, rebound _cut back_ 58%, edge of the area _lay off_ 57% (before: one-on-one _stay_ 96%, penalty save _stay_ 71–100%, free kick _short_ 76–85%, corner _short_ 76–77%, short distribution 78–84%; punch now best in 16–31% of crosses). Every asserted gate holds on both seeds, including the ratings and match-statistics targets of step 5.3 and the choreography's 10 ms (5–7 ms a match on an idle machine). The 10,000-match test (the striker's benchmark, which plays fixed choices, so it pays the reads' lean): 2.58 goals a match (2.65 after step 5.4), home 1.38 / away 1.22, home wins 40.4%, draws 26.6%, close upsets 24.7%, wide upsets 9.6%, all in their bands.
+
+## Decision chains (engine `match-22`, release 1.0 X1a)
+
+[EXPERIENCE-REDESIGN-1.0.md](EXPERIENCE-REDESIGN-1.0.md) 1.1 and 1.7. Every rule is match-22's
+(`rules22`); match-21 replays byte for byte (the snapshot's `PREVIOUS` table and whole-session
+hash are unchanged; `EXPECTED` re-recorded). Code: `match/chains.ts`; catalogue:
+`match/chainTable.ts` and the lead-in reads in `match/readTable.ts`; constants:
+`CONFIG.match.chains`.
+
+**Chains a match.** By the position played (`counts`): ST 4–6 (the middle with 60%), LW, RW, AM
+and CM 5, DM and full-backs 4–5, CB and GK 4; one more in a big match (importance 1.25+) and one
+for demanding the ball at half-time; 2–3 off the bench. Minutes as the key moments' were; a
+debut's first chain by 15′. Planned length: three steps with `threeSteps` 0.35 (set pieces and a
+keeper's build always two; the climax always three): about 40% three-step.
+
+**Steps.** The finish is drawn as a key moment's situation always was. Before it, a read
+(`chain-receive`, `chain-run`, `chain-collect`, `chain-position`, `chain-set`, or a set piece's
+`chain-spot`, `chain-scan`, `chain-taker`) and, in a three-step chain, an action (`chain-beat`,
+`chain-engage`, `chain-angle`). Each lead-in has three options (two for a set piece's read), a
+drawn read that favours one and leans hard against another, and an edge it leaves when it comes
+off (`EDGES`): a named odds factor on the next step by what each option does (`match.read.edge.*`)
+and a `value` that makes the finish's chance bigger (in possession) or its danger smaller
+(defending). A failed lead-in ends the chain with its consequence (`consequences`): a break the
+other way 0.15 xG (0.05 losing it deep), a free kick won 0.035 for, a foul or being beaten the
+finish's danger × 1.3; a set piece's read never ends the chain (failing it leaves the worse
+edge). Finishes keep their 5.2 reads and at most three options (the weakest base choice gives
+way).
+
+**Expected goals.** A chain's budget is a key moment's over the match's chains, with
+`CHAIN_WEIGHTS` for the penalty (4.2), the penalty save (7), the goal line (5) and the
+one-on-one (2.2), defending danger × `danger` 1.3 and at most `maximumBudget` 0.85. An attacking
+or build-up finish is worth the budget ÷ each lead-in's reference reach: its options' base odds
+over its read's states times the edge each leaves (receive 0.64, beat 0.71, run 0.66, collect
+0.73), so a chain played at the reference realises its budget. The opposition's background gives
+up the breaks the player's failed lead-ins are expected to give it (`expectedCounters`: about
+0.1 xG a match for a striker, none for defenders and keepers, whose danger is in the budget).
+Shares
+(`chains.shares`): attack as 5.2's (ST 0.37, LW/RW 0.5, AM 0.36, CM 0.32); defence raised (DM
+0.55, CB 0.72, full-backs 0.63, GK 0.9). A lead-in option's stakes are what the next step is
+worth played well (looked ahead over the reads still to be drawn) and its consequence, so the
+value hint, auto-play and the profile read the chain. The background converts `shots22` 0.088.
+
+**Director.** Hero beat: one planned chain in 46′–60′; if no earlier chain was worth 0.25 (its
+`prize`: expected goals in attack, danger in defence), its finish is drawn from open play at the
+player's end, its budget at least 0.25. Climax: within a goal at 75′ the last chain moves to
+82′–89′ or (30%) the first three added minutes, with three steps. Drought: after
+`droughtMatches` 3 matches without a positive chain (`Career.chainDrought`), the first and hero
+chains start in the hero's situations; the pre-match card says so. Never different odds.
+
+**Outcomes.** A chain ends as a goal, an assist, a chance (a shot, or a teammate's), a stop, a
+set piece or possession won (positive), or lost, conceded, a foul or a card.
+
+**Rating, XP, fame.** 5.3's par and asymmetric credit per step; a lead-in that comes off earns
+its decision credit even when the finish fails, a foul won half (`foulWonCredit`); credit scales
+by √(`rating22.chainSteps` 12 ÷ chains × `meanSteps` 2.45). One objective a match (the
+position's), with targets for chains (`objectives.chains`). Touchline interrupts: one a match
+(`interrupts`); after it, a substitution is accepted and a knock answered for the player.
+
+**Measured** (`npm run profile:match -- --matches 100 --seeds match-profile`, 16 November 2026;
+the full two-seed run is the coordinator's):
+
+| Position | Goals / assists | Rating (sd) | Best − worst: a chain / a match | Positive best / random / worst |
+| -------- | --------------- | ----------- | ------------------------------- | ------------------------------ |
+| GK       | —               | 6.56 (0.87) | 0.164 / 0.65                    | 44 / 34 / 27%                  |
+| CB       | 0.03 / 0.03     | 6.69 (0.93) | 0.068 / 0.27                    | 43 / 28 / 17%                  |
+| LB       | 0.04 / 0.08     | 6.79 (1.01) | 0.097 / 0.42                    | 45 / 32 / 18%                  |
+| DM       | 0.04 / 0.05     | 6.89 (1.02) | 0.123 / 0.54                    | 46 / 30 / 19%                  |
+| CM       | 0.35 / 0.28     | 6.75 (0.79) | 0.175 / 0.87                    | 54 / 40 / 21%                  |
+| AM       | 0.36 / 0.30     | 6.67 (0.79) | 0.178 / 0.86                    | 56 / 42 / 24%                  |
+| RW       | 0.37 / 0.35     | 6.77 (0.89) | 0.108 / 0.54                    | 57 / 40 / 29%                  |
+| ST       | 0.48 / 0.32     | 6.86 (0.86) | 0.150 / 0.74                    | 60 / 44 / 27%                  |
+
+Pooled: lead-in best option 68% (target 60–75%), finishing shots 36% (30–50%), positive chains
+random 37% / best 51% / worst 23% (targets 50–60 / ≥ 65 / ≤ 35), matches with a positive chain
+94% (85–90), goals a match (best policy) 2.81, 11.6 shots a team, 36% on target, the most
+dominant option free kick _short_ 71% (n 31). Chains a match 4.0–5.0. The chain targets are
+reported, not asserted (`CHAIN_TARGETS` in `scripts/match-profile.ts`). The positive-rate bands
+cannot all hold at once: with 4–6 chains at 50–60% each, about 97–99% of matches have a positive
+chain, not 85–90%.
+
+Before chains (same probe, 150 matches a position, both seeds): 8.0–12.0 key moments a match,
+22–63% of them with a visible consequence of their own (a shot, goal or card; keepers highest, defenders lowest).
+
+**Calibration fix (16 November 2026).** With a flat reach of 0.75 (the lead-ins' chance times
+their edge is 0.64–0.73) and the counters on top of the opposition's expected goals, the chains
+moved goals from the player's side to the opposition: the 10,000-match test (a home striker)
+gave home 1.30 / away 1.31, home wins 35.9%, away 36.7%, close upsets 28.4%, wide 11.9%. After
+the reference reach and the counters taken from the background: 2.58 goals a match, home 1.38 /
+away 1.20, home wins 40.6%, draws 27.1%, away 32.3%, close upsets 24.2%, wide upsets 8.7%.

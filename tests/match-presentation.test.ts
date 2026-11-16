@@ -196,7 +196,8 @@ describe('choice value hint (step 5.1, review M14)', () => {
       // 0.115 net: within the costly threshold of the best
       choice('cross', 0.23, { successGoal: 0.5 }),
     ]);
-    expect(worth.get('shot')!.value).toBe('best');
+    // A long shot (below 40%) is never marked best value (X1a): its worth stays in "Why?".
+    expect(worth.get('shot')!.value).toBe('even');
     expect(worth.get('cross')!.value).toBe('even');
     expect(worth.get('pass')!.value).toBe('costly');
     expect(worth.get('pass')!.best).toBeCloseTo(0.12, 6);

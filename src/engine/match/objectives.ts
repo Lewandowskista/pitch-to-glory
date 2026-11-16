@@ -13,8 +13,11 @@ export function matchObjectives(
   selected: Player,
   rng: Rng,
   position: Position = selected.primaryPosition,
+  /** Match-22 (X1a): one objective, the position's, without the rating target. */
+  single = false,
 ): Objective[] {
-  const O = C.objectives;
+  // Match-22's chains (X1a) have their own targets for counted actions.
+  const O = single ? { ...C.objectives, ...C.objectives.chains } : C.objectives;
   const P = C.routinePass;
   const passing = clamp(
     Math.round((P.base + selected.attributes.passing * P.passing) * 100) + O.passingMargin,
@@ -61,10 +64,15 @@ export function matchObjectives(
                     { kind: 'assists', target: 1 },
                   ];
   const drawn = rng.pick(pool);
-  return [
-    { id: 'rating', kind: 'rating', target: O.rating, progress: 0 },
-    { id: drawn.kind, kind: drawn.kind, target: drawn.target, progress: 0 },
-  ];
+  const objective: Objective = {
+    id: drawn.kind,
+    kind: drawn.kind,
+    target: drawn.target,
+    progress: 0,
+  };
+  return single
+    ? [objective]
+    : [{ id: 'rating', kind: 'rating', target: O.rating, progress: 0 }, objective];
 }
 
 /**
@@ -77,6 +85,8 @@ export function objectivesFor(
   seed: string,
   player: Player,
   position: Position = player.primaryPosition,
+  /** The current engine (match-22) sets one objective (X1a); match-21 two. */
+  single = true,
 ): Objective[] {
-  return matchObjectives(player, createRng(`${seed}:objectives:${position}`), position);
+  return matchObjectives(player, createRng(`${seed}:objectives:${position}`), position, single);
 }

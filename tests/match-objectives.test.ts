@@ -56,7 +56,8 @@ describe('objectives preview (match-15)', () => {
       const world = createCareer(base, draft({ position, archetype }), trial.id, 'objectives');
       for (const fixture of upcoming(world)) {
         const preview = previewObjectives(world, fixture)!;
-        expect(preview).toHaveLength(2);
+        // One objective on match-22 (X1a).
+        expect(preview).toHaveLength(1);
         const session = createMatchSession(careerMatchSetup(world, fixture), defaultTactics(world));
         expect(session.state.match.objectives).toEqual(preview);
         // Keyed only by the fixture's seed and the position.

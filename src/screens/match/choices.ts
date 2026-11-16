@@ -55,14 +55,25 @@ export interface ChoiceWorth {
  */
 export function choiceWorth(choices: readonly DecisionChoice[]): Map<string, ChoiceWorth> {
   const { tie, costly } = CONFIG.match.valueHint;
+  const { even } = CONFIG.match.chains.bands;
   const impacts = choices.map((choice) => ({ id: choice.id, ...expectedImpact(choice) }));
   const best = Math.max(...impacts.map((impact) => impact.net));
   const worst = Math.min(...impacts.map((impact) => impact.net));
   return new Map(
     impacts.map(({ id, ...impact }) => {
       const gap = best - impact.net;
+      // A long shot (below the even band, X1a) is never marked best value.
+      const long = (choices.find((choice) => choice.id === id)?.probability ?? 0) < even;
       const value: ChoiceValue =
-        best - worst < tie ? 'even' : gap <= tie ? 'best' : gap >= costly ? 'costly' : 'even';
+        best - worst < tie
+          ? 'even'
+          : gap <= tie
+            ? long
+              ? 'even'
+              : 'best'
+            : gap >= costly
+              ? 'costly'
+              : 'even';
       return [id, { value, ...impact, best }];
     }),
   );

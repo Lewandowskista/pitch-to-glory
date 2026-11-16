@@ -79,8 +79,8 @@ export function shares(
   /** The match-22 catalogue (step 5.2): its situations and weights. */
   v22 = false,
 ): MatchState['shares'] {
-  // Match-22 (step 5.2) has its own table: more of the match passes through the player.
-  const [attack, base] = v22 ? C.moments22.shares[position]! : C.shares[position];
+  // Match-22 has its own table (step 5.2; the decision chains' since X1a).
+  const [attack, base] = v22 ? C.chains.shares[position]! : C.shares[position];
   // Decisive defending (match-20): the back line's moments carry more of the opposition's goals.
   // Screening (match-21) raises a defensive midfielder's further.
   const multiplier = C.defending.screening.share[position] ?? C.defending.share[position] ?? 1;

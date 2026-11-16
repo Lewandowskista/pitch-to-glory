@@ -237,7 +237,9 @@ describe('reads of the play (match-22)', () => {
       (p) =>
         Math.abs(Math.abs(p.point.x - ball.x) - 8.7) < 0.6 && Math.abs(p.point.y - ball.y) < 14,
     );
-    expect(inWall.length).toBeGreaterThanOrEqual(4);
+    // Two more join the scene's two; a chain's free kick (X1a) is set from the step before, so
+    // the last of them may still be on the way.
+    expect(inWall.length).toBeGreaterThanOrEqual(3);
     // The opposition keeper is about ten yards off his line.
     const id = keeper!.moment.cast?.keeper;
     const point = keeper!.moment.frame.players.find((p) => p.id === id)?.point;

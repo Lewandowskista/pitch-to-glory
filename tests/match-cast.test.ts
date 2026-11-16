@@ -102,11 +102,13 @@ describe('key-moment cast (match-15)', () => {
           expect(toCam(target.point, camera.attacksRight).y).toBeLessThan(1);
         }
       }
-      // Every pass-type choice names its receiver.
+      // Every pass that makes a chance for a teammate names its receiver (a decision chain's
+      // lead-in pass, match-22, keeps the ball in the chain: it makes no teammate's chance).
       const situation = SITUATION_BY_ID[moment.situationId]!;
       for (const choice of moment.choices) {
         const template = situation.choices.find((c) => c.id === choice.id)!;
-        if (template.event === 'pass') expect(choice.target?.kind).toBe('teammate');
+        if (template.event === 'pass' && template.scorer === 'teammate')
+          expect(choice.target?.kind, `${moment.situationId} ${choice.id}`).toBe('teammate');
         if (template.direct === 'for') expect(choice.target?.kind).toBe('goal');
       }
     }
@@ -169,8 +171,10 @@ describe('Track the runner (match-15, M5)', () => {
           (m) => (m.choices.find((c) => c.id === 'track-runner') ?? m.choices[0]!).id,
         )) {
           if (moment.situationId !== 'defend-attack') continue;
-          const track = moment.choices.at(-1)!;
-          expect(track.id).toBe('track-runner');
+          // A decision chain's finish (match-22) offers at most three of the situation's
+          // choices, so Track the runner is not always among them.
+          const track = moment.choices.find((c) => c.id === 'track-runner');
+          if (!track) continue;
           offered++;
           expect(track.target).toEqual({ kind: 'runner', playerId: moment.cast!.runner });
           const action = next.state.match.events.find(

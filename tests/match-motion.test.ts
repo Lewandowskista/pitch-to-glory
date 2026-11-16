@@ -34,6 +34,12 @@ const DEFENSIVE = [
   'offside-line',
   'goal-line',
   'penalty-save',
+  // Decision chains' defending lead-in steps (match-22, X1a).
+  'chain-position',
+  'chain-engage',
+  'chain-set',
+  'chain-angle',
+  'chain-taker',
 ];
 /** Sprint limit used by the engine (units per ms) plus rounding slack. */
 const RUN = 0.0085;
@@ -199,7 +205,11 @@ describe('match motion', { timeout: 60000 }, () => {
           ),
           `minute ${next.minute} (${next.kind}) after the goal in minute ${passage.minute}`,
         ).toBe(true);
-        expect(next.session.state.play.restart).not.toBe('goal');
+        // It leaves the celebration behind, unless it scored again (goals in consecutive minutes).
+        const goals = (session: MatchSession) =>
+          session.state.match.events.filter((e) => e.kind === 'goal').length;
+        if (goals(next.session) === goals(passage.session))
+          expect(next.session.state.play.restart).not.toBe('goal');
       }
     expect(restarts).toBeGreaterThan(20);
   });
