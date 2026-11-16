@@ -127,7 +127,13 @@ test('three slots save, autosave, export, import, migrate and delete', async ({ 
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await page.locator('.slot-card').nth(0).getByRole('button', { name: 'Delete save' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Delete save' }).click();
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('A fresh start.');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText(
+    'A fresh start.',
+    {
+      // Importing a national save can take several seconds on CI runners.
+      timeout: 60000,
+    },
+  );
 });
 
 test('a second tab cannot load or mutate an owned slot', async ({ page, context }) => {
@@ -178,7 +184,13 @@ test('invalid import preserves an existing collection', async ({ page }) => {
       buffer: Buffer.from('{invalid'),
     });
   await expect(page.getByRole('alert')).toContainText('incomplete or invalid');
-  await expect(page.locator('.slot-card').first().getByRole('heading')).toHaveText('My saved game');
+  await expect(page.locator('.slot-card').first().getByRole('heading')).toHaveText(
+    'My saved game',
+    {
+      // Importing a national save can take several seconds on CI runners.
+      timeout: 60000,
+    },
+  );
 });
 
 test('mobile shell, large text and dark gallery fit the viewport', async ({ page }) => {

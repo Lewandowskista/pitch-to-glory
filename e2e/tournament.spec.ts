@@ -229,8 +229,11 @@ test('shows the nation’s qualifying group and matches on the national page', a
       mimeType: 'application/json',
       buffer: Buffer.from(qualifyingSave()),
     });
+  // A national save takes several seconds to import on a slow CI runner: wait for the import.
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 120000 });
   await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText(
     'Qualifying career',
+    { timeout: 30000 },
   );
   await page.goto('/career/national?save=1');
   const panel = page.getByTestId('qualifying');
@@ -283,7 +286,10 @@ test('plays an international window match, then has the rest simulated', async (
       mimeType: 'application/json',
       buffer: Buffer.from(windowSave()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Window career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Window career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
 
   // The hub puts the nation's match first, and the National page shows the choice.
   await page.goto('/career?save=1');

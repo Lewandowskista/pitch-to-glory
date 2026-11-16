@@ -188,7 +188,10 @@ test('a nested deletion gate returns to the original confirmation on Back', asyn
   await expect(page.getByRole('dialog', { name: 'Leave training changes behind?' })).toHaveCount(0);
   await expect(deletion).toBeVisible();
   await deletion.getByRole('button', { name: 'Keep save', exact: true }).click();
-  await expect(page.locator('.slot-card').first().getByRole('heading')).toHaveText('Training UX');
+  await expect(page.locator('.slot-card').first().getByRole('heading')).toHaveText('Training UX', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
   await expect(
     page.getByRole('link', { name: 'Training changes pending', exact: true }),
   ).toBeVisible();

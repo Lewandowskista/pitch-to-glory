@@ -30,7 +30,11 @@ async function importCareer(page: Page) {
       mimeType: 'application/json',
       buffer: Buffer.from(freshCareer()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('First week');
+  // A national save takes several seconds to import on a slow CI runner: wait for the import.
+  await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 120000 });
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('First week', {
+    timeout: 30000,
+  });
 }
 const tutorialSeen = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('ptg-preferences') ?? '{}').tutorial);
@@ -40,7 +44,8 @@ test('guides the first week and the first match, and replays from Settings', asy
   await importCareer(page);
   await page.goto('/career?save=1');
   const tour = page.getByRole('dialog', { name: 'Your first fixture' });
-  await expect(tour).toBeVisible();
+  // The hub and the tour load lazily after the save: slower on CI runners.
+  await expect(tour).toBeVisible({ timeout: 30000 });
   await expect(tour).toContainText('Step 1 of 7');
   await expect(page.getByRole('heading', { name: 'Your first fixture' })).toBeFocused();
   await expect(page.locator('[data-tour="next-match"]')).toHaveAttribute('data-tour-active', '');

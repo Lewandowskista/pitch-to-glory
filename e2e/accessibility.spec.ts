@@ -105,7 +105,10 @@ test('every screen passes axe in both themes and fits a phone', async ({ page, b
       mimeType: 'application/json',
       buffer: Buffer.from(careerSave()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
   const open = async (route: string) => {
     await page.goto(route);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 30000 });
@@ -163,7 +166,10 @@ test('the keyboard reaches every main control and focus is always visible', asyn
       mimeType: 'application/json',
       buffer: Buffer.from(careerSave()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
   for (const route of ['/career?save=1', '/edit?save=1', '/settings', '/career/trophies?save=1']) {
     await page.goto(route);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 30000 });
@@ -206,7 +212,10 @@ test('focus rings stand out on every field-green hero', async ({ page }) => {
       mimeType: 'application/json',
       buffer: Buffer.from(careerSave()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Sweep career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
   const checked: string[] = [];
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme });

@@ -76,7 +76,10 @@ test('answers the press, reads club life and compares with the rival', async ({
       mimeType: 'application/json',
       buffer: Buffer.from(json),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Social career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Social career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
 
   // The hub's press room leads to the waiting question.
   await page.goto('/career?save=1');

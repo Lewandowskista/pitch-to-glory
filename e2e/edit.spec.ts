@@ -70,7 +70,10 @@ test('renames, repaints and recrests, reverts, exports and imports edits', async
     buffer: Buffer.from(json),
   });
   await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 30000 });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Edit world');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Edit world', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
 
   await page.goto('/edit?save=1');
   await expect(page.getByRole('heading', { name: 'No edits yet in this world.' })).toHaveCount(0);

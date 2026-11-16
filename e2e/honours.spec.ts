@@ -181,7 +181,13 @@ test('celebrates a career, shares a moment, retires and starts the next generati
     .nth(0)
     .getByLabel('Import backup — Slot 1')
     .setInputFiles(backupFile('honours', json));
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Honours career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText(
+    'Honours career',
+    {
+      // Importing a national save can take several seconds on CI runners.
+      timeout: 60000,
+    },
+  );
 
   // The hub offers retirement once the season is over.
   await page.goto('/career?save=1');

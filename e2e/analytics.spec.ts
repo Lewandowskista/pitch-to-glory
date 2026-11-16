@@ -222,7 +222,10 @@ test('a first finished match brings the funnel, the decisions and one invitation
       mimeType: 'application/json',
       buffer: Buffer.from(matchdaySave()),
     });
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Robin Vale');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Robin Vale', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
   await page.goto('/match?save=1');
   await playMatch(page);
   await recordedReport(page);

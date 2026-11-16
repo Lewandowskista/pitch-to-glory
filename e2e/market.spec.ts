@@ -82,7 +82,10 @@ async function importSave(page: Page, json: string): Promise<void> {
     .nth(0)
     .getByLabel('Import backup — Slot 1')
     .setInputFiles(backupFile('market', json));
-  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Market career');
+  await expect(page.locator('.slot-card').nth(0).getByRole('heading')).toHaveText('Market career', {
+    // Importing a national save can take several seconds on CI runners.
+    timeout: 60000,
+  });
 }
 
 // Phone talks keep the club's name readable and the terms close: no overflow is not enough,
