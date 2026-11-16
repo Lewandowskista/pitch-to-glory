@@ -16,7 +16,7 @@ import type {
 } from '../../model/domain';
 import { CONFIG } from '../config';
 import type { AnyAttribute } from '../ageing';
-import { SITUATION_BY_ID } from '../match/situations';
+import { templateOf } from '../match/situations22';
 import { expectedImpact } from '../match/value';
 import type { MatchSession } from '../match/types';
 import { currentRole } from './market/rules';
@@ -52,11 +52,8 @@ export function matchDecisions(
     seen.add(outcome.input.momentId);
     const moment = match.keyMoments.find((entry) => entry.id === outcome.input.momentId);
     const choice = moment?.choices.find((entry) => entry.id === outcome.input.choiceId);
-    const template = moment
-      ? SITUATION_BY_ID[moment.situationId]?.choices.find(
-          (entry) => entry.id === outcome.input.choiceId,
-        )
-      : undefined;
+    // Either catalogue's (match-22's situations, skill mechanics and chain lead-in steps too).
+    const template = moment ? templateOf(moment.situationId, outcome.input.choiceId) : undefined;
     if (!moment || !choice || !template) continue;
     // What the attributes did to the chosen odds, and what a better choice would have been worth.
     const attributeEffect =
