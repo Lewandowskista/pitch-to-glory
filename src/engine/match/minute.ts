@@ -18,6 +18,7 @@ import { clockKey, fullTime, offPitch, selectedSide } from './shared';
 import { boardAt, periodEnds, showBoard } from './stoppage';
 import { shootoutDue22, startShootout } from './shootout';
 import { captainAfterMinute } from './touchline';
+import { chainRuntime } from './chainRuntime';
 
 export function simulateMinuteGoals(session: MatchSession): void {
   const s = session.state,
@@ -31,7 +32,10 @@ export function simulateMinuteGoals(session: MatchSession): void {
   for (let side = 0; side < 2; side++) {
     // Personal key moments replace part of each side's expected goals while the player is on.
     const replaced = off ? 0 : side === own ? s.shares.attack : s.shares.defence;
-    const rate = clamp((s.expectedGoals[side]! * (1 - replaced)) / length, 0, 0.2);
+    // Match-22's decision chains (X1a): the opposition's background also gives up the breaks
+    // the player's failed lead-ins are expected to give it, so the chains move no goals across.
+    const given = !off && side !== own && s.chains ? chainRuntime().expectedCounters(session) : 0;
+    const rate = clamp((s.expectedGoals[side]! * (1 - replaced) - given) / length, 0, 0.2);
     // Match-22 shoots more and converts less, for the same goals.
     const conversion = backgroundConversion(session);
     if (rng.next() < rate / conversion) {

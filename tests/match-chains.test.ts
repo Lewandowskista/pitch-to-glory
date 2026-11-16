@@ -16,7 +16,7 @@ import {
   type MatchSetup,
 } from '../src/engine/match';
 import { halftimeChoice } from '../src/engine/match/touchline';
-import { outcomeBand } from '../src/engine/match/chains';
+import { expectedCounters, outcomeBand } from '../src/engine/match/chains';
 import { LEAD_IN_IDS } from '../src/engine/match/chainTable';
 import { hasMatchLabel } from '../src/i18n/match';
 import { hasCommentaryLabel } from '../src/i18n/commentary';
@@ -224,5 +224,20 @@ describe('the career side of the chains', () => {
     world.career!.chainDrought = K.droughtMatches;
     expect(chainDrought(world)).toBe(true);
     expect(careerMatchSetup(world, fixture).drought).toBe(true);
+  });
+});
+
+describe('the chains keep the match calibrated', () => {
+  it('has the opposition’s background give up the breaks the chains are expected to give', () => {
+    const counters = (position: Position) =>
+      expectedCounters(createMatchSession(setupFor(position, `counters:${position}`), tactics));
+    // Attackers' lead-ins break the other way when they fail; defenders' and keepers' chains
+    // concede their danger instead, which their budget already carries.
+    for (const position of ['ST', 'CM'] as Position[]) {
+      expect(counters(position), position).toBeGreaterThan(0.03);
+      expect(counters(position), position).toBeLessThan(0.3);
+    }
+    for (const position of ['CB', 'GK'] as Position[])
+      expect(counters(position), position).toBeLessThan(0.05);
   });
 });

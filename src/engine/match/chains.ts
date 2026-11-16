@@ -112,18 +112,71 @@ function finishFailure(template: ChoiceTemplate, choice: DecisionChoice) {
 }
 
 /**
+ * A lead-in step at the reference (decision chains' calibration): over its options and the
+ * states of its read (by their weights), at the options' base odds, the chance of getting
+ * through (`pass`), that chance times the edge it leaves (`reach`, the edge's `value`), and the
+ * expected goals its failure gives away in a chain of `family` (`against`: a break the other
+ * way, or the ball lost deep before a build-up finish). Defending lead-ins' consequences are the
+ * chain's danger, already in its budget (`chains.danger`), so they count none here.
+ */
+interface LeadInReference {
+  pass: number;
+  reach: number;
+  against: number;
+}
+const REFERENCE = new Map<string, LeadInReference>();
+function leadInReference(situationId: string, family: string): LeadInReference {
+  const key = `${situationId}:${family}`;
+  const known = REFERENCE.get(key);
+  if (known) return known;
+  const options = situationOf(situationId)?.choices ?? [];
+  const reads = READS[situationId] ?? [];
+  let pass = 0,
+    reach = 0,
+    against = 0;
+  for (const option of options) {
+    let odds = option.base;
+    for (const read of reads) {
+      const total = read.states.reduce((sum, state) => sum + state.weight, 0);
+      odds *=
+        read.states.reduce((sum, state) => sum + state.weight * (state.odds[option.id] ?? 1), 0) /
+        total;
+    }
+    const edge = edgeOf(option.id, true);
+    const failed = LEAD_IN_OPTIONS[option.id]?.ifFailed;
+    pass += odds;
+    reach += odds * (edge ? (EDGES[edge]?.value ?? 1) : 1);
+    if (failed === 'counter')
+      against +=
+        (1 - odds) * (family === 'build' ? K.consequences.lostDeep : K.consequences.counter);
+  }
+  const n = Math.max(1, options.length);
+  const reference = {
+    pass: round6(pass / n),
+    reach: round6(reach / n),
+    against: round6(against / n),
+  };
+  REFERENCE.set(key, reference);
+  return reference;
+}
+
+/**
  * The finish's budget: an attacking finish is worth the chain's budget ÷ the reference reach of
- * each lead-in before it (`chains.reach`); a defending or keeping finish faces the chain's
- * danger. A lead-in's own budget is never read (its stakes are the chain's).
+ * each lead-in before it (`leadInReference`: its chance times the edge it leaves, so a chain
+ * played at the reference realises its budget, as a key moment does whatever the choice; a
+ * family with a fixed reach in `chains.reach` takes that); a defending or keeping finish faces
+ * the chain's danger. A lead-in's own budget is never read (its stakes are the chain's).
  */
 function finishBudget(
   chain: Pick<ChainState, 'path' | 'budget'>,
   /** The edges along the way (`Edge.value`), multiplied out. */
   value = 1,
 ): { for: number; against: number } {
-  const reach = K.reach[FINISH_FAMILY[chain.path[chain.path.length - 1]!] ?? 'attack'] ?? 1;
+  const family = FINISH_FAMILY[chain.path[chain.path.length - 1]!] ?? 'attack';
+  const fixed = K.reach[family];
   let divisor = 1;
-  for (let step = 0; step < chain.path.length - 1; step++) divisor = round6(divisor * reach);
+  for (let step = 0; step < chain.path.length - 1; step++)
+    divisor = round6(divisor * (fixed ?? leadInReference(chain.path[step]!, family).reach));
   // An edge makes the chance bigger (in possession) or the danger smaller (defending).
   const finish = chain.path[chain.path.length - 1]!;
   const attack = situationOf(finish)?.phase !== 'defence';
@@ -131,6 +184,53 @@ function finishBudget(
     for: round6((chain.budget.for / divisor) * (attack ? value : 1)),
     against: round6(Math.min(0.95, chain.budget.against * (attack ? 1 : value))),
   };
+}
+/**
+ * The breaks the other way a match's chains give away at the reference (expected goals), for
+ * the opposition's background to give up as it gives up the defence share (minute.ts): every
+ * chain the position plays (`momentCount`), by its finish's weight, two or three steps long
+ * (`chains.threeSteps`), each lead-in reached at the reference. Without it a chain's failed
+ * lead-ins added goals for the opposition on top of its expected goals.
+ */
+const COUNTERS = new Map<string, number>();
+export function expectedCounters(next: MatchSession): number {
+  const player = next.setup.players[next.setup.selectedPlayerId]!;
+  const keeper = player.primaryPosition === 'GK';
+  const position = playedSlot(next).position;
+  const role = next.state.match.tactics.role;
+  const key = `${position}:${role}:${keeper}`;
+  let perChain = COUNTERS.get(key);
+  if (perChain === undefined) {
+    const pool = situationWeights(position, role, { drama: true, rules22: true }).filter(
+      (w) => FINISH_FAMILY[w.situation.id] !== undefined,
+    );
+    const along = (path: readonly string[], family: string) => {
+      let reached = 1,
+        given = 0;
+      for (const step of path.slice(0, -1)) {
+        const lead = leadInReference(step, family);
+        given += reached * lead.against;
+        reached *= lead.pass;
+      }
+      return given;
+    };
+    let total = 0,
+      weight = 0;
+    for (const { situation, weight: w } of pool) {
+      const family = FINISH_FAMILY[situation.id]!;
+      const three = allowsThree(situation.id, keeper) ? K.threeSteps : 0;
+      const given =
+        family === 'attack' || family === 'build'
+          ? (1 - three) * along(chainPath(situation.id, 2, keeper), family) +
+            three * along(chainPath(situation.id, 3, keeper), family)
+          : 0;
+      total += w * given;
+      weight += w;
+    }
+    perChain = weight ? round6(total / weight) : 0;
+    COUNTERS.set(key, perChain);
+  }
+  return round6(perChain * momentCount(next));
 }
 /** What a failed lead-in leads to, in expected goals for and against. */
 function consequence(
@@ -814,4 +914,4 @@ function endChain(next: MatchSession, outcome: ChainOutcome): void {
 }
 
 // The engine reaches the chains through the runtime (chainRuntime.ts): they register as they load.
-provideChains({ openChain, answerChainStep });
+provideChains({ openChain, answerChainStep, expectedCounters });

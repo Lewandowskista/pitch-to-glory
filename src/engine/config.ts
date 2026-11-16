@@ -533,15 +533,14 @@ export const CONFIG = {
         GK: [0.06, 0.9],
       } as Record<string, readonly [number, number]>,
       /**
-       * The reference player's chance of getting through a lead-in step, by the chain's family:
-       * an attacking finish is worth the chain's budget ÷ this for each lead-in step before it,
-       * so the chain realises its budget at the reference. Defending and keeping finishes face
-       * the same danger whoever gets there (1); a set piece's read never ends its chain (1).
+       * A fixed reach by the chain's family: defending and keeping finishes face the same danger
+       * whoever gets there (1); a set piece's read never ends its chain (1). An attacking or
+       * build-up finish is worth the chain's budget ÷ each lead-in's reference reach before it
+       * (its chance times the edge it leaves, over its options and read; `match/chains.ts`), so
+       * the chain realises its budget at the reference (a flat 0.75 before the calibration fix:
+       * 0.64–0.73 measured, and the chains lost the player's side about a tenth of a goal).
        */
-      reach: { attack: 0.75, build: 0.75, defence: 1, keeper: 1, 'set-piece': 1 } as Record<
-        string,
-        number
-      >,
+      reach: { defence: 1, keeper: 1, 'set-piece': 1 } as Record<string, number | undefined>,
       /**
        * What a failed lead-in step leads to, in expected goals: a break the other way
        * (`counter`), a set piece won (`foulWon`), the ball lost deep (`lostDeep`); being beaten

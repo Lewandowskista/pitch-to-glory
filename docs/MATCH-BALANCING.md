@@ -777,7 +777,12 @@ way).
 **Expected goals.** A chain's budget is a key moment's over the match's chains, with
 `CHAIN_WEIGHTS` for the penalty (4.2), the penalty save (7), the goal line (5) and the
 one-on-one (2.2), defending danger × `danger` 1.3 and at most `maximumBudget` 0.85. An attacking
-finish is worth the budget ÷ `reach` (attack 0.75, build 0.75) for each lead-in. Shares
+or build-up finish is worth the budget ÷ each lead-in's reference reach: its options' base odds
+over its read's states times the edge each leaves (receive 0.64, beat 0.71, run 0.66, collect
+0.73), so a chain played at the reference realises its budget. The opposition's background gives
+up the breaks the player's failed lead-ins are expected to give it (`expectedCounters`: about
+0.1 xG a match for a striker, none for defenders and keepers, whose danger is in the budget).
+Shares
 (`chains.shares`): attack as 5.2's (ST 0.37, LW/RW 0.5, AM 0.36, CM 0.32); defence raised (DM
 0.55, CB 0.72, full-backs 0.63, GK 0.9). A lead-in option's stakes are what the next step is
 worth played well (looked ahead over the reads still to be drawn) and its consequence, so the
@@ -823,3 +828,10 @@ chain, not 85–90%.
 
 Before chains (same probe, 150 matches a position, both seeds): 8.0–12.0 key moments a match,
 22–63% of them with a visible consequence of their own (a shot, goal or card; keepers highest, defenders lowest).
+
+**Calibration fix (16 November 2026).** With a flat reach of 0.75 (the lead-ins' chance times
+their edge is 0.64–0.73) and the counters on top of the opposition's expected goals, the chains
+moved goals from the player's side to the opposition: the 10,000-match test (a home striker)
+gave home 1.30 / away 1.31, home wins 35.9%, away 36.7%, close upsets 28.4%, wide 11.9%. After
+the reference reach and the counters taken from the background: 2.58 goals a match, home 1.38 /
+away 1.20, home wins 40.6%, draws 27.1%, away 32.3%, close upsets 24.2%, wide upsets 8.7%.

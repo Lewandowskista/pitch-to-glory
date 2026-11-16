@@ -13,6 +13,8 @@ export interface ChainRuntime {
   openChain(next: MatchSession): void;
   /** The current step is answered: the next step opened ('continued'), or the chain ended. */
   answerChainStep(next: MatchSession, choiceId: string): 'continued' | 'ended';
+  /** The breaks the other way the player's chains give away in a match, at the reference. */
+  expectedCounters(next: MatchSession): number;
 }
 
 let runtime: ChainRuntime | undefined;
