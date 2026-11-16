@@ -6,7 +6,7 @@ import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { autoPlayCareerFixture } from '../src/engine/career/matches';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
-import { expect, nationalCareer, skipTutorial, test } from './support';
+import { careerPreMatch, expect, nationalCareer, skipTutorial, test } from './support';
 
 /**
  * Phase 4.2: a real deployment update. The old build (dist) runs a saved career; the new build
@@ -149,9 +149,8 @@ test('an update reaches a saved career, keeps it and works offline', async ({
     await expect(page.getByRole('region', { name: 'Needs you' })).toBeVisible({ timeout: 30000 });
     expect(await week(page)).toBe(before);
     await page.getByRole('link', { name: 'Play matchday' }).click();
-    await expect(
-      page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }),
-    ).toBeVisible({ timeout: 30000 });
+    await careerPreMatch(page);
+    await expect(page.getByRole('button', { name: 'Kick off', exact: true })).toBeVisible();
     await context.setOffline(false);
   } finally {
     await stop(server);

@@ -4,7 +4,7 @@ import { advanceCareerWeek } from '../src/engine/career/season';
 import { pendingCareerFixture } from '../src/engine/career/fixtures';
 import { createSave, DEFAULT_SETTINGS } from '../src/persistence/schema';
 import type { DecisionSample } from '../src/model/domain';
-import { expect, nationalCareer, skipTutorial, test } from './support';
+import { careerPreMatch, expect, nationalCareer, skipTutorial, test } from './support';
 
 /**
  * Phase 5: the manager's formation and the selection reasons on the Club page and in the
@@ -73,10 +73,10 @@ test('the Club page and the briefing explain selection with the formation', asyn
   await expect(card).toContainText('Role promised');
   await expect(card).toContainText(/Chance of starting the next match\s*\d+%/);
   await page.goto('/match?save=1');
-  await page.getByRole('button', { name: 'Go to the pre-match briefing' }).click();
-  await expect(page.getByRole('heading', { name: 'How the manager picked you' })).toBeVisible({
-    timeout: 30000,
-  });
+  // The fixture is prepared on arrival; the selection sits under the pre-match Details.
+  await careerPreMatch(page);
+  await page.locator('.reel-details > summary').click();
+  await expect(page.getByRole('heading', { name: 'How the manager picked you' })).toBeVisible();
   await expect(page.getByText(/You were picked to start: a \d+% chance/)).toBeVisible();
   // Each side's eleven shows its formation and the slot each starter fills.
   await expect(page.locator('.match-lineup-title').first()).toContainText(

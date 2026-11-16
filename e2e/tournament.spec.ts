@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test';
-import { expect, nationalCareer, recordedReport, skipTutorial, test } from './support';
+import {
+  expect,
+  matchState,
+  nationalCareer,
+  playReel,
+  recordedReport,
+  skipTutorial,
+  test,
+} from './support';
 import { generateWorld } from '../src/engine/world/generate';
 import { createCareer, trialOffers } from '../src/engine/career/create';
 import { advanceCareerWeek } from '../src/engine/career/season';
@@ -71,36 +79,11 @@ function tournamentSave(): string {
   return cached;
 }
 
-const state = (page: Page) => page.getByTestId('match-state');
+const state = matchState;
 /** Play the prepared match from kickoff to full time, using skip and number keys. */
 async function playMatch(page: Page) {
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  for (let turns = 0; turns < 160; turns++) {
-    const status = await state(page).getAttribute('data-status');
-    if (status === 'finished') return;
-    if (status === 'decision') {
-      await expect(page.locator('.match-choices button').first()).toBeFocused();
-      await page.keyboard.press('1');
-      await expect(state(page)).not.toHaveAttribute('data-status', 'decision');
-    } else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team|Lift the side/ }).click();
-    else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible())
-      await page.getByRole('button', { name: /Accept the change/ }).click();
-    else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
-      await page.getByRole('button', { name: /Keep the team composed/ }).click();
-    // A knock (match-22): play on.
-    else if (await page.getByRole('button', { name: /^Play on/ }).isVisible())
-      await page.getByRole('button', { name: /^Play on/ }).click();
-    else {
-      const pause = page.getByRole('button', { name: 'Pause', exact: true });
-      if (await pause.isVisible()) await pause.click();
-      await page
-        .getByRole('button', { name: 'Next key moment', exact: true })
-        .click({ timeout: 3000 })
-        .catch(() => {});
-    }
-  }
-  throw new Error('Tournament match did not reach full time');
+  await playReel(page);
 }
 
 test('plays a tournament match for the nation, then the rest before the next season', async ({

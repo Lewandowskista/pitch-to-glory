@@ -294,18 +294,29 @@ const CALLS = [
  * Play the live reel (release 1.0, X1b) to full time: Space skips the ticker and each clip to
  * its outcome, a key answers each decision card once its first choice has focus (after the
  * card's 300 ms guard), and the default answer goes to every touchline call. Returns the
- * decision steps answered.
+ * decision steps answered. `onCard` runs at each card, before it is answered.
  */
-export async function playReel(page: Page, { key = '1', skip = true } = {}): Promise<number> {
+export async function playReel(
+  page: Page,
+  {
+    key = '1',
+    skip = true,
+    onCard,
+  }: { key?: string; skip?: boolean; onCard?: () => Promise<void> } = {},
+): Promise<number> {
   const state = matchState(page);
   let decisions = 0;
   for (let turns = 0; turns < 600; turns++) {
     const status = await state.getAttribute('data-status');
-    if (status === 'finished') return decisions;
+    // A quickly recorded result can clear the session (and so the status) before this sees
+    // full time: the report is there either way.
+    if (status === 'finished' || (await page.getByTestId('final-result').isVisible()))
+      return decisions;
     const beat = await state.getAttribute('data-beat');
     const card = page.locator('.reel-card');
     if (beat === 'card' && (await card.isVisible())) {
       await expect(card.locator('button[data-choice]').first()).toBeFocused();
+      await onCard?.();
       const momentId = await state.getAttribute('data-moment');
       await page.waitForTimeout(320);
       await page.keyboard.press(key);
@@ -334,4 +345,51 @@ export async function importToMatch(page: Page, backup: string | BackupPayload):
     .setInputFiles(backup);
   await expect(page.locator('.notice')).toHaveText('Save imported.', { timeout: 60000 });
   await page.goto('/match?save=1');
+}
+/**
+ * Wait for the pending career fixture's pre-match screen: Matchday prepares a club fixture on
+ * arrival, while a nation's match still waits for "Go to the pre-match briefing".
+ */
+export async function careerPreMatch(page: Page): Promise<void> {
+  const state = matchState(page);
+  const briefing = page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true });
+  await expect
+    .poll(
+      async () =>
+        (await state.getAttribute('data-status')) === 'preview' || (await briefing.isVisible()),
+      { timeout: 120000 },
+    )
+    .toBe(true);
+  // A club fixture's card can show for a moment before it is prepared: never wait on it.
+  if ((await state.getAttribute('data-status')) !== 'preview')
+    await briefing.click({ timeout: 3000 }).catch(() => undefined);
+  await expect(state).toHaveAttribute('data-status', 'preview', { timeout: 30000 });
+}
+/** Kick off the pending career fixture and play it to full time (see `playReel`). */
+export async function playCareerMatch(
+  page: Page,
+  options?: Parameters<typeof playReel>[1],
+): Promise<number> {
+  await careerPreMatch(page);
+  await page.getByRole('button', { name: 'Kick off', exact: true }).click();
+  await expect(matchState(page)).not.toHaveAttribute('data-status', 'preview');
+  return playReel(page, options);
+}
+/**
+ * Hold the reel where it is, as hiding the tab does, so a journey can measure or capture the
+ * live screen; `resumeReel` plays on.
+ */
+export async function holdReel(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(page.getByTestId('reel-paused')).toHaveAttribute('data-paused', 'true');
+}
+export async function resumeReel(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+  });
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.getByTestId('reel-paused')).not.toHaveAttribute('data-paused', 'true');
 }

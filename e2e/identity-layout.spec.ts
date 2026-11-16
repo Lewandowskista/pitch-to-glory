@@ -2,12 +2,16 @@ import type { Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import {
   backupFile,
+  careerPreMatch,
   type BackupPayload,
   expect,
+  holdReel,
   JOURNEY_DRAFT,
   nationalCareer,
   openCareerPage,
+  playReel,
   recordedReport,
+  resumeReel,
   skipTutorial,
   test,
 } from './support';
@@ -31,7 +35,7 @@ import { format } from '../src/i18n';
  * KNOWN_U1 lists the surfaces that split these names today, which Phase 6.8 fixes: their
  * splits are reported (a line per surface in the output, annotations, and a screenshot of each
  * in artifacts/identity-layout/) without failing the run. Every other surface must have none,
- * so the scoreboard (fixed in 0.9.1, U2), the rival hero, the matchday card, the briefing and
+ * so the scoreboard (fixed in 0.9.1, U2), the rival hero, the pre-match screen and
  * the report, which keep these names whole in Chromium, Firefox and WebKit, are guarded now.
  * Phase 6.8 empties KNOWN_U1, which makes this the guard for every identity surface.
  */
@@ -167,38 +171,6 @@ async function checkSurface(
   return shown;
 }
 
-const state = (page: Page) => page.getByTestId('match-state');
-
-/** Play the briefed fixture to full time with skip and number keys (as e2e/career.spec.ts). */
-async function playToFullTime(page: Page) {
-  for (let turns = 0; turns < 150; turns++) {
-    const status = await state(page).getAttribute('data-status');
-    if (status === 'finished') return;
-    if (status === 'decision') {
-      await expect(page.locator('.match-choices button').first()).toBeFocused();
-      await page.keyboard.press('1');
-      await expect(state(page)).not.toHaveAttribute('data-status', 'decision');
-    } else if (status === 'halftime')
-      await page.getByRole('button', { name: /Motivate the team|Lift the side/ }).click();
-    else if (await page.getByRole('button', { name: /Accept the change/ }).isVisible())
-      await page.getByRole('button', { name: /Accept the change/ }).click();
-    else if (await page.getByRole('button', { name: /Keep the team composed/ }).isVisible())
-      await page.getByRole('button', { name: /Keep the team composed/ }).click();
-    // A knock (match-22): play on.
-    else if (await page.getByRole('button', { name: /^Play on/ }).isVisible())
-      await page.getByRole('button', { name: /^Play on/ }).click();
-    else {
-      const pause = page.getByRole('button', { name: 'Pause', exact: true });
-      if (await pause.isVisible()) await pause.click();
-      await page
-        .getByRole('button', { name: 'Next key moment', exact: true })
-        .click({ timeout: 3000 })
-        .catch(() => {});
-    }
-  }
-  throw new Error('The match did not reach full time');
-}
-
 test('long player, club and competition names never break inside a word', async ({
   page,
   browserName,
@@ -234,32 +206,24 @@ test('long player, club and competition names never break inside a word', async 
   await openCareerPage(page, 'Rival');
   await check('rival hero', 'section[aria-labelledby="rival-heading"]');
 
-  // Matchday: the fixture card, the briefing, the live scoreboard and the report.
+  // Matchday: the pre-match screen (the fixture is prepared on arrival), the live scoreboard,
+  // held where it is, and the report.
   await openCareerPage(page, 'Hub');
   await page.getByRole('link', { name: 'Play matchday', exact: true }).click();
-  await expect(page.getByTestId('career-fixture')).toContainText(CLUB, { timeout: 60000 });
-  await check('matchday card', '[data-testid="career-fixture"]');
-  await page.getByRole('button', { name: 'Go to the pre-match briefing', exact: true }).click();
-  await expect(state(page)).toHaveAttribute('data-status', 'preview');
-  await check('pre-match briefing', '.match-briefing');
+  await careerPreMatch(page);
+  await expect(page.getByTestId('pre-match')).toContainText(CLUB);
+  await check('pre-match', '[data-testid="pre-match"]');
   await page.getByRole('button', { name: 'Kick off', exact: true }).click();
-  const pause = page.getByRole('button', { name: 'Pause', exact: true });
   await expect(page.locator('.match-scoreboard')).toBeVisible();
-  if (await pause.isVisible()) await pause.click();
+  await holdReel(page);
   await check('scoreboard', '.match-scoreboard');
-  await playToFullTime(page);
+  await resumeReel(page);
+  await playReel(page);
   await recordedReport(page);
   await check('report', '.match-report');
 
   // Every surface was on screen somewhere: a renamed selector cannot pass by finding nothing.
-  for (const surface of [
-    ...KNOWN_U1,
-    'rival hero',
-    'matchday card',
-    'pre-match briefing',
-    'scoreboard',
-    'report',
-  ])
+  for (const surface of [...KNOWN_U1, 'rival hero', 'pre-match', 'scoreboard', 'report'])
     expect(shown.get(surface) ?? 0, `${surface} shown`).toBeGreaterThan(0);
 
   const known = splits.filter((split) => KNOWN_U1.has(split.surface));
