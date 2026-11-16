@@ -1,5 +1,5 @@
 import type { Fixture, Tactics, World } from '../../model/domain';
-import { createMatchSetup, rolePosition, type MatchSetup } from '../match';
+import { createMatchSetup, rolePosition, type MatchSetup } from '../match/core';
 import { rolesForPosition } from '../match/roles';
 import { isKnockoutFixture } from '../world/continental';
 import { suspendedFor } from '../world/discipline';

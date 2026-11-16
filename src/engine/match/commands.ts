@@ -19,7 +19,7 @@ import { showCards } from './cards';
 import { replacement } from './lineup';
 import { managerSubstitutions } from './substitutions';
 import { momentDue, openMoment, placeLateMoment } from './moments';
-import { answerChainStep, openChain } from './chains';
+import { chainRuntime } from './chainRuntime';
 import { resolveChoice } from './resolve';
 import { resolveShootout, settleShootout } from './extraTime';
 import { tick } from './stoppage';
@@ -156,7 +156,7 @@ export function applyMatchCommand(session: MatchSession, command: MatchCommand):
     if (state.decisionChain) {
       // A decision chain (match-22, X1a): a step that comes off opens the next in this minute;
       // the chain's end plays the rest of the minute as any key moment does.
-      if (answerChainStep(next, command.choiceId) === 'continued') return next;
+      if (chainRuntime().answerChainStep(next, command.choiceId) === 'continued') return next;
     } else resolveChoice(next, command.choiceId);
     const decided = m.events.filter(
       (entry, index) => index >= first && entry.kind !== 'chain-end',
@@ -307,7 +307,7 @@ function advance22(next: MatchSession): void {
   showCards(next);
   playerInjuries(next);
   if (m.minute === C.chains.climax.decide && !state.added) placeLateMoment(next);
-  if (!offPitch(state) && momentDue(next)) openChain(next);
+  if (!offPitch(state) && momentDue(next)) chainRuntime().openChain(next);
   else {
     simulateMinuteGoals(next);
     applyPassage(next, 'minute', minutePassage(next, m.events.slice(first)));

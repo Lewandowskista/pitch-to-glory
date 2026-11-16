@@ -31,7 +31,7 @@ import { formationLineup } from './lineup';
 import { rates, shares, updatePossession } from './rates';
 import { INITIAL_RATING_PARTS } from './report';
 import { ATTACKERS, copy, rolePosition, selectedSide } from './shared';
-import { chainCount, placeHero } from './chains';
+import { chainCount, placeHero } from './chainPlan';
 
 /** Thrown before replay when a saved session was produced by a different match engine. */
 export class OutdatedMatchSessionError extends Error {

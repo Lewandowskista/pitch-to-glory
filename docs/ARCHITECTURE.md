@@ -1690,7 +1690,7 @@ Long careers are checked by `scripts/soak-career.ts`, which plays seeded nationa
 
 ## Interactive match sessions
 
-The pure match engine exposes createMatchSetup, createMatchSession, applyMatchCommand and validateMatchSession. `src/engine/match/index.ts` is only the barrel; the engine is split by concern (release 1.0, Phase 5, review K7):
+The pure match engine exposes createMatchSetup, createMatchSession, applyMatchCommand and validateMatchSession. `src/engine/match/index.ts` is only the barrel; the engine is split by concern (release 1.0, Phase 5, review K7). The barrel is `core.ts` plus the decision chains (`chains.ts`, which register with `chainRuntime.ts` as they load): workers, the career, persistence and tests import it and play whole matches synchronously. The Matchday screen's first-render code imports `core.ts`, fetches the chains with a match-22 session (`loadChains`) and holds a command until they are in (release 1.0 X1a; 3.0 KB gzip off its usable load).
 
 | Module             | Responsibility                                                                                                                                                                                                                                                                    |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
